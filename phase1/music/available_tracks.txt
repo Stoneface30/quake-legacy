@@ -1,0 +1,74 @@
+# QUAKE LEGACY — Available Music Tracks
+# Source: User's playlist (Spotify)
+# Format: Track Title | Artist | Duration | Suggested Part(s)
+# ─────────────────────────────────────────────────────────────────────────────
+# Add your downloaded MP3/OGG/WAV files to this folder as:
+#   part04_music.mp3  (or .ogg / .wav)
+#   part05_music.mp3
+#   ...
+# Pipeline auto-detects by filename. See config.py music_path()
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Your Playlist ─────────────────────────────────────────────────────────────
+ 1. Take 2 (DJ SWISHERMAN Remix)  | Beau Didier, DJ SWISHERMAN  | 5:02 | OPENER — great for Part 4
+ 2. Bucky Don Gun                  | SHFTR                        | 5:46 | Part 4 or Part 7 climax
+ 3. Wakapella                      | DJ SWISHERMAN                | 3:56 | Mid-part filler
+ 4. ULU DOT                        | Sachsentrance, HOTB...       | 3:07 | Short burst, Part 11 or 12
+ 5. That's the Funk Assault        | Funk Assault                 | 4:01 | Good energy build
+ 6. FOTOGENICA                     | Noro$t                       | 3:12 | Mid-tier part
+ 7. Se Cura                        | Klaps (BE)                   | 4:46 | Smooth, good for cinematic
+ 8. Lotta Mercy                    | TEUTON                       | 3:19 | Tight runtime
+ 9. B.A.I.L.A                      | Machromel                    | 3:41 | Punchy groove
+10. SPERENZIEN                     | 240 KM/H, ATI                | 3:57 | Great energy
+11. DUCK [E]                       | BREEZEFORE                   | 2:44 | Short part or interlude
+12. Young Folks                    | Dom Valentino, Alfie T...    | 4:09 | Iconic, save for big Part
+13. Shut Me Down                   | Povoa                        | 3:06 | Mid-length
+14. Ear Candy (One Day no.2)       | Part Time Killer             | 2:25 | Very short — intro only
+15. Eple                           | Badger                       | 2:36 | Short, atmospheric
+16. Micro tribe                    | Floxytek                     | 3:33 | Solid filler
+17. Dial Bounce                    | HANA                         | 3:54 | Smooth outro energy
+18. Moxy Edits 010 (Darius Syrossian) | Moxy Edits              | 5:45 | Long, good for full part
+19. Moxy Edits 015 (Darius Syrossian) | Moxy Edits              | 2:51 | Short burst
+20. Our World                      | KT-KLIZM                     | 6:44 | Very long — finale or Part 12
+21. A Festa                        | Trüby Trio                   | 6:48 | Very long — cinematic Part
+22. Moxy Edits 011 (Darius Syrossian) | Moxy Edits              | 3:39 | Good mid-tier
+23. Shine Love In                  | Jai Piccone, 1tbsp           | 3:09 | Chill energy
+24. Duela                          | Stave                        | 3:10 | Good pace
+25. DRUMKEEPER (feat. SG)          | Hans Glader                  | 3:56 | Strong beat
+26. BADBIE                         | ORBi                         | 3:42 | Aggressive groove
+27. Work It Out                    | NIGHT manoeuvres, C...       | 3:23 | Solid
+28. Jump Up Quickly - Zero Remix   | Mungo's Hi Fi, Zero, So...   | 4:20 | GREAT for fast cuts
+29. Somewhere to Sydney [E]        | Demm Deep, Reckz'C...        | 3:29 | Moody
+30. Where Do You Go                | Daffodils, Mira Lu Kov...    | 4:03 | Build track
+31. Call Me                        | LNRT                         | 2:58 | Short, punchy
+32. Yo soy mal                     | Bovskey                      | 2:10 | Very short — interlude
+33. Nothing                        | HNNY                         | 5:12 | Hypnotic, let frags breathe
+34. Move                           | BVNQUET                      | 2:40 | Short
+35. Morals                         | Africa Express, Mr Juk...    | 3:13 | Mid-length
+36. Lawd Have Mercy                | Mary Droppinz                | 3:53 | Gospel groove
+
+# ── Quake OST (recommended for specific emotional moments) ─────────────────────
+# Quake 1 (Nine Inch Nails) — industrial, dark, perfect for intense sequences
+#   Industrial: "Quake Theme" | NIN | ~3:00 | Dark atmosphere
+#   Aftermath: "Aftermath"   | NIN | ~3:20 | Post-frag tension
+# Quake 2 (Sonic Mayhem) — hard rock/metal, aggressive energy
+#   "descent" | Sonic Mayhem | hard opener
+#   "rage"    | Sonic Mayhem | climax track
+#   "climb"   | Sonic Mayhem | build-up
+# Quake 3 Arena OST — electronic/metal fusion
+#   Multiple tracks available in baseq3/music/ if game is installed
+
+# ── Suggested Part→Track Mapping (initial proposal, user adjusts) ─────────────
+# Part 4:  Bucky Don Gun (5:46) — escalating energy
+# Part 5:  Jump Up Quickly Zero Remix (4:20) — fast cuts
+# Part 6:  Nothing - HNNY (5:12) — cinematic breathe
+# Part 7:  SPERENZIEN (3:57) — aggressive
+# Part 8:  Moxy Edits 010 (5:45) — longer, showcase
+# Part 9:  Take 2 DJ SWISHERMAN (5:02) — groove peak
+# Part 10: B.A.I.L.A (3:41) — punchy mid
+# Part 11: Our World (6:44) — epic wind-up to finale
+# Part 12: A Festa (6:48) — grand finale
+
+# ── To activate a track for a Part ─────────────────────────────────────────────
+# Download the track, rename to part04_music.mp3, place in this folder.
+# Pipeline picks it up automatically via Config.music_path(part).

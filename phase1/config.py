@@ -14,10 +14,21 @@ class Config:
         self.ffmpeg_bin:    Path = ROOT / "tools" / "ffmpeg" / "ffmpeg.exe"
         self.ffprobe_bin:   Path = ROOT / "tools" / "ffmpeg" / "ffprobe.exe"
 
-        # ── Source clips ──────────────────────────────────────
-        self.clips_root:    Path = ROOT / "QUAKE VIDEO" / "T1"
-        self.tier:          str  = "T1"
+        # ── Source clips — three-tier structure ───────────────────
+        # HARD RULE: ALL clips for a Part come from T1+T2+T3 combined.
+        # T1 = top tier (main frags), T2 = second tier, T3 = lower tier.
+        # T3 multi-angle subdirs = priority intro/outro candidates.
+        # T2 multi-angle subdirs = secondary intro/outro candidates.
+        # T1 clips = backbone of every Part.
+        self.clips_root:    Path = ROOT / "QUAKE VIDEO"   # parent of T1/T2/T3
+        self.tier_roots: dict = {
+            1: ROOT / "QUAKE VIDEO" / "T1",
+            2: ROOT / "QUAKE VIDEO" / "T2",
+            3: ROOT / "QUAKE VIDEO" / "T3",
+        }
         self.intro_source:  Path = ROOT / "FRAGMOVIE VIDEOS" / "IntroPart2.mp4"
+        # PANTHEON intro: 25.77s, grey/silver logo → in-game CA Tribute billboard.
+        # Prepended to EVERY Part automatically. Never skip.
 
         # ── Clip lists ────────────────────────────────────────
         self.clip_lists_dir: Path = ROOT / "phase1" / "clip_lists"
@@ -54,8 +65,13 @@ class Config:
         self.preview_dir.mkdir(parents=True, exist_ok=True)
         self.clip_lists_dir.mkdir(parents=True, exist_ok=True)
 
-    def part_dir(self, part: int) -> Path:
-        return self.clips_root / f"Part{part}"
+    def part_dir(self, part: int, tier: int = 1) -> Path:
+        """Return the Part directory for a given tier (1=T1, 2=T2, 3=T3)."""
+        return self.tier_roots[tier] / f"Part{part}"
+
+    def all_tier_part_dirs(self, part: int) -> list:
+        """Return all three tier Part directories that exist."""
+        return [d for d in [self.tier_roots[t] / f"Part{part}" for t in (1, 2, 3)] if d.exists()]
 
     def clip_list_path(self, part: int) -> Path:
         return self.clip_lists_dir / f"part{part:02d}.txt"

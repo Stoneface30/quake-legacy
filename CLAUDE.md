@@ -10,6 +10,7 @@ AI-powered Quake Live fragmovie production system. 3 active phases + Phase 4 (pu
 **GitHub:** https://github.com/Stoneface30/quake-legacy (PUBLIC repo)
 **Local root:** G:\QUAKE_LEGACY
 **User role:** Creative director, quality judge — approves everything before batch runs.
+**Editing brand:** PANTHEON (temple logo, grey/silver style)
 
 ## CRITICAL: Public Repo Rules
 
@@ -22,27 +23,99 @@ AI-powered Quake Live fragmovie production system. 3 active phases + Phase 4 (pu
 
 ```
 G:\QUAKE_LEGACY\
-  QUAKE VIDEO\T1\Part1-12\   ← AVI clips (top tier, Parts 1-3 done)
-  QUAKE VIDEO\T2\Part1-12\   ← AVI clips (tier 2)
-  QUAKE VIDEO\T3\Part1-12\   ← AVI clips (tier 3)
-  WOLF WHISPERER\             ← WolfWhisperer.exe + WolfcamQL + Python scripts
-  FRAGMOVIE VIDEOS\           ← 3 finished tribute videos (reference quality)
-  tools\                      ← all downloaded dependencies
-  phase1\                     ← FFmpeg assembly pipeline
-  phase2\                     ← demo parser + batch renderer
-  phase3\                     ← AI cinematography engine
-  database\                   ← SQLite frag database schema
-  docs\                       ← design specs, research, plans
+  QUAKE VIDEO\T1\Part1-12\         ← Top tier AVI clips (backbone of each Part)
+  QUAKE VIDEO\T2\Part1-12\         ← Second tier AVI clips (fill + intro/outro candidates)
+  QUAKE VIDEO\T3\Part1-12\         ← Lower tier AVI clips (intro/outro priority)
+  WOLF WHISPERER\                  ← WolfWhisperer.exe + WolfcamQL + Python scripts
+  FRAGMOVIE VIDEOS\                ← 3 finished tribute videos + PANTHEON intro
+    IntroPart2.mp4                 ← PANTHEON intro (25.77s) — prepend to ALL parts
+    Clan Arena Tribute 1/2/3.mp4   ← Reference quality finished videos
+  tools\                           ← all downloaded dependencies
+  phase1\                          ← FFmpeg assembly pipeline
+  phase2\                          ← demo parser + batch renderer
+  phase3\                          ← AI cinematography engine
+  database\                        ← SQLite frag database schema
+  docs\                            ← design specs, research, plans
 ```
+
+## HARD RULES — Phase 1 Automation (from user review, never violate)
+
+### Rule P1-A: Three-Tier Clip Combining
+**Every Part must combine ALL THREE tiers: T1/PartX + T2/PartX + T3/PartX.**
+- T1 = top tier (main fragmovie backbone — best frags)
+- T2 = second tier (supporting clips, intro/outro candidates if multi-angle)
+- T3 = lower tier (PRIORITY intro/outro source — multi-angle subdirs)
+- `scan_part_frags(part, cfg)` MUST scan all three tiers
+- A Part assembled from T1 only is WRONG
+
+### Rule P1-B: Intro/Outro Clip Selection
+**Lower tier multi-angle subdirs are the intro/outro clip pool.**
+- T3 multi-angle folders (contain FL clips) → first choice for Part intros/outros
+- T2 multi-angle folders → second choice
+- T1 multi-angle folders → use only if T2/T3 exhausted
+- Context: lower-tier frags look good as cinematic intros because they're less intense
+  and the FL angles give more visual variety for establishing shots
+
+### Rule P1-C: PANTHEON Intro — ALWAYS Prepend
+**Every Part gets IntroPart2.mp4 prepended. Never skip.**
+- Path: `G:\QUAKE_LEGACY\FRAGMOVIE VIDEOS\IntroPart2.mp4`
+- Duration: 25.77s, 1920x1080, 30fps H264
+- Style: PANTHEON temple logo (grey bg) → in-game CA Tribute billboard scene
+- Future: generate alternate PANTHEON intro versions in same style (Phase 4)
+
+### Rule P1-D: Preserve Clip Names in Previews
+**Preview filenames must show the original clip name** (via burn-in text or filename log).
+- User reviews previews and references clips by name/timestamp to give edit feedback
+- Format: burn clip filename in bottom-left corner at 18pt for preview renders only
+- Full renders do NOT show clip names
+
+### Rule P1-E: Phase 1 Effects Scope
+**What can be done in Phase 1 with existing AVIs (do it now):**
+- Slow-motion (setpts + atempo)
+- Speed-up / fast-forward
+- Zoom (crop + scale)
+- Basic tracking (scale + translate for center-of-action)
+- Camera angle cuts (FP → FL, using existing FL AVIs)
+- Transitions (xfade, fade to black, hard cut)
+
+**What requires Phase 2/3/4 (do NOT try in Phase 1):**
+- Rocket follow / bullet cam (needs WolfcamQL re-render)
+- New camera angles not in existing AVIs
+- Demo re-recording from different positions
+- Any WolfcamQL command-driven capture
+
+### Rule P1-F: Music Catalog
+All available music tracks listed in: `phase1/music/available_tracks.txt`
+- Place downloaded tracks as `part04_music.mp3` etc. in `phase1/music/`
+- Pipeline auto-detects by filename
+- Quake 1 (NIN), Quake 2 (Sonic Mayhem), Quake 3 OST are valid choices
+
+## HARD RULES — Phase 3 (from user review)
+
+### Rule P3-A: Own Highlight Criteria Before Demo Extraction
+**Before running the AI scoring model, the user defines the highlight ruleset.**
+- Do NOT auto-extract frags and call them "highlights"
+- First session: user + Claude review sample frag types together
+- Together define: which airshots qualify (minimum air time? weapon?), which multi-kills count
+- Only after user-approved criteria does Phase 2 parse all 2,277 demos
+- This is Gate P3-0 (before any demo extraction)
+
+### Rule P3-B: WolfcamQL + WolfWhisperer Command Inventory
+**ALL console commands and cvars must be inventoried before Phase 2/3 automation.**
+- Source: `tools/quake-source/wolfcamql-local-src/code/cgame/wolfcam_consolecmds.c`
+- Also: `tools/quake-source/wolfcamql-src/code/cgame/wolfcam_consolecmds.c`
+- WolfWhisperer.exe: reverse engineer with Ghidra to find IPC commands
+- Document in: `docs/reference/wolfcam-commands.md`
+- This is required before writing any WolfcamQL automation in Phase 2
 
 ## Phase Status
 
 | Phase | Status | Current Task |
 |---|---|---|
-| Phase 1 | 🚧 In Progress | Tool setup → clip assembly → Parts 4-12 |
-| Phase 2 | 📋 Planned | Demo parsing → frag DB → WolfcamQL batch |
-| Phase 3 | 🔬 Research | Pattern recognition, AI cameras, graphify |
-| Phase 4 | 🌐 Vision | Public CLI tool for anyone with demos |
+| Phase 1 | In Progress | Experiment renders → user review → lock style → all 9 Parts |
+| Phase 2 | Planned | Await P3-A highlight criteria session + P3-B command inventory |
+| Phase 3 | Research | Phase3 AI research complete. Await highlight criteria session |
+| Phase 4 | Vision | Public CLI tool for anyone with demos |
 
 ## Key Technical Facts (memorize these)
 
@@ -75,21 +148,23 @@ All phases write learnings to: `G:\QUAKE_LEGACY\database\knowledge.db`
 
 ## Human Review Gates (NEVER skip these)
 
-1. **Gate P1-1:** Review clip lists before rendering (edit phase1/clip_lists/partXX.txt)
-2. **Gate P1-2:** Watch 30s preview before full render
-3. **Gate P1-3:** Watch full Part render before moving to next
-4. **Gate P2-1:** Review parser output on 10 sample demos before full parse
-5. **Gate P2-2:** Rate frags in dashboard before batch WolfcamQL render
-6. **Gate P2-3:** Review 10 rendered clips before full batch
-7. **Gate P3-1:** Review AI-selected frags vs human-selected — measure agreement rate
+1. **Gate P3-0:** Define highlight criteria WITH user before ANY demo extraction
+2. **Gate P1-1:** Review clip lists before rendering (edit phase1/clip_lists/partXX.txt)
+3. **Gate P1-2:** Watch 30s preview before full render
+4. **Gate P1-3:** Watch full Part render before moving to next
+5. **Gate P2-1:** Review parser output on 10 sample demos before full parse
+6. **Gate P2-2:** Rate frags in dashboard before batch WolfcamQL render
+7. **Gate P2-3:** Review 10 rendered clips before full batch
+8. **Gate P3-1:** Review AI-selected frags vs human-selected — measure agreement rate
 
 ## When Starting a Session
 
 1. Read `docs/specs/2026-04-16-quake-legacy-design.md` for full architecture
 2. Check `database/knowledge.db` for cross-phase learnings (if exists)
 3. Check current phase plan in `docs/superpowers/plans/`
-4. Never run batch operations without human confirming at review gate
-5. Never commit personal data
+4. Review `phase1/music/available_tracks.txt` for music status
+5. Never run batch operations without human confirming at review gate
+6. Never commit personal data
 
 ## Phase 4 Vision
 
