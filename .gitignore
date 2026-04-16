@@ -1,0 +1,56 @@
+# Large video files - do not commit
+*.avi
+*.mp4
+*.mov
+*.mkv
+
+# Demo files - do not commit (too large, personal data)
+*.dm_73
+*.dm_68
+*.dm_90
+*.dm_91
+
+# Database with personal gameplay data
+database/frags.db
+database/*.db
+
+# Archives
+*.zip
+*.7z
+*.rar
+*.tar.gz
+
+# Wolfcam generated files
+wolfcam-ql/videos/
+wolfcam-ql/screenshots/
+wolfcam-ql/demos/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+*.egg-info/
+
+# Output directories
+output/
+renders/
+temp/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Ghidra projects (large)
+tools/ghidra/projects/
+
+# Personal config with paths
+options_local.ini
+local_config.py
