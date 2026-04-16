@@ -1,36 +1,71 @@
-# Part 4 clip list -- EDIT THIS FILE to reorder clips
-# One filename per line. Lines starting with # are ignored.
-# Generated from: G:\QUAKE_LEGACY\QUAKE VIDEO\T1\Part4
-# 31 clips total
+# Part 4 clip list — EDIT THIS FILE to set your clip order
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# FORMAT:
+#   filename.avi                         → single clip (first-person)
+#   fp.avi > FL1.avi                     → cut from FP to freelook
+#   filename.avi [slow]                  → slow-motion on this clip
+#   fp.avi > FL1.avi [slow]              → slow-mo on the freelook angle
+#   filename.avi [intro]                 → hard cut in (no xfade from prior clip)
+#   fp.avi [intro] > FL1.avi             → intro hard cut, then cut to freelook
+#
+# MULTI-ANGLE FRAGS AVAILABLE IN PART 4:
+#   Demo (104):  FP = "Demo (104) - 8.avi"          FL1 = "Demo (104FL1).avi"
+#   Demo (152):  FP = "Demo (152)  - 84.avi"         FL1 = "Demo (152FL1).avi"
+#   Demo (209):  FP = "Demo (209)  -  183.avi"       FL1 = "Demo (209FL1).avi"   FL2 = "Demo (209FL2).avi"
+#   Demo (288):  FP = "Demo (288)  -  318.avi"       FL1 = "Demo (288FL1).avi"
+#   Demo (37):   FP = "Demo (37)  -  446.avi"        FL1 = "Demo (37FL1).avi"
+#   Demo (383):  FP = "Demo (383)  -  469.avi"       FL1 = "Demo (383FL1).avi"
+#   Demo (490):  FP = "Demo (490)  - 596.avi"        FL1 = "Demo (490FL1).avi"   [HAS INTRO]
+#   Demo (560):  FP = "Demo (560)  - 699.avi"        FL1 = "Demo (560FL1).avi"   FL2 = "Demo (560FL2).avi"  [HAS INTRO]
+#   Demo (625):  FP = "Demo (625)  -  780.avi"       FL1 = "Demo (625FL1).avi"
+#   Demo (670):  FP = "Demo (670)  - 848.avi"        FL1 = "Demo (670FL1).avi"   FL2 = "Demo (670FL2).avi"
+#   Demo (788):  FP = "Demo (788)  -  978.avi"       FL1 = "Demo (788FL1).avi"
+#   Demo (875):  FP = "Demo (875)  -  1112.avi"      FL1 = "Demo (875FL1).avi"
+#
+# SINGLE-ANGLE FRAGS (FP only):
+#   Demo (112)  - 21.avi
+#   Demo (151)  - 80.avi
+#   Demo (176)  -  125.avi
+#   Demo (22)  -  195.avi
+#   Demo (226)  -  206.avi
+#   Demo (244)  -  232.avi
+#   Demo (266)  -  277.avi
+#   Demo (296)  -  330.avi
+#   Demo (320)  -  358.avi
+#   Demo (361)  -  433.avi
+#   Demo (387)  -  474.avi
+#   Demo (402) - 501.avi
+#   Demo (428)  - 533.avi
+#   Demo (46)  - 565.avi
+#   Demo (481)  - 585.avi
+#   Demo (520)  -  638.avi
+#   Demo (562)  - 703.avi
+#   Demo (596)  - 744.avi
+#   Demo (634)  -  793.avi
+#   Demo (66)  - 824.avi
+#   Demo (661)  - 828.avi
+#   Demo (684)  - 867.avi
+#   Demo (722)-002.avi
+#   Demo (775)  -  961.avi
+#   Demo (810)  -  1008.avi
+#   Demo (840)  -  1052.avi
+#   Demo (858)  -  1082.avi
+#   Demo (893)  -  1137.avi
+#   Demo (91)  -  1167.avi
+#   Demo (913)  -  1172.avi
+#   Demo (937)  -  1209.avi
+#
+# ─────────────────────────────────────────────────────────────────────────────
+# INSTRUCTIONS:
+#   1. Move lines from the comment block above into the SEQUENCE section below
+#   2. For multi-angle frags, use the > syntax to chain angles
+#   3. Add [slow] to the frags that deserve slow-motion
+#   4. Add [intro] to frags that have a cinematic intro clip
+#   5. Save file and tell Claude "ready" — preview renders automatically
+# ─────────────────────────────────────────────────────────────────────────────
 
-Demo (112)  - 21.avi
-Demo (151)  - 80.avi
-Demo (176)  -  125.avi
-Demo (22)  -  195.avi
-Demo (226)  -  206.avi
-Demo (244)  -  232.avi
-Demo (266)  -  277.avi
-Demo (296)  -  330.avi
-Demo (320)  -  358.avi
-Demo (361)  -  433.avi
-Demo (387)  -  474.avi
-Demo (402) - 501.avi
-Demo (428)  - 533.avi
-Demo (46)  - 565.avi
-Demo (481)  - 585.avi
-Demo (520)  -  638.avi
-Demo (562)  - 703.avi
-Demo (596)  - 744.avi
-Demo (634)  -  793.avi
-Demo (66)  - 824.avi
-Demo (661)  - 828.avi
-Demo (684)  - 867.avi
-Demo (722)-002.avi
-Demo (775)  -  961.avi
-Demo (810)  -  1008.avi
-Demo (840)  -  1052.avi
-Demo (858)  -  1082.avi
-Demo (893)  -  1137.avi
-Demo (91)  -  1167.avi
-Demo (913)  -  1172.avi
-Demo (937)  -  1209.avi
+# ══════════════════════════════════════════════════════
+# SEQUENCE — put your clip order here:
+# ══════════════════════════════════════════════════════
+
