@@ -1,6 +1,10 @@
 """
 FFmpeg assembly pipeline: concat + xfade + color grade + bloom + music.
 All in a single -filter_complex. No shell=True anywhere.
+
+Audio rule: game audio is ALWAYS preserved under music.
+In-game sounds (grenade hits, rocket impacts, rail cracks) are the texture of the film.
+Music at full volume, game audio at cfg.game_audio_volume (default 0.30).
 """
 from dataclasses import dataclass
 from pathlib import Path
@@ -46,6 +50,7 @@ def build_filter_complex(
     preset: GradePreset,
     cfg: Config,
     music_input_index: Optional[int] = None,
+    game_audio_volume: Optional[float] = None,
 ) -> str:
     """
     Build ONE unified filter_complex string for N clips + optional music.
@@ -56,10 +61,14 @@ def build_filter_complex(
       3. Bloom (gblur + screen blend)
       4. Sharpen (unsharp)
       5. Fade in / fade out
-      6. Music fade (if music_input_index provided)
+      6. Audio: game audio (vol=game_audio_volume) + music mixed → [aout]
 
-    Outputs: [vout] always. [aout] if no music, [music_out] if music present.
+    Outputs: [vout] and [aout] always.
+    When music present: [aout] = amix(game_audio_lowered, music_faded).
+    When no music: [aout] = game_audio_faded only.
     """
+    if game_audio_volume is None:
+        game_audio_volume = cfg.game_audio_volume
     n = len(clips)
     assert n == len(durations)
     parts = []
@@ -67,32 +76,23 @@ def build_filter_complex(
     xfade_dur = cfg.xfade_duration
 
     if n == 1:
-        # C2 fix: skip concat entirely for single-clip input
+        # Single-clip: no concat needed
         v_chain = "[0:v]"
         a_chain = "[0:a]"
     else:
-        # Build xfade chain: [0:v][1:v]xfade... then [prev][2:v]xfade...
-        # offset = sum of clip durations up to this transition, minus accumulated xfade overlaps
-        offset = durations[0] - xfade_dur
+        # Hard-cut concat — fragmovie rule: chain quality > visible transitions.
+        # xfade created visible glitches at fast cuts. concat gives clean hard cuts.
+        # xfade is reserved only for PANTHEON intro prepend (handled in prepend_intro).
+        inputs_v = "".join(f"[{i}:v]" for i in range(n))
+        inputs_a = "".join(f"[{i}:a]" for i in range(n))
         parts.append(
-            f"[0:v][1:v]xfade=transition=fade:duration={xfade_dur}:offset={offset:.4f}[xv1]"
+            f"{inputs_v}concat=n={n}:v=1:a=0[concat_v]"
         )
         parts.append(
-            f"[0:a][1:a]acrossfade=d={xfade_dur}[xa1]"
+            f"{inputs_a}concat=n={n}:v=0:a=1[concat_a]"
         )
-        for i in range(2, n):
-            offset += durations[i - 1] - xfade_dur
-            prev_v = f"[xv{i - 1}]"
-            prev_a = f"[xa{i - 1}]"
-            parts.append(
-                f"{prev_v}[{i}:v]xfade=transition=fade:duration={xfade_dur}"
-                f":offset={offset:.4f}[xv{i}]"
-            )
-            parts.append(
-                f"{prev_a}[{i}:a]acrossfade=d={xfade_dur}[xa{i}]"
-            )
-        v_chain = f"[xv{n - 1}]"
-        a_chain = f"[xa{n - 1}]"
+        v_chain = "[concat_v]"
+        a_chain = "[concat_a]"
 
     # Color grade
     eq = (
@@ -128,11 +128,22 @@ def build_filter_complex(
     )
 
     if music_input_index is not None:
-        # C1 fix: music fade is part of the SAME filter_complex, not a second -filter_complex
+        # Game audio: lower volume, fade in/out
+        parts.append(
+            f"{a_chain}volume={game_audio_volume:.2f},"
+            f"afade=t=in:st=0:d={cfg.intro_fade_in},"
+            f"afade=t=out:st={fade_out_start:.4f}:d={cfg.outro_fade_out}[game_faded]"
+        )
+        # Music: fade in/out (full volume — game audio rides underneath)
         parts.append(
             f"[{music_input_index}:a]"
             f"afade=t=in:st=0:d={cfg.intro_fade_in},"
-            f"afade=t=out:st={fade_out_start:.4f}:d={cfg.outro_fade_out}[music_out]"
+            f"afade=t=out:st={fade_out_start:.4f}:d={cfg.outro_fade_out}[music_faded]"
+        )
+        # Mix: game audio texture + music backbone
+        # normalize=0 prevents amix from halving volume levels
+        parts.append(
+            f"[game_faded][music_faded]amix=inputs=2:duration=first:normalize=0[aout]"
         )
     else:
         parts.append(
@@ -208,7 +219,7 @@ def assemble_part(
 
     cmd += ["-filter_complex", filter_complex]
     cmd += ["-map", "[vout]"]
-    cmd += ["-map", "[music_out]" if music_path else "[aout]"]
+    cmd += ["-map", "[aout]"]  # always [aout] — game audio + music mixed inside filter_complex
 
     encode_crf    = crf_override    if crf_override    is not None else cfg.crf
     encode_preset = preset_override if preset_override is not None else cfg.preset
@@ -241,4 +252,96 @@ def assemble_part(
 
     size_mb = output_path.stat().st_size / 1024 / 1024
     print(f"  [DONE] {output_path} ({size_mb:.0f}MB)")  # S7 fix: no emoji
+    return output_path
+
+
+def prepend_intro(
+    part_path: Path,
+    output_path: Path,
+    cfg: Config,
+    intro_duration: Optional[float] = None,
+) -> Path:
+    """
+    Prepend the first N seconds of IntroPart2.mp4 to a rendered Part.
+
+    Rule P1-C: PANTHEON intro prepends to EVERY Part. First 7 seconds only
+    (PANTHEON logo animation). The in-game CA Tribute billboard scene that
+    follows is NOT used — that was the original editor's personal branding shot.
+
+    Uses ffmpeg concat demuxer (no re-encode of the Part — stream copy where possible).
+    Re-encodes intro segment to match Part codec settings.
+
+    Args:
+        part_path:      Path to the assembled Part MP4
+        output_path:    Path for the final output with intro prepended
+        cfg:            Config (provides intro_source, ffmpeg_bin)
+        intro_duration: Seconds to use from IntroPart2.mp4 (default: cfg.intro_clip_duration = 7.0)
+
+    Returns: output_path
+    """
+    if intro_duration is None:
+        intro_duration = cfg.intro_clip_duration
+
+    if not cfg.intro_source.exists():
+        raise FileNotFoundError(
+            f"PANTHEON intro not found: {cfg.intro_source}\n"
+            "Place IntroPart2.mp4 at: FRAGMOVIE VIDEOS/IntroPart2.mp4"
+        )
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Step 1: trim intro to N seconds → temp file
+    intro_trimmed = output_path.parent / f"_intro_trim_{intro_duration:.0f}s.mp4"
+    if not intro_trimmed.exists():
+        cmd_trim = [
+            str(cfg.ffmpeg_bin), "-y",
+            "-ss", "0",
+            "-t", str(intro_duration),
+            "-i", str(cfg.intro_source),
+            "-c:v", "libx264",
+            "-crf", "17",
+            "-preset", "fast",
+            "-pix_fmt", "yuv420p",
+            "-r", str(cfg.target_fps),
+            "-vf", f"scale={cfg.target_width}:{cfg.target_height}:flags=lanczos",
+            "-c:a", "aac",
+            "-ar", "48000",
+            "-b:a", "192k",
+            str(intro_trimmed),
+        ]
+        result = subprocess.run(cmd_trim, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"Intro trim failed:\n{result.stderr[-500:]}")
+
+    # Step 2: concat intro + Part using concat filter (re-encode both for seamless join)
+    cmd_concat = [
+        str(cfg.ffmpeg_bin), "-y",
+        "-i", str(intro_trimmed),
+        "-i", str(part_path),
+        "-filter_complex",
+        "[0:v][0:a][1:v][1:a]concat=n=2:v=1:a=1[vout][aout]",
+        "-map", "[vout]",
+        "-map", "[aout]",
+        "-c:v", "libx264",
+        "-crf", "17",
+        "-preset", "slow",
+        "-profile:v", "high",
+        "-pix_fmt", "yuv420p",
+        "-r", str(cfg.target_fps),
+        "-g", str(cfg.target_fps * 2),
+        "-bf", "2",
+        "-c:a", "aac",
+        "-ar", "48000",
+        "-b:a", cfg.audio_bitrate,
+        "-movflags", "+faststart",
+        str(output_path),
+    ]
+
+    print(f"  Prepending PANTHEON intro ({intro_duration:.0f}s) -> {output_path.name}")
+    result = subprocess.run(cmd_concat, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"Intro prepend failed:\n{result.stderr[-500:]}")
+
+    size_mb = output_path.stat().st_size / 1024 / 1024
+    print(f"  [DONE] {output_path.name} with intro ({size_mb:.0f}MB)")
     return output_path

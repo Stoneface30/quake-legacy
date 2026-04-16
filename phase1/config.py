@@ -53,9 +53,21 @@ class Config:
         self.bloom_opacity:     float = 0.3   # matches spec
 
         # ── Transitions ───────────────────────────────────────
-        self.xfade_duration:    float = 0.25  # cross-fade between clips (seconds)
+        # Hard rule: keep transitions minimal — chain quality > visible fades.
+        # 0.08s = near-invisible flash cut. Use xfade sparingly at section breaks.
+        self.xfade_duration:    float = 0.08  # cross-fade between clips (near-invisible)
         self.intro_fade_in:     float = 1.5   # fade in from black
         self.outro_fade_out:    float = 2.5   # fade to black
+
+        # ── Intro clip ────────────────────────────────────────
+        # IntroPart2.mp4 = 25.77s total. First 7s = PANTHEON logo animation only.
+        # The rest is in-game CA Tribute billboard scene (not used for Parts).
+        self.intro_clip_duration: float = 7.0  # seconds to use from IntroPart2.mp4
+
+        # ── Audio mix ─────────────────────────────────────────
+        # In-game sound is critical: grenade hits, rocket impacts, rail cracks.
+        # These stay audible under music. Music is the backbone, game audio gives texture.
+        self.game_audio_volume: float = 0.55  # game audio blend level (0.0-1.0)
 
         # ── Parts ─────────────────────────────────────────────
         self.parts: List[int] = list(range(4, 13))  # instance attribute, not class-level

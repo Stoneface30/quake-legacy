@@ -1,13 +1,13 @@
 {
   "name": "Clan Arena Tribute",
-  "description": "Warm high-contrast grade matching Clan Arena Tribute 1-2-3 style",
-  "contrast": 1.4,
-  "saturation": 1.7,
-  "brightness": 0.0,
-  "gamma_r": 1.08,
-  "gamma_b": 0.92,
-  "bloom_sigma": 18,
-  "bloom_opacity": 0.3,
-  "sharpen_amount": 0.5,
-  "fade_duration": 0.25
+  "description": "Punchy fragmovie grade: high contrast, vivid saturation, warm Quake tones. Corrected from pastel v1.",
+  "contrast": 1.55,
+  "saturation": 1.65,
+  "brightness": 0.02,
+  "gamma_r": 1.05,
+  "gamma_b": 0.88,
+  "bloom_sigma": 20,
+  "bloom_opacity": 0.28,
+  "sharpen_amount": 0.7,
+  "fade_duration": 0.08
 }
