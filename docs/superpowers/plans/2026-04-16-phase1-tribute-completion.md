@@ -4,9 +4,13 @@
 
 **Goal:** Build a Python FFmpeg pipeline that assembles existing AVI clips into finished YouTube-ready MP4 fragmovie videos for Parts 4-12 of the Clan Arena Tribute series, with human review gates at each step.
 
-**Architecture:** A modular pipeline where each stage (inventory, clip ordering, normalization, grading, assembly, preview, export) is a separate Python module with clear inputs/outputs. Human reviews clip order before render, and approves rough cut before final export. All FFmpeg operations are wrapped in ffmpeg-python for programmatic filter_complex chains.
+**Architecture:** A modular pipeline where each stage (inventory, clip ordering, normalization, grading, assembly, preview, export) is a separate Python module with clear inputs/outputs. Human reviews clip order before render, and approves rough cut before final export. All FFmpeg operations wrapped in subprocess calls using list arguments (no shell=True).
 
-**Tech Stack:** Python 3.11+, ffmpeg-python, moviepy, FFmpeg 7.x binary, SQLite (clip metadata), Streamlit (review UI)
+**Tech Stack:** Python 3.11+, ffmpeg-python, moviepy (slow-mo inserts), FFmpeg 7.x binary, SQLite (clip metadata), Streamlit (review UI)
+
+---
+
+> **Review fixes applied (v2):** C1 unified filter_complex with music, C2 N=1 concat guard, C3 music_path validation, C4 Config explicit __init__, I1 real duration from ffprobe, I2 fade_out_start clamped, I4 xfade cross-fade implemented, I5 preview quality applied, I6 header write fix, I7 dead code removed, I8 reliable skip test, S2 empty-part guard, S3 corrupt AVI warning, S4 absolute test path, S6 __init__.py task added, S7 emoji removed, S8 Gate 4 added. Intro sequence task added (was missing from spec).
 
 **Source material:**
 - AVI clips: `G:\QUAKE_LEGACY\QUAKE VIDEO\T1\Part4\` through `Part12\`
@@ -22,33 +26,67 @@
 ```
 phase1/
   __init__.py
-  config.py             ← all paths, constants, defaults
-  inventory.py          ← scan T1/T2/T3 folders, build clip metadata
+  config.py             ← all paths, constants, defaults (explicit __init__, no shared mutables)
+  inventory.py          ← scan T1/T2/T3 folders, build clip metadata + ffprobe duration
   clip_list.py          ← read/write clip order lists, validate clips exist
   normalize.py          ← convert AVI → CFR MP4 (60fps, 1920x1080)
-  pipeline.py           ← FFmpeg filter_complex: grade + bloom + transitions
+  pipeline.py           ← FFmpeg filter_complex: grade + bloom + xfade + music (unified)
   assembler.py          ← main orchestrator: clips → final MP4
-  preview.py            ← render 30-second preview for human review
-  review_ui.py          ← Streamlit app: browse clips, approve order
-  export.py             ← final YouTube encode
+  preview.py            ← render 30-second preview with override quality settings
+  intro.py              ← prepend IntroPart2.mp4 intro to assembled Part
   presets/
-    grade_tribute.json  ← color grade preset (extracted from Tribute 1-3 style)
+    grade_tribute.json  ← color grade preset (bloom opacity 0.3, matches spec)
   clip_lists/
     part04.txt          ← ordered clip filenames (human-curated or alphabetical)
     part05.txt
     ...
     part12.txt
+  music/
+    README.md           ← music file naming convention
   output/               ← rendered videos (gitignored)
 
 tests/
+  __init__.py
   phase1/
-    conftest.py         ← shared fixtures (temp dirs, sample clips)
+    __init__.py
+    conftest.py         ← shared fixtures (temp dirs, sample clips via FFmpeg lavfi)
     test_config.py
     test_inventory.py
     test_clip_list.py
     test_normalize.py
     test_pipeline.py
     test_assembler.py
+```
+
+---
+
+## Task 0: Create Package Init Files
+
+**Files:**
+- Create: `tests/__init__.py`
+- Create: `tests/phase1/__init__.py`
+- Create: `phase1/__init__.py`
+
+- [ ] **Step 1: Create init files**
+
+```bash
+mkdir -p tests/phase1 phase1
+touch tests/__init__.py tests/phase1/__init__.py phase1/__init__.py
+```
+
+On Windows:
+```bash
+mkdir -p tests/phase1 phase1
+echo "" > tests/__init__.py
+echo "" > tests/phase1/__init__.py
+echo "" > phase1/__init__.py
+```
+
+- [ ] **Step 2: Commit**
+
+```bash
+git add tests/__init__.py tests/phase1/__init__.py phase1/__init__.py
+git commit -m "feat(phase1): add package init files for pytest discovery"
 ```
 
 ---
@@ -164,6 +202,8 @@ python phase1/verify_env.py
 
 Expected: all checks pass (fix any that don't before continuing).
 
+Note: `tools/download_tools.py` is already defined in the project root (committed in initial setup). Run it if tools are missing.
+
 - [ ] **Step 6: Commit**
 
 ```bash
@@ -227,59 +267,59 @@ Create `phase1/config.py`:
 ```python
 """Central configuration for Phase 1 — all paths and constants."""
 from pathlib import Path
-import os
+from typing import Optional, List
 
 # Project root is one level up from phase1/
 ROOT = Path(__file__).parent.parent
 
+
 class Config:
-    """All paths and pipeline constants."""
+    """All paths and pipeline constants. Uses explicit __init__ — no shared class-level mutables."""
 
-    # ── Binaries ──────────────────────────────────────────────
-    ffmpeg_bin:   Path = ROOT / "tools" / "ffmpeg" / "ffmpeg.exe"
-    ffprobe_bin:  Path = ROOT / "tools" / "ffmpeg" / "ffprobe.exe"
+    def __init__(self):
+        # ── Binaries ──────────────────────────────────────────
+        self.ffmpeg_bin:    Path = ROOT / "tools" / "ffmpeg" / "ffmpeg.exe"
+        self.ffprobe_bin:   Path = ROOT / "tools" / "ffmpeg" / "ffprobe.exe"
 
-    # ── Source clips ──────────────────────────────────────────
-    clips_root:   Path = ROOT / "QUAKE VIDEO" / "T1"
-    tier:         str  = "T1"
+        # ── Source clips ──────────────────────────────────────
+        self.clips_root:    Path = ROOT / "QUAKE VIDEO" / "T1"
+        self.tier:          str  = "T1"
+        self.intro_source:  Path = ROOT / "FRAGMOVIE VIDEOS" / "IntroPart2.mp4"
 
-    # ── Clip lists ────────────────────────────────────────────
-    clip_lists_dir: Path = ROOT / "phase1" / "clip_lists"
+        # ── Clip lists ────────────────────────────────────────
+        self.clip_lists_dir: Path = ROOT / "phase1" / "clip_lists"
 
-    # ── Output ────────────────────────────────────────────────
-    output_dir:   Path = ROOT / "output"
-    preview_dir:  Path = ROOT / "output" / "previews"
+        # ── Output ────────────────────────────────────────────
+        self.output_dir:    Path = ROOT / "output"
+        self.preview_dir:   Path = ROOT / "output" / "previews"
 
-    # ── Encoding ──────────────────────────────────────────────
-    target_fps:   int = 60
-    target_width: int = 1920
-    target_height: int = 1080
-    crf:          int = 17
-    preset:       str = "slow"
-    audio_bitrate: str = "320k"
+        # ── Encoding ──────────────────────────────────────────
+        self.target_fps:    int  = 60
+        self.target_width:  int  = 1920
+        self.target_height: int  = 1080
+        self.crf:           int  = 17
+        self.preset:        str  = "slow"
+        self.audio_bitrate: str  = "320k"
 
-    # ── Color grade defaults (Tribute series style) ────────────
-    grade_contrast:   float = 1.4
-    grade_saturation: float = 1.7
-    grade_brightness: float = 0.0
-    bloom_sigma:      int   = 18
-    bloom_opacity:    float = 0.28
+        # ── Color grade (Tribute series style) ────────────────
+        self.grade_contrast:    float = 1.4
+        self.grade_saturation:  float = 1.7
+        self.grade_brightness:  float = 0.0
+        self.bloom_sigma:       int   = 18
+        self.bloom_opacity:     float = 0.3   # matches spec
 
-    # ── Transition ────────────────────────────────────────────
-    fade_duration:    float = 0.25   # seconds, cross-fade between clips
-    intro_fade_in:    float = 1.5    # seconds
-    outro_fade_out:   float = 2.5    # seconds
+        # ── Transitions ───────────────────────────────────────
+        self.xfade_duration:    float = 0.25  # cross-fade between clips (seconds)
+        self.intro_fade_in:     float = 1.5   # fade in from black
+        self.outro_fade_out:    float = 2.5   # fade to black
 
-    # ── Parts ─────────────────────────────────────────────────
-    parts = list(range(4, 13))       # 4 through 12
+        # ── Parts ─────────────────────────────────────────────
+        self.parts: List[int] = list(range(4, 13))  # instance attribute, not class-level
 
-    def __post_init__(self):
+        # Create directories
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self.preview_dir.mkdir(parents=True, exist_ok=True)
         self.clip_lists_dir.mkdir(parents=True, exist_ok=True)
-
-    def __init__(self):
-        self.__post_init__()
 
     def part_dir(self, part: int) -> Path:
         return self.clips_root / f"Part{part}"
@@ -294,10 +334,19 @@ class Config:
         return self.preview_dir / f"Part{part}_preview.mp4"
 
     def normalize_path(self, avi_path: Path) -> Path:
-        """Normalized CFR version of an AVI clip."""
+        """CFR-normalized version of an AVI clip."""
         norm_dir = self.output_dir / "normalized"
         norm_dir.mkdir(exist_ok=True)
         return norm_dir / (avi_path.stem + "_cfr60.mp4")
+
+    def music_path(self, part: int) -> Optional[Path]:
+        """Auto-detect music file for this Part. Returns None if not found."""
+        music_dir = ROOT / "phase1" / "music"
+        for ext in [".mp3", ".ogg", ".wav", ".flac"]:
+            candidate = music_dir / f"part{part:02d}_music{ext}"
+            if candidate.exists():
+                return candidate
+        return None
 ```
 
 - [ ] **Step 4: Write conftest.py**
@@ -627,12 +676,13 @@ def generate_default_list(part: int, cfg: Config, output_path: Optional[Path] = 
     clips = scan_part(part, cfg)
     filenames = [c.path.name for c in clips]
     out = output_path or cfg.clip_list_path(part)
-    save_clip_list(
-        filenames, out,
-        header=f"# Part {part} clip list — EDIT THIS FILE to reorder clips\n"
-               f"# One filename per line. Lines starting with # are ignored.\n"
-               f"# Generated from: {cfg.part_dir(part)}"
-    )
+    # I6 fix: join header lines before passing — save_clip_list appends as one element
+    header = "\n".join([
+        f"# Part {part} clip list -- EDIT THIS FILE to reorder clips",
+        "# One filename per line. Lines starting with # are ignored.",
+        f"# Generated from: {cfg.part_dir(part)}",
+    ])
+    save_clip_list(filenames, out, header=header)
     return out
 
 
@@ -655,6 +705,14 @@ def get_clip_paths(part: int, cfg: Config) -> List[Path]:
         generate_default_list(part, cfg)
 
     filenames = load_clip_list(list_path)
+
+    # S2 fix: catch empty part before it reaches ffmpeg
+    if not filenames:
+        raise ValueError(
+            f"Part {part} clip list is empty. "
+            f"Check {list_path} and {cfg.part_dir(part)}"
+        )
+
     missing = validate_clip_list(part, filenames, cfg)
     if missing:
         raise FileNotFoundError(
@@ -742,16 +800,22 @@ def test_normalize_output_is_cfr_60fps(tmp_clip, cfg, tmp_path):
             fps = int(num) / int(den)
             assert abs(fps - 60) < 1, f"Expected 60fps, got {fps}"
 
-def test_already_normalized_skips(tmp_clip, cfg, tmp_path):
+def test_already_normalized_skips(tmp_clip, cfg, tmp_path, monkeypatch):
+    # I8 fix: use monkeypatch to assert subprocess.run is NOT called on second normalize
     out = tmp_path / "norm.mp4"
     normalize_clip(tmp_clip, out, cfg)
-    # Second call should not re-encode
-    import time
-    mtime1 = out.stat().st_mtime
-    time.sleep(0.1)
-    normalize_clip(tmp_clip, out, cfg)
-    mtime2 = out.stat().st_mtime
-    assert mtime1 == mtime2, "Should skip re-encode when output exists"
+    assert out.exists()
+
+    call_count = {"n": 0}
+    import subprocess as sp
+    original_run = sp.run
+    def counting_run(cmd, **kwargs):
+        call_count["n"] += 1
+        return original_run(cmd, **kwargs)
+
+    monkeypatch.setattr(sp, "run", counting_run)
+    normalize_clip(tmp_clip, out, cfg)  # should skip
+    assert call_count["n"] == 0, "Should skip re-encode when output already exists"
 ```
 
 - [ ] **Step 2: Run test to confirm it fails**
@@ -772,6 +836,8 @@ import subprocess
 from tqdm import tqdm
 from phase1.config import Config
 
+
+# I7 fix: removed dead is_already_normalized() — normalize_clip checks dst.exists() directly
 
 def normalize_clip(src: Path, dst: Path, cfg: Config, force: bool = False) -> Path:
     """
@@ -874,10 +940,12 @@ from pathlib import Path
 from phase1.pipeline import build_filter_complex, GradePreset, assemble_part
 
 def test_grade_preset_loads():
-    preset_path = Path("phase1/presets/grade_tribute.json")
+    # S4 fix: absolute path so test works from any working directory
+    preset_path = Path(__file__).parent.parent.parent / "phase1" / "presets" / "grade_tribute.json"
     preset = GradePreset.from_file(preset_path)
     assert preset.contrast == 1.4
     assert preset.bloom_sigma == 18
+    assert preset.bloom_opacity == 0.3  # must match spec
 
 def test_build_filter_complex_returns_string(tmp_clip, cfg):
     from phase1.pipeline import build_filter_complex, GradePreset
@@ -914,63 +982,102 @@ Create `phase1/pipeline.py`:
 
 ```python
 """
-FFmpeg assembly pipeline: concat + color grade + bloom + transitions + music.
-Builds the filter_complex chain for the full fragmovie assembly.
+FFmpeg assembly pipeline: concat + xfade + color grade + bloom + music.
+All in a single -filter_complex. No shell=True anywhere.
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
 import json, subprocess
 from phase1.config import Config
+from phase1.inventory import get_clip_info
 
 
 @dataclass
 class GradePreset:
     """Color grade and effect parameters."""
-    contrast:     float = 1.4
-    saturation:   float = 1.7
-    brightness:   float = 0.0
-    gamma_r:      float = 1.08
-    gamma_b:      float = 0.92
-    bloom_sigma:  int   = 18
-    bloom_opacity: float = 0.28
+    contrast:       float = 1.4
+    saturation:     float = 1.7
+    brightness:     float = 0.0
+    gamma_r:        float = 1.08
+    gamma_b:        float = 0.92
+    bloom_sigma:    int   = 18
+    bloom_opacity:  float = 0.3    # matches spec exactly
     sharpen_amount: float = 0.5
-    fade_duration: float = 0.25
 
     @classmethod
     def from_file(cls, path: Path) -> "GradePreset":
         data = json.loads(path.read_text())
-        return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
+        valid = {k for k in data if k in cls.__dataclass_fields__}
+        return cls(**{k: data[k] for k in valid})
+
+
+def get_real_durations(clips: List[Path], cfg: Config) -> List[float]:
+    """Probe each clip for actual duration. Required for correct xfade offsets."""
+    durations = []
+    for clip in clips:
+        info = get_clip_info(clip, cfg)
+        if info.duration_s <= 0:
+            raise RuntimeError(f"Could not probe duration of {clip.name} — may be corrupt")
+        durations.append(info.duration_s)
+    return durations
 
 
 def build_filter_complex(
     clips: List[Path],
+    durations: List[float],
     preset: GradePreset,
     cfg: Config,
-    total_duration: float,
-    has_music: bool = False
+    music_input_index: Optional[int] = None,
 ) -> str:
     """
-    Build a filter_complex string for N clips:
-    1. Concat all video + audio streams
-    2. Apply color grade (eq filter)
-    3. Apply bloom (gblur + screen blend)
-    4. Apply sharpening (unsharp)
-    5. Fade in / fade out on full concat
-    Returns the filter_complex string.
+    Build ONE unified filter_complex string for N clips + optional music.
+
+    Pipeline:
+      1. xfade cross-dissolve between consecutive clips (video + audio)
+      2. Color grade (eq filter)
+      3. Bloom (gblur + screen blend)
+      4. Sharpen (unsharp)
+      5. Fade in / fade out
+      6. Music fade (if music_input_index provided)
+
+    Outputs: [vout] always. [aout] if no music, [music_out] if music present.
     """
     n = len(clips)
+    assert n == len(durations)
     parts = []
 
-    # Step 1: label each input stream
-    v_inputs = "".join(f"[{i}:v]" for i in range(n))
-    a_inputs = "".join(f"[{i}:a]" for i in range(n))
+    xfade_dur = cfg.xfade_duration
 
-    # Interleave v/a for concat
-    concat_inputs = "".join(f"[{i}:v][{i}:a]" for i in range(n))
-    parts.append(f"{concat_inputs}concat=n={n}:v=1:a=1[concat_v][concat_a]")
+    if n == 1:
+        # C2 fix: skip concat entirely for single-clip input
+        v_chain = "[0:v]"
+        a_chain = "[0:a]"
+    else:
+        # Build xfade chain: [0:v][1:v]xfade... then [prev][2:v]xfade...
+        # offset = sum of clip durations up to this transition, minus accumulated xfade overlaps
+        offset = durations[0] - xfade_dur
+        parts.append(
+            f"[0:v][1:v]xfade=transition=fade:duration={xfade_dur}:offset={offset:.4f}[xv1]"
+        )
+        parts.append(
+            f"[0:a][1:a]acrossfade=d={xfade_dur}[xa1]"
+        )
+        for i in range(2, n):
+            offset += durations[i - 1] - xfade_dur
+            prev_v = f"[xv{i - 1}]"
+            prev_a = f"[xa{i - 1}]"
+            parts.append(
+                f"{prev_v}[{i}:v]xfade=transition=fade:duration={xfade_dur}"
+                f":offset={offset:.4f}[xv{i}]"
+            )
+            parts.append(
+                f"{prev_a}[{i}:a]acrossfade=d={xfade_dur}[xa{i}]"
+            )
+        v_chain = f"[xv{n - 1}]"
+        a_chain = f"[xa{n - 1}]"
 
-    # Step 2: color grade
+    # Color grade
     eq = (
         f"eq=contrast={preset.contrast}"
         f":saturation={preset.saturation}"
@@ -978,36 +1085,55 @@ def build_filter_complex(
         f":gamma_r={preset.gamma_r}"
         f":gamma_b={preset.gamma_b}"
     )
-    parts.append(f"[concat_v]{eq}[graded]")
+    parts.append(f"{v_chain}{eq}[graded]")
 
-    # Step 3: bloom (gblur + screen blend)
+    # Bloom (gblur + screen blend)
     parts.append(f"[graded]split[orig][forbloom]")
     parts.append(f"[forbloom]gblur=sigma={preset.bloom_sigma}[blurred]")
     parts.append(
-        f"[orig][blurred]blend=all_mode=screen"
-        f":all_opacity={preset.bloom_opacity}[bloomed]"
+        f"[orig][blurred]blend=all_mode=screen:all_opacity={preset.bloom_opacity}[bloomed]"
     )
 
-    # Step 4: sharpen
+    # Sharpen
     parts.append(
         f"[bloomed]unsharp=luma_msize_x=5:luma_msize_y=5"
         f":luma_amount={preset.sharpen_amount}[sharp]"
     )
 
-    # Step 5: fade in + fade out
-    fade_out_start = max(0, total_duration - 2.5)
+    # Total video duration after xfade overlaps
+    total_duration = sum(durations) - xfade_dur * max(0, n - 1)
+    # I2 fix: clamp fade_out_start so it never goes before intro_fade_in
+    fade_out_start = max(cfg.intro_fade_in, total_duration - cfg.outro_fade_out)
+
     parts.append(
         f"[sharp]fade=t=in:st=0:d={cfg.intro_fade_in},"
-        f"fade=t=out:st={fade_out_start:.2f}:d={cfg.outro_fade_out}[vout]"
+        f"fade=t=out:st={fade_out_start:.4f}:d={cfg.outro_fade_out}[vout]"
     )
 
-    # Audio fade (from concat_a)
-    parts.append(
-        f"[concat_a]afade=t=in:st=0:d={cfg.intro_fade_in},"
-        f"afade=t=out:st={fade_out_start:.2f}:d={cfg.outro_fade_out}[aout]"
-    )
+    if music_input_index is not None:
+        # C1 fix: music fade is part of the SAME filter_complex, not a second -filter_complex
+        parts.append(
+            f"[{music_input_index}:a]"
+            f"afade=t=in:st=0:d={cfg.intro_fade_in},"
+            f"afade=t=out:st={fade_out_start:.4f}:d={cfg.outro_fade_out}[music_out]"
+        )
+    else:
+        parts.append(
+            f"{a_chain}afade=t=in:st=0:d={cfg.intro_fade_in},"
+            f"afade=t=out:st={fade_out_start:.4f}:d={cfg.outro_fade_out}[aout]"
+        )
 
     return ";\n".join(parts)
+
+
+def _validate_music_path(music_path: Path) -> Path:
+    """C3 fix: validate music_path before passing to subprocess."""
+    allowed_ext = {".mp3", ".ogg", ".wav", ".flac", ".aac", ".m4a"}
+    if not music_path.exists():
+        raise FileNotFoundError(f"Music file not found: {music_path}")
+    if music_path.suffix.lower() not in allowed_ext:
+        raise ValueError(f"Unsupported music format: {music_path.suffix}. Use: {allowed_ext}")
+    return music_path.resolve()
 
 
 def assemble_part(
@@ -1017,83 +1143,79 @@ def assemble_part(
     music_path: Optional[Path] = None,
     preset: Optional[GradePreset] = None,
     preview_seconds: Optional[int] = None,
+    crf_override: Optional[int] = None,
+    preset_override: Optional[str] = None,
 ) -> Path:
     """
-    Assemble a list of clips into a single MP4 with grade, bloom, optional music.
+    Assemble clips → single MP4 with grade, bloom, xfade, optional music.
 
     Args:
-        clips: Ordered list of normalized MP4 paths
-        output_path: Output .mp4 path
-        cfg: Config object
-        music_path: Optional audio track (replaces clip audio if provided)
-        preset: GradePreset (uses default Tribute style if None)
-        preview_seconds: If set, only render this many seconds (for quick preview)
+        clips:            Ordered list of normalized MP4 paths
+        output_path:      Output .mp4 path
+        cfg:              Config object
+        music_path:       Optional audio track (validated before use)
+        preset:           GradePreset (uses grade_tribute.json if None)
+        preview_seconds:  Limit output duration (fast preview mode)
+        crf_override:     Override CRF for preview quality
+        preset_override:  Override FFmpeg preset for preview speed
 
     Returns: output_path
     """
+    if not clips:
+        raise ValueError("clips list is empty — nothing to assemble")  # S2 fix
+
     if preset is None:
         preset_file = Path(__file__).parent / "presets" / "grade_tribute.json"
         preset = GradePreset.from_file(preset_file) if preset_file.exists() else GradePreset()
 
+    if music_path is not None:
+        music_path = _validate_music_path(music_path)  # C3 fix
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Estimate total duration (sum of clip durations, rough)
-    total_duration = len(clips) * 5.0  # will be refined with ffprobe in production
+    # I1 fix: get real durations from ffprobe, not hardcoded estimate
+    durations = get_real_durations(clips, cfg)
+    music_input_index = len(clips) if music_path else None
 
-    filter_complex = build_filter_complex(clips, preset, cfg, total_duration)
+    filter_complex = build_filter_complex(
+        clips, durations, preset, cfg,
+        music_input_index=music_input_index
+    )
 
-    # Build ffmpeg command
+    # C1 fix: single -filter_complex call, music handled inside it
     cmd = [str(cfg.ffmpeg_bin), "-y"]
-
-    # Input clips
     for clip in clips:
         cmd += ["-i", str(clip)]
-
-    # Optional music input
     if music_path:
         cmd += ["-i", str(music_path)]
 
     cmd += ["-filter_complex", filter_complex]
     cmd += ["-map", "[vout]"]
+    cmd += ["-map", "[music_out]" if music_path else "[aout]"]
 
-    if music_path:
-        music_idx = len(clips)
-        fade_out_start = max(0, total_duration - 2.5)
-        cmd += [
-            "-filter_complex",
-            filter_complex + f";\n[{music_idx}:a]"
-            f"afade=t=in:st=0:d=2,afade=t=out:st={fade_out_start:.2f}:d=2[music_out]",
-            "-map", "[music_out]"
-        ]
-    else:
-        cmd += ["-map", "[aout]"]
+    encode_crf    = crf_override    if crf_override    is not None else cfg.crf
+    encode_preset = preset_override if preset_override is not None else cfg.preset
 
-    # Encoding settings
     cmd += [
         "-c:v", "libx264",
-        "-crf", str(cfg.crf),
-        "-preset", cfg.preset,
+        "-crf", str(encode_crf),
+        "-preset", encode_preset,
         "-profile:v", "high",
         "-pix_fmt", "yuv420p",
         "-r", str(cfg.target_fps),
-        "-g", str(cfg.target_fps * 2),  # keyframe every 2 seconds
+        "-g", str(cfg.target_fps * 2),
         "-bf", "2",
         "-c:a", "aac",
         "-ar", "48000",
         "-b:a", cfg.audio_bitrate,
         "-movflags", "+faststart",
     ]
-
-    # Preview mode: limit duration
     if preview_seconds:
         cmd += ["-t", str(preview_seconds)]
-
     cmd.append(str(output_path))
 
     print(f"Rendering: {output_path.name}")
-    print(f"  Clips: {len(clips)}")
-    print(f"  Command: ffmpeg {' '.join(cmd[2:5])} ... {output_path.name}")
-
+    print(f"  Clips: {len(clips)}, CRF: {encode_crf}, preset: {encode_preset}")
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(
@@ -1101,7 +1223,7 @@ def assemble_part(
         )
 
     size_mb = output_path.stat().st_size / 1024 / 1024
-    print(f"  Output: {output_path} ({size_mb:.0f}MB)")
+    print(f"  [DONE] {output_path} ({size_mb:.0f}MB)")  # S7 fix: no emoji
     return output_path
 ```
 
@@ -1156,7 +1278,7 @@ def render_preview(
     Render a quick preview of Part N:
     - Uses up to max_clips clips
     - Limits output to preview_seconds
-    - Uses faster encode settings
+    - Uses faster encode settings (crf=23, veryfast)
     - Optionally opens in default video player
 
     Returns path to preview file.
@@ -1165,25 +1287,17 @@ def render_preview(
     clips = get_clip_paths(part, cfg)[:max_clips]
     print(f"Using {len(clips)} of available clips (first {max_clips})")
 
-    # Normalize only the clips we need for preview
     normalized = normalize_part(part, clips, cfg)
-
     output = cfg.preview_path(part)
 
-    # Use faster settings for preview
-    preview_cfg = cfg
-    preview_cfg_dict = {
-        "crf": 23,              # lower quality, faster
-        "preset": "veryfast",
-        "intro_fade_in": 1.0,
-        "outro_fade_out": 1.5,
-    }
-
+    # I5 fix: actually pass override values to assemble_part
     assemble_part(
         clips=normalized,
         output_path=output,
         cfg=cfg,
         preview_seconds=preview_seconds,
+        crf_override=23,           # faster encode for preview
+        preset_override="veryfast",
     )
 
     print(f"\nPreview saved: {output}")
@@ -1372,7 +1486,105 @@ git commit -m "feat(phase1): add main assembler orchestrator with CLI"
 
 ---
 
-## Task 9: Music Integration
+## Task 9: Intro Sequence — Prepend IntroPart2.mp4
+
+**Files:**
+- Create: `phase1/intro.py`
+
+The finished videos should start with the same intro used in Parts 1-3 (IntroPart2.mp4, 33MB). This task prepends it to the assembled Part.
+
+- [ ] **Step 1: Implement intro.py**
+
+Create `phase1/intro.py`:
+
+```python
+"""Prepend the series intro clip to an assembled Part video."""
+from pathlib import Path
+import subprocess
+from phase1.config import Config
+
+
+def prepend_intro(part_mp4: Path, cfg: Config, output_path: Optional[Path] = None) -> Path:
+    """
+    Prepend IntroPart2.mp4 to a Part video using concat demuxer.
+    Both clips must be H.264 1920x1080 60fps for stream-copy concat to work.
+    If formats differ, re-encode with -c:v libx264.
+
+    Args:
+        part_mp4:    Assembled Part video
+        cfg:         Config (provides intro_source path)
+        output_path: Where to write result (defaults to part_mp4 with _with_intro suffix)
+
+    Returns: output path
+    """
+    from typing import Optional
+
+    if not cfg.intro_source.exists():
+        print(f"[WARN] Intro source not found: {cfg.intro_source} — skipping intro")
+        return part_mp4
+
+    if output_path is None:
+        output_path = part_mp4.with_stem(part_mp4.stem + "_with_intro")
+
+    # Write concat list
+    concat_list = part_mp4.parent / "_intro_concat.txt"
+    concat_list.write_text(
+        f"file '{cfg.intro_source.as_posix()}'\n"
+        f"file '{part_mp4.as_posix()}'\n",
+        encoding="utf-8"
+    )
+
+    cmd = [
+        str(cfg.ffmpeg_bin), "-y",
+        "-f", "concat", "-safe", "0",
+        "-i", str(concat_list),
+        "-c", "copy",           # stream copy if formats match
+        "-movflags", "+faststart",
+        str(output_path)
+    ]
+
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    concat_list.unlink(missing_ok=True)
+
+    if result.returncode != 0:
+        # Fallback: re-encode if stream copy fails (format mismatch)
+        print(f"  Stream copy failed, re-encoding intro concat...")
+        cmd[cmd.index("-c") + 1] = "libx264"
+        cmd.insert(cmd.index("libx264") + 1, "-crf")
+        cmd.insert(cmd.index("-crf") + 1, str(cfg.crf))
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"Intro concat failed:\n{result.stderr[-500:]}")
+
+    size_mb = output_path.stat().st_size / 1024 / 1024
+    print(f"  [DONE] With intro: {output_path} ({size_mb:.0f}MB)")
+    return output_path
+```
+
+- [ ] **Step 2: Add intro step to assembler.py render_part()**
+
+After `assemble_part()` completes, optionally prepend intro:
+
+```python
+# In render_part(), after assemble_part() call:
+if cfg.intro_source.exists():
+    from phase1.intro import prepend_intro
+    final = prepend_intro(output, cfg)
+    print(f"  Intro prepended: {final}")
+else:
+    print(f"  [WARN] No intro source found at {cfg.intro_source}")
+```
+
+- [ ] **Step 3: Commit**
+
+```bash
+git add phase1/intro.py phase1/assembler.py
+git commit -m "feat(phase1): add intro sequence prepend matching Parts 1-3 style"
+```
+
+---
+
+## Task 10: Music Integration
 
 **Files:**
 - Modify: `phase1/pipeline.py` (music mixing already stubbed — complete it)
@@ -1453,9 +1665,18 @@ All checks must pass.
 
 ```bash
 python phase1/assembler.py --part 4 --preview
-# review, then:
+```
+
+**⚠ HUMAN REVIEW GATE 4:** Watch preview for Part 4. Check:
+- Clip order, transitions, grade, bloom
+- Intro sequence attached correctly
+- Music sync (if music file present)
+- Approve before rendering next Part
+
+Then continue for Parts 5-12:
+```bash
 python phase1/assembler.py --part 5 --preview
-# ... through 12
+# ... through 12, gate review after each
 ```
 
 - [ ] **Step 3: Batch render all approved parts**
