@@ -1,0 +1,50 @@
+# Part 4 — Style C: SHOWCASE
+# Strategic mix. Best angles for slow-mo. Builds to climax.
+#
+Demo (112)  - 21.avi
+Demo (151)  - 80.avi
+Demo (176)  -  125.avi
+Demo (22)  -  195.avi
+Demo (226)  -  206.avi
+Demo (244)  -  232.avi
+#
+# -- angle switches begin --
+Demo (37)  -  446.avi
+Demo (104) - 8.avi
+Demo (152)  - 84.avi
+Demo (209)  -  183.avi
+Demo (288)  -  318.avi
+Demo (383)  -  469.avi
+Demo (266)  -  277.avi
+Demo (296)  -  330.avi
+Demo (320)  -  358.avi
+Demo (361)  -  433.avi
+Demo (387)  -  474.avi
+Demo (402) - 501.avi
+Demo (428)  - 533.avi
+Demo (46)  - 565.avi
+Demo (481)  - 585.avi
+Demo (520)  -  638.avi
+#
+# -- freelook cuts --
+Demo (490)  - 596.avi > Demo (490FL1).avi [slow]
+Demo (560)  - 699.avi > Demo (560FL2).avi [slow]
+Demo (625)  -  780.avi > Demo (625FL1).avi [slow]
+Demo (670)  - 848.avi > Demo (670FL1).avi
+Demo (788)  -  978.avi > Demo (788FL1).avi
+Demo (875)  -  1112.avi > Demo (875FL1).avi
+Demo (562)  - 703.avi
+Demo (596)  - 744.avi
+Demo (634)  -  793.avi
+Demo (66)  - 824.avi
+Demo (661)  - 828.avi
+Demo (684)  - 867.avi
+Demo (722)-002.avi
+Demo (775)  -  961.avi
+Demo (810)  -  1008.avi
+Demo (840)  -  1052.avi
+Demo (858)  -  1082.avi
+Demo (893)  -  1137.avi
+Demo (91)  -  1167.avi
+Demo (913)  -  1172.avi
+Demo (937)  -  1209.avi
