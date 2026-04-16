@@ -1,0 +1,35 @@
+# Part 8 clip list -- EDIT THIS FILE to reorder clips
+# One filename per line. Lines starting with # are ignored.
+# Generated from: G:\QUAKE_LEGACY\QUAKE VIDEO\T1\Part8
+# 30 clips total
+
+Demo (102) - 5.avi
+Demo (145)  - 73.avi
+Demo (16)  - 95.avi
+Demo (168)  -  108.avi
+Demo (220)  -  197.avi
+Demo (243)  -  230.avi
+Demo (262)  -  272.avi
+Demo (291)  -  326.avi
+Demo (318)  -  353.avi
+Demo (359)  -  427.avi
+Demo (380)  -  465.avi
+Demo (400)  -  499.avi
+Demo (424)  - 529.avi
+Demo (43)  - 535.avi
+Demo (475)  - 577.avi
+Demo (516)  -  630.avi
+Demo (560)  - 698.avi
+Demo (586)  - 732.avi
+Demo (62)  -  772.avi
+Demo (628)  -  784.avi
+Demo (651) - 815.avi
+Demo (683)  - 864.avi
+Demo (716)  - 904.avi
+Demo (769)  -  954.avi
+Demo (802)  -  995.avi
+Demo (837)  -  1044.avi
+Demo (855)  -  1076.avi
+Demo (889)  -  1132.avi
+Demo (910)  -  1168.avi
+Demo (931)  -  1202.avi
