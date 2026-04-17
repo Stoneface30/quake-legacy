@@ -17,6 +17,13 @@
 | CS_SERVERINFO | map_name, game_type, round number |
 | CS_SCORES | team scores, round scores (for clutch context) |
 | EV_OBITUARY sequence | round kill order (is killer last alive?) |
+Review all the extraction and confirm .
+Regarding what we can do with that , here is my base list but we will extend it and you will aslo update your knowledge so you can understand and see the patterns :
+EV_OBITUARY , nice for multi kills , weapon swap , time to kill the frag time too we will need to experiment , weapon accuracy during a time period would also be awesome for high accuracy shafts or plasma spam , even multiple rocket it or all the weapon combo , we could also monitor the damages and use these number to show or extract when its more than 100hp we need a full brainstorm and you need full agentic workflow to SUCKUP all the other special effect and style you can make with this !
+Playerstate is excellent if the victim was moving fast same for killer if i shoot while moving super fast this is nice also when i kill and a survive with low hp or ideas like this !
+snapshot sequence need to be updated with all my ideas and we need to brainstorm more idea when your research agent come back , how people do it how they use it all the info so we can do what we want
+xstats excellent same remark as the other information
+score would be nice so we could put some context inside the video , when its an official pracc you can show which team we are playing add some contexte so the final video got the overlay the action sequence with context this would be game changing in the phase1 avi process.
 
 ---
 
@@ -96,7 +103,7 @@
 | `is_opening_frag` | boolean | True/False | first kill of the round | MEDIUM — sets tone | Medium |
 | `is_last_kill_of_round` | boolean | True/False | no more kills in round after | MEDIUM — round ender | Medium |
 
----
+excellent this will need to be fine tuyned and developped , really interesting the flick thing because i used to do 360 degree shots that where actuallly hitting so if we manage to found them that would be fucking gold
 
 ## Feature Priority Matrix
 
@@ -116,30 +123,32 @@ For initial rule-based scoring before ML training data exists:
 ```python
 FEATURE_WEIGHTS = {
     # Weapon base (one-hot, these are additive to base 0.10)
-    'MOD_GAUNTLET':       +0.30,
+    'MOD_GAUNTLET':       +0.20,
     'MOD_TELEFRAG':       +0.25,
-    'MOD_RAILGUN':        +0.20,
-    'MOD_ROCKET':         +0.12,  # direct
-    'MOD_GRENADE':        +0.08,
-    'MOD_ROCKET_SPLASH':  +0.08,
-    'MOD_LIGHTNING':      +0.08,
+    'MOD_RAILGUN':        +0.15,
+    'MOD_ROCKET':         +0.25,  # direct
+    'MOD_GRENADE':        +0.30,
+    'MOD_ROCKET_SPLASH':  +0.10,
+    'MOD_LIGHTNING':      +0.15,
     
     # Airshot (multiplicative feel, applied as additive bonus)
-    'victim_airborne_base':      +0.25,
-    'victim_at_apex':            +0.05,  # extra
+    'victim_airborne_base':      +0.35,
+    'victim_at_apex':            +0.15,  # extra
     'victim_vz_deep':            +0.10,  # vz < -300
-    'air_plus_rail':             +0.10,  # extra for RG air shot
+    'air_plus_rail':             +0.20,  # extra for RG air shot
     
     # Multi-kill
-    'kill_streak_2':             +0.15,
-    'kill_streak_3':             +0.25,
-    'kill_streak_4':             +0.35,
-    'kill_streak_5plus':         +0.45,
+    'kill_streak_2':             +0.25,
+    'kill_streak_3':             +0.35,
+    'kill_streak_4':             +0.45,
+    'kill_streak_5plus':         +0.55,
     
     # LG accuracy
-    'lg_acc_60pct':              +0.10,
-    'lg_acc_70pct':              +0.20,
-    'lg_acc_80pct':              +0.30,
+    'lg_acc_40pct':              +0.10,
+    'lg_acc_50pct':              +0.20,
+    'lg_acc_60pct':              +0.30,
+    'lg_acc_70pct':              +0.40,
+    'lg_acc_80pct':              +0.50,
     
     # Distance
     'distance_500_1000':         +0.05,
@@ -163,7 +172,7 @@ FEATURE_WEIGHTS = {
     'killer_airborne':           +0.10,  # air-to-air
 }
 ```
-
+review the number and finetune with actual ingame value as they seem quite big as it is 
 ---
 
 ## ML Feature Vector Format
@@ -215,7 +224,7 @@ categorical_features = [
 # Target
 target = 'human_rating_normalized'  # Phase 2 review dashboard 1-5 → 0.0-1.0
 ```
-
+Reveiew these and create new you can experiment if you understand the project
 ---
 
 ## Fragmovie Tier Thresholds (Suggested)

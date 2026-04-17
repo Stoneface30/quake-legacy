@@ -32,11 +32,30 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
+.pytest_cache/
 
 # Output directories
 output/
 renders/
 temp/
+_staging_cleanup/
+
+# MCP / tool caches
+.playwright-mcp/
+.claude/scheduled_tasks.lock
+
+# Phase 5 intermediate pipeline output (regenerable from source)
+phase5/01_png/
+phase5/02_processed/
+phase5/03_tga/
+phase5/04_pk3/
+
+# Music beat analysis cache (regenerable)
+phase1/music/*.beats.json
+
+# Graphify intermediate JSON (regenerable)
+game-dissection/.graphify_*.json
+game-dissection/graphify-out/cache/
 
 # OS
 .DS_Store

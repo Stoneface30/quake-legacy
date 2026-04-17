@@ -28,7 +28,7 @@ G:\QUAKE_LEGACY\
   QUAKE VIDEO\T3\Part1-12\         ← Lower tier AVI clips (intro/outro priority)
   WOLF WHISPERER\                  ← WolfWhisperer.exe + WolfcamQL + Python scripts
   FRAGMOVIE VIDEOS\                ← 3 finished tribute videos + PANTHEON intro
-    IntroPart2.mp4                 ← PANTHEON intro (25.77s) — prepend to ALL parts
+    IntroPart2.mp4                 ← PANTHEON intro (25.77s total, USE FIRST 7s ONLY) — prepend to ALL parts
     Clan Arena Tribute 1/2/3.mp4   ← Reference quality finished videos
   tools\                           ← all downloaded dependencies
   phase1\                          ← FFmpeg assembly pipeline
@@ -42,11 +42,14 @@ G:\QUAKE_LEGACY\
 
 ### Rule P1-A: Three-Tier Clip Combining
 **Every Part must combine ALL THREE tiers: T1/PartX + T2/PartX + T3/PartX.**
-- T1 = top tier (main fragmovie backbone — best frags)
-- T2 = second tier (supporting clips, intro/outro candidates if multi-angle)
-- T3 = lower tier (PRIORITY intro/outro source — multi-angle subdirs)
-- `scan_part_frags(part, cfg)` MUST scan all three tiers
-- A Part assembled from T1 only is WRONG
+
+CORRECTED tier semantics (Gate 1 review update):
+- **T1 = RAREST, elite/peak frags** — fewest clips, most precious. Save for climax moments. Each T1 clip carries weight. NEVER use as filler.
+- **T2 = MAIN MEAL** — most clips per Part. The backbone. 70%+ of screen time comes from T2. This is what the fragmovie IS.
+- **T3 = FILLER / CINEMATIC** — atmospheric, more numerous. Intro/outro priority. Can be sorted/filtered. Slow-mo FL angles for establishing shots.
+
+`scan_part_frags(part, cfg)` MUST scan all three tiers.
+A Part assembled from T1 only is WRONG. A Part that uses T1 as filler is also wrong.
 
 ### Rule P1-B: Intro/Outro Clip Selection
 **Lower tier multi-angle subdirs are the intro/outro clip pool.**
@@ -83,6 +86,36 @@ G:\QUAKE_LEGACY\
 - New camera angles not in existing AVIs
 - Demo re-recording from different positions
 - Any WolfcamQL command-driven capture
+
+### Rule P1-G: In-Game Audio Is Non-Negotiable
+**In-game sound must ALWAYS be preserved and audible under music.**
+- Game audio mix level: **55% by default** (under music), never 0% — Part4 v1 review: 30% was too quiet
+- NOTE: Updated Plan (2026-04-16) proposes 30% or 45% variants — awaiting user decision in `HUMAN-QUESTIONS.md §5.1`. Until resolved, ship at 55%.
+- Critical sounds to preserve: grenade direct hit, rocket impact, rail crack, weapon combos
+- These sounds define fragmovie texture — muting them loses the sport entirely
+- Phase 2 future: grenade/rocket direct hits OUT OF POV = automatic follow-cam candidates
+- `assemble_part()` must always use `amix` when music present — never discard game audio
+
+### Rule P1-H: Transition Minimalism
+**Minimal transitions. Chain quality > visible transition effects.**
+- Default xfade: 0.08s (near-invisible, just a flash cut)
+- Use real xfade (0.25s+) ONLY at major section breaks
+- Focus on: clip ordering, tier hierarchy placement, beat alignment
+- "The chain" = the sequence of clips flowing correctly. That's where effort goes.
+
+### Rule P1-I: Golden Rule — Frag + Effect + Music Must Align
+**The chosen effect (slow-mo, zoom, fast-forward, hard cut) must match both the frag type AND the music beat/section.**
+- A T1 peak without matching musical weight is a miss
+- A slow-mo without a corresponding bass drop is a miss
+- Beat-sync is mandatory from Part 4 onward — every cut snaps to a beat, T1 peaks snap to section drops
+- `phase1/beat_sync.py` is the authority; integrate via `plan_beat_cuts()` in every render path
+- User phrased it: "the style need to match the music / beat — the frag + effect + music is the golden rule of a good video"
+
+### Rule P1-J: Final Render Quality Ceiling
+**File size does not matter. Quality does.**
+- User confirmed: originals will be kept full quality, YouTube/streaming re-encodes downstream
+- Final render target (pending user approval in HUMAN-QUESTIONS.md §5.4): CRF 15-17, preset slow/veryslow, x264 High Profile 1920×1080 60fps
+- Preview renders may use CRF 23 veryfast for speed; only the final per-Part render commits to the quality ceiling
 
 ### Rule P1-F: Music Catalog
 All available music tracks listed in: `phase1/music/available_tracks.txt`
@@ -156,6 +189,24 @@ All phases write learnings to: `G:\QUAKE_LEGACY\database\knowledge.db`
 6. **Gate P2-2:** Rate frags in dashboard before batch WolfcamQL render
 7. **Gate P2-3:** Review 10 rendered clips before full batch
 8. **Gate P3-1:** Review AI-selected frags vs human-selected — measure agreement rate
+
+## HARD RULE — Visual Documentation (ALL Phases)
+
+### Rule VIS-1: Always Capture Visual Records
+**Every significant output must be screenshotted and documented.**
+
+- After any render: screenshot or frame-grab the output
+- After any grade change: before/after color comparison image
+- After any graphify run: screenshot the interactive HTML graph in browser
+- After Obsidian updates: screenshot vault dashboard and graph view
+- After ComfyUI processing: screenshot input vs output side-by-side
+- After any pipeline run: capture terminal output visually if impressive
+
+**Save to:** `G:/QUAKE_LEGACY/docs/visual-record/YYYY-MM-DD/`
+**Naming:** `before_[description].png`, `after_[description].png`, `[feature]_screenshot.png`
+**Tools:** Use Playwright MCP or Claude in Chrome MCP to capture browser content
+
+This is non-negotiable. Screenshots and before/after comparisons are deliverables, not optional.
 
 ## When Starting a Session
 

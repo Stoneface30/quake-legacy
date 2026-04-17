@@ -29,6 +29,7 @@ Quake Live servers transmit `xstats2` / `xstats2a` / `mstats` configstring comma
 - `LightningGunDamage` — total damage dealt
 
 UberDemoTools' `plug_in_stats.cpp` reads these commands directly. The accuracy value is **server-authoritative** — computed by the game engine which has perfect hit registration data.
+we will have our own .cpp right ? we will be able to do this but better !
 
 **Track B — Snapshot delta analysis (window-based, for real-time detection)**
 
@@ -38,6 +39,7 @@ Since LG fires at 20 times/second (50ms intervals) and deals 7 damage per tick i
 - Each snapshot is at 30Hz (33ms). LG beam fires at ~20Hz
 - A "hit" = victim health decreases by 7 (or multiple of 7) in the window the killer is firing LG
 - A "miss" = EV_FIRE_WEAPON event occurred but victim health unchanged
+carefull as some updates changed damage from the weaapon so it cannot be the only source of truth !
 
 **Algorithm for sustained accuracy detection:**
 
@@ -977,3 +979,4 @@ follow {killer_slot}
   → frags.db (all features stored)
   → Phase 2 renderer uses camera_config_json to write gamestart.cfg
 ```
+Excellent we can implement for testing and reviewing
