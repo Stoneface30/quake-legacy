@@ -1,9 +1,45 @@
 from __future__ import annotations
 
 import json
+import re
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+
+_FILE_RE = re.compile(r"^file\s+'([^']+)'\s*$")
+_HINT_RE = re.compile(r"Demo\s*\((\d+)\)")
+_FL_RE = re.compile(r"_(FL|fl)[_.]")
+
+
+@dataclass(frozen=True)
+class ClipEntry:
+    index: int
+    filename: str
+    demo_hint: str | None
+    is_fl: bool
+
+
+def parse_clip_list(path: Path) -> list[ClipEntry]:
+    out: list[ClipEntry] = []
+    idx = 0
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        m = _FILE_RE.match(line)
+        if not m:
+            continue
+        fn = m.group(1)
+        hint_match = _HINT_RE.search(fn)
+        out.append(ClipEntry(
+            index=idx,
+            filename=fn,
+            demo_hint=hint_match.group(1) if hint_match else None,
+            is_fl=bool(_FL_RE.search(fn)),
+        ))
+        idx += 1
+    return out
 
 
 def write_render_manifest(
