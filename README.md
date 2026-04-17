@@ -160,7 +160,18 @@ Full pipeline parameters + the UV-preservation story: [`docs/research/weapon-mod
 
 ---
 
-## Phase 1.5 — Command Center (spec'd 2026-04-17)
+## Project Splits (user ruling 2026-04-17)
+
+The project runs on **two tracks** from here:
+
+- **SPLIT 1 — Video Pipeline Completion** (active). Ship Parts 4-12 as finished fragmovies via the existing Phase 1 concat-demuxer pipeline. User checklist: [`SPLIT1_USER_CHECKLIST.md`](SPLIT1_USER_CHECKLIST.md).
+- **SPLIT 2 — TR4SH QUAKE**. One engine + one command center + one trainable agent, all fused. Fork of q3mme with protocol-73 patches baked in, embedded FastAPI + SQLite, agent reads the framebuffer so the interface knows what it's seeing before we do. Manifesto: [`docs/superpowers/specs/2026-04-17-tr4sh-quake-manifesto.md`](docs/superpowers/specs/2026-04-17-tr4sh-quake-manifesto.md).
+
+Split 2 starts only after Split 1 closes. No parallel drift.
+
+---
+
+## Phase 1.5 — Command Center (spec'd 2026-04-17, merges into TR4SH QUAKE)
 
 The ad-hoc scripts, manual ComfyUI runs, and `phase5/` pk3 builder converge into **one project-local Dockerized web app** that becomes the creative suite for the whole fragmovie pipeline. Design docs committed:
 

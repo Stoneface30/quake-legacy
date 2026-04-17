@@ -172,16 +172,28 @@ All available music tracks listed in: `phase1/music/available_tracks.txt`
 - Document in: `docs/reference/wolfcam-commands.md`
 - This is required before writing any WolfcamQL automation in Phase 2
 
+## Project Structure — TWO SPLITS (user ruling 2026-04-17)
+
+**SPLIT 1 — Video Pipeline** (current focus, close first)
+- Finish Parts 4-12 as ship-quality fragmovies via the existing Phase 1 pipeline
+- User-action checklist: `SPLIT1_USER_CHECKLIST.md` (root of repo, keep it visible)
+- Nothing else gets built until Split 1 closes (Parts 4-12 approved + archived)
+
+**SPLIT 2 — TR4SH QUAKE** (after Split 1)
+- Single engine + command center + agent fusion
+- Supersedes the separate Command Center + Engine Pivot specs (both merge in)
+- Manifesto: `docs/superpowers/specs/2026-04-17-tr4sh-quake-manifesto.md`
+
 ## Phase Status
 
-| Phase | Status | Current Task |
-|---|---|---|
-| Phase 1 | Style B lock | Parts 4/5/6 full renders delivered 2026-04-17 (concat-demuxer path). Awaiting user playback review before Parts 7-12. |
-| Phase 1.5 | Spec'd 2026-04-17 | Command Center + engine pivot specs committed. See `docs/superpowers/specs/2026-04-17-command-center-design.md` and `2026-04-17-engine-pivot-design.md`. |
-| Phase 2 | Planned | Await P3-A highlight criteria + ENG-1 protocol-73 path approval |
-| Phase 3 | Research | Phase3 AI research complete. Await highlight criteria session |
-| Phase 3.5 | Spec'd | 3D intro lab + protocol-73 port to q3mme (community give-back) |
-| Phase 4 | Vision | Public CLI tool for anyone with demos |
+| Phase | Split | Status | Current Task |
+|---|---|---|---|
+| Phase 1 | S1 | Review gate | Parts 4/5/6 full renders delivered 2026-04-17. User reviewing per `SPLIT1_USER_CHECKLIST.md`. Parts 7-12 queued pending Part 4 approval. |
+| Phase 1.5 | S2 | Spec'd | Tr4sH Quake manifesto committed. Command Center + Engine Pivot specs merge in. |
+| Phase 2 | S2 | Planned | Agent (free cam / kill cam / image reader) + scene extrapolator |
+| Phase 3 | S2 | Research | Highlight criteria locked via FT-2. Agent training feeds this. |
+| Phase 3.5 | S2 | Research | Protocol-73 port becomes Track A of Tr4sH Quake engine fork |
+| Phase 4 | S2 | Vision | Public release of Tr4sH Quake — community give-back |
 
 ## Authoritative Asset Sources (2026-04-17, confirmed on disk)
 
