@@ -1,6 +1,18 @@
 # Quake Legacy Source Knowledge Base
-*Generated: 2026-04-16*
+*Generated: 2026-04-16, relocated 2026-04-17*
 *Purpose: Reference repos for QUAKE LEGACY fragmovie automation project*
+
+> **MOVED 2026-04-17:** All engine source trees were consolidated into
+> `G:/QUAKE_LEGACY/game-dissection/engines/` via SHA-256 dedup:
+> - Canonical tree (unique files): `game-dissection/engines/_canonical/`
+> - Near-duplicate variants (per-tree): `game-dissection/engines/<tree>/`
+> - Inventory + stats: `game-dissection/engines/_manifest/`
+> - Per-file diffs: `game-dissection/engines/_diffs/`
+> - Family tree + migration notes: `game-dissection/engines/SYNTHESIS.md`
+>
+> Nothing has been lost — every file below is still present in `_canonical/` or
+> in the per-tree variant dir. 141 MB of build artifacts and exact-duplicate
+> files were freed. See `_manifest/DELETE_READY.md` for the deletion record.
 
 ---
 
@@ -184,3 +196,179 @@ Reference for modern capture pipeline. Quake3e has a Vulkan renderer and improve
 3. **Then:** `q3mme/trunk/code/cgame/cg_demos_camera.c` — camera scripting reference
 4. **Then:** `ioquake3/code/client/cl_avi.c` — AVI capture reference
 5. **Reference:** `quake3e/code/renderer/` — modern capture pipeline if needed
+
+---
+
+## Phase 2 Downloads
+*Cloned: 2026-04-16 — idtech engine lineage, tooling, and asset-open forks*
+
+### 10. quake1-source — id Software Quake 1 (idtech1, GPL)
+**Origin:** `https://github.com/id-Software/Quake` (shallow, ~16 MB)
+
+**Why it's here:**
+The root of the lineage. idtech1 established the renderer architecture, BSP world format, and client/server split that every subsequent id engine inherits. Useful for understanding how the entity event system and obituary detection originated — the EV_OBITUARY pattern in Q3/QL traces directly back here. Also reference for the NIN soundtrack integration (Quake 1 music was NIN, directly relevant to Phase 1 music catalog).
+
+**Key files:**
+- `WinQuake/` — Windows renderer + sound, shows original BSP loading
+- `Quake/world.c` — Entity/physics world state management (ancestor of Q3's entity system)
+- `Quake/sv_main.c` — Server loop origin
+
+---
+
+### 11. quake2-source — id Software Quake 2 (idtech2, GPL)
+**Origin:** `https://github.com/id-Software/Quake-2` (shallow, ~8 MB)
+
+**Why it's here:**
+Direct ancestor of Q3. idtech2 introduced the modular renderer (ref_gl/), the game DLL split, and refined the network protocol that Q3 evolved into the .dm_73 format. The game/g_combat.c kill/damage logic is the lineage ancestor of Q3's obituary system. Sonic Mayhem composed the Q2 soundtrack — relevant for Phase 1 music licensing research.
+
+**Key files:**
+- `ref_gl/` — OpenGL renderer (direct ancestor of Q3's renderer)
+- `game/g_combat.c` — Damage/kill logic, origin of MOD_* constants
+- `qcommon/net_chan.c` — Network channel, ancestor of Q3's demo protocol
+- `client/cl_demo.c` — Demo recording (compare with Q3's version to trace format evolution)
+
+---
+
+### 12. openarena-gamecode — OpenArena Game Logic (CC-licensed assets)
+**Origin:** `https://github.com/OpenArena/gamecode` (shallow, ~8.5 MB)
+
+**Why it's here:**
+OpenArena is a Q3A fork with fully open-licensed assets (CC-BY-SA weapon models, textures, sounds). If Phase 4 (public CLI tool) needs bundled assets for testing or default visuals, OpenArena's assets are legally redistributable. The gamecode also shows how community forks extend Q3's weapon/item system — useful for understanding alternate MOD_* weapon constants seen in non-standard QL mods.
+
+**Key files:**
+- `code/game/g_combat.c` — Kill/damage system with OpenArena weapon additions
+- `code/game/g_weapon.c` — Weapon fire logic
+- `code/game/bg_misc.c` — Item/powerup definitions
+
+---
+
+### 13. openarena-engine — OpenArena Engine Fork
+**Origin:** `https://github.com/OpenArena/engine` (shallow, ~36 MB)
+
+**Why it's here:**
+Engine companion to openarena-gamecode. Contains renderer and client patches on top of ioquake3. Useful as a second reference point for AVI capture and demo playback modifications — shows what community maintained Q3 engines look like vs. wolfcamql's approach.
+
+**Key files:**
+- `code/client/cl_avi.c` — AVI capture (compare with ioquake3 and wolfcamql versions)
+- `code/renderer/` — Renderer modifications
+- `code/client/cl_demo.c` — Demo playback patches
+
+---
+
+### 14. wolfet-source — Wolfenstein: Enemy Territory (idtech3, GPL)
+**Origin:** `https://github.com/id-Software/Enemy-Territory` (shallow, ~33 MB)
+
+**Why it's here:**
+GPL release of another idtech3 derivative (same engine family as Q3/QL). ET added significant multiplayer features: class system, objective modes, and extended network protocol. The renderer and client code is structurally identical to Q3 but with additional features. Useful for cross-referencing wolfcamql internals — wolfcam originally started as an ET modification before being ported to QL.
+
+**Key files:**
+- `src/cgame/` — Client game module (compare structure with wolfcamql's cgame)
+- `src/client/cl_avi.c` — AVI capture in ET variant
+- `src/renderer/` — idtech3 renderer in ET form
+- `src/game/g_combat.c` — Combat/kill system (ET variant of Q3's)
+
+---
+
+### 15. q3vm — Quake 3 QVM Bytecode Compiler/Assembler
+**Origin:** `https://github.com/jnz/q3vm` (shallow, ~2.7 MB)
+
+**Why it's here:**
+WolfcamQL's game logic runs as compiled .qvm bytecode (the cgame.qvm). Understanding how .qvm files are structured is essential for Phase 3 automation — specifically for injecting custom commands or understanding how wolfcam's cgame module loads and executes. q3vm documents the QVM instruction set, calling conventions, and syscall interface that all cgame modules use.
+
+**Key files:**
+- `src/vm.c` — QVM interpreter implementation
+- `src/vm_x86.c` — x86 JIT compiler for QVM
+- `README.md` — QVM architecture overview
+- `tools/` — Assembler and disassembler tools (useful for RE of cgame.qvm)
+
+---
+
+### 16. gtkradiant — Q3BSP Level Editor (GPL)
+**Origin:** `https://github.com/TTimo/GtkRadiant` (shallow, ~57 MB)
+
+**Why it's here:**
+The authoritative reference for Q3's BSP map format. Phase 3 AI cinematography needs to reason about map geometry (spawn points, routes, sightlines) to generate intelligent camera paths. GtkRadiant's map compiler (q3map2) and its BSP loading code document every field of the .bsp format. Also contains the Q3 shader system spec — relevant if Phase 4 does any map-aware rendering.
+
+**Key files:**
+- `tools/quake3/q3map2/` — Q3MAP2 BSP compiler (full BSP format implementation)
+- `radiant/` — Editor core (BSP entity parsing)
+- `docs/` — BSP format documentation
+- `include/` — Shared BSP structure definitions
+
+---
+
+### 17. darkplaces — DarkPlaces (Modern idtech1 Engine)
+**Origin:** `https://github.com/DarkPlacesEngine/darkplaces` (shallow, ~11 MB)
+
+**Why it's here:**
+Shows how idtech1 (Quake 1) evolved into a modern engine with GLSL shaders, real-time lighting, and advanced video capture. DarkPlaces has a mature demo playback and video output system that predates wolfcamql — its capture pipeline (`cl_video.c`, `r_textures.c`) is a useful reference for understanding how to hook into an id-engine renderer for frame extraction without using AVI.
+
+**Key files:**
+- `cl_demo.c` — Demo playback (idtech1 lineage)
+- `cl_video.c` — Video frame capture system
+- `gl_rmain.c` — OpenGL renderer main, frame submission hooks
+- `r_shadow.c` — Real-time lighting (shows how far idtech1 can be extended)
+
+---
+
+### 18. yamagi-quake2 — Yamagi Quake 2 (Best-Documented Q2 Fork)
+**Origin:** `https://github.com/yquake2/yquake2` (shallow, ~13 MB)
+
+**Why it's here:**
+The best-documented Q2 fork. Yamagi Q2's source has extensive comments explaining the network protocol, entity delta compression, and renderer pipeline — things the original Q2 source leaves implicit. Since idtech2 is the direct ancestor of Q3's network/demo format, reading Yamagi's annotated version of the protocol code clarifies design decisions that carried forward into .dm_73. Also has SDL2-based audio/video that's useful as a reference for cross-platform capture.
+
+**Key files:**
+- `src/common/` — Network protocol with comments (ancestor of Q3's protocol)
+- `src/client/cl_parse.c` — Demo/network packet parsing (compare with Q3 version)
+- `src/client/cl_download.c` — Client state machine reference
+- `src/game/g_combat.c` — Annotated combat/obituary system
+
+---
+
+## Updated Size Summary (All Repos)
+
+| Repo | Size | Clone Type | Added |
+|---|---|---|---|
+| quake3-source | 31 MB | Shallow | Phase 1 |
+| ioquake3 | 40 MB | Shallow | Phase 1 |
+| wolfcamql-src | 127 MB | Shallow | Phase 1 |
+| wolfcamql-local-src | 19 MB | Tarball extract | Phase 1 |
+| q3mme | 70 MB | Shallow | Phase 1 |
+| uberdemotools | 619 MB | Full | Phase 1 |
+| qldemo-python | <1 MB | Full | Phase 1 |
+| demodumper | <1 MB | Full | Phase 1 |
+| quake3e | 79 MB | Shallow | Phase 1 |
+| quake1-source | 16 MB | Shallow | Phase 2 |
+| quake2-source | 8 MB | Shallow | Phase 2 |
+| openarena-gamecode | 8.5 MB | Shallow | Phase 2 |
+| openarena-engine | 36 MB | Shallow | Phase 2 |
+| wolfet-source | 33 MB | Shallow | Phase 2 |
+| q3vm | 2.7 MB | Shallow | Phase 2 |
+| gtkradiant | 57 MB | Shallow | Phase 2 |
+| darkplaces | 11 MB | Shallow | Phase 2 |
+| yamagi-quake2 | 13 MB | Shallow | Phase 2 |
+| **TOTAL** | **~1,171 MB** | | |
+
+---
+
+## Engine Lineage Map
+
+```
+idtech1 (Quake 1) ──────────────────────────── quake1-source, darkplaces
+    │
+idtech2 (Quake 2) ──────────────────────────── quake2-source, yamagi-quake2
+    │
+idtech3 (Quake 3) ──────────────────────────── quake3-source
+    ├── ioquake3 (community port) ───────────── ioquake3
+    ├── OpenArena (open assets fork) ────────── openarena-gamecode, openarena-engine
+    ├── Wolf: Enemy Territory (id, GPL) ─────── wolfet-source
+    ├── WolfcamQL (fragmovie tool) ──────────── wolfcamql-src, wolfcamql-local-src
+    ├── q3mme (movie maker's edition) ───────── q3mme
+    └── Quake3e (Vulkan fork) ───────────────── quake3e
+         │
+    Quake Live (.dm_73) ─────────────────────── uberdemotools, qldemo-python, demodumper
+         
+Tooling:
+    QVM bytecode system ─────────────────────── q3vm
+    BSP map format ──────────────────────────── gtkradiant
+```
