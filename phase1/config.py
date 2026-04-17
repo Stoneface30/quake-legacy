@@ -45,6 +45,37 @@ class Config:
         self.preset:        str  = "slow"
         self.audio_bitrate: str  = "320k"
 
+        # ── Final-render encoder (used when --final-quality is set) ───
+        # Chosen via encoder-benchmark-2026-04-17.md: x265 CRF 16 veryslow
+        # had the highest VMAF of all tested encoders for final-render use.
+        # Preview encoder above (libx264 CRF 23 veryfast) is unchanged.
+        # File size is not a constraint for final renders — quality is everything.
+        self.final_render_codec:  str = "libx265"
+        self.final_render_crf:    int = 16
+        self.final_render_preset: str = "veryslow"
+
+        # ── NVENC fast-path encoder (used when --nvenc flag is set) ───
+        # Benchmarked 2026-04-17 (nvenc-tuning-2026.md) on RTX 5060 Ti:
+        #   av1_nvenc p7 CQ18  → VMAF 96.78 / min 95.11 in 20s per 30s clip
+        #   (beats x265 CRF 16 veryslow 95.75/93.22 which took 1272s)
+        #   hevc_nvenc p7 QP15 → VMAF 96.18 / min 94.31 in 11s (max-compat fallback)
+        # Rule P1-J (quality ceiling) + "encoding speed is secondary but ~2-3x realtime
+        # is acceptable": AV1 NVENC is the default NVENC codec.
+        # Important quirk: NVENC -rc vbr -cq N was observed to cap bitrate regardless
+        # of -cq value in this ffmpeg build. Use -rc constqp -qp N for HEVC (reliable).
+        # AV1 NVENC's -rc vbr -cq does work correctly.
+        # 2026-04-17 research agent update (docs/research/encoder-recommendation-2026-04-17.md):
+        # Blackwell NVENC gen-9 supports AV1 UHQ mode (+5% compression at equal quality per
+        # NVIDIA) AND 10-bit internal (`-highbitdepth 1 -pix_fmt p010le`) at zero speed cost.
+        # UHQ + 10-bit kills the minor banding on bloom/fade sections. Locked as Rule P1-J default.
+        self.final_render_nvenc_codec:       str  = "av1_nvenc"   # or "hevc_nvenc" for compat
+        self.final_render_nvenc_cq:          int  = 18            # used for av1_nvenc
+        self.final_render_nvenc_qp:          int  = 15            # used for hevc_nvenc constqp
+        self.final_render_nvenc_preset:      str  = "p7"
+        self.final_render_nvenc_tune:        str  = "uhq"         # Blackwell UHQ mode (gen-9 NVENC)
+        self.final_render_nvenc_highbitdepth:bool = True          # 10-bit internal, kills bloom banding
+        self.final_render_nvenc_pix_fmt:     str  = "p010le"      # 10-bit 4:2:0 output
+
         # ── Color grade (Tribute series style) ────────────────
         self.grade_contrast:    float = 1.4
         self.grade_saturation:  float = 1.7
@@ -67,7 +98,22 @@ class Config:
         # ── Audio mix ─────────────────────────────────────────
         # In-game sound is critical: grenade hits, rocket impacts, rail cracks.
         # These stay audible under music. Music is the backbone, game audio gives texture.
-        self.game_audio_volume: float = 0.55  # game audio blend level (0.0-1.0)
+        # v1 0.30 / v2 0.55 / v3 0.75 / v4 0.85 — Part3 rev1 review: still too low at 0.75.
+        # See Rule P1-G.
+        self.game_audio_volume: float = 0.85  # game audio blend level (0.0-1.0)
+
+        # ── Clip-padding convention (Rule P1-L) ───────────────
+        # Every Phase 1 AVI clip has ~2s pre-action padding + ~3s post-action padding.
+        # The post-roll tail ends with the recording-close artifact (console flash, HUD
+        # drop). We ALWAYS strip `clip_tail_trim` off the tail so that artifact never
+        # reaches the cut. The remaining 1s head + 1s tail are the `transition_envelope`
+        # that xfade / section-fade / white-flash transitions can consume.
+        # Beat-sync is only allowed to shorten a clip by at most `transition_envelope`
+        # beyond the tail-trim — i.e. it cannot trim into the action region.
+        self.clip_pad_head: float = 2.0         # seconds of pre-roll before action
+        self.clip_pad_tail: float = 3.0         # seconds of post-roll after action
+        self.clip_tail_trim: float = 1.5        # strip this much tail from EVERY clip
+        self.transition_envelope: float = 1.0   # seconds beat-sync may consume
 
         # ── Parts ─────────────────────────────────────────────
         self.parts: List[int] = list(range(4, 13))  # instance attribute, not class-level
