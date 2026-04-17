@@ -84,11 +84,14 @@ class Config:
         self.bloom_opacity:     float = 0.3   # matches spec
 
         # ── Transitions ───────────────────────────────────────
-        # Hard rule: keep transitions minimal — chain quality > visible fades.
-        # 0.08s = near-invisible flash cut. Use xfade sparingly at section breaks.
-        self.xfade_duration:    float = 0.08  # cross-fade between clips (near-invisible)
-        self.intro_fade_in:     float = 1.5   # fade in from black
-        self.outro_fade_out:    float = 2.5   # fade to black
+        # HARD RULE (Part 4 review, 2026-04-17, docs/reviews/part4-review-2026-04-17.md):
+        # Phase 1 ships with NO TRANSITIONS. Every cut is a plain concat join.
+        # User verdict: "no fucking transition not even a fading to the next image."
+        # Transition palette design deferred to Phase 2 pattern-database work.
+        # Supersedes Rule P1-H. TransitionPlanner.plan() returns HARD_CUT unconditionally.
+        self.xfade_duration:    float = 0.0   # HARD CUTS ONLY — no cross-fade
+        self.intro_fade_in:     float = 0.0   # no fade-in from black (title card handles it)
+        self.outro_fade_out:    float = 0.0   # no fade-out (outro credits module will handle)
 
         # ── Intro clip ────────────────────────────────────────
         # IntroPart2.mp4 = 25.77s total. First 7s = PANTHEON logo animation only.
@@ -96,24 +99,33 @@ class Config:
         self.intro_clip_duration: float = 7.0  # seconds to use from IntroPart2.mp4
 
         # ── Audio mix ─────────────────────────────────────────
-        # In-game sound is critical: grenade hits, rocket impacts, rail cracks.
-        # These stay audible under music. Music is the backbone, game audio gives texture.
-        # v1 0.30 / v2 0.55 / v3 0.75 / v4 0.85 — Part3 rev1 review: still too low at 0.75.
-        # See Rule P1-G.
-        self.game_audio_volume: float = 0.85  # game audio blend level (0.0-1.0)
+        # HARD RULE (Part 4 review, 2026-04-17): music -50%, game sound kept.
+        # User verdict: "lower music by 50% keep game sound."
+        # Net effect: game audio is FOREGROUND, music is atmosphere underneath.
+        # Supersedes Rule P1-G (which had game audio under music at 0.85).
+        # History: v1 0.30 / v2 0.55 / v3 0.75 / v4 0.85 (music@1.0) / NOW game@1.0 music@0.5.
+        self.game_audio_volume:  float = 1.0   # game sound full volume — foreground
+        self.music_volume:       float = 0.5   # music halved — background atmosphere
+        # Rule P1-O: music must cover end-of-title-card → start-of-outro continuously.
+        # If a single track is shorter than Part runtime, pipeline queues a second
+        # track or loops with a beat-matched stitch. Silence gaps are a failure.
+        self.music_loop_if_short: bool = True
+        self.music_crossfade_on_loop: float = 0.5  # seconds of crossfade when looping/queuing
 
-        # ── Clip-padding convention (Rule P1-L) ───────────────
-        # Every Phase 1 AVI clip has ~2s pre-action padding + ~3s post-action padding.
-        # The post-roll tail ends with the recording-close artifact (console flash, HUD
-        # drop). We ALWAYS strip `clip_tail_trim` off the tail so that artifact never
-        # reaches the cut. The remaining 1s head + 1s tail are the `transition_envelope`
-        # that xfade / section-fade / white-flash transitions can consume.
-        # Beat-sync is only allowed to shorten a clip by at most `transition_envelope`
-        # beyond the tail-trim — i.e. it cannot trim into the action region.
-        self.clip_pad_head: float = 2.0         # seconds of pre-roll before action
-        self.clip_pad_tail: float = 3.0         # seconds of post-roll after action
-        self.clip_tail_trim: float = 1.5        # strip this much tail from EVERY clip
-        self.transition_envelope: float = 1.0   # seconds beat-sync may consume
+        # ── Clip-trim convention (Rule P1-L REVISED, Part 4 review 2026-04-17) ──
+        # User verdict: "cut the first second and the 2 last second."
+        # Every Phase 1 AVI clip has ~2s pre-action + ~3s post-action padding.
+        # New trim: 1s off head, 2s off tail. Everything between plays full-length.
+        # Rule P1-P (Full-Length Clip Contract): no sub-clip fragments. A clip
+        # that enters a Part plays its full post-trim duration. No 0.5s cutaways.
+        # Beat-sync can no longer shorten clips — if beat doesn't land on the
+        # clip edge, use REPLAY_SPEED_CONTRAST (Rule P1-Q) to stretch with a
+        # slow/normal replay of the same clip instead of truncating action.
+        self.clip_pad_head: float = 2.0         # original pre-roll length (reference)
+        self.clip_pad_tail: float = 3.0         # original post-roll length (reference)
+        self.clip_head_trim: float = 1.0        # strip 1s off head of EVERY clip
+        self.clip_tail_trim: float = 2.0        # strip 2s off tail of EVERY clip
+        self.transition_envelope: float = 0.0   # no transitions → no envelope
 
         # ── Parts ─────────────────────────────────────────────
         self.parts: List[int] = list(range(4, 13))  # instance attribute, not class-level

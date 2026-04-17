@@ -87,52 +87,85 @@ A Part assembled from T1 only is WRONG. A Part that uses T1 as filler is also wr
 - Demo re-recording from different positions
 - Any WolfcamQL command-driven capture
 
-### Rule P1-G: In-Game Audio Is Non-Negotiable
-**In-game sound must ALWAYS be preserved and audible under music.**
-- Game audio mix level: **75% by default** (under music), never 0%
-  - v1 was 30% (too quiet — Part4 v1 review)
-  - v2 was 55% (HUMAN-Q §5.1 ticked value). Part3 A/B/C review said "way too low"
-  - v3 is 75% — trust the review, not the ticked answer
-- Critical sounds to preserve: grenade direct hit, rocket impact, rail crack, weapon combos
-- These sounds define fragmovie texture — muting them loses the sport entirely
-- Phase 2 future: grenade/rocket direct hits OUT OF POV = automatic follow-cam candidates
+### Rule P1-G: Audio Mix — Game Foreground, Music Halved (REVISED Part 4 review 2026-04-17)
+**Game sound is FOREGROUND. Music is atmosphere underneath.**
+- `game_audio_volume = 1.0` (full — grenade hits, rail cracks, rocket impacts)
+- `music_volume      = 0.5` (halved — sits behind game audio)
+- User verdict: *"lower music by 50% keep game sound"*
+- History: v1 30% / v2 55% / v3 75% / v4 85% (all game-under-music) → v5 music halved, game full
 - `assemble_part()` must always use `amix` when music present — never discard game audio
-- Configurable via `Config.game_audio_volume` (default 0.75)
+- See `docs/reviews/part4-review-2026-04-17.md` §1
 
-### Rule P1-K: Multi-Angle Clips MUST Interleave Within the Frag
-**Multi-angle captures (FP + FL1/FL2/FL3 of the SAME frag) must NEVER play
-sequentially. Playing the same frag back-to-back from 4 angles = boring (Part3 review).**
-- FP + FL* angles show the SAME frag from different cameras
-- Required behavior: cut between angles WITHIN one screen-time window for that frag
-- Default schedule (for a frag window T, N FL angles):
-  - FP setup           (0% → 35% of T)
-  - FL angles in order (35% → 75% of T; middle FL gets climax weight)
-  - FP confirmation    (75% → 100% of T)
-- Source-time offsets into each FL source clip are synced to the window
-  position so all cameras show the same instant of the frag
-- Implemented via `trim_starts` + `trim_durations` in `build_filter_complex`
-- Cuts INSIDE a multi-angle group are ALWAYS hard cuts (no xfade,
-  see `TransitionPlanner`) — we are mid-action
-- Transitions between DIFFERENT frags use a variety palette
-  (flash cut / xfade / section fade / white flash on T1→T1 peaks) —
-  see `phase1/transitions.py`
-- Effects variety (slow-mo / speed ramp / zoom punch / desat flash / beat pulse)
-  via `phase1/effects.py` — no longer "slow-mo on every T1"
+### Rule P1-K: Multi-Angle — FP Backbone + ONE FL Slow-Contrast (REVISED Part 4 review 2026-04-17)
+**FP is the spine. At most ONE FL cuts in, used as slow-motion contrast. No 4-angle ping-pong.**
+User verdict: *"the FPV its absolutly terrible they swap back and forth in a terrible order,
+you should focus on keeping the main pov and use 1 of the FL video files you can slomo the main
+and the other for the effect."*
+- New window schedule (FP-dominant):
+  - FP normal speed   (0% → 40% of T)   — setup
+  - FL slow-mo 0.5×   (40% → 65% of T)  — contrast replay of the same moment
+  - FP normal speed   (65% → 100% of T) — confirmation / follow-through
+- Only ONE FL is used per frag. The rest of a multi-angle dir stays unused this Part.
+- Pick the FL with biggest angle delta from FP (side/top preferred).
+- All cuts remain hard cuts (no xfade — see P1-H).
+- Ping-pong between multiple FL angles is BANNED.
 
-### Rule P1-L: Clip Padding Convention — NEVER Cut Action
-**Every Phase 1 AVI clip has ~2s pre-action + ~3s post-action padding baked in by the WolfcamQL capture. The post-roll tail ends with a console-close / HUD-drop artifact.**
-- Strip `Config.clip_tail_trim` (default **1.5s**) off the tail of EVERY clip. Non-negotiable: that artifact never reaches the cut.
-- The 2s head + 1.5s remaining tail = "transition envelope" — xfade / section-fade / white-flash consume THIS region, never the action.
-- `Config.transition_envelope` (default **1.0s**) is the maximum beat-sync is allowed to trim beyond the tail-strip. So for a clip of raw length L, beat-sync may set duration anywhere in `[L - 1.5 - 1.0, L - 1.5]`. **Beat-sync cutting into action is a hard failure** (Part 3 rev1 review).
-- Implementation: `phase1/experiment.py` applies tail-trim universally after clip resolution, then floors beat-sync planned durations at `usable_dur - transition_envelope`.
-- User phrased it: "the 2 sec after a clip is meant to be used for the transition — use 1 second in start and 1 sec in end to transition fade."
+### Rule P1-L: Clip Trim — 1s Head / 2s Tail, Full-Length Between (REVISED Part 4 review 2026-04-17)
+**User verdict:** *"we can just cut the first second and the 2 last second for the transition effects."*
+- `clip_head_trim = 1.0s` (was 2.0s envelope)
+- `clip_tail_trim = 2.0s` (was 1.5s + 1.0s envelope)
+- `transition_envelope = 0.0s` (no transitions means no envelope)
+- Beat-sync may NO LONGER truncate clips. If beat doesn't land, use Rule P1-Q
+  (REPLAY_SPEED_CONTRAST) to stretch via slow/normal replay instead of cutting.
 
-### Rule P1-H: Transition Minimalism
-**Minimal transitions. Chain quality > visible transition effects.**
-- Default xfade: 0.08s (near-invisible, just a flash cut)
-- Use real xfade (0.25s+) ONLY at major section breaks
-- Focus on: clip ordering, tier hierarchy placement, beat alignment
-- "The chain" = the sequence of clips flowing correctly. That's where effort goes.
+### Rule P1-H: NO TRANSITIONS (REVISED Part 4 review 2026-04-17)
+**All inter-clip joins are hard cuts in Phase 1.** User verdict: *"no fucking transition
+not even a fading to the next image or anything."*
+- `xfade_duration = 0.0`
+- `TransitionPlanner.plan()` returns HARD_CUT unconditionally (all other kinds dead code)
+- No section fades, white flash, dip-to-black, cross-dissolve
+- Transition palette design is DEFERRED to Phase 2 pattern-database work
+
+### Rule P1-N: Title Card Contract (NEW Part 4 review 2026-04-17)
+**Every Part intro sequence is [PANTHEON 7s] + [Title Card 8s] + [Content]. No exceptions.**
+User verdict: *"no Quake Tribute, no By Trash no number no slowmo with the letters this is critical."*
+```
+  0s  → 7s   PANTHEON logo (IntroPart2.mp4 first 7s) — existing
+  7s  → 10s  "QUAKE TRIBUTE" letter-by-letter slow-mo reveal
+  10s → 12s  "Part N" number
+  12s → 14s  "By Tr4sH" credit
+  14s → 15s  Fade title block → content begins
+```
+- Implementation: `phase1/title_card.py` — ffmpeg `drawtext + zoompan + geq` filters
+- Rendered per-Part to `phase1/assets/title_card_partNN.mp4`, concat after PANTHEON, before first clip
+- Font style: bold Impact-like, white on black, motion-blurred entry
+
+### Rule P1-O: Music Coverage (NEW Part 4 review 2026-04-17)
+**Music audio is continuous from title-card end to outro start. Silence gaps are a failure.**
+User verdict: *"the music stop when tis over and there is not another one who take over."*
+- If Part runtime > music length: pipeline queues a second track (beat-matched stitch)
+  or loops (crossfade) on music stream only
+- Video stream stays hard-cut; music crossfade is `cfg.music_crossfade_on_loop = 0.5s`
+- `cfg.music_loop_if_short = True` enables auto-loop
+
+### Rule P1-P: Full-Length Clip Contract (NEW Part 4 review 2026-04-17)
+**No sub-clip fragments. A clip that enters a Part plays its full post-trim duration.**
+User verdict: *"a lot of the clip you do in quick succession are just showing half a second
+of a totally unrelated clip, i think you did not understand what a filler was, we need to
+keep ALL the original clip length."*
+- "Filler" = full-length atmospheric establishing shot (typically T3), NOT 0.5s cutaway
+- Quick-swap pattern previously used on T3 is DELETED
+- The micro-cut idea survives ONLY as a beat-locked FP↔FL stutter inside one multi-angle group
+  (flagged as `FL_BEAT_STUTTER` in `phase1/effects.py`, gated off by default)
+
+### Rule P1-Q: Replay-Speed Contrast Effect (NEW Part 4 review 2026-04-17)
+**Short T1 clips (< 3.0s post-trim) may be played twice: once slow, once normal
+(or normal → slow).** User verdict: *"good effect on really short T1 clip is to play
+it slow once replay it normal speed, or the other way around."*
+- New effect `REPLAY_SPEED_CONTRAST` in `phase1/effects.py`
+- Planner picks direction (slow→normal or normal→slow) based on beat position
+- Replaces beat-sync truncation (which is now banned by Rule P1-L)
+- Research agent to survey additional replay-style effects → `docs/research/effect-catalog-expansion.md`
 
 ### Rule P1-I: Golden Rule — Frag + Effect + Music Must Align
 **The chosen effect (slow-mo, zoom, fast-forward, hard cut) must match both the frag type AND the music beat/section.**
