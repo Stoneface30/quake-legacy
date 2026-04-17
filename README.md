@@ -67,19 +67,131 @@ Game-audio mix locked at 45-55% under music. Grenade/rocket impacts **out of POV
 
 ---
 
-## Texture Showcase — pak00 vs Phase 5
+## MD3 Offline Viewer — Iterate Without Launching The Game
 
-All pairs below: left is the original Quake Live `pak00.pk3` texture, right is the Phase 5 output. Both resized to 512px wide for GitHub rendering; the shipping `.pk3` keeps the native 4x resolution.
+**A headless Python renderer for `.md3` weapon / model files. Tweak a texture, hit render, compare — in seconds, without ever loading Quake.**
 
-| Weapon | Original (pak00) | Photorealistic (Phase 5) |
+![Rocket Launcher turntable — MD3 viewer, moderngl standalone context, 960×540 @ 30fps](docs/visual-record/2026-04-17/rocket_turntable.gif)
+
+### Why this tool exists
+
+Modding a Q3-engine weapon used to mean: edit texture → repack `pak.pk3` → launch engine → load map → `give rl` → `weapon 5` → screenshot. Five steps, ~45 seconds per iteration, impossible to A/B the lighting because the scene is never the same twice.
+
+The MD3 viewer skips the engine entirely. It parses `.md3` directly (id tech 3 format: header + frames + tags + surfaces + int16 XYZ verts + lat/lng packed normals — pure Python + numpy, no bindings), uploads to a moderngl standalone OpenGL context (no window, no OSMesa, uses the machine's NVIDIA/AMD driver directly), and dumps a PNG. One call, one frame, deterministic lighting, deterministic camera. **A 72-frame 360° turntable renders in under 10 seconds on an RTX 5060 Ti.**
+
+### Rim-light fix (before / after)
+
+Shipped initial version had a visible "shine halo" on weapon silhouettes — the fragment shader's rim term was `pow(1 - dot(n,v), 2) * 0.8` which floods more than half the outline. Fixed: exponent bumped to 4 (tighter halo), intensity dropped to 0.25, and **all five lighting terms now exposed as CLI flags** (`--ambient --key --fill --rim --rim-power`) so future "it looks wrong" gets solved without editing the shader.
+
+| Before (`--rim 0.8 --rim-power 2`) | After (`--rim 0.25 --rim-power 4`) |
+|---|---|
+| ![Old rim light — visible halo flooding the rocket silhouette](docs/visual-record/2026-04-17/rocket_before_shine.png) | ![Fixed rim light — tight silhouette highlight only](docs/visual-record/2026-04-17/rocket_after_fixed.png) |
+
+### Features
+
+- **Cameras**: `front · side · iso · fp` presets (first-person view matches Quake weapon-anchor convention, muzzle along +X, Z-up).
+- **Backgrounds**: `black · transparent · map_sky · white · grey · studio` — last three added 2026-04-17.
+- **Batch mode**: `--batch` renders all 4 camera presets into a directory in one invocation.
+- **Turntable mode**: `--turntable 72` writes a numbered PNG sequence; feed it to ffmpeg for an MP4 or palette-optimized GIF (the rotating rocket at the top of this section is a 407 KB GIF made this way).
+- **Auto-texture discovery**: walks up from `.md3` to the nearest `models/` ancestor, resolves the MD3 default shader to `.tga/.jpg/.png/.bmp` — usually picks up stock textures with zero CLI args.
+- **Anisotropic sampling**: `tex.anisotropy = 8.0` so textures stay crisp at oblique angles.
+
+### Quickstart
+
+```bash
+# Single iso render of the stock rocket launcher
+python -m tools.md3viewer.render \
+  --md3 tools/game-assets/q3a-extracted/models/weapons2/rocketl/rocketl.md3 \
+  --output out/rocket_iso.png \
+  --camera iso --resolution 1920x1080 --bg grey
+
+# 72-frame turntable into a directory, then encode to GIF
+python -m tools.md3viewer.render \
+  --md3 .../rocketl.md3 \
+  --output out/rocket_tt --turntable 72 --resolution 960x540 --bg grey
+ffmpeg -framerate 30 -i out/rocket_tt/frame_%04d.png \
+  -vf "fps=20,scale=480:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=128[p];[s1][p]paletteuse" \
+  -loop 0 out/rocket.gif
+
+# All 4 cameras, compared-texture A/B
+python -m tools.md3viewer.render --md3 .../rocketl.md3 --output out/original --batch --texture pak0/rocketl.jpg
+python -m tools.md3viewer.render --md3 .../rocketl.md3 --output out/photoreal --batch --texture comfyui_out/rocketl_v7.png
+```
+
+Tests: `python -m pytest tools/md3viewer/tests/` (3 passing — MD3 header magic, frame count, surface bounds).
+
+Companion browser viewer at `tools/md3viewer/web/` (Three.js + importmap CDN, no npm build step) — same MD3 loader, drag-and-drop textures, live lighting sliders. Runs at `http://localhost:8765` via `python -m tools.md3viewer.web.server`.
+
+---
+
+## Weapon Reskins — Before / After
+
+**107 stock Quake Live weapon + HUD textures run through Real-ESRGAN + ControlNet-Tile img2img. Drop the resulting `zzz_photorealistic.pk3` into `baseq3/` — load-order wins against stock, no config change, no engine patch.**
+
+All pairs below: left is the original `pak00.pk3` asset, right is the Phase 5 output. Texture close-ups only — no HUD, no nameplates, privacy-safe. Shipping pk3 keeps the native 1024² resolution; GitHub renders at 512px wide.
+
+| Weapon | Original (pak00, 256²) | Photorealistic (Phase 5, 1024²) |
 |---|---|---|
+| Rocket Launcher | ![](docs/visual-record/github-readme/textures/rocket_before.png) | ![](docs/visual-record/github-readme/textures/rocket_after.png) |
 | Railgun | ![](docs/visual-record/github-readme/textures/railgun_before.png) | ![](docs/visual-record/github-readme/textures/railgun_after.png) |
 | Lightning Gun | ![](docs/visual-record/github-readme/textures/lightning_before.png) | ![](docs/visual-record/github-readme/textures/lightning_after.png) |
-| Rocket Launcher | ![](docs/visual-record/github-readme/textures/rocket_before.png) | ![](docs/visual-record/github-readme/textures/rocket_after.png) |
 | Plasma Gun | ![](docs/visual-record/github-readme/textures/plasma_before.png) | ![](docs/visual-record/github-readme/textures/plasma_after.png) |
 | Shotgun | ![](docs/visual-record/github-readme/textures/shotgun_before.png) | ![](docs/visual-record/github-readme/textures/shotgun_after.png) |
 
-Pipeline details in [`docs/reference/comfyui-texture-pipeline.md`](docs/reference/comfyui-texture-pipeline.md). Test results + bug tracker: [`docs/reference/phase5-comfyui-test-results.md`](docs/reference/phase5-comfyui-test-results.md).
+<details>
+<summary><strong>How it works (5 bullets)</strong></summary>
+
+- **Extract.** Unzip `pak00.pk3` (it's just a ZIP), pull `models/weapons2/**` + `icons/*`. TGA/JPG → PNG via Pillow, alpha manifest recorded.
+- **Upscale.** Real-ESRGAN `4x-UltraSharp` from 256² → 1024² — pixel-perfect, no hallucination. This step sets the UV layout; every subsequent step has to preserve it.
+- **Img2img.** SD1.5 (`dreamshaper_8`) with ControlNet-Tile @ strength 0.75, **denoise 0.35 hard ceiling** (above 0.40, UV seams drift and the weapon shows visible stretching on the barrel/stock boundary). 20 steps, DPM++ 2M Karras.
+- **Alpha path.** HUD icons bypass SD (which strips RGBA) — Pillow Lanczos + UnsharpMask on RGB, alpha channel passed through untouched.
+- **Repack.** PNG → TGA, mirror the pak tree exactly, zip as `zzz_photorealistic.pk3`. The `zzz_` prefix puts it last alphabetically → engine loads it last → our textures win over stock.
+
+Full pipeline parameters + the UV-preservation story: [`docs/research/weapon-modding-pipeline-2026.md`](docs/research/weapon-modding-pipeline-2026.md). Per-weapon status + tier breakdown: [`phase5/weapons/catalog.md`](phase5/weapons/catalog.md). Runnable API workflow: [`phase35/comfyui/workflows/weapon_photoreal_v1.json`](phase35/comfyui/workflows/weapon_photoreal_v1.json).
+
+</details>
+
+### Roadmap
+
+- ✅ **Phase 5.1 — Static diffuse + glow maps.** 107-asset pk3 shipped: Rocket · Rail · LG body · Plasma body · Shotgun · Machinegun · GL · Gauntlet · BFG body · Grapple · Shells.
+- ⏳ **Phase 5.2 — Animated shaders.** Lightning Gun beam (scrolling `tcMod`), rail trail, muzzle flash. Needs shader authoring, not just texture swap.
+- ⏳ **Phase 5.3 — Projectile sprites.** Rocket in flight, plasma ball, **grenade projectile**, BFG ball — user's flagged priority ("we will even be able to redo the grenade and all this is game changing"). Same pipeline, separate opt-in pk3.
+- ⏳ **Phase 5.4 — Alt aesthetics.** Cel-shaded / cyberpunk / retro-Quake-1 tribute packs. Same pipeline, one prompt swap. One experimental pk3 per session.
+
+---
+
+## Phase 1.5 — Command Center (spec'd 2026-04-17)
+
+The ad-hoc scripts, manual ComfyUI runs, and `phase5/` pk3 builder converge into **one project-local Dockerized web app** that becomes the creative suite for the whole fragmovie pipeline. Design docs committed:
+
+- [`docs/superpowers/specs/2026-04-17-command-center-design.md`](docs/superpowers/specs/2026-04-17-command-center-design.md) — FastAPI + SQLite + Three.js, 10 sprints / ~30 days
+- [`docs/superpowers/specs/2026-04-17-engine-pivot-design.md`](docs/superpowers/specs/2026-04-17-engine-pivot-design.md) — q3mme replaces wolfcam as primary render engine; Steam paks become asset source of truth
+
+**What it does:**
+- Asset browser over **Steam pak00.pk3** (QL, 962 MB) + **Steam pak0-8** (Q3A, 496 MB) — authoritative, not extracted subsets
+- ComfyUI variant generator with 5 seeded **Style Packs**: `photoreal`, `pixel_art_16bit`, `cel_shaded`, `retro_quake1`, `q2_sonic_mayhem`
+- Per-pack preset chips (e.g. `photoreal/wet`, `photoreal/rust`)
+- MD3 preview canvas with animation playback (per FRAME scrubber over `animation.cfg` ranges: `LEGS_RUN`, `TORSO_ATTACK`, weapon IDLE/FIRE)
+- AnimateDiff / SVD sprite animator — generate rocket trails, muzzle flashes, explosions, smoke, rail beams
+- Approval loop → per-pack `zzz_<slug>.pk3` compile → per-clip style switching at fragmovie render time (Rule P1-M: packs rotate on section boundaries, never mid-clip)
+- Demo hub: dedup + extract across the 8 GB demo dump (pending user staging) and 948-demo primary corpus
+- Graphify-scannable `generated/` tree: path = pack → category → asset → variant, knowledge graph structure falls out of the filesystem
+- CLI parity so Claude can script against the same SQLite state the UI reads — n8n + graphify + wrap-up hooks keep working
+
+**Engine pivot in one line:** wolfcam is demoted to `.dm_73`-only (until we port protocol 73 into q3mme as Phase 3.5 research, then retired entirely). All other rendering, map browsing, pack testing, 4K capture runs on **q3mme** — the Quake 3 Movie Maker's Edition, open source, built for this exact use case.
+
+**New rules:** ENG-1 Steam paks are asset source of truth · ENG-2 pk3s must be `zzz_*.pk3` · ENG-3 `sv_pure 0` for pack testing · ENG-4 Steam paks are read-only · P1-M style packs rotate on section boundaries only.
+
+Awaiting user approval on **Gate ENG-1** (protocol 73 path A-now / B-eventual) before implementation kicks off.
+
+### Credits
+
+- id Software — Q3/QL source assets and id Tech 3 engine (GPL-2.0 since 2005).
+- WolfcamQL — the headless renderer that loads our pk3 at batch-render time.
+- 4x-UltraSharp, SD1.5, ControlNet-Tile — the open ComfyUI stack; MIT / Apache-2.0 / OpenRAIL-M (attribution in [`docs/research/comfyui-inventory-2026.md`](docs/research/comfyui-inventory-2026.md) §2.3).
+- This repo's ComfyUI workflow + batch runner — MIT.
+
+Test results + bug log: [`docs/reference/phase5-comfyui-test-results.md`](docs/reference/phase5-comfyui-test-results.md). Session VIS-1 record: [`docs/visual-record/2026-04-17/weapon-photoreal/README.md`](docs/visual-record/2026-04-17/weapon-photoreal/README.md).
 
 ---
 
@@ -112,6 +224,8 @@ Part 3 full-length previews, **307 seconds each at 1920x1080 H.264**, produced b
 | **C — Showcase** | 5:07 | 909 MB | Balanced — T1 frags get showcase framing, T3 as filler |
 
 Part 4 final (v4) incorporates the Gate-1 review fixes: PANTHEON intro prepended, music track locked, game-audio re-floored at 55% under music, hard-cut concat (no xfade chain), and all-angles clip selection replacing the v1 single-angle mistake.
+
+**2026-04-17 — Parts 4/5/6 full-length Style B delivered (Part 4 = 4.0 GB, 153 clips, NVENC av1_nvenc p7 CQ18).** The render path moved from `filter_complex concat` to a **concat-demuxer fallback** (`phase1/pipeline.py::_assemble_via_concat_demuxer`) after observing a hard ~40-input ceiling in ffmpeg's filter-graph allocator. The new path pre-encodes each clip to a lossy-but-cheap libx264 CRF 20 preset-fast intermediate, stitches via `-f concat -safe 0 -i list.txt`, and runs grade/bloom/sharpen/music-mix as a 1-input final pass. No clip cap. Full lessons in [`Vault/learnings.md` L82–L85](../../../Vault/learnings.md) (project-local mirror: [`feedback_concat_demuxer_path.md`](../../../projects/G--QUAKE-LEGACY/memory/feedback_concat_demuxer_path.md)).
 
 ---
 
@@ -229,6 +343,6 @@ This project stands on the shoulders of an open ecosystem.
 
 ## License
 
-This project derives from GPL-licensed sources (WolfcamQL, ioquake3, UberDemoTools) and is therefore itself distributed under **GPL**. A `LICENSE` file will be added alongside the first tagged release.
+This project derives from GPL-licensed sources (WolfcamQL, ioquake3, UberDemoTools) and is distributed under **GPL-2.0** — see [`LICENSE`](./LICENSE) at repo root.
 
-The Quake III Arena engine has been [open source since 2005](https://github.com/id-Software/Quake-III-Arena). This project is a gift back.
+**Everything here is open source and homemade.** No proprietary dependencies, no paid middleware, no closed binaries we didn't reverse-engineer ourselves. The parser, the cinematography engine, the beat-sync, the PANTHEON intros, the Phase 5 texture pipeline — all built from scratch or from GPL foundations. The Quake III Arena engine has been [open source since 2005](https://github.com/id-Software/Quake-III-Arena). This project is a gift back.

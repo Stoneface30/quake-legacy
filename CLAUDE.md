@@ -89,12 +89,43 @@ A Part assembled from T1 only is WRONG. A Part that uses T1 as filler is also wr
 
 ### Rule P1-G: In-Game Audio Is Non-Negotiable
 **In-game sound must ALWAYS be preserved and audible under music.**
-- Game audio mix level: **55% by default** (under music), never 0% — Part4 v1 review: 30% was too quiet
-- NOTE: Updated Plan (2026-04-16) proposes 30% or 45% variants — awaiting user decision in `HUMAN-QUESTIONS.md §5.1`. Until resolved, ship at 55%.
+- Game audio mix level: **75% by default** (under music), never 0%
+  - v1 was 30% (too quiet — Part4 v1 review)
+  - v2 was 55% (HUMAN-Q §5.1 ticked value). Part3 A/B/C review said "way too low"
+  - v3 is 75% — trust the review, not the ticked answer
 - Critical sounds to preserve: grenade direct hit, rocket impact, rail crack, weapon combos
 - These sounds define fragmovie texture — muting them loses the sport entirely
 - Phase 2 future: grenade/rocket direct hits OUT OF POV = automatic follow-cam candidates
 - `assemble_part()` must always use `amix` when music present — never discard game audio
+- Configurable via `Config.game_audio_volume` (default 0.75)
+
+### Rule P1-K: Multi-Angle Clips MUST Interleave Within the Frag
+**Multi-angle captures (FP + FL1/FL2/FL3 of the SAME frag) must NEVER play
+sequentially. Playing the same frag back-to-back from 4 angles = boring (Part3 review).**
+- FP + FL* angles show the SAME frag from different cameras
+- Required behavior: cut between angles WITHIN one screen-time window for that frag
+- Default schedule (for a frag window T, N FL angles):
+  - FP setup           (0% → 35% of T)
+  - FL angles in order (35% → 75% of T; middle FL gets climax weight)
+  - FP confirmation    (75% → 100% of T)
+- Source-time offsets into each FL source clip are synced to the window
+  position so all cameras show the same instant of the frag
+- Implemented via `trim_starts` + `trim_durations` in `build_filter_complex`
+- Cuts INSIDE a multi-angle group are ALWAYS hard cuts (no xfade,
+  see `TransitionPlanner`) — we are mid-action
+- Transitions between DIFFERENT frags use a variety palette
+  (flash cut / xfade / section fade / white flash on T1→T1 peaks) —
+  see `phase1/transitions.py`
+- Effects variety (slow-mo / speed ramp / zoom punch / desat flash / beat pulse)
+  via `phase1/effects.py` — no longer "slow-mo on every T1"
+
+### Rule P1-L: Clip Padding Convention — NEVER Cut Action
+**Every Phase 1 AVI clip has ~2s pre-action + ~3s post-action padding baked in by the WolfcamQL capture. The post-roll tail ends with a console-close / HUD-drop artifact.**
+- Strip `Config.clip_tail_trim` (default **1.5s**) off the tail of EVERY clip. Non-negotiable: that artifact never reaches the cut.
+- The 2s head + 1.5s remaining tail = "transition envelope" — xfade / section-fade / white-flash consume THIS region, never the action.
+- `Config.transition_envelope` (default **1.0s**) is the maximum beat-sync is allowed to trim beyond the tail-strip. So for a clip of raw length L, beat-sync may set duration anywhere in `[L - 1.5 - 1.0, L - 1.5]`. **Beat-sync cutting into action is a hard failure** (Part 3 rev1 review).
+- Implementation: `phase1/experiment.py` applies tail-trim universally after clip resolution, then floors beat-sync planned durations at `usable_dur - transition_envelope`.
+- User phrased it: "the 2 sec after a clip is meant to be used for the transition — use 1 second in start and 1 sec in end to transition fade."
 
 ### Rule P1-H: Transition Minimalism
 **Minimal transitions. Chain quality > visible transition effects.**
@@ -145,10 +176,36 @@ All available music tracks listed in: `phase1/music/available_tracks.txt`
 
 | Phase | Status | Current Task |
 |---|---|---|
-| Phase 1 | In Progress | Experiment renders → user review → lock style → all 9 Parts |
-| Phase 2 | Planned | Await P3-A highlight criteria session + P3-B command inventory |
+| Phase 1 | Style B lock | Parts 4/5/6 full renders delivered 2026-04-17 (concat-demuxer path). Awaiting user playback review before Parts 7-12. |
+| Phase 1.5 | Spec'd 2026-04-17 | Command Center + engine pivot specs committed. See `docs/superpowers/specs/2026-04-17-command-center-design.md` and `2026-04-17-engine-pivot-design.md`. |
+| Phase 2 | Planned | Await P3-A highlight criteria + ENG-1 protocol-73 path approval |
 | Phase 3 | Research | Phase3 AI research complete. Await highlight criteria session |
+| Phase 3.5 | Spec'd | 3D intro lab + protocol-73 port to q3mme (community give-back) |
 | Phase 4 | Vision | Public CLI tool for anyone with demos |
+
+## Authoritative Asset Sources (2026-04-17, confirmed on disk)
+
+**NEW RULE — ENG-1:** Steam paks are the source of truth for baseq3 assets. Wolfcam extracts are reference only.
+
+| Source | Path | Size |
+|---|---|---|
+| Quake Live baseq3 | `C:\Program Files (x86)\Steam\steamapps\common\Quake Live\baseq3\pak00.pk3` | 962 MB |
+| Quake 3 Arena baseq3 | `C:\Program Files (x86)\Steam\steamapps\common\Quake 3 Arena\baseq3\pak0.pk3` + `pak1-8.pk3` | 496 MB |
+| Q3 engine source | `tools/quake-source/quake3-source/` | — |
+| q3mme (movie maker) | `tools/quake-source/q3mme/` | — |
+| quake3e (modern fork) | `tools/quake-source/quake3e/` | — |
+| UDT parser | `tools/quake-source/uberdemotools/` | — |
+
+**Read-only for Steam paths. Never modify.** Our overrides are `zzz_*.pk3` in `creative_suite/generated/packs/`.
+
+## Engine Rules (NEW — from engine-pivot spec)
+
+- **ENG-1**: Asset source of truth = Steam paks, not wolfcam extracts.
+- **ENG-2**: Style pack pk3s MUST be named `zzz_*.pk3` for alphabetical override of `pak00.pk3`.
+- **ENG-3**: Pack testing requires `+set sv_pure 0`.
+- **ENG-4**: Steam pak files are read-only. Never modify.
+- **Engine role split (v1)**: wolfcamql for `.dm_73` playback only; q3mme for everything else (map browse, sprite preview, pack testing, 4K capture).
+- **Endgame**: port wolfcamql's protocol 73 patches into q3mme (Phase 3.5 research track), then retire wolfcam entirely.
 
 ## Key Technical Facts (memorize these)
 
@@ -175,6 +232,9 @@ time   = snapshot.server_time     # milliseconds
 - WolfcamQL: `G:\QUAKE_LEGACY\tools\wolfcamql\wolfcamql.exe` (also in WOLF WHISPERER\)
 - UberDemoTools: `G:\QUAKE_LEGACY\tools\uberdemotools\UDT_json.exe`
 - WolfWhisperer binary (for RE): `G:\QUAKE_LEGACY\WOLF WHISPERER\WolfWhisperer.exe`
+- **Demo corpus (primary):** `G:\QUAKE_LEGACY\WOLF WHISPERER\WolfcamQL\wolfcam-ql\demos\` (948 `.dm_73` files — verified 2026-04-17). Some are action-extracts (<150 KB), full demos are 2-4 MB.
+- **Demo corpus (secondary, 2026-04-17):** User located original ~3000-demo dump — will be staged into `G:\QUAKE_LEGACY\demos\` for full re-extraction
+- Parser fixture env var: `DM73_FIXTURE_DIR` (overrides path in `phase2/dm73parser/tests/fixtures.h`)
 
 ### Cross-Phase Learning Store
 All phases write learnings to: `G:\QUAKE_LEGACY\database\knowledge.db`
@@ -216,6 +276,54 @@ This is non-negotiable. Screenshots and before/after comparisons are deliverable
 4. Review `phase1/music/available_tracks.txt` for music status
 5. Never run batch operations without human confirming at review gate
 6. Never commit personal data
+
+## Funded Tracks — User-Approved 2026-04-17 (HUMAN-QUESTIONS.md §10)
+
+These were informal before — now they are hard commitments. Any plan that ignores these is wrong.
+
+### FT-1: Custom C++ `.dm_73` parser (Path B)
+- Lives in `phase2/dm73parser/` — C++17 + CMake, static lib + `dm73dump` CLI → JSON Lines
+- Vendors `msg.c`, `huffman.c`, `common.c`, `q_shared.h`, `bg_public.h` from wolfcamql-src under GPL-2.0 with preserved headers
+- Authoritative format reference: `docs/reference/dm73-format-deep-dive.md` (1,337 lines)
+- Validated against `UDT_json.exe` golden output on 3 hand-picked demos before trust
+- Spirit: *"WE ARE QUAKE WE BREATH QUAKE WE KNOW IF WE CHANGE THIS BIT IT WILL MAKE THE RAIL PINK"* — full control, no black boxes
+
+### FT-2: Highlight Criteria v2 (locked)
+- Authoritative: `docs/specs/highlight-criteria-v2.md` (supersedes v1)
+- Every frag enters the corpus (no minimum threshold); tiering is for *ordering*, not filtering
+- Weapon weights: Rocket 2.0, Rail 1.5, Grenade direct 2.5, LG accuracy-banded (40/50/56)
+- Multi-kill window = full CA round; airshot = any weapon, 200ms min air time
+- LMS is a separate tag with audio-cue integration opportunity
+- All weapon-combo sequences ≤ 2s extracted for pattern-recognition ML
+
+### FT-3: Phase 3.5 — 3D Intro Lab
+- Parallel research track, not on critical path for Parts 4-12
+- Goal: AI-assisted 3D intros using Q3 BSP maps + MD3 models (Xaero/Visor priority) + ComfyUI/AnimateDiff
+- Also carries the Parts 1-3 morph-remaster experiment (Annihilation-style game-to-game morphs)
+- Location: `phase35/` (already scaffolded)
+
+### FT-4: Ghidra every executable
+- `WolfWhisperer.exe` is the anchor but ALL executables in the project get reverse-engineered for full command/IPC mapping
+- Targets: `tools/wolfcamql/wolfcamql.exe`, `tools/uberdemotools/UDT_json.exe`, any other shipped binaries
+- Outputs land in `game-dissection/ghidra/` with per-binary markdown reports
+- No WolfcamQL automation ships in Phase 2 until this completes
+
+### FT-5: Nickname dictionary + notable-player regex
+- Per `database/frags.db` schema in HUMAN-QUESTIONS.md §6
+- User's historical nicknames (Tr4sH + variants) and famous opponents (e.g. strenx) become regex tags
+- Notable-victim frags get auto-flagged as Part-opening / climax candidates
+- All alias strings stay LOCAL — public exports use opaque canonical_id hashes only
+
+### FT-6: FFmpeg encoder benchmark → quality ceiling
+- Per Rule P1-J, file size doesn't matter — find the WOW-factor renderer
+- Agent benchmarking x264/x265/AV1/NVENC with VMAF on a reference clip
+- Outcome feeds `phase1/config.py` for all final renders from Part 4 onward
+
+### FT-7: Game-audio mix level = 55% (pending re-evaluation)
+- User ticked 55% in HUMAN-QUESTIONS.md §5.1 with rider "we could still change this later"
+- Part 3 review said "way too low" at that level → flagged for A/B test on next render pass
+- `Config.game_audio_volume` is the single source of truth (currently 0.75 after Part 4 review)
+- Resolve conflict: next preview compares 0.55 vs 0.75 on the same frag and user picks
 
 ## Phase 4 Vision
 
