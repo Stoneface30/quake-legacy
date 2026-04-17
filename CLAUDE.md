@@ -197,13 +197,17 @@ All available music tracks listed in: `phase1/music/available_tracks.txt`
 - Only after user-approved criteria does Phase 2 parse all 2,277 demos
 - This is Gate P3-0 (before any demo extraction)
 
-### Rule P3-B: WolfcamQL + WolfWhisperer Command Inventory
-**ALL console commands and cvars must be inventoried before Phase 2/3 automation.**
-- Source: `tools/quake-source/wolfcamql-local-src/code/cgame/wolfcam_consolecmds.c`
-- Also: `tools/quake-source/wolfcamql-src/code/cgame/wolfcam_consolecmds.c`
-- WolfWhisperer.exe: reverse engineer with Ghidra to find IPC commands
-- Document in: `docs/reference/wolfcam-commands.md`
-- This is required before writing any WolfcamQL automation in Phase 2
+### Rule P3-B: WolfcamQL + WolfWhisperer Command Inventory — DONE 2026-04-17
+**Authoritative wolfcamql knowledge tree:** `game-dissection/wolfcam-knowledge-ingest/`
+- `00-overview.md` — project identity, lineage, retirement rationale
+- `01-commands-cvars.md` — 449 commands + 1,983 cvars with file:line refs
+- `02-protocol-73-patches.md` — diff hunks vs ioquake3 (the gold for Tr4sH Quake Track A)
+- `03-ipc-commands.md` — WolfWhisperer→wolfcamql cmd-line + cfg surface (Ghidra RE still pending)
+- `04-fragmovie-features.md` — freecam, kill-cam, AVI/HuffYUV writer, MSAA, timescale
+- `05-quirks-and-gotchas.md` — platform paths, hardcoded limits, QL bug workarounds
+- `06-protocol-73-port-plan.md` — 7-sprint plan to lift proto-73 into q3mme
+- WolfWhisperer.exe Ghidra RE: still required (FT-4 covers this)
+- After Tr4sH Quake Track A lands, `tools/quake-source/wolfcamql-src/` may be deleted
 
 ## Project Structure — TWO SPLITS (user ruling 2026-04-17)
 
