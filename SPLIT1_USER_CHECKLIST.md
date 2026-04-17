@@ -99,6 +99,31 @@ NOT need this. Only Split 2 does. Put on the list so it doesn't fall off.
 
 ---
 
+## Known launch-readiness gap for Parts 7-12 (I'll fix at batch time)
+
+Autonomous-tick inventory found: the existing `phase1/clip_lists/part07.txt` through `part12.txt` are **T1-only** (~30 clips each, sourced from `QUAKE VIDEO\T1\PartN\` only). Parts 4/5/6 Style B combined **all three tiers** (~150 clips each) per **Rule P1-A**.
+
+State verified 2026-04-17 autonomous tick:
+
+| Part | clip list (current) | Style B list needed | Music track | Beat cache |
+|---|---|---|---|---|
+| 7  | `part07.txt` T1-only (30 clips) | `part07_styleb.txt` (T1+T2+T3) | ✅ 7.9 MB | ✅ |
+| 8  | `part08.txt` T1-only (30 clips) | `part08_styleb.txt` | ✅ 10.7 MB | ✅ |
+| 9  | `part09.txt` T1-only (30 clips) | `part09_styleb.txt` | ✅ 7.3 MB | ✅ |
+| 10 | `part10.txt` T1-only (30 clips) | `part10_styleb.txt` | ✅ 6.3 MB | ✅ |
+| 11 | `part11.txt` T1-only (30 clips) | `part11_styleb.txt` | ✅ 13.7 MB | ✅ |
+| 12 | `part12.txt` T1-only (30 clips) | `part12_styleb.txt` | ✅ 7.8 MB | ✅ |
+
+**Music + beat caches are 100% ready.** The only missing piece is Style B list generation.
+
+When you approve Part 4, I run one command to regenerate all six lists and kick the batch:
+```
+python -m phase1.experiment --part 7 8 9 10 11 12 --style B --nvenc
+```
+This scans T1+T2+T3 for each Part via `scan_part_frags()`, writes `partXX_styleb.txt`, and final-renders. No new decisions required.
+
+---
+
 ## When Split 1 Closes
 
 All 9 Parts (4-12) rendered and approved. Parts 1-3 remain legacy
