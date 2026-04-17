@@ -763,3 +763,97 @@ def prepend_intro(
     size_mb = output_path.stat().st_size / 1024 / 1024
     print(f"  [DONE] {output_path.name} with intro ({size_mb:.0f}MB)")
     return output_path
+
+
+def prepend_intro_sequence(
+    part_path: Path,
+    output_path: Path,
+    part: int,
+    cfg: Config,
+) -> Path:
+    """
+    Rule P1-N intro contract: [PANTHEON 7s] + [Title Card 8s] + [Part content].
+
+    Builds the title card for this Part, trims the PANTHEON logo, and concatenates
+    all three segments via filter_complex concat (single re-encode pass so all
+    timebases/codecs line up cleanly with downstream Part footage).
+
+    Args:
+        part_path:   Assembled Part MP4 (already graded / music-mixed).
+        output_path: Final output path with intro sequence prepended.
+        part:        Part number (used for title card copy and caching).
+        cfg:         Config (intro_source, title_card_*, ffmpeg_bin).
+
+    Returns: output_path
+    """
+    # Local import to avoid circular dependency at module load
+    from phase1.title_card import render_title_card
+
+    if not cfg.intro_source.exists():
+        raise FileNotFoundError(
+            f"PANTHEON intro not found: {cfg.intro_source}\n"
+            "Place IntroPart2.mp4 at: FRAGMOVIE VIDEOS/IntroPart2.mp4"
+        )
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Step 1: trim PANTHEON logo to first N seconds (cached temp)
+    intro_duration = cfg.intro_clip_duration
+    intro_trimmed = output_path.parent / f"_intro_trim_{intro_duration:.0f}s.mp4"
+    if not intro_trimmed.exists():
+        cmd_trim = [
+            str(cfg.ffmpeg_bin), "-y",
+            "-ss", "0",
+            "-t", str(intro_duration),
+            "-i", str(cfg.intro_source),
+            "-c:v", "libx264",
+            "-crf", "17",
+            "-preset", "fast",
+            "-pix_fmt", "yuv420p",
+            "-r", str(cfg.target_fps),
+            "-vf", f"scale={cfg.target_width}:{cfg.target_height}:flags=lanczos",
+            "-c:a", "aac",
+            "-ar", "48000",
+            "-b:a", "192k",
+            str(intro_trimmed),
+        ]
+        result = subprocess.run(cmd_trim, capture_output=True, text=True, encoding="utf-8", errors="replace")
+        if result.returncode != 0:
+            raise RuntimeError(f"Intro trim failed:\n{result.stderr[-500:]}")
+
+    # Step 2: build / fetch this Part's title card
+    title_card = render_title_card(part, cfg)
+
+    # Step 3: concat all three streams → output (single re-encode pass)
+    cmd_concat = [
+        str(cfg.ffmpeg_bin), "-y",
+        "-i", str(intro_trimmed),
+        "-i", str(title_card),
+        "-i", str(part_path),
+        "-filter_complex",
+        "[0:v][0:a][1:v][1:a][2:v][2:a]concat=n=3:v=1:a=1[vout][aout]",
+        "-map", "[vout]",
+        "-map", "[aout]",
+        "-c:v", "libx264",
+        "-crf", "17",
+        "-preset", "slow",
+        "-profile:v", "high",
+        "-pix_fmt", "yuv420p",
+        "-r", str(cfg.target_fps),
+        "-g", str(cfg.target_fps * 2),
+        "-bf", "2",
+        "-c:a", "aac",
+        "-ar", "48000",
+        "-b:a", cfg.audio_bitrate,
+        "-movflags", "+faststart",
+        str(output_path),
+    ]
+
+    print(f"  Prepending intro sequence (PANTHEON {intro_duration:.0f}s + title card {cfg.title_card_duration:.0f}s) -> {output_path.name}")
+    result = subprocess.run(cmd_concat, capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if result.returncode != 0:
+        raise RuntimeError(f"Intro-sequence concat failed:\n{result.stderr[-500:]}")
+
+    size_mb = output_path.stat().st_size / 1024 / 1024
+    print(f"  [DONE] {output_path.name} with intro sequence ({size_mb:.0f}MB)")
+    return output_path

@@ -512,7 +512,7 @@ def render_experiment_preview(
     """
     from phase1.clip_list import parse_clip_entry, ClipEntry
     from phase1.normalize import normalize_clip, slow_path
-    from phase1.pipeline import assemble_part, GradePreset, prepend_intro
+    from phase1.pipeline import assemble_part, GradePreset, prepend_intro_sequence
     from phase1.inventory import get_clip_info
 
     # Rule P1-C: always prepend PANTHEON intro. body_output = temp, output = final.
@@ -590,8 +590,8 @@ def render_experiment_preview(
     if beat_sync:
         _emit_beat_plan(part, style, cfg, all_normalized)
 
-    # Rule P1-C: ALWAYS prepend PANTHEON intro (7s) to every Part
-    prepend_intro(body_output, output, cfg)
+    # Rule P1-C + P1-N: PANTHEON logo (7s) + title card (8s) + content
+    prepend_intro_sequence(body_output, output, part, cfg)
     body_output.unlink(missing_ok=True)
 
     size_mb = output.stat().st_size / 1024 / 1024

@@ -36,7 +36,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from phase1.config import Config
 from phase1.clip_list import parse_clip_entry, ClipEntry
 from phase1.normalize import normalize_clip, slow_path, zoom_path, speedup_path
-from phase1.pipeline import assemble_part, GradePreset, prepend_intro
+from phase1.pipeline import assemble_part, GradePreset, prepend_intro_sequence
 from phase1.experiment import scan_part_frags, FragClip, resolve_clip_path
 from phase1.inventory import get_clip_info
 
@@ -525,9 +525,9 @@ def render_version(
         preset_override=encode_preset,
     )
 
-    # Rule P1-C: ALWAYS prepend PANTHEON intro to every Part (first 7 seconds only)
-    print(f"\n  Prepending PANTHEON intro...")
-    prepend_intro(body_output, output, cfg)
+    # Rule P1-C + P1-N: PANTHEON logo (7s) + title card (8s) + content
+    print(f"\n  Prepending PANTHEON intro + title card...")
+    prepend_intro_sequence(body_output, output, part, cfg)
 
     # Clean up body temp file
     body_output.unlink(missing_ok=True)

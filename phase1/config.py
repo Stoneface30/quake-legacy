@@ -98,6 +98,15 @@ class Config:
         # The rest is in-game CA Tribute billboard scene (not used for Parts).
         self.intro_clip_duration: float = 7.0  # seconds to use from IntroPart2.mp4
 
+        # ── Title card (Rule P1-N, Part 4 review 2026-04-17) ─────────
+        # Every Part intro sequence is [PANTHEON 7s] + [Title Card 8s] + [Content].
+        # Title card shows "QUAKE TRIBUTE" letter-reveal, "Part N", "By Tr4sH".
+        # See phase1/title_card.py.
+        self.title_card_duration:    float = 8.0
+        self.title_card_font:        str   = "Impact"
+        self.title_card_credit:      str   = "By Tr4sH"
+        self.title_card_series_name: str   = "QUAKE TRIBUTE"
+
         # ── Audio mix ─────────────────────────────────────────
         # HARD RULE (Part 4 review, 2026-04-17): music -50%, game sound kept.
         # User verdict: "lower music by 50% keep game sound."
