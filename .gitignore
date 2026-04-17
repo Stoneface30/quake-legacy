@@ -93,3 +93,29 @@ phase1/music/library/
 # Creative Suite v2 local storage
 storage/
 
+# Engine consolidation — canonical tree and per-tree variants (third-party source,
+# too large + license-mixed for public repo). Only manifest/diffs/docs are tracked.
+game-dissection/engines/_canonical/
+game-dissection/engines/darkplaces/
+game-dissection/engines/demodumper/
+game-dissection/engines/gtkradiant/
+game-dissection/engines/ioquake3/
+game-dissection/engines/openarena-engine/
+game-dissection/engines/openarena-gamecode/
+game-dissection/engines/q3mme/
+game-dissection/engines/q3vm/
+game-dissection/engines/qldemo-python/
+game-dissection/engines/quake1-source/
+game-dissection/engines/quake2-source/
+game-dissection/engines/quake3-source/
+game-dissection/engines/quake3e/
+game-dissection/engines/uberdemotools/
+game-dissection/engines/wolfcamql-src/
+game-dissection/engines/wolfcamql-local-src/
+game-dissection/engines/wolfet-source/
+game-dissection/engines/yamagi-quake2/
+# But DO track the inventory, diffs, and docs:
+!game-dissection/engines/_manifest/
+!game-dissection/engines/_diffs/
+!game-dissection/engines/*.md
+
