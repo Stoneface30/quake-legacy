@@ -215,19 +215,21 @@ def build_filter_complex(
     )
 
     if music_input_index is not None:
-        # Game audio: lower volume, fade in/out
+        # Rule P1-G (Part 4 review 2026-04-17): game audio is FOREGROUND (1.0),
+        # music is atmosphere UNDERNEATH (0.5). Opposite of previous mix.
+        music_vol = getattr(cfg, "music_volume", 0.5)
         parts.append(
             f"{a_chain}volume={game_audio_volume:.2f},"
             f"afade=t=in:st=0:d={cfg.intro_fade_in},"
             f"afade=t=out:st={fade_out_start:.4f}:d={cfg.outro_fade_out}[game_faded]"
         )
-        # Music: fade in/out (full volume — game audio rides underneath)
+        # Music: halved pre-gain, then fade in/out
         parts.append(
-            f"[{music_input_index}:a]"
+            f"[{music_input_index}:a]volume={music_vol:.2f},"
             f"afade=t=in:st=0:d={cfg.intro_fade_in},"
             f"afade=t=out:st={fade_out_start:.4f}:d={cfg.outro_fade_out}[music_faded]"
         )
-        # Mix: game audio texture + music backbone
+        # Mix: game audio foreground + music background
         # normalize=0 prevents amix from halving volume levels
         parts.append(
             f"[game_faded][music_faded]amix=inputs=2:duration=first:normalize=0[aout]"
@@ -275,6 +277,7 @@ def _assemble_via_concat_demuxer(
     trim_durations: Optional[List[float]],
     per_clip_vf: Optional[List[str]],
     durations: List[float],
+    clip_list_path: Optional[Path] = None,
 ) -> Path:
     """
     High-clip-count assembly path that sidesteps ffmpeg's filter_complex concat
@@ -379,7 +382,9 @@ def _assemble_via_concat_demuxer(
         f"[sharp]fade=t=in:st=0:d={cfg.intro_fade_in},"
         f"fade=t=out:st={fade_out_start:.4f}:d={cfg.outro_fade_out}[vout]",
     ]
-    game_vol = cfg.game_audio_volume
+    # Rule P1-G (Part 4 review 2026-04-17): game audio FOREGROUND, music HALVED.
+    game_vol  = cfg.game_audio_volume
+    music_vol = getattr(cfg, "music_volume", 0.5)
     if music_path is not None:
         fc_parts.append(
             f"[0:a]volume={game_vol:.2f},"
@@ -387,7 +392,8 @@ def _assemble_via_concat_demuxer(
             f"afade=t=out:st={fade_out_start:.4f}:d={cfg.outro_fade_out}[game_faded]"
         )
         fc_parts.append(
-            f"[1:a]afade=t=in:st=0:d={cfg.intro_fade_in},"
+            f"[1:a]volume={music_vol:.2f},"
+            f"afade=t=in:st=0:d={cfg.intro_fade_in},"
             f"afade=t=out:st={fade_out_start:.4f}:d={cfg.outro_fade_out}[music_faded]"
         )
         fc_parts.append(
@@ -491,6 +497,15 @@ def _assemble_via_concat_demuxer(
     except OSError as e:
         print(f"  [cleanup] could not fully remove {work_dir}: {e}")
 
+    # Creative Suite v2: record which clip list produced this mp4.
+    if clip_list_path is not None:
+        from creative_suite.clips.parser import write_render_manifest
+        write_render_manifest(
+            output_path, clip_list_path,
+            extras={"encoder": codec_override or "libx264",
+                    "crf": crf_override if crf_override is not None else cfg.crf,
+                    "path": "concat_demuxer"},
+        )
     return output_path
 
 
@@ -508,6 +523,7 @@ def assemble_part(
     trim_durations: Optional[List[float]] = None,
     per_clip_vf: Optional[List[str]] = None,
     transition_plan: Optional[List[Transition]] = None,
+    clip_list_path: Optional[Path] = None,
 ) -> Path:
     """
     Assemble clips -> single MP4 with grade, bloom, xfade, optional music.
@@ -564,6 +580,7 @@ def assemble_part(
             trim_durations=trim_durations,
             per_clip_vf=per_clip_vf,
             durations=durations,
+            clip_list_path=clip_list_path,
         )
 
     music_input_index = len(clips) if music_path else None
@@ -670,6 +687,16 @@ def assemble_part(
 
     size_mb = output_path.stat().st_size / 1024 / 1024
     print(f"  [DONE] {output_path} ({size_mb:.0f}MB)")  # S7 fix: no emoji
+    # Creative Suite v2: record which clip list produced this mp4 so the
+    # annotation tool (storage/annotations/) can resolve mp4_time -> clip_index.
+    if clip_list_path is not None:
+        from creative_suite.clips.parser import write_render_manifest
+        write_render_manifest(
+            output_path, clip_list_path,
+            extras={"encoder": codec_override or "libx264",
+                    "crf": crf_override if crf_override is not None else cfg.crf,
+                    "path": "filter_complex"},
+        )
     return output_path
 
 
