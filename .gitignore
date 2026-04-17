@@ -73,3 +73,23 @@ tools/ghidra/projects/
 # Personal config with paths
 options_local.ini
 local_config.py
+
+# Phase 3.5 — extracted Q3/QL character assets (copyright id Software)
+phase35/models/
+phase35/out/
+
+# Visual-record gameplay frames — contain player nameplates / HUD (PII)
+# Only docs/visual-record/github-readme/ is safe for public (manually curated)
+# Exclude image files under style-lock / gameplay / render subfolders, keep READMEs
+docs/visual-record/*/part*-style-lock/*.jpg
+docs/visual-record/*/part*-style-lock/*.png
+docs/visual-record/*/gameplay-frames/*.jpg
+docs/visual-record/*/gameplay-frames/*.png
+docs/visual-record/*/render-frames/*.jpg
+docs/visual-record/*/render-frames/*.png
+phase1/music/library/
+
+
+# Creative Suite v2 local storage
+storage/
+
