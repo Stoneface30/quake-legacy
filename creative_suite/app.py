@@ -19,25 +19,35 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Creative Suite v2", version=VERSION)
     app.state.cfg = cfg
 
-    from creative_suite.api import annotations, clips, parts
+    from creative_suite.api import (
+        annotations,
+        assets,
+        clips,
+        comfy,
+        parts,
+        variants,
+    )
     app.include_router(annotations.router)
     app.include_router(clips.router)
     app.include_router(parts.router)
-
-    @app.get("/health")
-    def health() -> dict[str, object]:
-        return {"ok": True, "version": VERSION}
+    app.include_router(assets.router)
+    app.include_router(comfy.router)
+    app.include_router(variants.router)
 
     @app.get("/")
-    def index() -> FileResponse:
+    def index() -> FileResponse:  # pyright: ignore[reportUnusedFunction]
         return FileResponse(WEB_ROOT / "annotate.html")
 
+    @app.get("/health")
+    def health() -> dict[str, object]:  # pyright: ignore[reportUnusedFunction]
+        return {"ok": True, "version": VERSION}
+
     @app.get("/annotate")
-    def annotate_page() -> FileResponse:
+    def annotate_page() -> FileResponse:  # pyright: ignore[reportUnusedFunction]
         return FileResponse(WEB_ROOT / "annotate.html")
 
     @app.get("/creative")
-    def creative_page() -> FileResponse:
+    def creative_page() -> FileResponse:  # pyright: ignore[reportUnusedFunction]
         # creative.html lands in Step 4 — gracefully degrade until then.
         path = WEB_ROOT / "creative.html"
         if path.exists():

@@ -1,9 +1,11 @@
 from pathlib import Path
 
+import pytest
+
 from creative_suite.config import Config
 
 
-def test_config_has_required_paths(tmp_path: Path, monkeypatch) -> None:
+def test_config_has_required_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CS_STORAGE_ROOT", str(tmp_path))
     cfg = Config()
     assert cfg.storage_root == tmp_path
