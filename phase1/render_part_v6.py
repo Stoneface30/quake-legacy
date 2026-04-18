@@ -42,6 +42,7 @@ from phase1.music_stitcher import stitch_part_music, validate_coverage
 from phase1.beat_sync import (
     load_beats, snap_xfade_offsets, find_beats_file,
     plan_beat_cuts, write_beats_json,
+    plan_flow_cuts_v2, write_flow_plan_json, PlannedClip,
 )
 from phase1.silence_detect import analyze_silence
 from phase1 import music_structure as _music_structure
@@ -191,8 +192,10 @@ def normalize_and_expand(part: int, clip_list_path: Path, cfg: Config) -> List[P
                     is_fl = "FL" in first_src.stem.upper()
                     head = (cfg.clip_head_trim_fl if is_fl
                             else cfg.clip_head_trim_fp)
+                    tail = (cfg.clip_tail_trim_fl if is_fl
+                            else cfg.clip_tail_trim_fp)
                     dur_full = _probe_duration(first_src, cfg)
-                    post_trim = dur_full - head - cfg.clip_tail_trim
+                    post_trim = dur_full - head - tail
                     if 0 < post_trim < cfg.short_t1_slowmo_threshold:
                         entry.slow = True
                         short_t1_forced += 1
@@ -272,14 +275,13 @@ def build_body_chunks(
     """
     chunks_dir.mkdir(parents=True, exist_ok=True)
     chunks: List[Path] = []
-    tail_default = cfg.clip_tail_trim
     overrides = overrides or {}
     skipped_short = 0
 
     def _trims_for(src: Path) -> tuple[float, float, Optional[dict[str, object]]]:
         is_fl = "FL" in src.stem.upper()
         head = cfg.clip_head_trim_fl if is_fl else cfg.clip_head_trim_fp
-        tail = tail_default
+        tail = cfg.clip_tail_trim_fl if is_fl else cfg.clip_tail_trim_fp
         src_name = _stem_to_src_avi_name(src)
         ov = overrides.get(src_name)
         if ov is not None:
@@ -704,7 +706,7 @@ def final_render(
         f"[3:a]atrim=start={title_dur},asetpts=PTS-STARTPTS,"
         f"volume={mus_vol},apad,"
         f"aresample=48000:async=1[segC_mus];"
-        f"{sidechain_frag}"
+        f"{sidechain_frag};"
         # sidechain helper emits [mix]; rename to [segC]
         f"[mix]anull[segC];"
 
@@ -870,69 +872,31 @@ def main():
     title_card   = ensure_title_card(part, cfg)
     pantheon     = ensure_pantheon_trim(cfg)
 
-    # --- Beat-snap seam offsets (Rule P1-V) ---
-    # We need chunk durs first, then consult the main music track's pre-computed
-    # beat grid. If no beats sidecar exists (or part skipped), fall back to naive.
-    beat_snapped: Optional[List[float]] = None
-    # Beats sidecar is named `<music>.beats.json`. For Parts whose music ships
-    # as multi-file chunks (e.g. part06_music_01.mp3 + _02.mp3) the canonical
-    # <partNN_music>.mp3 may not exist on disk even though the beats JSON was
-    # pre-computed against the merged track. Look for the beats sidecar
-    # directly rather than requiring the mp3 file.
-    music_dir = ROOT / "phase1" / "music"
-    beats_candidates = [
-        music_dir / f"part{part:02d}_music.mp3.beats.json",
-        music_dir / f"part{part:02d}_music.ogg.beats.json",
-        music_dir / f"part{part:02d}_music.wav.beats.json",
-    ]
-    beats_file = next((p for p in beats_candidates if p.exists()), None)
-    if beats_file is not None and cfg.seam_xfade_duration > 0 and len(chunks) > 1:
-        durs = [_probe_duration(c, cfg) for c in chunks]
-        beats = load_beats(beats_file)
-        beat_snapped, stats = snap_xfade_offsets(
-            durs=durs,
-            beats=beats,
-            xfade=cfg.seam_xfade_duration,
-            intro_offset=cfg.intro_clip_duration + 8.0,  # PANTHEON + title
-            max_shift=0.300,
-        )
-        print(f"  [beat-sync] {stats['snapped']}/{stats['n_seams']} seams "
-              f"snapped ({stats['snap_rate']*100:.0f} %), "
-              f"total shift {stats['total_shift']:.2f} s")
+    # --- Pre-assembly: probe chunks + recognize events, stitch music, analyze ---
+    # Rule P1-CC v2 + P1-Z v2: event recognition MUST drive clip ordering and
+    # seam placement — not be a post-render log. We build music_structure and
+    # plan_flow_cuts_v2 BEFORE assembling the body.
+    #
+    # Chicken-and-egg note: music_stitcher.stitch_part_music needs body_dur to
+    # size the queue. We estimate body_dur from naive (pre-reorder) chunk
+    # durations: sum(durs) - (N-1)*xfade. Re-ordering doesn't change total
+    # duration, so the estimate is exact.
+    intro_offset_total = cfg.intro_clip_duration + 8.0  # PANTHEON + title card
 
-    # --- Body assembly: single mp4 with seam xfades (Rule P1-H v3) ---
-    body_xfaded = chunks_dir / "_body_xfaded.mp4"
-    if cfg.seam_xfade_duration > 0:
-        assemble_body_with_xfades(chunks, body_xfaded, cfg,
-                                  beat_snapped_offsets=beat_snapped)
-    else:
-        # hard-cut fallback via concat demuxer → remux into a single mp4
-        if not body_xfaded.exists():
-            subprocess.run([
-                str(cfg.ffmpeg_bin), "-y",
-                "-f", "concat", "-safe", "0", "-i", str(concat_list),
-                "-c", "copy", str(body_xfaded)
-            ], check=True)
+    chunk_durs = [_probe_duration(c, cfg) for c in chunks]
+    body_dur_estimate = sum(chunk_durs) - max(0, len(chunks) - 1) * cfg.seam_xfade_duration
+    total_video_dur_est = intro_offset_total + body_dur_estimate
+    required_music = total_video_dur_est + 2.0  # small tail pad
 
-    # --- Body duration for music budget (post-xfade) ---
-    body_dur = _probe_duration(body_xfaded, cfg)
-
-    # Smoke mode: cap body_dur for planning/reporting. The actual video stays
-    # full-length (trimming the pre-assembled mp4 is out of scope here); we
-    # just budget music + flow plan against the cap so the wiring exercises.
+    # Smoke mode budget cap (affects music budget only; body stays full-length).
     smoke_cap: Optional[float] = None
     if args.smoke:
         smoke_cap = float(args.duration_s)
-        body_dur_eff = min(body_dur, smoke_cap)
-        print(f"  [smoke] capping body_dur {body_dur:.1f}s -> {body_dur_eff:.1f}s")
-        body_dur = body_dur_eff
+        body_dur_estimate = min(body_dur_estimate, smoke_cap)
+        total_video_dur_est = intro_offset_total + body_dur_estimate
+        required_music = total_video_dur_est + 2.0
 
-    total_video_dur = cfg.intro_clip_duration + 8.0 + body_dur  # PANTHEON + title + body
-    # Music must cover the whole thing (intro under PANTHEON+title, main under body,
-    # outro stretched across body tail; stitcher picks the crossfade points).
-    required_music = total_video_dur + 2.0  # small tail pad
-    print(f"\nBody duration : {body_dur:.1f} s ({body_dur/60:.1f} min)")
-    print(f"Total video   : {total_video_dur:.1f} s ({total_video_dur/60:.1f} min)")
+    print(f"\nBody dur est. : {body_dur_estimate:.1f} s ({body_dur_estimate/60:.1f} min)")
     print(f"Music budget  : {required_music:.1f} s")
 
     # ── Rule P1-AA v2: video-first music plan (body is source of truth) ──
@@ -941,7 +905,7 @@ def main():
             from phase1 import music_stitcher as _ms
             v2_plan = _ms.plan_stitch_v2(
                 part=part,
-                body_duration_s=body_dur,
+                body_duration_s=body_dur_estimate,
                 intro_xfade=1.5,
                 outro_xfade=2.0,
                 outro_duration_s=30.0,
@@ -956,7 +920,7 @@ def main():
             print(f"  [P1-AA v2] WARN: plan_stitch_v2 failed ({exc}); "
                   f"falling back to legacy stitch")
 
-    # --- Music stitch ---
+    # --- Music stitch (must happen before music_structure analysis) ---
     plan = validate_coverage(part, required_music)
     print(f"Music plan verdict: {plan['verdict']} "
           f"(main avail {plan['total_main_available_s']:.0f}s / "
@@ -966,11 +930,8 @@ def main():
     music_path = stitch_part_music(cfg, part, required_music)
     print(f"Stitched music: {music_path}")
 
-    # ── Rule B5: Music plan ship gate ──
-    # music_stitcher already writes partNN_music_plan.json and raises
-    # RuntimeError if any track was truncated — nothing more to do here.
-
-    # ── Rule B4: Music structure + beat sync (P1-Z, P1-CC) ──
+    # --- Music structure analysis (drives flow plan) ---
+    structure: Optional[dict] = None
     try:
         struct_out = OUTPUT_DIR / f"part{part:02d}_music_structure.json"
         structure = _music_structure.analyze_music(music_path, struct_out)
@@ -979,69 +940,114 @@ def main():
               f"drops={len(structure.get('drops', []))}")
     except Exception as exc:
         print(f"  [music-structure] WARN: analysis failed ({exc}); "
-              f"skipping beat-sync plan")
-        structure = None
+              f"skipping event-driven plan")
 
+    # --- plan_flow_cuts_v2: event-driven ordering + event-anchored seams ---
+    def _tier_tag2(p: Path) -> str:
+        s = str(p).upper()
+        if "\\T1\\" in s or "/T1/" in s: return "T1"
+        if "\\T2\\" in s or "/T2/" in s: return "T2"
+        if "\\T3\\" in s or "/T3/" in s: return "T3"
+        return "T2"
+
+    chunk_infos: list[tuple[Path, float, str, list]] = []
+    for c, d in zip(chunks, chunk_durs):
+        tier = _tier_tag2(c)
+        try:
+            evs = _audio_onsets.recognize_game_events(c, cfg=cfg)
+        except Exception as exc:
+            print(f"  [events] WARN: recognition failed for {c.name}: {exc}")
+            evs = []
+        chunk_infos.append((c, d, tier, evs))
+    n_with_events = sum(1 for _, _, _, evs in chunk_infos if evs)
+    print(f"  [events] recognized on {n_with_events}/{len(chunk_infos)} chunks")
+
+    reordered: List[PlannedClip] = []
+    ordered_chunks: List[Path] = list(chunks)
+    body_seam_offsets: Optional[List[float]] = None
+    if structure is not None and len(chunk_infos) >= 1:
+        try:
+            reordered, seam_offsets = plan_flow_cuts_v2(
+                chunk_infos,
+                structure,
+                cfg,
+                intro_offset=intro_offset_total,
+                xfade=cfg.seam_xfade_duration,
+                anticipation_ms=getattr(cfg, "anticipation_ms", 33),
+            )
+            fp = write_flow_plan_json(reordered, seam_offsets, part, OUTPUT_DIR)
+            anchored = sum(
+                1 for pc in reordered[:-1]
+                if getattr(pc, "_seam_meta", {}).get("anchor") == "event"
+            )
+            print(f"  [flow-plan-v2] wrote {fp.name}  clips={len(reordered)} "
+                  f"event-anchored seams={anchored}/{max(0, len(seam_offsets))}")
+            ordered_chunks = [pc.chunk for pc in reordered]
+            body_seam_offsets = [
+                s if s is not None else 0.0 for s in seam_offsets
+            ] if seam_offsets else None
+        except Exception as exc:
+            print(f"  [flow-plan-v2] WARN: failed ({exc}); using FIFO order + naive seams")
+            reordered = []
+            ordered_chunks = list(chunks)
+            body_seam_offsets = None
+
+    # --- Body assembly: single mp4 with seam xfades (Rule P1-H v3) ---
+    body_xfaded = chunks_dir / "_body_xfaded.mp4"
+    if cfg.seam_xfade_duration > 0:
+        assemble_body_with_xfades(ordered_chunks, body_xfaded, cfg,
+                                  beat_snapped_offsets=body_seam_offsets)
+    else:
+        # hard-cut fallback via concat demuxer → remux into a single mp4
+        if not body_xfaded.exists():
+            # Rebuild concat list from ordered_chunks (may differ from FIFO).
+            concat_list_ordered = chunks_dir / "_concat_ordered.txt"
+            concat_list_ordered.write_text(
+                "\n".join(f"file '{c.as_posix()}'" for c in ordered_chunks)
+            )
+            subprocess.run([
+                str(cfg.ffmpeg_bin), "-y",
+                "-f", "concat", "-safe", "0", "-i", str(concat_list_ordered),
+                "-c", "copy", str(body_xfaded)
+            ], check=True)
+
+    # --- Body duration for reporting (post-xfade) ---
+    body_dur = _probe_duration(body_xfaded, cfg)
+    total_video_dur = cfg.intro_clip_duration + 8.0 + body_dur
+    print(f"\nBody duration : {body_dur:.1f} s ({body_dur/60:.1f} min)")
+    print(f"Total video   : {total_video_dur:.1f} s ({total_video_dur/60:.1f} min)")
+
+    # ── Legacy v10 beat-plan artifact (partNN_beats.json — kept for downstream gates) ──
     if structure is not None:
         try:
-            # Build clip metadata for beat_sync
-            def _tier_tag(p: Path) -> str:
+            def _tier_tag_legacy(p: Path) -> str:
                 s = str(p).upper()
                 if "\\T1\\" in s or "/T1/" in s: return "T1"
                 if "\\T2\\" in s or "/T2/" in s: return "T2"
                 if "\\T3\\" in s or "/T3/" in s: return "T3"
                 return "T2"
-            # Map chunks back to their src .avi paths via normalized sidecar when
-            # possible. Here we use the chunk itself as a proxy for analysis.
-            clip_paths = [str(c) for c in chunks]
+            clip_paths = [str(c) for c in ordered_chunks]
             peaks = _audio_onsets.find_action_peaks_per_clip(clip_paths)
+            ordered_for_beat = ordered_chunks
             clips_meta: list[dict[str, object]] = []
-            for c in chunks:
-                dur = _probe_duration(c, cfg)
+            for c in ordered_for_beat:
                 clips_meta.append({
                     "path": str(c),
-                    "tier": _tier_tag(c),
-                    "duration": dur,
-                    "head_trim": 0.0,   # chunks already trimmed
+                    "tier": _tier_tag_legacy(c),
+                    "duration": _probe_duration(c, cfg),
+                    "head_trim": 0.0,
                     "tail_trim": 0.0,
                 })
-            seams = plan_beat_cuts(
+            seams_legacy = plan_beat_cuts(
                 structure, peaks, clips_meta,
-                intro_offset=cfg.intro_clip_duration + 8.0,
+                intro_offset=intro_offset_total,
             )
-            beats_path = write_beats_json(seams, part, OUTPUT_DIR)
-            tight = sum(1 for s in seams if s["tag"] == "TIGHT")
-            print(f"  [beat-plan] wrote {beats_path.name}  tight={tight}/"
-                  f"{len(seams)}")
+            beats_path = write_beats_json(seams_legacy, part, OUTPUT_DIR)
+            tight = sum(1 for s in seams_legacy if s["tag"] == "TIGHT")
+            print(f"  [beat-plan-legacy] wrote {beats_path.name}  tight={tight}/"
+                  f"{len(seams_legacy)}")
         except Exception as exc:
-            print(f"  [beat-plan] WARN: plan_beat_cuts failed ({exc})")
-
-        # ── Rule P1-CC v2: flow-driven cut plan (tier is soft sort key) ──
-        try:
-            from phase1.beat_sync import plan_flow_cuts, write_flow_plan_json
-            def _tier_tag2(p: Path) -> str:
-                s = str(p).upper()
-                if "\\T1\\" in s or "/T1/" in s: return "T1"
-                if "\\T2\\" in s or "/T2/" in s: return "T2"
-                if "\\T3\\" in s or "/T3/" in s: return "T3"
-                return "T2"
-            clip_events_map: dict[str, list] = {}
-            clip_tier_map: dict[str, str] = {}
-            for c in chunks:
-                try:
-                    evs = _audio_onsets.recognize_game_events(c, cfg=cfg)
-                except Exception:
-                    evs = []
-                clip_events_map[str(c)] = evs
-                clip_tier_map[str(c)] = _tier_tag2(c)
-            flow_cuts = plan_flow_cuts(
-                clip_events_map, structure, clip_tier_map,
-                intro_offset=cfg.intro_clip_duration + 8.0,
-            )
-            fp = write_flow_plan_json(flow_cuts, part, OUTPUT_DIR)
-            print(f"  [flow-plan] wrote {fp.name}  cuts={len(flow_cuts)}")
-        except Exception as exc:
-            print(f"  [flow-plan] WARN: plan_flow_cuts failed ({exc})")
+            print(f"  [beat-plan-legacy] WARN: plan_beat_cuts failed ({exc})")
 
     # --- Final render ---
     if args.output:
