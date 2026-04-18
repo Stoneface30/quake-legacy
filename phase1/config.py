@@ -184,8 +184,10 @@ class Config:
 
         # ── Rule P1-Z v2 / P1-EE event-localized speed + template conf ─
         # confidence threshold for recognize_game_events() — lower = more
-        # matches, higher = pickier. 0.72 = default per P1-Z v2 research.
-        self.event_confidence: float = 0.72
+        # matches, higher = pickier. 0.55 default (v2.1 real-clip calibration
+        # — demo-vs-clean-pak00 cosine band is 0.45-0.65; the v2 0.72 was
+        # clean-on-clean and under-selected on Wolfcam body chunks).
+        self.event_confidence: float = 0.55
         # Enables Rule P1-EE event-localized slow (supersedes whole-clip
         # setpts from v10). When False, the legacy whole-clip slow path
         # is used (regression-safe).
