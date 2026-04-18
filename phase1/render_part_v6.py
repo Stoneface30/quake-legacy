@@ -806,6 +806,12 @@ def main():
                          "the flag for AV1 NVENC UHQ 10-bit quality ceiling.")
     ap.add_argument("--no-watermark", action="store_true",
                     help="Disable clip-name burn-in (use for final public render).")
+    ap.add_argument("--smoke", action="store_true",
+                    help="Smoke mode: cap body to --duration-s (default 60 s), "
+                         "use review encoders, skip heavy audits. For wiring "
+                         "tests on new pipeline flow (P1-AA v2 / P1-CC v2).")
+    ap.add_argument("--duration-s", type=float, default=60.0,
+                    help="Smoke mode body duration cap in seconds (default 60).")
     args = ap.parse_args()
 
     part = args.part
@@ -817,6 +823,11 @@ def main():
     if args.no_watermark:
         cfg.review_burn_clip_name = False
         print("[MODE] clip-name watermark OFF")
+    if args.smoke:
+        cfg.review_mode = True
+        cfg.review_burn_clip_name = False
+        print(f"[MODE] smoke — body capped to {args.duration_s:.0f} s, "
+              f"review encoders, watermark OFF")
     started = time.time()
 
     clip_list_name = args.clip_list or f"part{part:02d}_styleb.txt"
@@ -905,6 +916,17 @@ def main():
 
     # --- Body duration for music budget (post-xfade) ---
     body_dur = _probe_duration(body_xfaded, cfg)
+
+    # Smoke mode: cap body_dur for planning/reporting. The actual video stays
+    # full-length (trimming the pre-assembled mp4 is out of scope here); we
+    # just budget music + flow plan against the cap so the wiring exercises.
+    smoke_cap: Optional[float] = None
+    if args.smoke:
+        smoke_cap = float(args.duration_s)
+        body_dur_eff = min(body_dur, smoke_cap)
+        print(f"  [smoke] capping body_dur {body_dur:.1f}s -> {body_dur_eff:.1f}s")
+        body_dur = body_dur_eff
+
     total_video_dur = cfg.intro_clip_duration + 8.0 + body_dur  # PANTHEON + title + body
     # Music must cover the whole thing (intro under PANTHEON+title, main under body,
     # outro stretched across body tail; stitcher picks the crossfade points).
@@ -912,6 +934,27 @@ def main():
     print(f"\nBody duration : {body_dur:.1f} s ({body_dur/60:.1f} min)")
     print(f"Total video   : {total_video_dur:.1f} s ({total_video_dur/60:.1f} min)")
     print(f"Music budget  : {required_music:.1f} s")
+
+    # ── Rule P1-AA v2: video-first music plan (body is source of truth) ──
+    if getattr(cfg, "body_duration_first", False):
+        try:
+            from phase1 import music_stitcher as _ms
+            v2_plan = _ms.plan_stitch_v2(
+                part=part,
+                body_duration_s=body_dur,
+                intro_xfade=1.5,
+                outro_xfade=2.0,
+                outro_duration_s=30.0,
+                crossfade_budget=6.0,
+            )
+            v2_out = _ms.write_music_plan_json(
+                part=part, plan=v2_plan, out_dir=OUTPUT_DIR,
+            )
+            print(f"  [P1-AA v2] wrote {v2_out.name}  tracks={len(v2_plan['tracks'])}  "
+                  f"seams={len(v2_plan.get('seams', []))}")
+        except Exception as exc:
+            print(f"  [P1-AA v2] WARN: plan_stitch_v2 failed ({exc}); "
+                  f"falling back to legacy stitch")
 
     # --- Music stitch ---
     plan = validate_coverage(part, required_music)
@@ -973,6 +1016,33 @@ def main():
         except Exception as exc:
             print(f"  [beat-plan] WARN: plan_beat_cuts failed ({exc})")
 
+        # ── Rule P1-CC v2: flow-driven cut plan (tier is soft sort key) ──
+        try:
+            from phase1.beat_sync import plan_flow_cuts, write_flow_plan_json
+            def _tier_tag2(p: Path) -> str:
+                s = str(p).upper()
+                if "\\T1\\" in s or "/T1/" in s: return "T1"
+                if "\\T2\\" in s or "/T2/" in s: return "T2"
+                if "\\T3\\" in s or "/T3/" in s: return "T3"
+                return "T2"
+            clip_events_map: dict[str, list] = {}
+            clip_tier_map: dict[str, str] = {}
+            for c in chunks:
+                try:
+                    evs = _audio_onsets.recognize_game_events(c, cfg=cfg)
+                except Exception:
+                    evs = []
+                clip_events_map[str(c)] = evs
+                clip_tier_map[str(c)] = _tier_tag2(c)
+            flow_cuts = plan_flow_cuts(
+                clip_events_map, structure, clip_tier_map,
+                intro_offset=cfg.intro_clip_duration + 8.0,
+            )
+            fp = write_flow_plan_json(flow_cuts, part, OUTPUT_DIR)
+            print(f"  [flow-plan] wrote {fp.name}  cuts={len(flow_cuts)}")
+        except Exception as exc:
+            print(f"  [flow-plan] WARN: plan_flow_cuts failed ({exc})")
+
     # --- Final render ---
     if args.output:
         final_out = Path(args.output)
@@ -983,6 +1053,15 @@ def main():
         final_out = OUTPUT_DIR / OUTPUT_NAME_TMPL.format(n=part)
     final_render(part, pantheon, title_card, body_xfaded,
                  music_path, final_out, cfg)
+
+    if args.smoke:
+        elapsed = time.time() - started
+        size_mb = final_out.stat().st_size / 1024 / 1024 if final_out.exists() else 0.0
+        print("\n" + "=" * 60)
+        print(f"  [SMOKE DONE] {final_out}")
+        print(f"  Size : {size_mb:.1f} MB   Time : {elapsed/60:.1f} min")
+        print("=" * 60)
+        return 0
 
     # ── Rule B6: Objective audio ship gate (P1-G v4) ──
     try:
