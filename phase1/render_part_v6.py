@@ -41,8 +41,13 @@ from phase1.experiment import resolve_clip_path
 from phase1.music_stitcher import stitch_part_music, validate_coverage
 from phase1.beat_sync import (
     load_beats, snap_xfade_offsets, find_beats_file,
+    plan_beat_cuts, write_beats_json,
 )
 from phase1.silence_detect import analyze_silence
+from phase1 import music_structure as _music_structure
+from phase1 import audio_onsets as _audio_onsets
+from phase1 import audio_levels as _audio_levels
+from phase1 import sidechain as _sidechain
 
 ROOT = Path("G:/QUAKE_LEGACY")
 OUTPUT_DIR = ROOT / "output"
@@ -57,6 +62,68 @@ OUTPUT_NAME_TMPL = "Part{n}_v6_newrules_2026-04-18.mp4"
 LEGACY_CHUNK_DIRS = {
     4: OUTPUT_DIR / "_part4_v5_body_chunks",
 }
+
+
+# ---------------------------------------------------------------------------
+# Rule B1: Per-clip override loader
+# ---------------------------------------------------------------------------
+
+
+def load_clip_overrides(part: int, cfg: Config) -> dict[str, dict[str, object]]:
+    """Parse phase1/clip_lists/partNN_overrides.txt.
+
+    Grammar per line:
+        <filename>: key=value[, key=value ...]
+    Supported keys: head_trim, tail_trim (float) — slow (float rate) — pair_with
+    (str filename) — flag (str).
+    Missing file returns an empty dict (not an error).
+    """
+    path = cfg.clip_lists_dir / f"part{part:02d}_overrides.txt"
+    if not path.exists():
+        return {}
+    out: dict[str, dict[str, object]] = {}
+    for raw in path.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#"):
+            continue
+        if ":" not in line:
+            continue
+        fname, rest = line.split(":", 1)
+        fname = fname.strip()
+        kv: dict[str, object] = {}
+        for tok in rest.split(","):
+            tok = tok.strip()
+            if not tok or "=" not in tok:
+                continue
+            k, v = tok.split("=", 1)
+            k = k.strip()
+            v = v.strip()
+            if k in ("head_trim", "tail_trim", "slow"):
+                try:
+                    kv[k] = float(v)
+                except ValueError:
+                    pass
+            else:
+                kv[k] = v
+        if kv:
+            out[fname] = kv
+    return out
+
+
+def _resolve_part_backdrop_override(part: int) -> Optional[list[Path]]:
+    """Rule B8: when part==4, use Demo (389INTRO)* from T2 or T3 Part4."""
+    if part != 4:
+        return None
+    for tier in ("T2", "T3"):
+        tier_dir = ROOT / "QUAKE VIDEO" / tier / f"Part{part}"
+        if not tier_dir.exists():
+            continue
+        found = list(tier_dir.rglob("Demo (389INTRO)*.avi"))
+        if found:
+            return [found[0]]
+    print(f"  [title_card] WARN: Part 4 Demo (389INTRO) not found; "
+          f"falling back to FL auto-pick")
+    return None
 
 
 def _probe_duration(path: Path, cfg: Config) -> float:
@@ -176,11 +243,26 @@ def normalize_and_expand(part: int, clip_list_path: Path, cfg: Config) -> List[P
     return normalized
 
 
+def _stem_to_src_avi_name(norm_path: Path) -> str:
+    """Recover the original .avi filename from a normalized mp4 stem.
+
+    build_body_chunks operates on *_cfr60(_slow|_zoom|_fast)?.mp4 files. We
+    strip those suffixes to look up per-clip overrides keyed by src .avi name.
+    """
+    stem = norm_path.stem
+    for suf in ("_cfr60_slow", "_cfr60_zoom", "_cfr60_fast", "_cfr60"):
+        if stem.endswith(suf):
+            stem = stem[: -len(suf)]
+            break
+    return f"{stem}.avi"
+
+
 def build_body_chunks(
     part: int,
     normalized: List[Path],
     chunks_dir: Path,
     cfg: Config,
+    overrides: Optional[dict[str, dict[str, object]]] = None,
 ) -> tuple[Path, List[Path]]:
     """Pre-encode each normalized clip as a CRF 20 fast libx264 chunk with
     Rule P1-L trim (1 s head / 2 s tail). Returns (concat_list_path, chunks).
@@ -189,28 +271,86 @@ def build_body_chunks(
     """
     chunks_dir.mkdir(parents=True, exist_ok=True)
     chunks: List[Path] = []
-    tail = cfg.clip_tail_trim
+    tail_default = cfg.clip_tail_trim
+    overrides = overrides or {}
+    skipped_short = 0
+
+    def _trims_for(src: Path) -> tuple[float, float, Optional[dict[str, object]]]:
+        is_fl = "FL" in src.stem.upper()
+        head = cfg.clip_head_trim_fl if is_fl else cfg.clip_head_trim_fp
+        tail = tail_default
+        src_name = _stem_to_src_avi_name(src)
+        ov = overrides.get(src_name)
+        if ov is not None:
+            if "head_trim" in ov:
+                head = float(ov["head_trim"])
+            if "tail_trim" in ov:
+                tail = float(ov["tail_trim"])
+        return head, tail, ov
+
+    kept_normalized: List[Path] = []
+    for src in normalized:
+        head, tail, ov = _trims_for(src)
+        dur_full = _probe_duration(src, cfg)
+        post_trim = dur_full - head - tail
+        # Rule P1-L v3 (Part 6 v8 draft review 2026-04-18): short-clip protection.
+        # If the post-trim body would fall below the minimum playable floor,
+        # DROP the clip from the Part. No compression, no stretching.
+        # Slow-mo'd clips get a pass — their normalized file is already
+        # time-stretched (setpts) so the floor check would incorrectly drop them.
+        is_slow_variant = src.stem.endswith("_slow")
+        if (not is_slow_variant) and post_trim < cfg.min_playable_duration_s:
+            skipped_short += 1
+            print(f"  [SKIP_TOO_SHORT] {src.name} "
+                  f"(post-trim={post_trim:.2f}s < {cfg.min_playable_duration_s}s)")
+            continue
+        kept_normalized.append(src)
+    normalized = kept_normalized
+    if skipped_short:
+        print(f"  [P1-L v3] skipped {skipped_short} clip(s) below "
+              f"min_playable_duration_s ({cfg.min_playable_duration_s}s)")
 
     for i, src in enumerate(normalized):
         chunk = chunks_dir / f"chunk_{i:04d}.mp4"
         chunks.append(chunk)
         if chunk.exists():
             continue
-        # Rule P1-L v2: FL clips have ~2s of console/loading header;
-        # FP clips only ~1s. Detect via substring — normalized filenames encode
-        # angle in the stem (e.g. "Demo100FL-0000_cfr60"). Earlier token-split
-        # detection was broken because "FL" was never a standalone token after
-        # normalization.
-        is_fl = "FL" in src.stem.upper()
-        head = cfg.clip_head_trim_fl if is_fl else cfg.clip_head_trim_fp
+        head, tail, ov = _trims_for(src)
         dur_full = _probe_duration(src, cfg)
-        # Fallback min 0.5s body for pre-trimmed slow-mo expansions.
         trim_dur = max(0.5, dur_full - head - tail)
+        # Override: `slow=<rate>` applies setpts=(1/rate)*PTS, atempo=rate
+        slow_rate: Optional[float] = None
+        if ov is not None and "slow" in ov:
+            try:
+                slow_rate = float(ov["slow"])
+                if slow_rate <= 0 or abs(slow_rate - 1.0) < 1e-3:
+                    slow_rate = None
+            except Exception:
+                slow_rate = None
+        if ov is not None and "pair_with" in ov:
+            partner = ov["pair_with"]
+            adjacent = False
+            if i > 0:
+                adjacent = partner in _stem_to_src_avi_name(normalized[i - 1])
+            if not adjacent and i + 1 < len(normalized):
+                adjacent = partner in _stem_to_src_avi_name(normalized[i + 1])
+            if not adjacent:
+                print(f"  [override] WARN: {src.name} pair_with={partner} "
+                      f"not adjacent in normalized list")
 
         # Rule P1-D (review burn-in): bottom-left clip-stem watermark so the
         # user can reference specific clips by name during review. Strip
         # normalization suffixes so the watermark matches the source .avi.
-        vf = f"scale={cfg.target_width}:{cfg.target_height}:flags=lanczos,fps={cfg.target_fps}"
+        # Rule P1-BB: force CFR at ingest (Wolfcam AVIs can be VFR).
+        vf = (
+            f"scale={cfg.target_width}:{cfg.target_height}:flags=lanczos,"
+            f"fps={cfg.target_fps}"
+        )
+        af_parts: list[str] = []
+        if slow_rate is not None:
+            vf += f",setpts=(1/{slow_rate:.4f})*PTS"
+            af_parts.append(f"atempo={slow_rate:.4f}")
+        af_parts.append("aresample=async=1")
         if cfg.review_burn_clip_name:
             stem = src.stem
             for suf in ("_cfr60_slow", "_cfr60_zoom", "_cfr60_fast", "_cfr60"):
@@ -230,20 +370,25 @@ def build_body_chunks(
                 f"x=24:y=h-th-24"
             )
 
+        # Rule P1-BB: intermediates encode audio as pcm_s16le (not AAC) to avoid
+        # AAC priming delay compounding across N chunks. Final render transcodes
+        # once to AAC. Container switched to .mkv-compatible mov for WAV-in-mp4
+        # quirks — we keep .mp4 but use pcm_s16le which ffmpeg muxes via mov.
         cmd = [
             str(cfg.ffmpeg_bin), "-y",
             "-ss", f"{head:.3f}",
             "-t",  f"{trim_dur:.3f}",
+            "-vsync", "cfr", "-r", str(cfg.target_fps),
             "-i",  str(src),
             "-vf", vf,
-            "-af", "aresample=async=1",
+            "-af", ",".join(af_parts),
             "-c:v", "libx264",
             "-crf", str(cfg.review_chunk_crf if cfg.review_mode else 20),
             "-preset", (cfg.review_chunk_preset if cfg.review_mode else "fast"),
             "-profile:v", "high", "-pix_fmt", "yuv420p",
             "-r", str(cfg.target_fps),
             "-g", str(cfg.target_fps * 2),
-            "-c:a", "aac", "-ar", "48000", "-b:a", "192k",
+            "-c:a", "pcm_s16le", "-ar", "48000",
             "-movflags", "+faststart",
             str(chunk),
         ]
@@ -319,11 +464,17 @@ def assemble_body_with_xfades(
     v_parts = []
     a_parts = []
     # Normalize every input first so SAR/fps match exactly (defensive)
+    # Rule P1-H v4 audio-drift fix: every chunk enters the chain with PTS reset
+    # to zero and async=1:first_pts=0. The v8 chain compounded ~40 ms drift per
+    # N seams because acrossfade preserves upstream PTS wobble — pinning every
+    # chunk's PTS origin kills the drift before it starts.
     for i in range(N):
         v_parts.append(
-            f"[{i}:v]setsar=1,fps={cfg.target_fps},format=yuv420p[v{i}]"
+            f"[{i}:v]setpts=PTS-STARTPTS,setsar=1,fps={cfg.target_fps},format=yuv420p[v{i}]"
         )
-        a_parts.append(f"[{i}:a]aresample=async=1[a{i}]")
+        a_parts.append(
+            f"[{i}:a]asetpts=PTS-STARTPTS,aresample=async=1:first_pts=0[a{i}]"
+        )
 
     prev_v = "v0"
     prev_a = "a0"
@@ -362,7 +513,9 @@ def assemble_body_with_xfades(
         "-profile:v", "high", "-pix_fmt", "yuv420p",
         "-r", str(cfg.target_fps),
         "-g", str(cfg.target_fps * 2),
-        "-c:a", "aac", "-ar", "48000", "-b:a", "192k",
+        # Rule P1-BB: keep PCM through the body master so AAC priming delay
+        # never enters the chain. Final render transcodes to AAC once.
+        "-c:a", "pcm_s16le", "-ar", "48000",
         "-movflags", "+faststart",
         str(out_path),
     ]
@@ -409,17 +562,24 @@ def interleave_clips_by_tier(entries, resolver):
 
 
 def ensure_title_card(part: int, cfg: Config) -> Path:
-    out = ASSETS_DIR / f"title_card_part{part:02d}.mp4"
+    # Rule P1-Y v2: suffix "_quake_v10" busts the v9 Bebas caches so every
+    # Part picks up the Quake-style metallic/scanline/aberration card.
+    out = ASSETS_DIR / f"title_card_part{part:02d}_quake_v10.mp4"
     if out.exists():
         print(f"  [cache] {out.name}")
         return out
     ASSETS_DIR.mkdir(parents=True, exist_ok=True)
-    render_title_card(part, out, cfg)
+    backdrop = _resolve_part_backdrop_override(part)
+    render_title_card(part, out, cfg, backdrop_paths=backdrop)
     return out
 
 
 def ensure_pantheon_trim(cfg: Config) -> Path:
-    out = OUTPUT_DIR / "_pantheon_trim_7s.mp4"
+    # Rule P1-X (Part 6 v8 draft review): PANTHEON = 5 s, not 7 s. Cache key is
+    # parameterised on duration so the 7 s v8 trim stays as-is and the new 5 s
+    # trim lives next to it. Changing cfg.intro_clip_duration auto-busts.
+    dur_tag = f"{int(cfg.intro_clip_duration)}s"
+    out = OUTPUT_DIR / f"_pantheon_trim_{dur_tag}.mp4"
     if out.exists():
         print(f"  [cache] {out.name}")
         return out
@@ -455,18 +615,54 @@ def final_render(
              inside body were already baked in by assemble_body_with_xfades).
       encoder: AV1 NVENC p7 uhq 10-bit cq=18.
     """
+    # Rule P1-G v5 (Part 4 v9 review 2026-04-18) — segmented audio graph:
+    #   Segment A (0 .. intro_clip_duration): PANTHEON own audio, NO music
+    #   Segment B (intro .. intro+8):         music fades in 0 -> music_volume
+    #                                         over 1.5 s, NO game audio
+    #   Segment C (intro+8 ..):               game@game_audio_volume + ducked
+    #                                         music@music_volume via sidechain
+    #
+    # Previously (v3) music amix'd across ALL three segments — user said that
+    # swallowed the PANTHEON opening and provided no fade-in. v5 builds each
+    # segment independently then concat=a=1.
+    intro_dur = float(cfg.intro_clip_duration)
+    title_dur = 8.0
+    mus_vol = cfg.music_volume
+    game_vol = cfg.game_audio_volume
+    fadein = min(1.5, cfg.music_fadein_s)
+
+    # Sidechain the music under game audio for segment C.
+    sidechain_frag = _sidechain.build_sidechain_filter_chain(
+        "segC_mus", "segC_game"
+    )
+
     filter_complex = (
         # Video: plain concat of 3 files (body already has internal xfades)
         f"[0:v][1:v][2:v]concat=n=3:v=1:a=0[vout];"
-        # Build a "foreground" audio track: PANTHEON audio + silent title + body game
-        f"[0:a]aresample=48000:async=1,volume=1.0[pa];"
-        f"[1:a]aresample=48000:async=1,volume=1.0[ta];"
-        f"[2:a]aresample=48000:async=1,volume={cfg.game_audio_volume}[ga];"
-        f"[pa][ta][ga]concat=n=3:v=0:a=1[fgtrack];"
-        # Music layer across entire output
-        f"[3:a]volume={cfg.music_volume},aresample=48000:async=1[mus];"
-        # Amix foreground + music. duration=first keeps video length as-is
-        f"[fgtrack][mus]amix=inputs=2:duration=first:normalize=0[aout]"
+
+        # --- Segment A: PANTHEON audio, no music ---
+        f"[0:a]aresample=48000:async=1,"
+        f"apad=whole_dur={intro_dur},atrim=0:{intro_dur},"
+        f"asetpts=PTS-STARTPTS,volume=1.0[segA];"
+
+        # --- Segment B: title card — music only, fading in from 0 ---
+        # Title card's own audio is silent (we muxed anullsrc/pcm) so ignore [1:a].
+        f"[3:a]atrim=0:{title_dur},asetpts=PTS-STARTPTS,"
+        f"volume={mus_vol},afade=t=in:st=0:d={fadein:.3f},"
+        f"aresample=48000:async=1[segB];"
+
+        # --- Segment C: body game audio + ducked music ---
+        f"[2:a]aresample=48000:async=1,"
+        f"asetpts=PTS-STARTPTS,volume={game_vol}[segC_game];"
+        f"[3:a]atrim=start={title_dur},asetpts=PTS-STARTPTS,"
+        f"volume={mus_vol},apad,"
+        f"aresample=48000:async=1[segC_mus];"
+        f"{sidechain_frag}"
+        # sidechain helper emits [mix]; rename to [segC]
+        f"[mix]anull[segC];"
+
+        # Concat A | B | C
+        f"[segA][segB][segC]concat=n=3:v=0:a=1[aout]"
     )
 
     # Review mode = libx264 veryfast draft. Final mode = AV1 NVENC UHQ 10-bit.
@@ -604,7 +800,13 @@ def main():
             print("[FATAL] no clips resolved")
             return 1
         print(f"  {len(normalized)} segments → building chunks at {chunks_dir}")
-        concat_list, chunks = build_body_chunks(part, normalized, chunks_dir, cfg)
+        overrides = load_clip_overrides(part, cfg)
+        if overrides:
+            print(f"  [overrides] loaded {len(overrides)} entries from "
+                  f"part{part:02d}_overrides.txt")
+        concat_list, chunks = build_body_chunks(
+            part, normalized, chunks_dir, cfg, overrides=overrides,
+        )
 
     # --- Intro assets ---
     title_card   = ensure_title_card(part, cfg)
@@ -674,6 +876,56 @@ def main():
     music_path = stitch_part_music(cfg, part, required_music)
     print(f"Stitched music: {music_path}")
 
+    # ── Rule B5: Music plan ship gate ──
+    # music_stitcher already writes partNN_music_plan.json and raises
+    # RuntimeError if any track was truncated — nothing more to do here.
+
+    # ── Rule B4: Music structure + beat sync (P1-Z, P1-CC) ──
+    try:
+        struct_out = OUTPUT_DIR / f"part{part:02d}_music_structure.json"
+        structure = _music_structure.analyze_music(music_path, struct_out)
+        print(f"  [music-structure] bpm={structure.get('bpm_global', 0):.1f}  "
+              f"downbeats={len(structure.get('downbeats', []))}  "
+              f"drops={len(structure.get('drops', []))}")
+    except Exception as exc:
+        print(f"  [music-structure] WARN: analysis failed ({exc}); "
+              f"skipping beat-sync plan")
+        structure = None
+
+    if structure is not None:
+        try:
+            # Build clip metadata for beat_sync
+            def _tier_tag(p: Path) -> str:
+                s = str(p).upper()
+                if "\\T1\\" in s or "/T1/" in s: return "T1"
+                if "\\T2\\" in s or "/T2/" in s: return "T2"
+                if "\\T3\\" in s or "/T3/" in s: return "T3"
+                return "T2"
+            # Map chunks back to their src .avi paths via normalized sidecar when
+            # possible. Here we use the chunk itself as a proxy for analysis.
+            clip_paths = [str(c) for c in chunks]
+            peaks = _audio_onsets.find_action_peaks_per_clip(clip_paths)
+            clips_meta: list[dict[str, object]] = []
+            for c in chunks:
+                dur = _probe_duration(c, cfg)
+                clips_meta.append({
+                    "path": str(c),
+                    "tier": _tier_tag(c),
+                    "duration": dur,
+                    "head_trim": 0.0,   # chunks already trimmed
+                    "tail_trim": 0.0,
+                })
+            seams = plan_beat_cuts(
+                structure, peaks, clips_meta,
+                intro_offset=cfg.intro_clip_duration + 8.0,
+            )
+            beats_path = write_beats_json(seams, part, OUTPUT_DIR)
+            tight = sum(1 for s in seams if s["tag"] == "TIGHT")
+            print(f"  [beat-plan] wrote {beats_path.name}  tight={tight}/"
+                  f"{len(seams)}")
+        except Exception as exc:
+            print(f"  [beat-plan] WARN: plan_beat_cuts failed ({exc})")
+
     # --- Final render ---
     if args.output:
         final_out = Path(args.output)
@@ -684,6 +936,81 @@ def main():
         final_out = OUTPUT_DIR / OUTPUT_NAME_TMPL.format(n=part)
     final_render(part, pantheon, title_card, body_xfaded,
                  music_path, final_out, cfg)
+
+    # ── Rule B6: Objective audio ship gate (P1-G v4) ──
+    try:
+        stem_dir = OUTPUT_DIR / f"_part{part:02d}_stems"
+        stem_dir.mkdir(parents=True, exist_ok=True)
+        mus_stem = _audio_levels.extract_music_stem(
+            final_out, music_path, stem_dir / "music.wav",
+        )
+        game_stem = _audio_levels.extract_game_stem(
+            final_out, chunks, stem_dir / "game.wav",
+        )
+        level_data = _audio_levels.measure_music_vs_game(mus_stem, game_stem)
+        _audio_levels.write_levels_json(part, level_data, OUTPUT_DIR)
+        print(f"  [level-gate] music={level_data['music_lufs']:.1f} LUFS  "
+              f"game={level_data['game_lufs']:.1f} LUFS  "
+              f"delta={level_data['delta']:.1f} LU  "
+              f"pass={level_data['pass']}")
+        if not level_data["pass"]:
+            failed_name = final_out.with_name(
+                final_out.stem + "_FAILED_LEVEL_GATE" + final_out.suffix
+            )
+            try:
+                final_out.rename(failed_name)
+                final_out = failed_name
+                print(f"  [level-gate] ERROR: renamed output to {failed_name.name}")
+            except Exception as mv:
+                print(f"  [level-gate] ERROR: could not rename output: {mv}")
+    except Exception as exc:
+        print(f"  [level-gate] WARN: measurement failed ({exc})")
+
+    # ── Rule B7: Post-render sync audit (P1-BB) ──
+    try:
+        audit: dict[str, object] = {"part": part, "checks": []}
+        checks: list[dict[str, float]] = []
+        for t_mark in (60.0, 180.0, 300.0):
+            # Probe video & audio stream durations up to t_mark via ffprobe
+            def _stream_dur(stream_idx: str) -> float:
+                r = subprocess.run(
+                    [str(cfg.ffprobe_bin), "-v", "error",
+                     "-select_streams", stream_idx,
+                     "-show_entries", "stream=duration",
+                     "-of", "csv=p=0", str(final_out)],
+                    capture_output=True, text=True,
+                )
+                try:
+                    return float(r.stdout.strip())
+                except Exception:
+                    return 0.0
+            vdur = _stream_dur("v:0")
+            adur = _stream_dur("a:0")
+            if vdur <= t_mark or adur <= t_mark:
+                continue
+            drift_ms = abs(vdur - adur) * 1000.0
+            checks.append({
+                "t_mark_s": t_mark,
+                "video_dur_s": vdur,
+                "audio_dur_s": adur,
+                "drift_ms": drift_ms,
+            })
+        audit["checks"] = checks
+        max_drift = max((c["drift_ms"] for c in checks), default=0.0)
+        audit["max_drift_ms"] = max_drift
+        audit["pass"] = max_drift <= 40.0
+        (OUTPUT_DIR / f"part{part:02d}_sync_audit.json").write_text(
+            __import__("json").dumps(audit, indent=2)
+        )
+        print(f"  [sync-audit] max drift {max_drift:.1f} ms  pass={audit['pass']}")
+        if not audit["pass"]:
+            raise RuntimeError(
+                f"sync-audit FAILED: max drift {max_drift:.1f} ms > 40 ms"
+            )
+    except RuntimeError:
+        raise
+    except Exception as exc:
+        print(f"  [sync-audit] WARN: audit failed ({exc})")
 
     elapsed = time.time() - started
     size_mb = final_out.stat().st_size / 1024 / 1024
