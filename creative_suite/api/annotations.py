@@ -37,18 +37,26 @@ def list_annotations(part: int, request: Request) -> list[dict[str, Any]]:
     return [asdict(a) for a in _store(request).list_for_part(part)]
 
 
+def _coerce_int(v: object) -> int | None:
+    return v if isinstance(v, int) else None
+
+
+def _coerce_str(v: object) -> str | None:
+    return v if isinstance(v, str) else None
+
+
 @router.post("/api/annotations")
 def create_annotation(body: AnnotationBody, request: Request) -> dict[str, Any]:
     # Best-effort clip resolution — don't fail if unavailable.
-    resolved: dict[str, Any] = {
-        "clip_index": None, "clip_filename": None, "demo_hint": None,
-    }
+    clip_index: int | None = None
+    clip_filename: str | None = None
+    demo_hint: str | None = None
     try:
         from creative_suite.api.clips import resolve
         r = resolve(body.part, body.mp4_time, request)
-        resolved["clip_index"] = r.get("clip_index")
-        resolved["clip_filename"] = r.get("clip_filename")
-        resolved["demo_hint"] = r.get("demo_hint")
+        clip_index = _coerce_int(r.get("clip_index"))
+        clip_filename = _coerce_str(r.get("clip_filename"))
+        demo_hint = _coerce_str(r.get("demo_hint"))
     except HTTPException:
         pass
     except Exception:
@@ -58,9 +66,9 @@ def create_annotation(body: AnnotationBody, request: Request) -> dict[str, Any]:
         description=body.description,
         avi_effect=body.avi_effect, dream_effect=body.dream_effect,
         tags=body.tags,
-        clip_index=resolved["clip_index"],
-        clip_filename=resolved["clip_filename"],
-        demo_hint=resolved["demo_hint"],
+        clip_index=clip_index,
+        clip_filename=clip_filename,
+        demo_hint=demo_hint,
     ))
     return asdict(ann)
 

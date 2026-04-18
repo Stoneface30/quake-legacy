@@ -19,15 +19,22 @@ let editingId = null;
 
 // --- data loaders --------------------------------------------------------
 
+// Map part-number -> mp4_url served by the API. Server is the single source
+// of truth for filename (handles Part4.mp4 vs Part4_v10_3_review.mp4).
+const partUrlByNumber = new Map();
+
 async function loadParts() {
   const r = await fetch("/api/parts");
   const parts = await r.json();
+  partUrlByNumber.clear();
   // Clear existing children safely.
   while (partSelect.firstChild) partSelect.removeChild(partSelect.firstChild);
   for (const p of parts) {
+    partUrlByNumber.set(Number(p.part), String(p.mp4_url));
     const opt = document.createElement("option");
     opt.value = String(p.part);                     // safe: numeric
-    opt.textContent = `Part ${p.part}` +            // safe: numeric
+    // textContent is already XSS-safe, but we still template numerically.
+    opt.textContent = `Part ${p.part} — ${p.mp4_name}` +
       (p.has_manifest ? "" : " (no manifest)");
     partSelect.append(opt);
   }
@@ -39,7 +46,10 @@ async function loadParts() {
 
 function onPartChange() {
   const part = Number(partSelect.value);
-  player.src = `/media/Part${part}.mp4`;            // safe: numeric
+  const url = partUrlByNumber.get(part);
+  if (url) {
+    player.src = url;                               // safe: server-generated
+  }
   loadAnnotations(part);
 }
 

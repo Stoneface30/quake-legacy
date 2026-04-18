@@ -68,7 +68,8 @@ class AnnotationStore:
         existing = self._load_latest(ann_id)
         if existing is None:
             raise KeyError(ann_id)
-        merged = Annotation(**{**asdict(existing), **changes})
+        fields: dict[str, Any] = {**asdict(existing), **changes}
+        merged = Annotation(**fields)
         self._append_jsonl(merged)
         self._upsert_sqlite(merged)
         return merged
@@ -77,7 +78,8 @@ class AnnotationStore:
         existing = self._load_latest(ann_id)
         if existing is None:
             raise KeyError(ann_id)
-        tomb = Annotation(**{**asdict(existing), "deleted": True})
+        fields: dict[str, Any] = {**asdict(existing), "deleted": True}
+        tomb = Annotation(**fields)
         self._append_jsonl(tomb)
         con = connect(self.cfg)
         try:
