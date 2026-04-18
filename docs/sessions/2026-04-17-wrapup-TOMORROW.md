@@ -18,9 +18,20 @@ branch_state:
 
 ---
 
+## 2026-04-18 addendum — session 3 directives + dual new-rules render
+
+User landed two new rules tonight and kicked a dual Part 4 + Part 5 re-render:
+
+- **Rule P1-R (new)** — three-track music structure: every Part ships `intro + main-playlist + outro`. Series-wide defaults: `pantheon_intro_music.mp3` (Cinema - Sped Up), `pantheon_outro_music.mp3` (Eple). Per-Part override `partNN_intro_music.*` / `partNN_outro_music.*`. Main is a **playlist** (`partNN_music_01..NN.mp3`), stitched with `phase1/music_stitcher.py` (beat-locked acrossfade, coverage validator). User quote: *"we need to have multiple audio track for the whole video we need intro and outro!"*
+- **Rule P1-S (new)** — beat-sync governs **transitions**, never clip duration. Clips ARE the frags. Showing 2 s of a 5 s clip to hit a beat is invalid. User quote: *"we dont beat match cutting the clips as the clips ARE the frags … we need to beatmatch on transition for phase1."*
+- **Music playlists dropped** — MAKEBA (Pt 4) · Phonky Tribu (Pt 5) · Past Lives Hardtekk (Pt 6) · SPRINTER Techno (Pt 7) · bulletproof tekkno (Pt 8) · Zoo Rave Edit (Pt 9) · ANXIETY HYPERTECHNO (Pt 10) · Timewarp (Pt 11) · Vois sur ton chemin Techno Mix (Pt 12). All kept local per `.gitignore` (copyrighted, never committed).
+- **Learnings** — L101 (three-track music requirement), L102 (beat-sync at seams only) appended to `Vault/learnings.md`.
+- **Background render agent** `a994e390f234504ae` — rendering **Part 4 v6** AND **Part 5 v6** with all new rules applied. Outputs: `output/Part4_v6_newrules_2026-04-18.mp4` and `output/Part5_v6_newrules_2026-04-18.mp4`. These REPLACE Part 4 v5 as the watch-through target — they are the baseline for transition/effect fine-tuning.
+- **Commits (session 3):** `9ec90477` (P1-R + P1-S + music_stitcher), `fe642088` (ported title_card + transitions + v5 scripts).
+
 ## TL;DR — What you must do tomorrow (in order)
 
-1. **Watch Part 4 v5** — `G:/QUAKE_LEGACY/output/Part4_v5_titlecard_2026-04-17.mp4` (9.61 GB, 29:01). Sign off or list fixes. **This is the P1-N / P1-G / P1-H / P1-K / P1-L / P1-O / P1-Q verdict render.** If it lands, Parts 5-12 follow the same recipe.
+1. **Watch Part 4 v6 + Part 5 v6** — `output/Part{4,5}_v6_newrules_2026-04-18.mp4` (produced by background agent overnight). These are the P1-R / P1-S baseline. Approve, list fixes, or pick one as the model for Parts 6-12. Old Part 4 v5 is superseded and can be archived.
 2. **Boot Creative Suite v2** — `python -m creative_suite` → `http://localhost:8765/annotate`. Run **Gate ANN-1**: annotate Part 4 at 10 moments with keyboard (Space / ←→ / Shift+←→ / M). Edit one row, delete one row, click-to-seek. Zero friction target.
 3. **Review PR #1** (engine consolidation) — https://github.com/Stoneface30/quake-legacy/pull/1 — approve/merge to main.
 4. **Merge `creative-suite-v2-step2`** to main once Gate ANN-1 passes.
