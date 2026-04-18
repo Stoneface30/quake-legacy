@@ -126,6 +126,16 @@ not even a fading to the next image or anything."*
 - No section fades, white flash, dip-to-black, cross-dissolve
 - Transition palette design is DEFERRED to Phase 2 pattern-database work
 
+### Rule P1-T: Title Card is FL-Backdropped, Never A Black Void (NEW Part 4 v6 review 2026-04-18)
+**User verdict:** *"intro is a disaster please use unused fl view and look up how the text appear its overlaying black fint cant read anything."*
+- The 8-second title card (Rule P1-N) renders its text **over desaturated FL gameplay**, not over a black screen.
+- Backdrop pool: `pick_intro_backdrop_fls(part, cfg)` in `phase1/title_card.py` walks `QUAKE VIDEO/T{3,2,1}/Part{N}/**/*FL*.avi` (T3 first per Rule P1-B), deterministically shuffles, and returns the first 4 candidates.
+- Backdrop filter: `hue=s=0.5, eq=brightness=-0.12:contrast=0.85, gblur=sigma=2` — soft, muted, legible beneath white Impact text.
+- Title text gets `borderw=4:bordercolor=black@0.9` so letters stay sharp against any backdrop brightness.
+- Trailing fade-to-black at card end is **banned** (was the "black video" artifact in v6). Credit holds until card end, pipeline hard-cuts into the first clip (consistent with Rule P1-H).
+- Typewriter reveal for `QUAKE TRIBUTE` uses **fixed left-anchored x per character** — NOT `x=(w-text_w)/2` per prefix. The v6 bug stacked all 13 growing prefixes at the same midpoint, producing unreadable hash.
+- Fallback: if no FL files exist for the Part, fall back to black lavfi (warning logged).
+
 ### Rule P1-N: Title Card Contract (NEW Part 4 review 2026-04-17)
 **Every Part intro sequence is [PANTHEON 7s] + [Title Card 8s] + [Content]. No exceptions.**
 User verdict: *"no Quake Tribute, no By Trash no number no slowmo with the letters this is critical."*
