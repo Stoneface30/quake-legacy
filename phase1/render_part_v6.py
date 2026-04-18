@@ -48,6 +48,7 @@ from phase1 import music_structure as _music_structure
 from phase1 import audio_onsets as _audio_onsets
 from phase1 import audio_levels as _audio_levels
 from phase1 import sidechain as _sidechain
+from phase1.effects import event_localized as _event_localized
 
 ROOT = Path("G:/QUAKE_LEGACY")
 OUTPUT_DIR = ROOT / "output"
@@ -98,7 +99,7 @@ def load_clip_overrides(part: int, cfg: Config) -> dict[str, dict[str, object]]:
             k, v = tok.split("=", 1)
             k = k.strip()
             v = v.strip()
-            if k in ("head_trim", "tail_trim", "slow"):
+            if k in ("head_trim", "tail_trim", "slow", "slow_window"):
                 try:
                     kv[k] = float(v)
                 except ValueError:
@@ -347,7 +348,53 @@ def build_body_chunks(
             f"fps={cfg.target_fps}"
         )
         af_parts: list[str] = []
-        if slow_rate is not None:
+        # Rule P1-EE: event-localized slow. When enabled AND the clip has a
+        # recognized game event (Rule P1-Z v2), apply slow around the event
+        # peak ± slow_window instead of the entire clip. When NO event is
+        # recognized, log a warning and SKIP the slow effect rather than
+        # falling back to the v10 whole-clip setpts (P1-EE explicitly
+        # deprecates that behavior).
+        use_event_localized = bool(getattr(cfg, "event_localized_slow", False))
+        if slow_rate is not None and use_event_localized:
+            window_s = float(
+                (ov.get("slow_window") if ov is not None else None)
+                or getattr(cfg, "slow_window_default", 0.8)
+            )
+            try:
+                events = _audio_onsets.recognize_game_events(src, cfg=cfg)
+            except Exception:
+                events = []
+            eligible = [e for e in events if e.confidence >= 0.55]
+            if eligible:
+                top = eligible[0]
+                # Remap event peak to post-trim clip timeline.
+                event_t = float(top.t) - float(head)
+                if event_t < 0:
+                    event_t = 0.0
+                if event_t > trim_dur:
+                    event_t = trim_dur
+                audio_mode = _event_localized.select_audio_mode(top.event_type)
+                v_filt, a_filt = _event_localized.build_event_localized_slow_filter(
+                    event_t=event_t,
+                    slow_rate=slow_rate,
+                    window_s=window_s,
+                    audio_mode=audio_mode,
+                    clip_duration=trim_dur,
+                )
+                vf += f",{v_filt}"
+                af_parts.append(a_filt)
+                print(
+                    f"  [P1-EE] {src.name} event={top.event_type} "
+                    f"t={top.t:.2f}s conf={top.confidence:.2f} "
+                    f"window=±{window_s:.2f}s mode={audio_mode}"
+                )
+            else:
+                print(
+                    f"  [P1-EE] {src.name} NO recognized event "
+                    f"(slow skipped per P1-EE)"
+                )
+        elif slow_rate is not None:
+            # Legacy whole-clip slow (used when cfg.event_localized_slow=False).
             vf += f",setpts=(1/{slow_rate:.4f})*PTS"
             af_parts.append(f"atempo={slow_rate:.4f}")
         af_parts.append("aresample=async=1")

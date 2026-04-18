@@ -97,12 +97,19 @@ class Config:
         # and eats the last 2s tail-trim as transition space (user verdict: "for the
         # clip is to have space for transition"). This is NOT a crossfade between full
         # clips — it's a seam-level bleed of 150ms.
-        self.seam_xfade_duration: float = 0.15  # xfade length on every chunk seam
+        # Rule P1-H v4 (Part 6 v8 draft review 2026-04-18): bump 0.15 → 0.40.
+        # User verdict (fourth time asking): "ive been asking for transition since
+        # the first prompt but it was never made". 0.15 s was a subliminal bleed.
+        # 0.40 s is a visible transition. Tail-trim (P1-L v3 = 2.5 s) leaves ~2.1 s
+        # of clean content + 0.4 s fade = no content loss.
+        self.seam_xfade_duration: float = 0.40  # xfade length on every chunk seam
 
         # ── Intro clip ────────────────────────────────────────
-        # IntroPart2.mp4 = 25.77s total. First 7s = PANTHEON logo animation only.
-        # The rest is in-game CA Tribute billboard scene (not used for Parts).
-        self.intro_clip_duration: float = 7.0  # seconds to use from IntroPart2.mp4
+        # IntroPart2.mp4 = 25.77s total. First 5s = PANTHEON logo animation.
+        # Rule P1-X (Part 6 v8 draft review 2026-04-18): user verdict "5second only
+        # intro sound". Drops 7 → 5; the extra 2 s was dead air past the logo beat.
+        # Total pre-content offset: 5 (PANTHEON) + 8 (title card) = 13 s.
+        self.intro_clip_duration: float = 5.0  # seconds to use from IntroPart2.mp4
 
         # ── Audio mix ─────────────────────────────────────────
         # HARD RULE (Part 4 review, 2026-04-17): music -50%, game sound kept.
@@ -111,9 +118,15 @@ class Config:
         # Supersedes Rule P1-G (which had game audio under music at 0.85).
         # History: v1 0.30 / v2 0.55 / v3 0.75 / v4 0.85 (music@1.0) / NOW game@1.0 music@0.5.
         self.game_audio_volume:  float = 1.0   # game sound full volume — foreground
-        # Part 5 v7 review 2026-04-18: user said "music is ONCE AGAIN too loud
-        # compared to game sound". Dropping from 0.5 → 0.3.
-        self.music_volume:       float = 0.3   # music at 30% — clearly behind game
+        # Rule P1-G v4 (Part 6 v8 draft review 2026-04-18): third complaint in a row.
+        # Dropping 0.30 → 0.20 AND adding an objective ebur128 2-channel gate
+        # (phase1/audio_levels.py) that BLOCKS render ship if music integrated
+        # loudness is < 12 LU below game peak. Subjective mixing is over — numbers
+        # decide from here. User: "please use 2 channel and check level".
+        self.music_volume:       float = 0.20  # music at 20% — objective-gated
+        self.music_fadein_s:     float = 2.0   # fade music up over 2 s under PANTHEON
+        self.music_fadeout_s:    float = 2.5   # matches outro closeout
+        self.music_level_gate_lu: float = 12.0 # music integrated must be ≥12 LU below game peak
         # Rule P1-O: music must cover end-of-title-card → start-of-outro continuously.
         # If a single track is shorter than Part runtime, pipeline queues a second
         # track or loops with a beat-matched stitch. Silence gaps are a failure.
@@ -157,8 +170,37 @@ class Config:
         self.clip_head_trim_fp: float = 1.0     # FP clips: strip 1s off head
         self.clip_head_trim_fl: float = 2.0     # FL clips: strip 2s (kills console view)
         self.clip_head_trim: float = 1.0        # legacy — kept for back-compat
-        self.clip_tail_trim: float = 2.0        # strip 2s off tail of EVERY clip (seam space)
+        # Rule P1-L v3 (Part 6 v8 draft review 2026-04-18): bump tail 2.0 → 2.5.
+        # User verdict: "09Sec we can see the console need to cut clip 0.5 shorter
+        # in the end". Extra 0.5 s kills the post-action console reappearance and
+        # also budgets the new 0.4 s xfade (H v4) without eating into action.
+        self.clip_tail_trim: float = 2.5        # strip 2.5s off tail (console + xfade budget)
+        # Rule P1-L v3 short-clip protection floor: if clip_dur - head - tail < this,
+        # SKIP the clip from the Part (do not stretch, do not compress, just drop).
+        # User verdict: "149-77 is cut we can't see anything ensure we don't cut
+        # clips that are already too short".
+        self.min_playable_duration_s: float = 2.0
         self.transition_envelope: float = 0.0   # legacy — no envelope
+
+        # ── Rule P1-Z v2 / P1-EE event-localized speed + template conf ─
+        # confidence threshold for recognize_game_events() — lower = more
+        # matches, higher = pickier. 0.72 = default per P1-Z v2 research.
+        self.event_confidence: float = 0.72
+        # Enables Rule P1-EE event-localized slow (supersedes whole-clip
+        # setpts from v10). When False, the legacy whole-clip slow path
+        # is used (regression-safe).
+        self.event_localized_slow: bool = True
+        # Half-width of the event-localized slow window in seconds.
+        # Full window is 2 * this. Overridable per-clip via overrides
+        # grammar: `slow_window=0.6`.
+        self.slow_window_default: float = 0.8
+        # Default slow rate when only `slow=True` is set (no explicit rate).
+        self.slow_rate_default: float = 0.5
+        # Rule P1-AA v2 / P1-CC v2: body-duration-first flow. When True,
+        # body duration is computed BEFORE music stitch so the stitcher
+        # can right-size the queue (middle tracks full, last truncated at
+        # phrase boundary). When False, v10 behavior (music-first) kept.
+        self.body_duration_first: bool = True
 
         # ── Review watermark (Rule P1-D) ──────────────────────
         # User verdict (Part 5 v8 review 2026-04-18): "there are no video/clip
@@ -198,6 +240,17 @@ class Config:
         # slowing it to 0.5× gives the crowd time to register. Applied in
         # normalize_and_expand only to T1-tier entries without prior speed flag.
         self.short_t1_slowmo_threshold: float = 3.0   # post-trim seconds
+
+        # ── Rule P1-Y v2: Per-Part Quake-style hero font ──────
+        # User verdict 2026-04-18: "do 4 5 6 using one of each font".
+        # Subtitle always Bebas Neue; hero word ("QUAKE TRIBUTE") uses
+        # the per-Part display face below.
+        self.hero_font_by_part: dict = {
+            4: ROOT / "phase1" / "assets" / "fonts" / "BlackOpsOne-Regular.ttf",
+            5: ROOT / "phase1" / "assets" / "fonts" / "RussoOne-Regular.ttf",
+            6: ROOT / "phase1" / "assets" / "fonts" / "BungeeInline-Regular.ttf",
+        }
+        self.subtitle_font: Path = ROOT / "phase1" / "assets" / "fonts" / "BebasNeue-Regular.ttf"
 
         # ── Parts ─────────────────────────────────────────────
         self.parts: List[int] = list(range(4, 13))  # instance attribute, not class-level
