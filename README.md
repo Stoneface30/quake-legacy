@@ -40,10 +40,11 @@ Everything downstream — AI cinematography, automated fragmovie assembly, photo
 ✅ Binary format cracked
    → Custom C++17 dm_73 parser reading Huffman snapshots + EV_OBITUARY frags
 
-🔄 Fragmovie pipeline (Phase 1) — Parts 4/5 v6 rendering now (dual background render)
+🔄 Fragmovie pipeline (Phase 1) — Parts 4/5/6/7 v10.3 queue (body-drift fix + disk-authoritative clip lists)
    → Three-track music structure (intro + main playlist + outro)
    → Beat-sync on transitions, never on clip duration
    → Hard-cut concat, FP-dominant with single FL slow-contrast per frag
+   → Ship gates: sync-audit ≤40ms drift, music ≥12 LU below game peak
 
 ⏳ AI cinematography (Phase 3)
    → Gate P3-0 first: human-defined highlight criteria before any auto-extraction
@@ -57,15 +58,19 @@ Everything downstream — AI cinematography, automated fragmovie assembly, photo
 
 ---
 
-## Latest — 2026-04-18
+## Latest — 2026-04-18 (session 5)
 
-- **Rule P1-R (three-track music)** — every Part ships with `intro + main-playlist + outro`. Per-Part `partNN_intro_music.*` / `partNN_outro_music.*` overrides fall back to series-wide PANTHEON defaults. Main is a **playlist** (`partNN_music_01..NN.mp3`) sized to cover the body runtime without silence gaps. Stitched at render time by `phase1/music_stitcher.py` — beat-locked acrossfade, SHA-256 cache, coverage validator. Music MP3s are gitignored (copyright).
-- **Rule P1-S (beat-sync on transitions, not content)** — beat detection nudges the *cut point between clips*, never the clip's duration. Clips ARE the frags; showing 2 s of a 5 s clip to hit a downbeat is invalid.
-- **Dual v6 render in flight** — Part 4 + Part 5 re-rendered under the new rules as the fine-tuning baseline. Output: `output/Part4_v6_newrules_2026-04-18.mp4`, `output/Part5_v6_newrules_2026-04-18.mp4`.
-- **Encoder tuning report** — [`docs/research/perf-tuning-2026-04-18.md`](docs/research/perf-tuning-2026-04-18.md). Final AV1 NVENC is maxed (`p7 + tune uhq + multipass fullres + spatial-aq + temporal-aq + rc-lookahead 32 + b_ref_mode middle + 10-bit`). Remaining wins are in intermediates (parallel chunk encoding + NVENC normalize).
-- **Learnings** — `Vault/learnings.md` L101 (three-track music is the minimum; one track = broken), L102 (beat-sync at seams, not content).
+- **Body-drift root cause fixed** — the xfade-chain body-audio `atrim` was computed as `sum(durs) - (N-1)*x`, which assumes uniform xfade offsets. Once `plan_flow_cuts_v2()` started emitting beat-snapped per-seam offsets, the naive sum over-estimated the video end by 8,246 ms on Part 4. Fix: `expected_body_dur = offsets[-1] + durs[-1]`. Part 4 v10.3 ships with **max drift 6.3 ms** across the 25-minute body (gate is 40 ms). See L129 in `Vault/learnings.md`.
+- **Disk-authoritative clip list rebuild** — [`scripts/rescan_clips.py`](scripts/rescan_clips.py) walks every T1/T2/T3/PartN, groups AVIs by subdirectory (not demo number — that collided), pairs FPs with their FL angles, and emits a rebuilt styleb with the correct `FP > FL1 > FL2` grammar Rule P1-K expects. [`scripts/validate_clip_lists.py`](scripts/validate_clip_lists.py) is the pre-flight — calls `resolve_clip_path` on every segment before any render. Parts 4/5/6/7 rebuilt cleanly: **0 missing**, 21–22 multi-angle groups per Part, 5 orphaned AVIs recovered in Part 4. Lessons L131–L133.
+- **Rule P1-K reinforcement** — multi-angle grammar is `FP > FL1 > FL2`, never consecutive lines. Part 6 styleb had them as consecutive lines → renderer produced 4-angle ping-pong instead of FP-backbone + one FL slow-contrast replay. Fixed across all four parts.
+- **Ship gates live on every render** — `output/partNN_sync_audit.json` (A/V drift ≤ 40 ms) + `output/partNN_levels.json` (music integrated ≥ 12 LU below game true peak per Rule P1-G v4). Part 4 v10.3: drift 6.3 ms ✓, music delta 21.3 LU ✓.
+- **Render queue in flight** — chain driver producing Parts 4/5/6/7 v10.3 review renders sequentially; Part 4 shipped, Part 5 on title card, Parts 6/7 queued.
+- **Learnings added** — `Vault/learnings.md` L129 (beat-snapped offsets break naive duration sum), L130 (orphan filtergraph labels crash ffmpeg), L131 (frag_key is subdirectory, not demo number), L132 (Rule P1-K activates only on `>`), L133 (pre-flight validators are mandatory).
 
-Recent commits: `2cdf3435` perf-tuning report + music reserve · `676d61e0` session 3 doc refresh · `944e6ca6` P1-R/P1-S addendum · `9ec90477` rules + stitcher.
+Historical context:
+- **Rule P1-R (three-track music)** — intro + main playlist + outro per Part. Stitched by `phase1/music_stitcher.py` with beat-locked seams.
+- **Rule P1-S (beat-sync on transitions, not content)** — beat detection nudges cut points between clips, never truncates a frag.
+- **Encoder ceiling** — `av1_nvenc p7 tune uhq multipass fullres + spatial/temporal-aq + rc-lookahead 32 + b_ref_mode middle + 10-bit`. Details in [`docs/research/perf-tuning-2026-04-18.md`](docs/research/perf-tuning-2026-04-18.md).
 
 ---
 
@@ -213,7 +218,7 @@ Gate **ANN-1** (10-annotation stress test on Part 4) pending user. Design spec: 
 
 | Phase | Status | Python LOC | Output |
 |---|---|---|---|
-| Phase 1 — FFmpeg assembly | **Shipping** | 3,223 | Parts 4-6 Style B rendered; Part 4/5 v6 (P1-R three-track music + P1-S beat-on-seams) in flight |
+| Phase 1 — FFmpeg assembly | **Shipping** | 3,223 | Parts 4/5/6/7 v10.3 queue — Part 4 shipped (drift 6.3 ms, music Δ 21.3 LU, both gates ✓); disk-authoritative clip lists via `scripts/rescan_clips.py`; body-drift fix locked in |
 | Phase 1.5 — Creative Suite v2 | **Step 2 shipped** | — | FastAPI + SQLite at `:8765`; annotation UI live; Gate ANN-1 pending |
 | Phase 2 — Demo intelligence | Unblocked pending Gate P3-0 | 1,135 | Custom C++17 parser validated on 10 demos / 222 frags |
 | Phase 3 — AI cinematography | Research / awaiting Phase 2 | — | 5 engine knowledge graphs + canonical tree (9,895 files / 520 MB) |
@@ -261,6 +266,7 @@ quake-legacy/
   creative_suite/  FastAPI + SQLite + Three.js web UI
   tools/           FFmpeg 8.1, ghidra, engine tooling, md3viewer
   database/        SQLite schema + anon_hash frag DB
+  scripts/         Pipeline utilities (rescan_clips, validate_clip_lists, dedup, inventory)
   docs/
     specs/         Design documents (brainstorming outputs)
     reference/     dm_73 format, console-command inventory, ComfyUI pipeline
