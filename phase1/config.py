@@ -89,9 +89,15 @@ class Config:
         # User verdict: "no fucking transition not even a fading to the next image."
         # Transition palette design deferred to Phase 2 pattern-database work.
         # Supersedes Rule P1-H. TransitionPlanner.plan() returns HARD_CUT unconditionally.
-        self.xfade_duration:    float = 0.0   # HARD CUTS ONLY — no cross-fade
+        self.xfade_duration:    float = 0.0   # HARD CUTS ONLY — no cross-fade (legacy)
         self.intro_fade_in:     float = 0.0   # no fade-in from black (title card handles it)
         self.outro_fade_out:    float = 0.0   # no fade-out (outro credits module will handle)
+        # Rule P1-H v3 (Part 5 v7 review 2026-04-18): short seam xfades ARE allowed,
+        # distinct from the banned "1s fade-to-black". A 0.15s xfade bridges the seam
+        # and eats the last 2s tail-trim as transition space (user verdict: "for the
+        # clip is to have space for transition"). This is NOT a crossfade between full
+        # clips — it's a seam-level bleed of 150ms.
+        self.seam_xfade_duration: float = 0.15  # xfade length on every chunk seam
 
         # ── Intro clip ────────────────────────────────────────
         # IntroPart2.mp4 = 25.77s total. First 7s = PANTHEON logo animation only.
@@ -105,7 +111,9 @@ class Config:
         # Supersedes Rule P1-G (which had game audio under music at 0.85).
         # History: v1 0.30 / v2 0.55 / v3 0.75 / v4 0.85 (music@1.0) / NOW game@1.0 music@0.5.
         self.game_audio_volume:  float = 1.0   # game sound full volume — foreground
-        self.music_volume:       float = 0.5   # music halved — background atmosphere
+        # Part 5 v7 review 2026-04-18: user said "music is ONCE AGAIN too loud
+        # compared to game sound". Dropping from 0.5 → 0.3.
+        self.music_volume:       float = 0.3   # music at 30% — clearly behind game
         # Rule P1-O: music must cover end-of-title-card → start-of-outro continuously.
         # If a single track is shorter than Part runtime, pipeline queues a second
         # track or loops with a beat-matched stitch. Silence gaps are a failure.
@@ -141,9 +149,16 @@ class Config:
         # slow/normal replay of the same clip instead of truncating action.
         self.clip_pad_head: float = 2.0         # original pre-roll length (reference)
         self.clip_pad_tail: float = 3.0         # original post-roll length (reference)
-        self.clip_head_trim: float = 1.0        # strip 1s off head of EVERY clip
-        self.clip_tail_trim: float = 2.0        # strip 2s off tail of EVERY clip
-        self.transition_envelope: float = 0.0   # no transitions → no envelope
+        # Rule P1-L v2 (Part 5 v7 review 2026-04-18): FP vs FL head-trim split.
+        # User verdict: "head is 1 or 2 there are difference in the FL clips as you
+        # need to cut the console 2sec in". FL (free-look) clips show console/loading
+        # for ~2s; FP clips only ~1s. Tail trim unchanged — 2s is "space for
+        # transitions" per user directive.
+        self.clip_head_trim_fp: float = 1.0     # FP clips: strip 1s off head
+        self.clip_head_trim_fl: float = 2.0     # FL clips: strip 2s (kills console view)
+        self.clip_head_trim: float = 1.0        # legacy — kept for back-compat
+        self.clip_tail_trim: float = 2.0        # strip 2s off tail of EVERY clip (seam space)
+        self.transition_envelope: float = 0.0   # legacy — no envelope
 
         # ── Parts ─────────────────────────────────────────────
         self.parts: List[int] = list(range(4, 13))  # instance attribute, not class-level

@@ -87,8 +87,46 @@ A Part assembled from T1 only is WRONG. A Part that uses T1 as filler is also wr
 - Demo re-recording from different positions
 - Any WolfcamQL command-driven capture
 
-### Rule P1-G: Audio Mix — Game Foreground, Music Halved (REVISED Part 4 review 2026-04-17)
-**Game sound is FOREGROUND. Music is atmosphere underneath.**
+### Rule P1-G v3: Music at 30%, Layered Over ENTIRE Output (REVISED Part 5 v7 review 2026-04-18)
+**Music drops from 0.50 → 0.30 AND layers across PANTHEON + title + body, not body only.**
+User verdict: *"music is ONCE AGAIN too loud compared to game sound"* + *"intro sound NEED to be kept"*.
+- `cfg.music_volume = 0.30` (was 0.50)
+- `cfg.game_audio_volume = 1.00` unchanged
+- `final_render()` filter_complex builds a 3-part foreground track (PANTHEON audio + silent title + body game) and amix'es music ACROSS the whole thing. Previously music only played under the body; intro was music-silent.
+- PANTHEON audio preserved at full volume; intro music sits under it at 0.30.
+
+### Rule P1-H v3: Short Seam Xfades ARE Allowed (REVISED Part 5 v7 review 2026-04-18)
+**0.15s xfade between every body chunk. Distinct from the banned 1s dramatic fade.**
+User verdict: *"the transition are still non existant"* + *"for the clip is to have space for transition"*.
+- `cfg.seam_xfade_duration = 0.15` (was 0.0)
+- `assemble_body_with_xfades()` in `render_part_v6.py` builds the body as one mp4 with xfade chain across all chunks (`xfade=transition=fade:duration=0.15` + `acrossfade d=0.15`).
+- The 2s tail-trim from Rule P1-L is now officially "transition space".
+- Still banned: 1s fade-to-black, dip-to-white, cross-dissolve > 0.3s, any intro/outro dramatic fade.
+- Legacy `xfade_duration=0` stays; only `seam_xfade_duration` is active. Supersedes "HARD_CUT unconditionally" in TransitionPlanner.
+
+### Rule P1-L v2: FP/FL-Differentiated Head Trim (REVISED Part 5 v7 review 2026-04-18)
+**FP clips trim 1s off head; FL clips trim 2s to kill the console/loading view.**
+User verdict: *"head is 1 or 2 there are difference in the FL clips as you need to cut the console 2sec in"*.
+- `cfg.clip_head_trim_fp = 1.0` (FP — unchanged)
+- `cfg.clip_head_trim_fl = 2.0` (FL — new)
+- `cfg.clip_tail_trim   = 2.0` (unchanged; reclassified as "transition space" per P1-H v3)
+- `build_body_chunks()` detects FL via filename token (`"FL" in src.stem.upper().split("_")`).
+
+### Rule P1-U: Tier Interleave for Pacing (NEW Part 5 v7 review 2026-04-18)
+**Clip list is reshuffled into round-robin tier buckets so T1/T2/T3 alternate.**
+User verdict: *"mix of t3 t2 t1 organized each clip depending on the tier the map and the time of the action so we dont have 5 actions that last 30 sec in a row"*.
+- `interleave_clips_by_tier()` in `render_part_v6.py` round-robins with drain order T2/T1/T3/T2/T3/T1/T2 — T2 (main meal) shows up most, T1 sprinkled, T3 woven in.
+- Preserves local ordering within each tier bucket (FIFO).
+- Map-aware and duration-aware interleaving are Phase 2 follow-ups.
+
+### Rule P1-V: Beat-Snap + Silence-Detect (DEFERRED to Part 5 v9)
+**Not in v8. Open work items:**
+- `phase1/beat_sync.py` doesn't exist yet; `plan_beat_cuts()` is imported by `experiment.py` but dead. Needs librosa onset-detection + seam-timestamp snap (±200ms window).
+- Silence-detect via `ffmpeg silencedetect` → 1.5-2× `atempo` on clip-internal silence >2s. No scaffold.
+- Tracked in `docs/research/beat-and-silence-2026-04-18.md` (TODO to write).
+
+### Rule P1-G (legacy — superseded by P1-G v3): Audio Mix — Game Foreground, Music Halved (REVISED Part 4 review 2026-04-17)
+**Kept for history. See P1-G v3 above.**
 - `game_audio_volume = 1.0` (full — grenade hits, rail cracks, rocket impacts)
 - `music_volume      = 0.5` (halved — sits behind game audio)
 - User verdict: *"lower music by 50% keep game sound"*

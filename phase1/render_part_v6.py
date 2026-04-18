@@ -75,12 +75,31 @@ def _sum_duration(paths: List[Path], cfg: Config) -> float:
 def normalize_and_expand(part: int, clip_list_path: Path, cfg: Config) -> List[Path]:
     """Parse clip list, resolve + normalize each segment with slow/zoom/fast flags.
     Returns ordered list of normalized mp4s (one per segment).
+
+    Clip list is passed through tier-interleave (Rule P1-U) so T1/T2/T3
+    alternate — prevents "5 long T1 clips in a row" pacing regression.
     """
     lines = clip_list_path.read_text(encoding="utf-8").splitlines()
     entries = [parse_clip_entry(l) for l in lines
                if l.strip() and not l.strip().startswith("#")]
     norm_dir = cfg.output_dir / "normalized"
     norm_dir.mkdir(parents=True, exist_ok=True)
+
+    # Rule P1-U (Part 5 v7 review 2026-04-18): tier-interleave the ordered list.
+    def _tier_of(entry) -> str:
+        first = entry.segments[0] if entry.segments else ""
+        src = resolve_clip_path(first, part, cfg)
+        if src is None:
+            return "?"
+        s = str(src).upper()
+        if "\\T1\\" in s or "/T1/" in s: return "T1"
+        if "\\T2\\" in s or "/T2/" in s: return "T2"
+        if "\\T3\\" in s or "/T3/" in s: return "T3"
+        return "?"
+    pre_order = [_tier_of(e) for e in entries]
+    entries = interleave_clips_by_tier(entries, _tier_of)
+    post_order = [_tier_of(e) for e in entries]
+    print(f"  [tier-interleave] {pre_order[:15]}... → {post_order[:15]}...")
 
     normalized: List[Path] = []
     for entry in entries:
@@ -122,7 +141,6 @@ def build_body_chunks(
     """
     chunks_dir.mkdir(parents=True, exist_ok=True)
     chunks: List[Path] = []
-    head = cfg.clip_head_trim
     tail = cfg.clip_tail_trim
 
     for i, src in enumerate(normalized):
@@ -130,10 +148,13 @@ def build_body_chunks(
         chunks.append(chunk)
         if chunk.exists():
             continue
+        # Rule P1-L v2: FL clips have ~2s of console/loading header;
+        # FP clips only ~1s. Detect via filename — FL multi-angle clips
+        # contain "FL" as a token (e.g. `...FL.avi` or `...FL_rocket.avi`).
+        is_fl = "FL" in src.stem.upper().split("_")
+        head = cfg.clip_head_trim_fl if is_fl else cfg.clip_head_trim_fp
         dur_full = _probe_duration(src, cfg)
-        # Apply 1 s head / 2 s tail (Rule P1-L). For very short clips
-        # (e.g. slow-mo expansions already pre-trimmed), fall back to a
-        # minimum 0.5 s body.
+        # Fallback min 0.5s body for pre-trimmed slow-mo expansions.
         trim_dur = max(0.5, dur_full - head - tail)
         cmd = [
             str(cfg.ffmpeg_bin), "-y",
@@ -162,6 +183,133 @@ def build_body_chunks(
         encoding="utf-8",
     )
     return concat_list, chunks
+
+
+def assemble_body_with_xfades(
+    chunks: List[Path],
+    out_path: Path,
+    cfg: Config,
+) -> Path:
+    """Concat all body chunks into one mp4 with short xfade seams between every
+    chunk. Replaces the concat-demuxer hard-cut body for Part 5 v8+.
+
+    Xfade duration = cfg.seam_xfade_duration (default 0.15s). Each xfade eats the
+    last 0.15s of clip N and first 0.15s of clip N+1 — net body length shrinks
+    by (N-1) * xfade.
+
+    Uses one giant filter_complex across all N chunk inputs. Practical up to
+    ~80 chunks on 32 GB RAM. If the graph is too large, caller should fall back
+    to hard-cut concat demuxer.
+    """
+    if out_path.exists():
+        print(f"  [cache] {out_path.name}")
+        return out_path
+
+    N = len(chunks)
+    if N == 0:
+        raise RuntimeError("assemble_body_with_xfades: zero chunks")
+    if N == 1:
+        # Nothing to xfade — just copy
+        subprocess.run([str(cfg.ffmpeg_bin), "-y", "-i", str(chunks[0]),
+                        "-c", "copy", str(out_path)], check=True)
+        return out_path
+
+    x = cfg.seam_xfade_duration
+    durs = [_probe_duration(c, cfg) for c in chunks]
+
+    # Build filter_complex
+    # Video: chain xfade across chunks
+    # Audio: chain acrossfade across chunks
+    v_parts = []
+    a_parts = []
+    # Normalize every input first so SAR/fps match exactly (defensive)
+    for i in range(N):
+        v_parts.append(
+            f"[{i}:v]setsar=1,fps={cfg.target_fps},format=yuv420p[v{i}]"
+        )
+        a_parts.append(f"[{i}:a]aresample=async=1[a{i}]")
+
+    # xfade chain: cumulative offset = sum(durs[0..i-1]) - i * x
+    offset = durs[0] - x
+    prev_v = "v0"
+    prev_a = "a0"
+    xchain = []
+    achain = []
+    for i in range(1, N):
+        out_v = f"vx{i}"
+        out_a = f"ax{i}"
+        xchain.append(
+            f"[{prev_v}][v{i}]xfade=transition=fade:duration={x:.3f}:"
+            f"offset={offset:.3f}[{out_v}]"
+        )
+        achain.append(
+            f"[{prev_a}][a{i}]acrossfade=d={x:.3f}[{out_a}]"
+        )
+        prev_v = out_v
+        prev_a = out_a
+        if i < N - 1:
+            offset += durs[i] - x
+
+    filter_complex = ";".join(v_parts + a_parts + xchain + achain)
+    final_v = prev_v
+    final_a = prev_a
+
+    input_args: List[str] = []
+    for c in chunks:
+        input_args += ["-i", str(c)]
+
+    cmd = [
+        str(cfg.ffmpeg_bin), "-y",
+        *input_args,
+        "-filter_complex", filter_complex,
+        "-map", f"[{final_v}]", "-map", f"[{final_a}]",
+        "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+        "-profile:v", "high", "-pix_fmt", "yuv420p",
+        "-r", str(cfg.target_fps),
+        "-g", str(cfg.target_fps * 2),
+        "-c:a", "aac", "-ar", "48000", "-b:a", "192k",
+        "-movflags", "+faststart",
+        str(out_path),
+    ]
+    print(f"  [body-xfade] {N} chunks → {out_path.name} (xfade={x}s)")
+    r = subprocess.run(cmd, capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
+    if r.returncode != 0:
+        raise RuntimeError(f"body xfade assembly failed:\n{r.stderr[-1500:]}")
+    return out_path
+
+
+def interleave_clips_by_tier(entries, resolver):
+    """Rebalance ordered clip-list entries so clips from the same tier don't
+    cluster. Round-robin by tier bucket (T1/T2/T3) while preserving local
+    ordering within each bucket.
+
+    `resolver(entry) -> str` returns a tier tag ("T1"/"T2"/"T3"/"?") — looked up
+    from the first segment's resolved path.
+    """
+    from collections import defaultdict, deque
+    buckets: dict[str, deque] = defaultdict(deque)
+    for e in entries:
+        buckets[resolver(e)].append(e)
+
+    # Priority order: T2 (main meal) first, T1 (rare/peak) sprinkled,
+    # T3 (filler) woven between. Ratio roughly matches their weight.
+    order = ["T2", "T1", "T3", "T2", "T3", "T1", "T2"]
+    result = []
+    # Round-robin until all buckets empty
+    while any(buckets[t] for t in ("T1", "T2", "T3", "?")):
+        progress = False
+        for tier in order:
+            if buckets[tier]:
+                result.append(buckets[tier].popleft())
+                progress = True
+        # drain unknowns last, but keep the loop alive if no named-tier clips left
+        if buckets["?"]:
+            result.append(buckets["?"].popleft())
+            progress = True
+        if not progress:
+            break
+    return result
 
 
 def ensure_title_card(part: int, cfg: Config) -> Path:
@@ -197,22 +345,32 @@ def final_render(
     part: int,
     pantheon_trim: Path,
     title_card: Path,
-    concat_list: Path,
+    body_path: Path,
     music_path: Path,
     final_out: Path,
     cfg: Config,
 ) -> None:
     """Single ffmpeg invocation:
-      inputs: [0]PANTHEON [1]title [2]body-concat [3]stitched music
-      audio: game @ body * 1.0 + music @ 0.5 (amix), PANTHEON+title keep own audio
-      video: PANTHEON + title + body (hard cuts via concat filter)
-      encoder: AV1 NVENC p7 uhq 10-bit cq=18
+      inputs: [0]PANTHEON [1]title [2]body (pre-xfaded single mp4) [3]stitched music
+      audio: music layers across ENTIRE video (Rule P1-G v3). PANTHEON keeps its
+             own foreground audio. Body keeps game audio foreground. Music
+             at cfg.music_volume under all three.
+      video: PANTHEON + title + body (hard cuts at intro seams; seam xfades
+             inside body were already baked in by assemble_body_with_xfades).
+      encoder: AV1 NVENC p7 uhq 10-bit cq=18.
     """
     filter_complex = (
-        f"[3:a]volume={cfg.music_volume}[mus];"
-        f"[2:a]volume={cfg.game_audio_volume}[game];"
-        f"[game][mus]amix=inputs=2:duration=first:normalize=0[body_a];"
-        f"[0:v][0:a][1:v][1:a][2:v][body_a]concat=n=3:v=1:a=1[vout][aout]"
+        # Video: plain concat of 3 files (body already has internal xfades)
+        f"[0:v][1:v][2:v]concat=n=3:v=1:a=0[vout];"
+        # Build a "foreground" audio track: PANTHEON audio + silent title + body game
+        f"[0:a]aresample=48000:async=1,volume=1.0[pa];"
+        f"[1:a]aresample=48000:async=1,volume=1.0[ta];"
+        f"[2:a]aresample=48000:async=1,volume={cfg.game_audio_volume}[ga];"
+        f"[pa][ta][ga]concat=n=3:v=0:a=1[fgtrack];"
+        # Music layer across entire output
+        f"[3:a]volume={cfg.music_volume},aresample=48000:async=1[mus];"
+        # Amix foreground + music. duration=first keeps video length as-is
+        f"[fgtrack][mus]amix=inputs=2:duration=first:normalize=0[aout]"
     )
 
     codec  = cfg.final_render_nvenc_codec
@@ -224,7 +382,7 @@ def final_render(
         str(cfg.ffmpeg_bin), "-y",
         "-i", str(pantheon_trim),
         "-i", str(title_card),
-        "-f", "concat", "-safe", "0", "-i", str(concat_list),
+        "-i", str(body_path),
         "-i", str(music_path),
         "-filter_complex", filter_complex,
         "-map", "[vout]", "-map", "[aout]",
@@ -283,6 +441,8 @@ def main():
                     help="Override clip list name (default: partNN_styleb.txt)")
     ap.add_argument("--chunks-dir",
                     help="Override chunks dir (default: output/_part{N}_v6_body_chunks)")
+    ap.add_argument("--output",
+                    help="Override final output file path (absolute or relative to project)")
     args = ap.parse_args()
 
     part = args.part
@@ -323,8 +483,21 @@ def main():
     title_card   = ensure_title_card(part, cfg)
     pantheon     = ensure_pantheon_trim(cfg)
 
-    # --- Body duration for music budget ---
-    body_dur = _sum_duration(chunks, cfg)
+    # --- Body assembly: single mp4 with seam xfades (Rule P1-H v3) ---
+    body_xfaded = chunks_dir / "_body_xfaded.mp4"
+    if cfg.seam_xfade_duration > 0:
+        assemble_body_with_xfades(chunks, body_xfaded, cfg)
+    else:
+        # hard-cut fallback via concat demuxer → remux into a single mp4
+        if not body_xfaded.exists():
+            subprocess.run([
+                str(cfg.ffmpeg_bin), "-y",
+                "-f", "concat", "-safe", "0", "-i", str(concat_list),
+                "-c", "copy", str(body_xfaded)
+            ], check=True)
+
+    # --- Body duration for music budget (post-xfade) ---
+    body_dur = _probe_duration(body_xfaded, cfg)
     total_video_dur = cfg.intro_clip_duration + 8.0 + body_dur  # PANTHEON + title + body
     # Music must cover the whole thing (intro under PANTHEON+title, main under body,
     # outro stretched across body tail; stitcher picks the crossfade points).
@@ -344,8 +517,14 @@ def main():
     print(f"Stitched music: {music_path}")
 
     # --- Final render ---
-    final_out = OUTPUT_DIR / OUTPUT_NAME_TMPL.format(n=part)
-    final_render(part, pantheon, title_card, concat_list,
+    if args.output:
+        final_out = Path(args.output)
+        if not final_out.is_absolute():
+            final_out = ROOT / final_out
+        final_out.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        final_out = OUTPUT_DIR / OUTPUT_NAME_TMPL.format(n=part)
+    final_render(part, pantheon, title_card, body_xfaded,
                  music_path, final_out, cfg)
 
     elapsed = time.time() - started
