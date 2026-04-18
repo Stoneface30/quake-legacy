@@ -215,19 +215,21 @@ def build_filter_complex(
     )
 
     if music_input_index is not None:
-        # Game audio: lower volume, fade in/out
+        # Rule P1-G (Part 4 review 2026-04-17): game audio is FOREGROUND (1.0),
+        # music is atmosphere UNDERNEATH (0.5). Opposite of previous mix.
+        music_vol = getattr(cfg, "music_volume", 0.5)
         parts.append(
             f"{a_chain}volume={game_audio_volume:.2f},"
             f"afade=t=in:st=0:d={cfg.intro_fade_in},"
             f"afade=t=out:st={fade_out_start:.4f}:d={cfg.outro_fade_out}[game_faded]"
         )
-        # Music: fade in/out (full volume — game audio rides underneath)
+        # Music: halved pre-gain, then fade in/out
         parts.append(
-            f"[{music_input_index}:a]"
+            f"[{music_input_index}:a]volume={music_vol:.2f},"
             f"afade=t=in:st=0:d={cfg.intro_fade_in},"
             f"afade=t=out:st={fade_out_start:.4f}:d={cfg.outro_fade_out}[music_faded]"
         )
-        # Mix: game audio texture + music backbone
+        # Mix: game audio foreground + music background
         # normalize=0 prevents amix from halving volume levels
         parts.append(
             f"[game_faded][music_faded]amix=inputs=2:duration=first:normalize=0[aout]"
@@ -275,6 +277,7 @@ def _assemble_via_concat_demuxer(
     trim_durations: Optional[List[float]],
     per_clip_vf: Optional[List[str]],
     durations: List[float],
+    clip_list_path: Optional[Path] = None,
 ) -> Path:
     """
     High-clip-count assembly path that sidesteps ffmpeg's filter_complex concat
@@ -379,7 +382,9 @@ def _assemble_via_concat_demuxer(
         f"[sharp]fade=t=in:st=0:d={cfg.intro_fade_in},"
         f"fade=t=out:st={fade_out_start:.4f}:d={cfg.outro_fade_out}[vout]",
     ]
-    game_vol = cfg.game_audio_volume
+    # Rule P1-G (Part 4 review 2026-04-17): game audio FOREGROUND, music HALVED.
+    game_vol  = cfg.game_audio_volume
+    music_vol = getattr(cfg, "music_volume", 0.5)
     if music_path is not None:
         fc_parts.append(
             f"[0:a]volume={game_vol:.2f},"
@@ -387,7 +392,8 @@ def _assemble_via_concat_demuxer(
             f"afade=t=out:st={fade_out_start:.4f}:d={cfg.outro_fade_out}[game_faded]"
         )
         fc_parts.append(
-            f"[1:a]afade=t=in:st=0:d={cfg.intro_fade_in},"
+            f"[1:a]volume={music_vol:.2f},"
+            f"afade=t=in:st=0:d={cfg.intro_fade_in},"
             f"afade=t=out:st={fade_out_start:.4f}:d={cfg.outro_fade_out}[music_faded]"
         )
         fc_parts.append(
@@ -491,6 +497,15 @@ def _assemble_via_concat_demuxer(
     except OSError as e:
         print(f"  [cleanup] could not fully remove {work_dir}: {e}")
 
+    # Creative Suite v2: record which clip list produced this mp4.
+    if clip_list_path is not None:
+        from creative_suite.clips.parser import write_render_manifest
+        write_render_manifest(
+            output_path, clip_list_path,
+            extras={"encoder": codec_override or "libx264",
+                    "crf": crf_override if crf_override is not None else cfg.crf,
+                    "path": "concat_demuxer"},
+        )
     return output_path
 
 
@@ -508,6 +523,7 @@ def assemble_part(
     trim_durations: Optional[List[float]] = None,
     per_clip_vf: Optional[List[str]] = None,
     transition_plan: Optional[List[Transition]] = None,
+    clip_list_path: Optional[Path] = None,
 ) -> Path:
     """
     Assemble clips -> single MP4 with grade, bloom, xfade, optional music.
@@ -564,6 +580,7 @@ def assemble_part(
             trim_durations=trim_durations,
             per_clip_vf=per_clip_vf,
             durations=durations,
+            clip_list_path=clip_list_path,
         )
 
     music_input_index = len(clips) if music_path else None
@@ -670,6 +687,16 @@ def assemble_part(
 
     size_mb = output_path.stat().st_size / 1024 / 1024
     print(f"  [DONE] {output_path} ({size_mb:.0f}MB)")  # S7 fix: no emoji
+    # Creative Suite v2: record which clip list produced this mp4 so the
+    # annotation tool (storage/annotations/) can resolve mp4_time -> clip_index.
+    if clip_list_path is not None:
+        from creative_suite.clips.parser import write_render_manifest
+        write_render_manifest(
+            output_path, clip_list_path,
+            extras={"encoder": codec_override or "libx264",
+                    "crf": crf_override if crf_override is not None else cfg.crf,
+                    "path": "filter_complex"},
+        )
     return output_path
 
 
@@ -762,4 +789,117 @@ def prepend_intro(
 
     size_mb = output_path.stat().st_size / 1024 / 1024
     print(f"  [DONE] {output_path.name} with intro ({size_mb:.0f}MB)")
+    return output_path
+
+
+def prepend_intro_sequence(
+    part: int,
+    body_path: Path,
+    output_path: Path,
+    cfg: Config,
+    intro_duration: Optional[float] = None,
+    title_duration: float = 8.0,
+) -> Path:
+    """
+    Rule P1-N: prepend the full Part intro sequence to a rendered body.
+
+    Sequence (total 15s before content):
+        0s  → 7s   PANTHEON (first 7s of IntroPart2.mp4)
+        7s  → 15s  Title card (QUAKE TRIBUTE / Part N / By Tr4sH / fade)
+       15s+       Content body
+
+    Uses ffmpeg concat filter with re-encode to guarantee seamless joins
+    (Rule P1-H: HARD CUTS ONLY — no xfade between segments).
+
+    Args:
+        part:            Part number for the title card
+        body_path:       Assembled content body (the rendered clips)
+        output_path:     Final output path (with intro sequence prepended)
+        cfg:             Config
+        intro_duration:  Seconds of PANTHEON intro (default cfg.intro_clip_duration = 7.0)
+        title_duration:  Seconds of title card (default 8.0 per Rule P1-N)
+
+    Returns: output_path
+    """
+    from phase1.title_card import render_title_card
+
+    if intro_duration is None:
+        intro_duration = cfg.intro_clip_duration
+
+    if not cfg.intro_source.exists():
+        raise FileNotFoundError(
+            f"PANTHEON intro not found: {cfg.intro_source}"
+        )
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Step 1: trim PANTHEON to N seconds
+    tmp_dir = output_path.parent
+    pantheon_trim = tmp_dir / f"_pantheon_trim_{intro_duration:.0f}s.mp4"
+    if not pantheon_trim.exists():
+        cmd_trim = [
+            str(cfg.ffmpeg_bin), "-y",
+            "-ss", "0",
+            "-t", str(intro_duration),
+            "-i", str(cfg.intro_source),
+            "-c:v", "libx264",
+            "-crf", "17",
+            "-preset", "fast",
+            "-pix_fmt", "yuv420p",
+            "-r", str(cfg.target_fps),
+            "-vf", f"scale={cfg.target_width}:{cfg.target_height}:flags=lanczos",
+            "-c:a", "aac",
+            "-ar", "48000",
+            "-b:a", "192k",
+            str(pantheon_trim),
+        ]
+        result = subprocess.run(cmd_trim, capture_output=True, text=True,
+                                encoding="utf-8", errors="replace")
+        if result.returncode != 0:
+            raise RuntimeError(f"PANTHEON trim failed:\n{result.stderr[-500:]}")
+
+    # Step 2: render title card for this Part (cache under phase1/assets/)
+    assets_dir = Path(__file__).parent / "assets"
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    title_card_path = assets_dir / f"title_card_part{part:02d}.mp4"
+    if not title_card_path.exists():
+        render_title_card(part, title_card_path, cfg, duration=title_duration)
+
+    # Step 3: concat PANTHEON + title card + body in one filter_complex pass.
+    # Re-encode everything for codec/PTS consistency — this is the FINAL render
+    # so we use NVENC if the body was already NVENC; otherwise match body codec.
+    # For simplicity we use libx264 high-quality for the intro+card+body stitch
+    # since only the first 15s changes and everything beyond that is stream-copy
+    # impossible with the filter_complex path. We accept a single re-encode here.
+    print(f"  Stitching intro sequence: PANTHEON 7s + Title card 8s + body -> {output_path.name}")
+    cmd = [
+        str(cfg.ffmpeg_bin), "-y",
+        "-i", str(pantheon_trim),
+        "-i", str(title_card_path),
+        "-i", str(body_path),
+        "-filter_complex",
+        "[0:v][0:a][1:v][1:a][2:v][2:a]concat=n=3:v=1:a=1[vout][aout]",
+        "-map", "[vout]",
+        "-map", "[aout]",
+        "-c:v", "libx264",
+        "-crf", "17",
+        "-preset", "slow",
+        "-profile:v", "high",
+        "-pix_fmt", "yuv420p",
+        "-r", str(cfg.target_fps),
+        "-g", str(cfg.target_fps * 2),
+        "-bf", "2",
+        "-c:a", "aac",
+        "-ar", "48000",
+        "-b:a", cfg.audio_bitrate,
+        "-movflags", "+faststart",
+        str(output_path),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True,
+                            encoding="utf-8", errors="replace")
+    if result.returncode != 0:
+        raise RuntimeError(f"Intro sequence stitch failed:\n{result.stderr[-800:]}")
+
+    size_mb = output_path.stat().st_size / 1024 / 1024
+    print(f"  [DONE] {output_path.name} (PANTHEON+title+body, {size_mb:.0f}MB)")
     return output_path

@@ -1,0 +1,1865 @@
+[
+ {
+  "tree": "quake1-source",
+  "rel_path": ".git",
+  "sha256": null,
+  "size": null,
+  "mtime": null,
+  "useless": "vcs_or_cache_dir:.git",
+  "is_dir": true
+ },
+ {
+  "tree": "quake1-source",
+  "rel_path": "QW/qw.ncb",
+  "sha256": "33f28ddeb85f71ad237e9760f467a2e61faf7f7b8c011c4bb844236daeeb77c1",
+  "size": 828416,
+  "mtime": 1776376101,
+  "useless": "build_artifact_ext:.ncb",
+  "is_dir": false
+ },
+ {
+  "tree": "quake1-source",
+  "rel_path": "QW/dxsdk/sdk/lib/dinput.lib",
+  "sha256": "d22f74ae0e7a5f972c0314df0796800762f7096e25f1bba2f10b30fbb1851ce2",
+  "size": 11886,
+  "mtime": 1776376101,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "quake1-source",
+  "rel_path": "QW/dxsdk/sdk/lib/dxguid.lib",
+  "sha256": "d88e2b841e82c55b76f79c16189606cb3fbaaca06aa659d7a4cb590b57c90773",
+  "size": 64852,
+  "mtime": 1776376101,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "quake1-source",
+  "rel_path": "QW/scitech/lib/win32/vc/mgllt.lib",
+  "sha256": "126f037e643978d1d5dfef5e38422eafe790d236de54d611171ce7ec469a0720",
+  "size": 468854,
+  "mtime": 1776376101,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "quake1-source",
+  "rel_path": "WinQuake/WinQuake.ncb",
+  "sha256": "693b514ef478e04744460407fcf588bf2e6ce06fb23f44526525af2f0e513ae1",
+  "size": 754688,
+  "mtime": 1776376101,
+  "useless": "build_artifact_ext:.ncb",
+  "is_dir": false
+ },
+ {
+  "tree": "quake1-source",
+  "rel_path": "WinQuake/dxsdk/SDK/LIB/DINPUT.LIB",
+  "sha256": "d22f74ae0e7a5f972c0314df0796800762f7096e25f1bba2f10b30fbb1851ce2",
+  "size": 11886,
+  "mtime": 1776376101,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "quake1-source",
+  "rel_path": "WinQuake/dxsdk/SDK/LIB/DXGUID.LIB",
+  "sha256": "d88e2b841e82c55b76f79c16189606cb3fbaaca06aa659d7a4cb590b57c90773",
+  "size": 64852,
+  "mtime": 1776376101,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "quake1-source",
+  "rel_path": "WinQuake/scitech/LIB/WIN32/VC/MGLLT.LIB",
+  "sha256": "126f037e643978d1d5dfef5e38422eafe790d236de54d611171ce7ec469a0720",
+  "size": 468854,
+  "mtime": 1776376101,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "quake2-source",
+  "rel_path": ".git",
+  "sha256": null,
+  "size": null,
+  "mtime": null,
+  "useless": "vcs_or_cache_dir:.git",
+  "is_dir": true
+ },
+ {
+  "tree": "quake2-source",
+  "rel_path": "rhapsody/makefile.bak",
+  "sha256": "e556e75eae9086c16cab2558950845c882f4853858b5bb189b55ee2fb3156d36",
+  "size": 2643,
+  "mtime": 1776376102,
+  "useless": "build_artifact_ext:.bak",
+  "is_dir": false
+ },
+ {
+  "tree": "quake2-source",
+  "rel_path": "unix/next/sv_ccmds.o",
+  "sha256": "0360652d5e211d5c157af5f0d80453039c58045578171b49dbb28576039dafba",
+  "size": 60812,
+  "mtime": 1776376102,
+  "useless": "build_artifact_ext:.o",
+  "is_dir": false
+ },
+ {
+  "tree": "quake3-source",
+  "rel_path": ".git",
+  "sha256": null,
+  "size": null,
+  "mtime": null,
+  "useless": "vcs_or_cache_dir:.git",
+  "is_dir": true
+ },
+ {
+  "tree": "quake3-source",
+  "rel_path": "code/win32/mod-sdk-setup/bin/lcc.exe",
+  "sha256": "e1f11f59ec6e1ac96149b82adfe6f3692687f9706daba6d2f34638ea9e50455a",
+  "size": 135223,
+  "mtime": 1776366140,
+  "useless": "build_artifact_dir:bin",
+  "is_dir": false
+ },
+ {
+  "tree": "quake3-source",
+  "rel_path": "code/win32/mod-sdk-setup/bin/q3asm.exe",
+  "sha256": "8eb40dd4377cde238083379c775f43216818b5c23176e724f04b9e273a979cf3",
+  "size": 69632,
+  "mtime": 1776366140,
+  "useless": "build_artifact_dir:bin",
+  "is_dir": false
+ },
+ {
+  "tree": "quake3-source",
+  "rel_path": "code/win32/mod-sdk-setup/bin/q3cpp.exe",
+  "sha256": "b2fce49f956f00eab037090878c4dcc090ff8ef69bfc5c4c175ffcf3d020d380",
+  "size": 159801,
+  "mtime": 1776366140,
+  "useless": "build_artifact_dir:bin",
+  "is_dir": false
+ },
+ {
+  "tree": "quake3-source",
+  "rel_path": "code/win32/mod-sdk-setup/bin/q3rcc.exe",
+  "sha256": "2943b7f24348b91ca7a6ef10f5465a3690e63fc4157fbb920c57a4f35e42c166",
+  "size": 847929,
+  "mtime": 1776366140,
+  "useless": "build_artifact_dir:bin",
+  "is_dir": false
+ },
+ {
+  "tree": "quake3-source",
+  "rel_path": "lcc/bin/lcc.exe",
+  "sha256": "e42e35f3ab21a4ae74d5547918f0104a7b8de9dc8a1afc414829e7d0d26ed54c",
+  "size": 135223,
+  "mtime": 1776366140,
+  "useless": "build_artifact_dir:bin",
+  "is_dir": false
+ },
+ {
+  "tree": "quake3-source",
+  "rel_path": "lcc/bin/q3cpp.exe",
+  "sha256": "11cfe6ad51ef3a1469d7fc08a8c492341254c1ce975b3e250371c178937008e8",
+  "size": 159801,
+  "mtime": 1776366140,
+  "useless": "build_artifact_dir:bin",
+  "is_dir": false
+ },
+ {
+  "tree": "quake3-source",
+  "rel_path": "lcc/bin/q3rcc.exe",
+  "sha256": "5bcee07f5ef6600b30d2043dfa4dc8ad609b0ef07610cd340169ac454e155922",
+  "size": 847929,
+  "mtime": 1776366140,
+  "useless": "build_artifact_dir:bin",
+  "is_dir": false
+ },
+ {
+  "tree": "ioquake3",
+  "rel_path": ".git",
+  "sha256": null,
+  "size": null,
+  "mtime": null,
+  "useless": "vcs_or_cache_dir:.git",
+  "is_dir": true
+ },
+ {
+  "tree": "ioquake3",
+  "rel_path": "code/thirdparty/libs/macos/libSDL2main.a",
+  "sha256": "457c1a1aa51aa58c44f76069617843b637143d093a407f4c2f0e37d8fde5c5a8",
+  "size": 1632,
+  "mtime": 1776366141,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "ioquake3",
+  "rel_path": "code/thirdparty/libs/win32/libSDL2.dll.a",
+  "sha256": "7756f2aaa104e703a7ba17af36a27e7348ce65ce447650ae872d48889fd8a3a0",
+  "size": 565178,
+  "mtime": 1776366141,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "ioquake3",
+  "rel_path": "code/thirdparty/libs/win32/libSDL2main.a",
+  "sha256": "2a9e631b722a17fc529dd0c69ca9c0722d0e3c887dd309940a7617f5b35c1e34",
+  "size": 8418,
+  "mtime": 1776366141,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "ioquake3",
+  "rel_path": "code/thirdparty/libs/win32/SDL2.lib",
+  "sha256": "a69235c1c93d8246f9635d30e75e18879488f552867a88fce775e5102b02a8e0",
+  "size": 188076,
+  "mtime": 1776366141,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "ioquake3",
+  "rel_path": "code/thirdparty/libs/win32/SDL2main.lib",
+  "sha256": "e0560ec308e48c772d932793b7b7b4ac57c5fdfbc6a195d0055dffe4f6c7b3bd",
+  "size": 37362,
+  "mtime": 1776366141,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "ioquake3",
+  "rel_path": "code/thirdparty/libs/win64/libSDL2.dll.a",
+  "sha256": "e482193c3db358936fa40b830745a93cbe0b11d868b450879b0f5d823a5aff21",
+  "size": 553152,
+  "mtime": 1776366141,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "ioquake3",
+  "rel_path": "code/thirdparty/libs/win64/libSDL2main.a",
+  "sha256": "8b2fc27fd1ba71be7067e791f3b7a4e03e706397603428349aa4bb434ec3290e",
+  "size": 9536,
+  "mtime": 1776366141,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "ioquake3",
+  "rel_path": "code/thirdparty/libs/win64/SDL2.lib",
+  "sha256": "6e40d52f515f22839605b8ac84b43804cc77d61f50523418398a45272a5258d5",
+  "size": 183824,
+  "mtime": 1776366141,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "ioquake3",
+  "rel_path": "code/thirdparty/libs/win64/SDL2main.lib",
+  "sha256": "ec53d7ec51a20d18e0a8df99d1755595fcf9c63dbb06991ab746df753cd11e83",
+  "size": 36712,
+  "mtime": 1776366141,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "quake3e",
+  "rel_path": ".git",
+  "sha256": null,
+  "size": null,
+  "mtime": null,
+  "useless": "vcs_or_cache_dir:.git",
+  "is_dir": true
+ },
+ {
+  "tree": "quake3e",
+  "rel_path": "code/libcurl/windows/mingw/lib32/libcurl.a",
+  "sha256": "1c8c54eee8b6746ae0b39b67e46cfb04884b8328fcc41604554aab5a98edf7d4",
+  "size": 663330,
+  "mtime": 1776366146,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "quake3e",
+  "rel_path": "code/libcurl/windows/mingw/lib64/libcurl.a",
+  "sha256": "88c0ba8c15e6bec2c4d289e12a708f940b904a01f853a05c5f388f79a0cd3d12",
+  "size": 752320,
+  "mtime": 1776366146,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "quake3e",
+  "rel_path": "code/libcurl/windows/vs2005/lib32/libcurl_a.lib",
+  "sha256": "325dd80a04b4652dc4673b74ddc5555cfbeb5ae6579bc5d6d90cf1050db18d93",
+  "size": 1045258,
+  "mtime": 1776366146,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "quake3e",
+  "rel_path": "code/libcurl/windows/vs2005/lib32/libcurl_a_debug.lib",
+  "sha256": "5e4787be919db371ae1b006f18cac521b2111105f7f539d189ffb018aaaa1197",
+  "size": 6343924,
+  "mtime": 1776366146,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "quake3e",
+  "rel_path": "code/libcurl/windows/vs2005/lib64/libcurl_a.lib",
+  "sha256": "ee88a2072060853b4b401cf6f8e3f0eab6d9ecba005c962c63973dfe533d323c",
+  "size": 1682688,
+  "mtime": 1776366146,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "quake3e",
+  "rel_path": "code/libcurl/windows/vs2005/lib64/libcurl_a_debug.lib",
+  "sha256": "c3c71574e6e1a38fae36df2f01d357835f9425e4ea54a4bc306b463d06abf9d2",
+  "size": 7154006,
+  "mtime": 1776366147,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "quake3e",
+  "rel_path": "code/libcurl/windows/vs2017/lib32/libcurl_a.lib",
+  "sha256": "185a8a0a12852e264ed2b3e073f8c7680aad66a3a17845e0cb10b4aadced941c",
+  "size": 1314674,
+  "mtime": 1776366147,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "quake3e",
+  "rel_path": "code/libcurl/windows/vs2017/lib32/libcurl_a_debug.lib",
+  "sha256": "c54001055c6e6a10680106e3005b40b6e9fb1990cbe23d46430d2100461a7ced",
+  "size": 8514428,
+  "mtime": 1776366147,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "quake3e",
+  "rel_path": "code/libcurl/windows/vs2017/lib64/libcurl_a.lib",
+  "sha256": "d0171b8dc61b839ac65938f1970aab5c17a8b5c75560a25ffce6ce13c94ad62a",
+  "size": 1685294,
+  "mtime": 1776366147,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "quake3e",
+  "rel_path": "code/libcurl/windows/vs2017/lib64/libcurl_a_debug.lib",
+  "sha256": "68a0fedcd46e826a6d4f0a60fcccce9aaef143d30a080aea7ee9fbe8514b94b3",
+  "size": 9020744,
+  "mtime": 1776366147,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "quake3e",
+  "rel_path": "code/libsdl/macosx/libSDL2main.a",
+  "sha256": "bd773b8e6545a3c634409096ebdb81dfb223f5d2b144fa64c66693ea3185f92e",
+  "size": 4368,
+  "mtime": 1776366147,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "quake3e",
+  "rel_path": "code/libsdl/windows/mingw/lib32/libSDL2.dll.a",
+  "sha256": "88c626f4d42c62fd29adc415c5cf67a03ce0427d892b03d64da68e379f0903fe",
+  "size": 437476,
+  "mtime": 1776366147,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "quake3e",
+  "rel_path": "code/libsdl/windows/mingw/lib64/libSDL264.dll.a",
+  "sha256": "35c2262a4324b32125242be34d6f6c8a2b4f2b056c19740efcdc811675ff6044",
+  "size": 429154,
+  "mtime": 1776366147,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "q3mme",
+  "rel_path": ".git",
+  "sha256": null,
+  "size": null,
+  "mtime": null,
+  "useless": "vcs_or_cache_dir:.git",
+  "is_dir": true
+ },
+ {
+  "tree": "q3mme",
+  "rel_path": "trunk/code/libs/win32/freetype2410.lib",
+  "sha256": "c984088a299b2233e108528db310f893473b20457e22b31b4f6f0920567345cd",
+  "size": 783100,
+  "mtime": 1776366144,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "q3mme",
+  "rel_path": "trunk/code/libs/win32/libmad.lib",
+  "sha256": "ebf2d1f97a76cbdf8e03ecad87d4d47786bf86e16833844c10423f9a0e7efeb3",
+  "size": 227844,
+  "mtime": 1776366145,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "q3mme",
+  "rel_path": "trunk/code/libs/win32/libpng.lib",
+  "sha256": "e0e83f0be3f72d76fa8417189780ab36d5165b26537bf79ddab53b5cb2c4c8fb",
+  "size": 51878,
+  "mtime": 1776366145,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "q3mme",
+  "rel_path": "trunk/code/libs/win32/zlib.lib",
+  "sha256": "a7a350dbeddc496333039dffc164100a9afdc0928f6871451e4f39ce0768c2f5",
+  "size": 241838,
+  "mtime": 1776366145,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "q3mme",
+  "rel_path": "trunk/code/libs/win32/lib/freetype.lib",
+  "sha256": "b07ae189fbd4818264b7ba89017b6c31a97be343e77c8c885838007567b6b8db",
+  "size": 930934,
+  "mtime": 1776366145,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "q3mme",
+  "rel_path": "trunk/code/libs/win32/lib/libcurl.lib",
+  "sha256": "e69aec13deefb40e46400aef5b10e2b200479f22c96741e0710931f8af0577a4",
+  "size": 21028160,
+  "mtime": 1776366145,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "wolfcamql-src",
+  "rel_path": ".git",
+  "sha256": null,
+  "size": null,
+  "mtime": null,
+  "useless": "vcs_or_cache_dir:.git",
+  "is_dir": true
+ },
+ {
+  "tree": "wolfcamql-src",
+  "rel_path": "code/thirdparty/libs/macosx/libfreetype.a",
+  "sha256": "93144ca2009212807d3597f11aed540ee66d9cda3e9b3bbe834d4b8f47351912",
+  "size": 2477416,
+  "mtime": 1776366145,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "wolfcamql-src",
+  "rel_path": "code/thirdparty/libs/macosx/ppc/libsdl2main-ppc.a",
+  "sha256": "20aee62522fadedcd14cb72bb480eca21ae6a8502e4c05ce5132af8639d6554a",
+  "size": 3384,
+  "mtime": 1776366145,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "wolfcamql-src",
+  "rel_path": "code/thirdparty/libs/macosx-ub/libSDL2main.a",
+  "sha256": "b4c98fe7dbfba146f026bcd6738c1e099fbdd1d34355cef70fb062006592afa5",
+  "size": 7696,
+  "mtime": 1776366145,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "wolfcamql-src",
+  "rel_path": "code/thirdparty/libs/macosx-ub2/libSDL2main.a",
+  "sha256": "bd773b8e6545a3c634409096ebdb81dfb223f5d2b144fa64c66693ea3185f92e",
+  "size": 4368,
+  "mtime": 1776366145,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "wolfcamql-src",
+  "rel_path": "code/thirdparty/libs/win32/libfreetype.a",
+  "sha256": "9c98c731fb9e6e45e6f2efd5a76a8ab59c415ee3cab97904b8ee49f71585db41",
+  "size": 4381876,
+  "mtime": 1776366145,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "wolfcamql-src",
+  "rel_path": "code/thirdparty/libs/win32/libSDL2.dll.a",
+  "sha256": "7756f2aaa104e703a7ba17af36a27e7348ce65ce447650ae872d48889fd8a3a0",
+  "size": 565178,
+  "mtime": 1776366145,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "wolfcamql-src",
+  "rel_path": "code/thirdparty/libs/win32/libSDL2main.a",
+  "sha256": "2a9e631b722a17fc529dd0c69ca9c0722d0e3c887dd309940a7617f5b35c1e34",
+  "size": 8418,
+  "mtime": 1776366145,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "wolfcamql-src",
+  "rel_path": "code/thirdparty/libs/win32/SDL2.lib",
+  "sha256": "a69235c1c93d8246f9635d30e75e18879488f552867a88fce775e5102b02a8e0",
+  "size": 188076,
+  "mtime": 1776366145,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "wolfcamql-src",
+  "rel_path": "code/thirdparty/libs/win32/SDL2main.lib",
+  "sha256": "e0560ec308e48c772d932793b7b7b4ac57c5fdfbc6a195d0055dffe4f6c7b3bd",
+  "size": 37362,
+  "mtime": 1776366145,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "wolfcamql-src",
+  "rel_path": "code/thirdparty/libs/win64/libfreetype.a",
+  "sha256": "1002b7bd61a0b0119007c5b085f049c261a1ff687530d997abe06afb9d5052b5",
+  "size": 4586000,
+  "mtime": 1776366145,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "wolfcamql-src",
+  "rel_path": "code/thirdparty/libs/win64/libSDL2.dll.a",
+  "sha256": "e482193c3db358936fa40b830745a93cbe0b11d868b450879b0f5d823a5aff21",
+  "size": 553152,
+  "mtime": 1776366145,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "wolfcamql-src",
+  "rel_path": "code/thirdparty/libs/win64/libSDL2main.a",
+  "sha256": "8b2fc27fd1ba71be7067e791f3b7a4e03e706397603428349aa4bb434ec3290e",
+  "size": 9536,
+  "mtime": 1776366145,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "wolfcamql-src",
+  "rel_path": "code/thirdparty/libs/win64/SDL2.lib",
+  "sha256": "6e40d52f515f22839605b8ac84b43804cc77d61f50523418398a45272a5258d5",
+  "size": 183824,
+  "mtime": 1776366145,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "wolfcamql-src",
+  "rel_path": "code/thirdparty/libs/win64/SDL2main.lib",
+  "sha256": "ec53d7ec51a20d18e0a8df99d1755595fcf9c63dbb06991ab746df753cd11e83",
+  "size": 36712,
+  "mtime": 1776366145,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "darkplaces",
+  "rel_path": ".git",
+  "sha256": null,
+  "size": null,
+  "mtime": null,
+  "useless": "vcs_or_cache_dir:.git",
+  "is_dir": true
+ },
+ {
+  "tree": "yamagi-quake2",
+  "rel_path": ".git",
+  "sha256": null,
+  "size": null,
+  "mtime": null,
+  "useless": "vcs_or_cache_dir:.git",
+  "is_dir": true
+ },
+ {
+  "tree": "yamagi-quake2",
+  "rel_path": "stuff/osx/quake2-appbundle.zip",
+  "sha256": "da1d500f816ef80c84823a90a8320736e3767d2588c886e84490dec3ac931e38",
+  "size": 1266168,
+  "mtime": 1776376111,
+  "useless": "archive:.zip",
+  "is_dir": false
+ },
+ {
+  "tree": "openarena-engine",
+  "rel_path": ".git",
+  "sha256": null,
+  "size": null,
+  "mtime": null,
+  "useless": "vcs_or_cache_dir:.git",
+  "is_dir": true
+ },
+ {
+  "tree": "openarena-engine",
+  "rel_path": "code/libs/macosx/libSDLmain.a",
+  "sha256": "f5d68a440ed742a45b7e399e715d711e378767b24fffa1040922ce77da66a820",
+  "size": 123212,
+  "mtime": 1776376105,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "openarena-engine",
+  "rel_path": "code/libs/win32/libcurl.a",
+  "sha256": "2695b7452b319dd40faeddd903d50cdf266ab6cdff1e84e69145ce386016b01b",
+  "size": 345004,
+  "mtime": 1776376105,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "openarena-engine",
+  "rel_path": "code/libs/win32/libSDL.dll.a",
+  "sha256": "37c02023394e6fa653fb71474782998c5dc064774cb30d4d7cd6f91fcc660de3",
+  "size": 123944,
+  "mtime": 1776376105,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "openarena-engine",
+  "rel_path": "code/libs/win32/libSDL2.dll.a",
+  "sha256": "fee0f32b03bace995cb99b28c6b8214e959dbd1a99700abddd594206e88ad086",
+  "size": 453022,
+  "mtime": 1776376105,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "openarena-engine",
+  "rel_path": "code/libs/win32/libSDL2main.a",
+  "sha256": "08246bc387dcbc3dd97d3699d3d464542f400c7ef7aab8a8ddf74eb4aa026f22",
+  "size": 2086,
+  "mtime": 1776376105,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "openarena-engine",
+  "rel_path": "code/libs/win32/libSDLmain.a",
+  "sha256": "8f1348310fec68ef4a8e1c60d0ee1cf472d336495ac2a7337c7af1533189365d",
+  "size": 208386,
+  "mtime": 1776376105,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "openarena-engine",
+  "rel_path": "code/libs/win32/SDL.lib",
+  "sha256": "7c034b5c6db45e633875e8c5066fb398227c053b1df865d7344054d02c02a404",
+  "size": 1685692,
+  "mtime": 1776376105,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "openarena-engine",
+  "rel_path": "code/libs/win32/SDLmain.lib",
+  "sha256": "2a881fde0e35cb8529edc686fbeb599be6ae66bfee2f566c7aa5ad801290d1b7",
+  "size": 23898,
+  "mtime": 1776376105,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "openarena-engine",
+  "rel_path": "code/libs/win64/libcurl.a",
+  "sha256": "80b28b4a8046ebe79a149b2ae1ac28499723ff9fadb7678ed567b66822f25771",
+  "size": 369070,
+  "mtime": 1776376105,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "openarena-engine",
+  "rel_path": "code/libs/win64/libSDL64.dll.a",
+  "sha256": "fc5d6eefcddaf2860d51aa51e80a2e886e05d5a2d5453cca8c7d4d7fd0c03198",
+  "size": 125328,
+  "mtime": 1776376105,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "openarena-engine",
+  "rel_path": "code/libs/win64/libSDLmain.a",
+  "sha256": "238054fc147a1025a59c5d3e612d5bfe38b4fc94812c926b3083c4ac3003815e",
+  "size": 4850,
+  "mtime": 1776376105,
+  "useless": "build_artifact_ext:.a",
+  "is_dir": false
+ },
+ {
+  "tree": "openarena-engine",
+  "rel_path": "code/libs/win64/SDL.lib",
+  "sha256": "92ca1b6c137e791ee39e0e83aadc5454591340e95a881e7ac1ef993d40162fac",
+  "size": 1795822,
+  "mtime": 1776376105,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "openarena-engine",
+  "rel_path": "code/libs/win64/SDLmain.lib",
+  "sha256": "d777a362eb3071c5f8f8bd49d61db59407f8f5daa3a2168a883a5a2cd5ea4e59",
+  "size": 24852,
+  "mtime": 1776376105,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "openarena-engine",
+  "rel_path": "misc/msvc10/cgame.vcxproj.user",
+  "sha256": "f2f2e1ebb09bb88b3bc3f57677a31e0ae1b50cad9d5826e00d6b2fcff887974f",
+  "size": 143,
+  "mtime": 1776376105,
+  "useless": "build_artifact_ext:.user",
+  "is_dir": false
+ },
+ {
+  "tree": "openarena-engine",
+  "rel_path": "misc/msvc10/game.vcxproj.user",
+  "sha256": "f2f2e1ebb09bb88b3bc3f57677a31e0ae1b50cad9d5826e00d6b2fcff887974f",
+  "size": 143,
+  "mtime": 1776376105,
+  "useless": "build_artifact_ext:.user",
+  "is_dir": false
+ },
+ {
+  "tree": "openarena-engine",
+  "rel_path": "misc/msvc10/q3_ui.vcxproj.user",
+  "sha256": "f2f2e1ebb09bb88b3bc3f57677a31e0ae1b50cad9d5826e00d6b2fcff887974f",
+  "size": 143,
+  "mtime": 1776376105,
+  "useless": "build_artifact_ext:.user",
+  "is_dir": false
+ },
+ {
+  "tree": "openarena-engine",
+  "rel_path": "misc/msvc10/quake3.vcxproj.user",
+  "sha256": "d03150d242cd9b908835aebda892e2492ce4ab0a6f3f1d3b17cf51dc5cc59058",
+  "size": 2851,
+  "mtime": 1776376105,
+  "useless": "build_artifact_ext:.user",
+  "is_dir": false
+ },
+ {
+  "tree": "openarena-engine",
+  "rel_path": "misc/msvc10/ui.vcxproj.user",
+  "sha256": "f2f2e1ebb09bb88b3bc3f57677a31e0ae1b50cad9d5826e00d6b2fcff887974f",
+  "size": 143,
+  "mtime": 1776376105,
+  "useless": "build_artifact_ext:.user",
+  "is_dir": false
+ },
+ {
+  "tree": "openarena-gamecode",
+  "rel_path": ".git",
+  "sha256": null,
+  "size": null,
+  "mtime": null,
+  "useless": "vcs_or_cache_dir:.git",
+  "is_dir": true
+ },
+ {
+  "tree": "wolfet-source",
+  "rel_path": ".git",
+  "sha256": null,
+  "size": null,
+  "mtime": null,
+  "useless": "vcs_or_cache_dir:.git",
+  "is_dir": true
+ },
+ {
+  "tree": "wolfet-source",
+  "rel_path": "src/curl-7.12.2/packages/Win32/Makefile.am",
+  "sha256": "25865ac52d82f839de7cb157a17df751250bbe5049f02142d9f98eac062c0ebb",
+  "size": 41,
+  "mtime": 1776376107,
+  "useless": "build_artifact_dir:Win32",
+  "is_dir": false
+ },
+ {
+  "tree": "wolfet-source",
+  "rel_path": "src/curl-7.12.2/packages/Win32/Makefile.in",
+  "sha256": "62d950188ae4ec718bad9b1c2c01c577f8d9a88183ac0c4c8d7f8443bc0f8919",
+  "size": 15472,
+  "mtime": 1776376107,
+  "useless": "build_artifact_dir:Win32",
+  "is_dir": false
+ },
+ {
+  "tree": "wolfet-source",
+  "rel_path": "src/curl-7.12.2/packages/Win32/README",
+  "sha256": "0b402a092b897aa2a9e9d70e32669be1ad5f2a3c22af5aafbb05d8df7f9cab12",
+  "size": 2431,
+  "mtime": 1776376107,
+  "useless": "build_artifact_dir:Win32",
+  "is_dir": false
+ },
+ {
+  "tree": "wolfet-source",
+  "rel_path": "src/curl-7.12.2/packages/Win32/cygwin/Makefile.am",
+  "sha256": "259af7baea61db8ce0c3b63f81f0efbc3428b1f8330429a989248a65a72c816e",
+  "size": 2591,
+  "mtime": 1776376107,
+  "useless": "build_artifact_dir:Win32",
+  "is_dir": false
+ },
+ {
+  "tree": "wolfet-source",
+  "rel_path": "src/curl-7.12.2/packages/Win32/cygwin/Makefile.in",
+  "sha256": "db2dd1ef6a6131000534c4bafb0f4ad43a798f23f46883f35339e046f18d59b6",
+  "size": 12816,
+  "mtime": 1776376107,
+  "useless": "build_artifact_dir:Win32",
+  "is_dir": false
+ },
+ {
+  "tree": "wolfet-source",
+  "rel_path": "src/curl-7.12.2/packages/Win32/cygwin/README",
+  "sha256": "554fb7fb02c675ffa7886fe48471530f5c4ec338855f7fba3c9ff5f39a5fb7b2",
+  "size": 4510,
+  "mtime": 1776376107,
+  "useless": "build_artifact_dir:Win32",
+  "is_dir": false
+ },
+ {
+  "tree": "demodumper",
+  "rel_path": ".git",
+  "sha256": null,
+  "size": null,
+  "mtime": null,
+  "useless": "vcs_or_cache_dir:.git",
+  "is_dir": true
+ },
+ {
+  "tree": "qldemo-python",
+  "rel_path": ".git",
+  "sha256": null,
+  "size": null,
+  "mtime": null,
+  "useless": "vcs_or_cache_dir:.git",
+  "is_dir": true
+ },
+ {
+  "tree": "qldemo-python",
+  "rel_path": "__pycache__",
+  "sha256": null,
+  "size": null,
+  "mtime": null,
+  "useless": "vcs_or_cache_dir:__pycache__",
+  "is_dir": true
+ },
+ {
+  "tree": "qldemo-python",
+  "rel_path": "build/lib.win-amd64-cpython-311/huffman.cp311-win_amd64.pyd",
+  "sha256": "af8e6cd85c6dbdbfc3e3a9a1a21e5bba1a588a2605e140dd16537a8a114ea3c3",
+  "size": 17408,
+  "mtime": 1776407410,
+  "useless": "build_artifact_dir:build",
+  "is_dir": false
+ },
+ {
+  "tree": "qldemo-python",
+  "rel_path": "build/temp.win-amd64-cpython-311/Release/huffman/huffman.cp311-win_amd64.exp",
+  "sha256": "088ce270bacc6a9691f2548c98d453fd4534fae9d986cf6f7140e38e34a07ba9",
+  "size": 795,
+  "mtime": 1776407410,
+  "useless": "build_artifact_dir:build",
+  "is_dir": false
+ },
+ {
+  "tree": "qldemo-python",
+  "rel_path": "build/temp.win-amd64-cpython-311/Release/huffman/huffman.cp311-win_amd64.lib",
+  "sha256": "5e79b442e4d7511d476d4c8262c6ef9e0f9f3d9eb8bd2f26c463d71490481098",
+  "size": 2012,
+  "mtime": 1776407410,
+  "useless": "build_artifact_dir:build",
+  "is_dir": false
+ },
+ {
+  "tree": "qldemo-python",
+  "rel_path": "build/temp.win-amd64-cpython-311/Release/huffman/huffman.obj",
+  "sha256": "2a400079b961b4bce9e428286d1287e4dae63cfe3ce8e9b0727dd6423d04dfb8",
+  "size": 120976,
+  "mtime": 1776407409,
+  "useless": "build_artifact_dir:build",
+  "is_dir": false
+ },
+ {
+  "tree": "qldemo-python",
+  "rel_path": "build/temp.win-amd64-cpython-311/Release/huffman/pyhuffman.obj",
+  "sha256": "d44f332902006b62cc764aa520c5c51ae0e2601eaf7f1534a2b3755df194ebd9",
+  "size": 195784,
+  "mtime": 1776407410,
+  "useless": "build_artifact_dir:build",
+  "is_dir": false
+ },
+ {
+  "tree": "qldemo-python",
+  "rel_path": "qldemo/__pycache__",
+  "sha256": null,
+  "size": null,
+  "mtime": null,
+  "useless": "vcs_or_cache_dir:__pycache__",
+  "is_dir": true
+ },
+ {
+  "tree": "q3vm",
+  "rel_path": ".git",
+  "sha256": null,
+  "size": null,
+  "mtime": null,
+  "useless": "vcs_or_cache_dir:.git",
+  "is_dir": true
+ },
+ {
+  "tree": "q3vm",
+  "rel_path": "bin/linux/.gitignore",
+  "sha256": "31cd135da85f752b040363076c9db139a7c9b10115d0b87966702675e07c0b68",
+  "size": 75,
+  "mtime": 1776376108,
+  "useless": "build_artifact_dir:bin",
+  "is_dir": false
+ },
+ {
+  "tree": "q3vm",
+  "rel_path": "bin/win32/.gitignore",
+  "sha256": "31cd135da85f752b040363076c9db139a7c9b10115d0b87966702675e07c0b68",
+  "size": 75,
+  "mtime": 1776376108,
+  "useless": "build_artifact_dir:bin",
+  "is_dir": false
+ },
+ {
+  "tree": "q3vm",
+  "rel_path": "bin/win32/lcc.exe",
+  "sha256": "fc9daab57340c8578e050d838722e7f5afb871af44bc0f5d28ff62d1d375780b",
+  "size": 70623,
+  "mtime": 1776376108,
+  "useless": "build_artifact_dir:bin",
+  "is_dir": false
+ },
+ {
+  "tree": "q3vm",
+  "rel_path": "bin/win32/q3asm.exe",
+  "sha256": "2ce0c355d2c8d9552257676f5f30aab2491efa872689d8803fe1f004ff72e713",
+  "size": 159558,
+  "mtime": 1776376108,
+  "useless": "build_artifact_dir:bin",
+  "is_dir": false
+ },
+ {
+  "tree": "q3vm",
+  "rel_path": "bin/win32/q3cpp.exe",
+  "sha256": "1daa2b4a559f791831c4c745d3c7f412dd5257597cafbda76549c62c19a5f33a",
+  "size": 87544,
+  "mtime": 1776376108,
+  "useless": "build_artifact_dir:bin",
+  "is_dir": false
+ },
+ {
+  "tree": "q3vm",
+  "rel_path": "bin/win32/q3rcc.exe",
+  "sha256": "ba6b3d528d5fe825ecbfe679edabb15326e1d23806c80801d6b9c376e3e62e77",
+  "size": 331789,
+  "mtime": 1776376108,
+  "useless": "build_artifact_dir:bin",
+  "is_dir": false
+ },
+ {
+  "tree": "q3vm",
+  "rel_path": "build/.gitignore",
+  "sha256": "31cd135da85f752b040363076c9db139a7c9b10115d0b87966702675e07c0b68",
+  "size": 75,
+  "mtime": 1776376108,
+  "useless": "build_artifact_dir:build",
+  "is_dir": false
+ },
+ {
+  "tree": "q3vm",
+  "rel_path": "build/q3vm_test/.gitignore",
+  "sha256": "31cd135da85f752b040363076c9db139a7c9b10115d0b87966702675e07c0b68",
+  "size": 75,
+  "mtime": 1776376108,
+  "useless": "build_artifact_dir:build",
+  "is_dir": false
+ },
+ {
+  "tree": "q3vm",
+  "rel_path": "example/build/.gitignore",
+  "sha256": "31cd135da85f752b040363076c9db139a7c9b10115d0b87966702675e07c0b68",
+  "size": 75,
+  "mtime": 1776376108,
+  "useless": "build_artifact_dir:build",
+  "is_dir": false
+ },
+ {
+  "tree": "q3vm",
+  "rel_path": "lcc/build/.gitignore",
+  "sha256": "31cd135da85f752b040363076c9db139a7c9b10115d0b87966702675e07c0b68",
+  "size": 75,
+  "mtime": 1776376108,
+  "useless": "build_artifact_dir:build",
+  "is_dir": false
+ },
+ {
+  "tree": "q3vm",
+  "rel_path": "test/build/.gitignore",
+  "sha256": "31cd135da85f752b040363076c9db139a7c9b10115d0b87966702675e07c0b68",
+  "size": 75,
+  "mtime": 1776376108,
+  "useless": "build_artifact_dir:build",
+  "is_dir": false
+ },
+ {
+  "tree": "gtkradiant",
+  "rel_path": ".git",
+  "sha256": null,
+  "size": null,
+  "mtime": null,
+  "useless": "vcs_or_cache_dir:.git",
+  "is_dir": true
+ },
+ {
+  "tree": "gtkradiant",
+  "rel_path": "SConscript.lib",
+  "sha256": "eb2d7a25c367eba921911b8f209dacc0af69bb9fcba0669e311730c7f8c76a6d",
+  "size": 858,
+  "mtime": 1776376116,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": ".git",
+  "sha256": null,
+  "size": null,
+  "mtime": null,
+  "useless": "vcs_or_cache_dir:.git",
+  "is_dir": true
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "libcurl/x64/libcurl.dll",
+  "sha256": "9f2a62905b3a54fa495e10dda53c644e4e434771c0ba80df05615275e169f66d",
+  "size": 5307976,
+  "mtime": 1776366155,
+  "useless": "build_artifact_dir:x64",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.bin/vs2022/x64/release/UDT_json.exe",
+  "sha256": "b2af53b7444409327aa327a5e2b881956f631fe80369c239ad1daddd54e6b60f",
+  "size": 567808,
+  "mtime": 1776433727,
+  "useless": "build_artifact_dir:x64",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.bin/vs2022/x64/release/UDT_json.exp",
+  "sha256": "45cb0d58aab26d6cf19bf9ad80d2e68fc06de25a77876221df190eb1e885c0e8",
+  "size": 8388,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:x64",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.bin/vs2022/x64/release/UDT_json.lib",
+  "sha256": "76309a2ff5937414763da2b6f94890c2bf19bcfea4387c010bfe3f20296b6158",
+  "size": 14358,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:x64",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.bin/vs2022/x64/release/UDT_json.pdb",
+  "sha256": "454bcdfb13c34adadbb8cedccb78fbc12676587bfe3640a10622933ded811a9f",
+  "size": 6311936,
+  "mtime": 1776433727,
+  "useless": "build_artifact_dir:x64",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/allocator_tracking.obj",
+  "sha256": "2c0afc2b1bb6a7cfe5089edcd1585703f2b0e6e55ee7031e88e4be073d334cb9",
+  "size": 59647,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/analysis_captures.obj",
+  "sha256": "c1f8761d221e80f2074c3d9db68e64c9e8b057593ae8f6bb9c72a579f21f063e",
+  "size": 231759,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/analysis_general.obj",
+  "sha256": "78f81429912b98cf608b999717361ddc573c332c3c28875d965481bb28f56e91",
+  "size": 248379,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/analysis_obituaries.obj",
+  "sha256": "48307757496860ab9ec9f1d4fbc9283400ec0f72b62943b126b3ae8b9f51580e",
+  "size": 190493,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/analysis_pattern_capture.obj",
+  "sha256": "102042ac2dfecdcfeda4d52e189acfe28a9d06f78871ba72aec1eebd295a4f18",
+  "size": 196027,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/analysis_pattern_chat.obj",
+  "sha256": "80dde9abdd3c014287fffb73099f34f3b61e0e1227a394f1f068a45328ea4d46",
+  "size": 196725,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/analysis_pattern_flick_rail.obj",
+  "sha256": "3ee2cd19c849542993498e4b1ec889efbbcd0a9d4bf5b05b687c830b8234945e",
+  "size": 201234,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/analysis_pattern_frag_run.obj",
+  "sha256": "013d13201e7ac7c4a661485a542af829f7fed9fea34f751e24529a3f6b295a77",
+  "size": 206850,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/analysis_pattern_match.obj",
+  "sha256": "47ee16088577b38aecb8fbd17a97f4abeeccefe83146d9dacfadf04c1db95875",
+  "size": 201045,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/analysis_pattern_mid_air.obj",
+  "sha256": "a5611b00c26d99ae34011f4e27594162770e1856568864055399f3c512da29ef",
+  "size": 219573,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/analysis_pattern_multi_rail.obj",
+  "sha256": "1b4c0426a4965355e98839b95163e2cff18114f44963923d21d287de1098d2b9",
+  "size": 192695,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/analysis_splitter.obj",
+  "sha256": "e8a1a38bc3a9309aceac14d29e04dc4bdfa8a74690f71c577ab9ee7d38612260",
+  "size": 179828,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/api.obj",
+  "sha256": "677a5eeb68d46409a14702b20222d840d31e55c0a989677c51412b50bcda2fc0",
+  "size": 338820,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/api_helpers.obj",
+  "sha256": "f2cb66a2cfdd07ca2ccc318c3423a616741b5ba39f80f1dbd70c8c71980dd3c3",
+  "size": 262702,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/app_demo_json.obj",
+  "sha256": "e77a011d1e0bcb143562ffed6f4b790f4986a36c5c7b86fedc3b2b8bb56f09ed",
+  "size": 215382,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/common.obj",
+  "sha256": "3ffd3acb1b39d9cd3721ad8052e233d2cbd03a6402669996e7c0ab2a1e58ae58",
+  "size": 93145,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/context.obj",
+  "sha256": "c51ecf5bbefaa0daf24b0fc94323b4fa109f89e7fefa70bc64a04b0cdc7bcc52",
+  "size": 252793,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/converter_entity_timer_shifter.obj",
+  "sha256": "3b7cfc69554cc394ae6226bad3d5151bd7ce5e0423dbf7f1e42971476854e8d9",
+  "size": 190765,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/converter_udt_to_quake.obj",
+  "sha256": "9884d947c605ffa8108c632531d9592b28df25c6cf00c8b51291a67954af6a83",
+  "size": 216502,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/crash.obj",
+  "sha256": "50231293478bf8049cc6264aeb20b196b9ab889f95b02d63d57b04937951a8ca",
+  "size": 179766,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/cut_section.obj",
+  "sha256": "a91264293ee803504c57ce2d1cf370ffa04e0e5a081e400f98be09d26186909f",
+  "size": 180107,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/file_stream.obj",
+  "sha256": "15ba33a125edfc5b3730f06c9d9c37a255272fc954431127889d4bf0459fc5fb",
+  "size": 252692,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/file_system.obj",
+  "sha256": "88abf055d8f04a5e89eb9bf935cd87cd05ddfb78a10c8acedfd5848020981ecb",
+  "size": 319420,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/json_export.obj",
+  "sha256": "4977c4942c374d905f5f3f6a0f56313b4bab79f5b3fb662895c5485c76d9bc8c",
+  "size": 249649,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/json_writer.obj",
+  "sha256": "78c5d543db5d9f1b794f812e13314acbc5e544920e22b6cdfd0791fc70dcaa3b",
+  "size": 127517,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/json_writer_context.obj",
+  "sha256": "46e44c8edf90a11dac2f7dc32969cbceca9e1bc3e9b3575c73796340a143cc73",
+  "size": 112890,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/linear_allocator.obj",
+  "sha256": "4f50057cbf351d584dd02ce83d332fb1698b0e732b886fa1a597d4702119d9f4",
+  "size": 195468,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/look_up_tables.obj",
+  "sha256": "f3798e20508f25ead607d0b3fe59a73f9a375042592b835838f8df04cf5fad8a",
+  "size": 212661,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/math.obj",
+  "sha256": "85a68277941dd51dfb731570c0f9a1516249886808e79ee79d25951f7e844a71",
+  "size": 189656,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/memory.obj",
+  "sha256": "307518089de8b702f8f302e9813bacd87a54c8c6a885d0c943a671c05b85d5b1",
+  "size": 7905,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/memory_stream.obj",
+  "sha256": "c879a4df21817f37953ad905d9a4b1e894a746e33d17f1e6df5b08902fc0d3f4",
+  "size": 124699,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/message.obj",
+  "sha256": "cba6cf90cf4bdc8f389170c79156ad659c138d71a6e410fd46a7963fe5c03da6",
+  "size": 259424,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/modifier_context.obj",
+  "sha256": "16912212bcdf55ab8ced02598aa9e0010ec436371e40f0fe55d4a3964178661a",
+  "size": 127506,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/multi_threaded_processing.obj",
+  "sha256": "751edaae3ca8c97f021645fc09dccd217001fa6b5dd8f847b908840d3804a068",
+  "size": 221438,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/parser.obj",
+  "sha256": "d1eebabd7315da330697a385d2ed00743336215cd830ba065d08b7ced6a8a003",
+  "size": 271820,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/parser_context.obj",
+  "sha256": "8c2f3e7a182c0e5edc530223a7374311a4186ddb00e677259e8808e0e02bb244",
+  "size": 237393,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/parser_runner.obj",
+  "sha256": "089ddcca35f4c36d18e3e8e3422789667a58f3073b403b9c636056cded4c3cda",
+  "size": 184024,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/path.obj",
+  "sha256": "a21270619cc76473ab78b51e7657d812169a43397060c1ffbd06d333ba9a7250",
+  "size": 18457,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/plug_in_captures.obj",
+  "sha256": "1a489d7d07ffaeae0c9a013a31aadd32036ab7843011afd572ea9aaf805267f2",
+  "size": 184685,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/plug_in_chat.obj",
+  "sha256": "9258c6bdc826f76c4f67937c347598cd18999225dd1b15f1cb4b422fba6e9ff7",
+  "size": 214270,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/plug_in_converter_quake_to_udt.obj",
+  "sha256": "93816bf0846e81945e3c0612a04a764347cf74cd3e52fbb16343f99766f15c7e",
+  "size": 194505,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/plug_in_custom_parser.obj",
+  "sha256": "39345e8314cd9b7ea4b1d72e5c3a7febd70b57bd7aa0b692c1adf864b1cefbd3",
+  "size": 209437,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/plug_in_game_state.obj",
+  "sha256": "4c9389550d7b30e9b5b678bac1526291051e25087816d11f3b018efd3a9be64b",
+  "size": 219354,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/plug_in_pattern_search.obj",
+  "sha256": "271a02ff5dd42cde7554808ccb629d66c0b8fb7522ed6689b3863efbe24b8d66",
+  "size": 245641,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/plug_in_raw_commands.obj",
+  "sha256": "71d7edfc934768913329dab23b580626052425a4ce3e330aae132628a38719da",
+  "size": 186391,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/plug_in_raw_config_strings.obj",
+  "sha256": "7d8b6e8dbc4a2047043ccf5575ac825c535e9ace8c2e9cf87b53c16da5de832d",
+  "size": 186226,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/plug_in_scores.obj",
+  "sha256": "051eca19a7231d990da9e7d6054b617cbf700a7b2b0a13f2026162d97c41dc24",
+  "size": 218033,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/plug_in_stats.obj",
+  "sha256": "25cfa2e63db8f51b4fd7fa6cb658a39a1efa64acb6333343e559f0a154f2da82",
+  "size": 386501,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/protocol_conversion.obj",
+  "sha256": "46cb42024032c917b51e08421d4084801e91e670bde875b58d0eac2a64d484e3",
+  "size": 210710,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/read_only_sequ_file_stream.obj",
+  "sha256": "faec236554b3b683bc00d1b92f4d122473c5831b78ee0769b3053e3f4f3d7da9",
+  "size": 331848,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/scoped_stack_allocator.obj",
+  "sha256": "bd051ebe64427f4140ab2f221dd10afa0570979c0b5fb915c8ea2966f414ccf5",
+  "size": 9679,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/shared.obj",
+  "sha256": "2e61db5ef0ebf8435dac6b7aa6b796e4b30368db2b0639ac702c0e2a27b50c51",
+  "size": 237929,
+  "mtime": 1776433724,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/stack_trace.obj",
+  "sha256": "b51105fc98c22bfbae0098d3d572f046adb3c3bc7227acc87293aafa960bc519",
+  "size": 83370,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/stream.obj",
+  "sha256": "0309db0c7bd8bd9b397826156f035fde9aca2a38d38ba6df3375d6f0617dfa73",
+  "size": 179027,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/string.obj",
+  "sha256": "de78314f3f65dacd721d8196a790d47b9de1e92d0ddeae372da5c3d1f2198d54",
+  "size": 355065,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/system.obj",
+  "sha256": "3c94ab0267d581c8588201714fceba23c42a503b1c0a711a4506ef055026c4be",
+  "size": 147143,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/threads.obj",
+  "sha256": "dfcb078745cd4d6368c5fb1ccce6793698771038189a184a43033788576e0472",
+  "size": 150725,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/thread_local_allocators.obj",
+  "sha256": "9c0a538cb3f6397c6e38f220377d9615f08d82f130d0d2bd85d54abb4127c20c",
+  "size": 62746,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/thread_local_storage.obj",
+  "sha256": "9ae4d9ddb05a606c8cfdb7daa26fc5b0e2074829ac7a3c8058fc5ee0c204a4e2",
+  "size": 147142,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/timer.obj",
+  "sha256": "0a363ac20d3df9f1a0aa343aa6f769be7e1923df9b357224d6c9ef2c417c37d5",
+  "size": 152166,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/tokenizer.obj",
+  "sha256": "3e8d6f3010bd320ad035e9ddd0d5d51f85cd33eb2d21b236e7e2df5dc3c30c2b",
+  "size": 107814,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/UDT_json.exe.recipe",
+  "sha256": "7b5fdb1fe1c877205f74eb0411d5bc93e7d0e66894a5d38004e8426a0e9f621b",
+  "size": 336,
+  "mtime": 1776433727,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/UDT_json.iobj",
+  "sha256": "e6a6757b87dea00ced2923c45e078b28b1a6c2829142370d5614e5e237106054",
+  "size": 4171276,
+  "mtime": 1776433727,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/UDT_json.ipdb",
+  "sha256": "e22a8aabfc9d4401628898c9a6f5158d4892d0786edfa71389b71ee2df4e5de8",
+  "size": 874384,
+  "mtime": 1776433727,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/utils.obj",
+  "sha256": "97a553d3335f32f20bff9222efba6b4c283caae25c715513fb75ab1fdd03eea9",
+  "size": 238287,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/vc143.pdb",
+  "sha256": "8209cd5ee82cf3dfe7454999b6996557d5aa2f24fe7174178e6a7666337b32bf",
+  "size": 544768,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/virtual_memory.obj",
+  "sha256": "222cfe2b3a552071098a6a5a18f501934cc4d7ab6abd42e9a4b5b5419f291b30",
+  "size": 146339,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/UDT_json.tlog/CL.10468.write.1.tlog",
+  "sha256": "3bf9a2048dc848efe172ae78bff0bc47129374e330476b5c97e582f44de56370",
+  "size": 48922,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/UDT_json.tlog/CL.command.1.tlog",
+  "sha256": "9ba3f16926feae7c5e12154a39e36c8d8295a30fa6012ab7f09fcbc11451e4c2",
+  "size": 70090,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/UDT_json.tlog/Cl.items.tlog",
+  "sha256": "273190a092527592d59e084386dc1c094e1c117f07e3271ef23034ba0151296d",
+  "size": 12480,
+  "mtime": 1776433727,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/UDT_json.tlog/CL.read.1.tlog",
+  "sha256": "e1c65b4b40507e9caa274199bdcd446a20672c5c730a1d9323dbed4d3b76187b",
+  "size": 827144,
+  "mtime": 1776433725,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/UDT_json.tlog/link.command.1.tlog",
+  "sha256": "7925eace3cea3091b5fa4efd6dceb1ae9bcc9286161420e2312ef2e94353b0c5",
+  "size": 21570,
+  "mtime": 1776433727,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/UDT_json.tlog/link.read.1.tlog",
+  "sha256": "967c8c56010516e6243bb03247935ad910ffc7827198d2d8b78129f4ce8193fd",
+  "size": 33686,
+  "mtime": 1776433727,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/UDT_json.tlog/link.secondary.1.tlog",
+  "sha256": "59795c3d46546c4fe39daec0e911acf836db508cd998fb868e64d9b1fbada5d3",
+  "size": 7720,
+  "mtime": 1776433727,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/UDT_json.tlog/link.write.1.tlog",
+  "sha256": "7917c9af29a6670817de6648ea378098f94aaadf6fb1200a03dddf8117831b02",
+  "size": 14998,
+  "mtime": 1776433727,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/.build/vs2022/obj/x64/Release/UDT_json/UDT_json.tlog/UDT_json.lastbuildstate",
+  "sha256": "4343ede849b3371f775a0188252f5d418055f9187c6744fa78b3984662620a77",
+  "size": 202,
+  "mtime": 1776433727,
+  "useless": "build_artifact_dir:obj",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/libs/x64/glew32.dll",
+  "sha256": "ad66dcc4157f0b31a7a8b169ec08b2af59499a02893875e27efa04e00cb904d2",
+  "size": 440320,
+  "mtime": 1776366153,
+  "useless": "build_artifact_dir:x64",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/libs/x64/glew32.lib",
+  "sha256": "6b4aedd8888fe3fd64cf240de93b4a7aa759c25f74509631819bcd155cfddcf7",
+  "size": 609776,
+  "mtime": 1776366153,
+  "useless": "build_artifact_dir:x64",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/libs/x64/glfw3.dll",
+  "sha256": "b3bfbe29c3803ff53d3f2e523360ea7f9e687655b0ed444b4229aa3fff4d2150",
+  "size": 79360,
+  "mtime": 1776366153,
+  "useless": "build_artifact_dir:x64",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/libs/x64/glfw3dll.lib",
+  "sha256": "6f8ffae7c0bb92b1cdc120613eb9d2792b2e43e536be712862c14097d1c9e842",
+  "size": 23970,
+  "mtime": 1776366153,
+  "useless": "build_artifact_dir:x64",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/libs/x86/glew32.lib",
+  "sha256": "d13031043e3bfd2a2b1198dc46888048de7a6c4c6282888e77c0a47f2ac8bcbf",
+  "size": 619228,
+  "mtime": 1776366153,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ },
+ {
+  "tree": "uberdemotools",
+  "rel_path": "UDT_DLL/libs/x86/glfw3dll.lib",
+  "sha256": "7acca4174530b25b56a59eafe23c94f8468ba7a8fa7ffb8cb7af83a1e880fd97",
+  "size": 24454,
+  "mtime": 1776366153,
+  "useless": "build_artifact_ext:.lib",
+  "is_dir": false
+ }
+]
