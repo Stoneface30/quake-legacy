@@ -614,8 +614,18 @@ def main():
     # We need chunk durs first, then consult the main music track's pre-computed
     # beat grid. If no beats sidecar exists (or part skipped), fall back to naive.
     beat_snapped: Optional[List[float]] = None
-    main_music = ROOT / "phase1" / "music" / f"part{part:02d}_music.mp3"
-    beats_file = find_beats_file(main_music) if main_music.exists() else None
+    # Beats sidecar is named `<music>.beats.json`. For Parts whose music ships
+    # as multi-file chunks (e.g. part06_music_01.mp3 + _02.mp3) the canonical
+    # <partNN_music>.mp3 may not exist on disk even though the beats JSON was
+    # pre-computed against the merged track. Look for the beats sidecar
+    # directly rather than requiring the mp3 file.
+    music_dir = ROOT / "phase1" / "music"
+    beats_candidates = [
+        music_dir / f"part{part:02d}_music.mp3.beats.json",
+        music_dir / f"part{part:02d}_music.ogg.beats.json",
+        music_dir / f"part{part:02d}_music.wav.beats.json",
+    ]
+    beats_file = next((p for p in beats_candidates if p.exists()), None)
     if beats_file is not None and cfg.seam_xfade_duration > 0 and len(chunks) > 1:
         durs = [_probe_duration(c, cfg) for c in chunks]
         beats = load_beats(beats_file)
