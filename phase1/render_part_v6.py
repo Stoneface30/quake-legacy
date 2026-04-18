@@ -107,15 +107,42 @@ def normalize_and_expand(part: int, clip_list_path: Path, cfg: Config) -> List[P
 
     normalized: List[Path] = []
     silence_forced = 0
+    short_t1_forced = 0
     for entry in entries:
+        entry_tier = _tier_of(entry)
+        # Rule P1-Q: short-T1 auto-slowmo (user 2026-04-18 "check for t1 auto
+        # slowmo when the clip is short"). Probe the first segment's duration;
+        # if the post-trim body is under threshold AND the entry has no speed
+        # mod yet AND the clip is tier T1, flip entry.slow.
+        if (entry_tier == "T1"
+                and not (entry.slow or entry.speedup or entry.zoom)
+                and entry.segments):
+            first_src = resolve_clip_path(entry.segments[0], part, cfg)
+            if first_src is not None:
+                try:
+                    is_fl = "FL" in first_src.stem.upper()
+                    head = (cfg.clip_head_trim_fl if is_fl
+                            else cfg.clip_head_trim_fp)
+                    dur_full = _probe_duration(first_src, cfg)
+                    post_trim = dur_full - head - cfg.clip_tail_trim
+                    if 0 < post_trim < cfg.short_t1_slowmo_threshold:
+                        entry.slow = True
+                        short_t1_forced += 1
+                        print(f"  [short-T1-slow] {first_src.name} "
+                              f"(post-trim={post_trim:.2f}s)")
+                except Exception:
+                    pass
+
         for seg_idx, seg_filename in enumerate(entry.segments):
             src = resolve_clip_path(seg_filename, part, cfg)
             if src is None:
                 print(f"  [WARN] Not found: {seg_filename}")
                 continue
             # Rule P1-V: silence-detect auto-forces fast-forward on dead-time clips.
-            # Only inspect if entry didn't already request a speed mod (speedup/slow).
-            if not (entry.slow or entry.speedup or entry.zoom):
+            # Only inspect if entry didn't already request a speed mod and the
+            # review mode hasn't opted out of the slow per-clip probe.
+            if (not (entry.slow or entry.speedup or entry.zoom)
+                    and not (cfg.review_mode and cfg.review_skip_silence_detect)):
                 try:
                     rep = analyze_silence(src, cfg.ffmpeg_bin)
                     if rep.should_speedup:
@@ -170,21 +197,49 @@ def build_body_chunks(
         if chunk.exists():
             continue
         # Rule P1-L v2: FL clips have ~2s of console/loading header;
-        # FP clips only ~1s. Detect via filename — FL multi-angle clips
-        # contain "FL" as a token (e.g. `...FL.avi` or `...FL_rocket.avi`).
-        is_fl = "FL" in src.stem.upper().split("_")
+        # FP clips only ~1s. Detect via substring — normalized filenames encode
+        # angle in the stem (e.g. "Demo100FL-0000_cfr60"). Earlier token-split
+        # detection was broken because "FL" was never a standalone token after
+        # normalization.
+        is_fl = "FL" in src.stem.upper()
         head = cfg.clip_head_trim_fl if is_fl else cfg.clip_head_trim_fp
         dur_full = _probe_duration(src, cfg)
         # Fallback min 0.5s body for pre-trimmed slow-mo expansions.
         trim_dur = max(0.5, dur_full - head - tail)
+
+        # Rule P1-D (review burn-in): bottom-left clip-stem watermark so the
+        # user can reference specific clips by name during review. Strip
+        # normalization suffixes so the watermark matches the source .avi.
+        vf = f"scale={cfg.target_width}:{cfg.target_height}:flags=lanczos,fps={cfg.target_fps}"
+        if cfg.review_burn_clip_name:
+            stem = src.stem
+            for suf in ("_cfr60_slow", "_cfr60_zoom", "_cfr60_fast", "_cfr60"):
+                if stem.endswith(suf):
+                    stem = stem[: -len(suf)]
+                    break
+            # Escape ffmpeg drawtext specials.
+            safe = (stem.replace("\\", "\\\\\\\\").replace(":", "\\:")
+                        .replace("'", "\\'").replace("%", "\\%"))
+            alpha = cfg.review_watermark_opacity
+            vf += (
+                f",drawtext=fontfile='C\\:/Windows/Fonts/consola.ttf':"
+                f"text='{safe}':"
+                f"fontsize={cfg.review_watermark_fontsize}:"
+                f"fontcolor=white@{alpha}:"
+                f"borderw=2:bordercolor=black@{alpha}:"
+                f"x=24:y=h-th-24"
+            )
+
         cmd = [
             str(cfg.ffmpeg_bin), "-y",
             "-ss", f"{head:.3f}",
             "-t",  f"{trim_dur:.3f}",
             "-i",  str(src),
-            "-vf", f"scale={cfg.target_width}:{cfg.target_height}:flags=lanczos,fps={cfg.target_fps}",
+            "-vf", vf,
             "-af", "aresample=async=1",
-            "-c:v", "libx264", "-crf", "20", "-preset", "fast",
+            "-c:v", "libx264",
+            "-crf", str(cfg.review_chunk_crf if cfg.review_mode else 20),
+            "-preset", (cfg.review_chunk_preset if cfg.review_mode else "fast"),
             "-profile:v", "high", "-pix_fmt", "yuv420p",
             "-r", str(cfg.target_fps),
             "-g", str(cfg.target_fps * 2),
@@ -301,7 +356,9 @@ def assemble_body_with_xfades(
         *input_args,
         "-filter_complex", filter_complex,
         "-map", f"[{final_v}]", "-map", f"[{final_a}]",
-        "-c:v", "libx264", "-crf", "18", "-preset", "fast",
+        "-c:v", "libx264",
+        "-crf", str(cfg.review_body_crf if cfg.review_mode else 18),
+        "-preset", (cfg.review_body_preset if cfg.review_mode else "fast"),
         "-profile:v", "high", "-pix_fmt", "yuv420p",
         "-r", str(cfg.target_fps),
         "-g", str(cfg.target_fps * 2),
@@ -309,7 +366,8 @@ def assemble_body_with_xfades(
         "-movflags", "+faststart",
         str(out_path),
     ]
-    print(f"  [body-xfade] {N} chunks → {out_path.name} (xfade={x}s)")
+    print(f"  [body-xfade] {N} chunks → {out_path.name} (xfade={x}s"
+          f"{', review=fast' if cfg.review_mode else ''})")
     r = subprocess.run(cmd, capture_output=True, text=True,
                        encoding="utf-8", errors="replace")
     if r.returncode != 0:
@@ -411,10 +469,17 @@ def final_render(
         f"[fgtrack][mus]amix=inputs=2:duration=first:normalize=0[aout]"
     )
 
-    codec  = cfg.final_render_nvenc_codec
-    cq     = cfg.final_render_nvenc_cq
-    preset = cfg.final_render_nvenc_preset
-    tune   = cfg.final_render_nvenc_tune
+    # Review mode = libx264 veryfast draft. Final mode = AV1 NVENC UHQ 10-bit.
+    if cfg.review_mode:
+        codec  = "libx264"
+        cq     = cfg.review_final_crf
+        preset = cfg.review_final_preset
+        tune   = "review"
+    else:
+        codec  = cfg.final_render_nvenc_codec
+        cq     = cfg.final_render_nvenc_cq
+        preset = cfg.final_render_nvenc_preset
+        tune   = cfg.final_render_nvenc_tune
 
     cmd = [
         str(cfg.ffmpeg_bin), "-y",
@@ -424,21 +489,31 @@ def final_render(
         "-i", str(music_path),
         "-filter_complex", filter_complex,
         "-map", "[vout]", "-map", "[aout]",
-        "-c:v", codec,
-        "-preset", preset,
-        "-tune", tune,
-        "-multipass", "fullres",
-        "-spatial-aq", "1",
-        "-temporal-aq", "1",
-        "-rc-lookahead", "32",
-        "-b_ref_mode", "middle",
-        "-bf", "4",
-        "-rc", "vbr", "-b:v", "0", "-cq", str(cq),
     ]
-    if cfg.final_render_nvenc_highbitdepth and codec in ("av1_nvenc", "hevc_nvenc"):
-        cmd += ["-highbitdepth", "1", "-pix_fmt", cfg.final_render_nvenc_pix_fmt]
+    if cfg.review_mode:
+        cmd += [
+            "-c:v", "libx264",
+            "-crf", str(cfg.review_final_crf),
+            "-preset", cfg.review_final_preset,
+            "-profile:v", "main", "-pix_fmt", "yuv420p",
+        ]
     else:
-        cmd += ["-pix_fmt", "yuv420p"]
+        cmd += [
+            "-c:v", codec,
+            "-preset", preset,
+            "-tune", tune,
+            "-multipass", "fullres",
+            "-spatial-aq", "1",
+            "-temporal-aq", "1",
+            "-rc-lookahead", "32",
+            "-b_ref_mode", "middle",
+            "-bf", "4",
+            "-rc", "vbr", "-b:v", "0", "-cq", str(cq),
+        ]
+        if cfg.final_render_nvenc_highbitdepth and codec in ("av1_nvenc", "hevc_nvenc"):
+            cmd += ["-highbitdepth", "1", "-pix_fmt", cfg.final_render_nvenc_pix_fmt]
+        else:
+            cmd += ["-pix_fmt", "yuv420p"]
 
     cmd += [
         "-r", str(cfg.target_fps),
@@ -481,10 +556,24 @@ def main():
                     help="Override chunks dir (default: output/_part{N}_v6_body_chunks)")
     ap.add_argument("--output",
                     help="Override final output file path (absolute or relative to project)")
+    ap.add_argument("--review", action="store_true",
+                    help="Draft/review mode: fast libx264 encoders, skip "
+                         "silence-detect probe, watermark stays on. For 5-min "
+                         "iteration cycles with the user. Final build drops "
+                         "the flag for AV1 NVENC UHQ 10-bit quality ceiling.")
+    ap.add_argument("--no-watermark", action="store_true",
+                    help="Disable clip-name burn-in (use for final public render).")
     args = ap.parse_args()
 
     part = args.part
     cfg = Config()
+    if args.review:
+        cfg.review_mode = True
+        print("[MODE] review/draft — fast encoders, silence-detect skipped, "
+              "watermark ON")
+    if args.no_watermark:
+        cfg.review_burn_clip_name = False
+        print("[MODE] clip-name watermark OFF")
     started = time.time()
 
     clip_list_name = args.clip_list or f"part{part:02d}_styleb.txt"

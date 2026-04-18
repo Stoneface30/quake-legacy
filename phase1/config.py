@@ -160,6 +160,45 @@ class Config:
         self.clip_tail_trim: float = 2.0        # strip 2s off tail of EVERY clip (seam space)
         self.transition_envelope: float = 0.0   # legacy — no envelope
 
+        # ── Review watermark (Rule P1-D) ──────────────────────
+        # User verdict (Part 5 v8 review 2026-04-18): "there are no video/clip
+        # name/watermark in the video so i can only tell you. at the moment i
+        # can only tell you the time of the final video for the change i want
+        # on a specific clip, this will create real bad results."
+        # Solution: burn src clip stem in bottom-left of every body chunk so
+        # user can reference clips by name during review. Disable for final
+        # public renders by flipping review_burn_clip_name = False.
+        self.review_burn_clip_name: bool = True
+        self.review_watermark_fontsize: int = 22
+        self.review_watermark_opacity: float = 0.85   # 0..1 text alpha
+
+        # ── Review / draft mode (fast feedback loop) ──────────
+        # User verdict 2026-04-18: "reduce global quality during review as we
+        # need quick exchange together so we can finetune everything ...
+        # generate the reference one low quality in 5 min i review and we
+        # finetune until i say go and you run the big boy that will be updated
+        # on youtube".
+        # When review_mode is True the pipeline uses draft-speed encoders at
+        # every stage (chunks + body xfade + final). Watermark stays ON.
+        self.review_mode: bool = False
+        # Draft-mode encoding targets (fast, watchable, clearly not final):
+        self.review_chunk_crf: int = 28
+        self.review_chunk_preset: str = "ultrafast"
+        self.review_body_crf: int = 26
+        self.review_body_preset: str = "veryfast"
+        self.review_final_crf: int = 24
+        self.review_final_preset: str = "veryfast"
+        # Skip the silencedetect probe (it costs ~0.5-1s per clip × 120 clips
+        # = 1-2 min just to analyze). Review iterations should not pay this.
+        self.review_skip_silence_detect: bool = True
+
+        # ── Rule P1-Q (short-clip auto-slowmo) ─────────────────
+        # User verdict 2026-04-18: "check for t1 auto slowmo when the clip
+        # is short". A very-short post-trim T1 (<3s) is a peak-moment blip;
+        # slowing it to 0.5× gives the crowd time to register. Applied in
+        # normalize_and_expand only to T1-tier entries without prior speed flag.
+        self.short_t1_slowmo_threshold: float = 3.0   # post-trim seconds
+
         # ── Parts ─────────────────────────────────────────────
         self.parts: List[int] = list(range(4, 13))  # instance attribute, not class-level
 
