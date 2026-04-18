@@ -39,6 +39,10 @@ from phase1.clip_list import parse_clip_entry
 from phase1.normalize import normalize_clip
 from phase1.experiment import resolve_clip_path
 from phase1.music_stitcher import stitch_part_music, validate_coverage
+from phase1.beat_sync import (
+    load_beats, snap_xfade_offsets, find_beats_file,
+)
+from phase1.silence_detect import analyze_silence
 
 ROOT = Path("G:/QUAKE_LEGACY")
 OUTPUT_DIR = ROOT / "output"
@@ -102,12 +106,26 @@ def normalize_and_expand(part: int, clip_list_path: Path, cfg: Config) -> List[P
     print(f"  [tier-interleave] {pre_order[:15]}... → {post_order[:15]}...")
 
     normalized: List[Path] = []
+    silence_forced = 0
     for entry in entries:
         for seg_idx, seg_filename in enumerate(entry.segments):
             src = resolve_clip_path(seg_filename, part, cfg)
             if src is None:
                 print(f"  [WARN] Not found: {seg_filename}")
                 continue
+            # Rule P1-V: silence-detect auto-forces fast-forward on dead-time clips.
+            # Only inspect if entry didn't already request a speed mod (speedup/slow).
+            if not (entry.slow or entry.speedup or entry.zoom):
+                try:
+                    rep = analyze_silence(src, cfg.ffmpeg_bin)
+                    if rep.should_speedup:
+                        entry.speedup = True
+                        silence_forced += 1
+                        print(f"  [silence-ff] {src.name} "
+                              f"(frac={rep.silent_frac:.2f} "
+                              f"longest={rep.longest_silence:.1f}s)")
+                except Exception as exc:
+                    pass  # analyzer is advisory; don't block render
             is_slow    = entry.slow    and seg_idx == len(entry.segments) - 1
             is_zoom    = entry.zoom    and seg_idx == 0
             is_speedup = entry.speedup and seg_idx == 0
@@ -125,6 +143,9 @@ def normalize_and_expand(part: int, clip_list_path: Path, cfg: Config) -> List[P
                 normalize_clip(src, dst, cfg,
                                slow=is_slow, zoom=is_zoom, speedup=is_speedup)
             normalized.append(dst)
+    if silence_forced:
+        print(f"  [silence-ff] {silence_forced} clips auto-speedup "
+              f"due to internal silence")
     return normalized
 
 
@@ -189,17 +210,22 @@ def assemble_body_with_xfades(
     chunks: List[Path],
     out_path: Path,
     cfg: Config,
+    beat_snapped_offsets: Optional[List[float]] = None,
 ) -> Path:
     """Concat all body chunks into one mp4 with short xfade seams between every
     chunk. Replaces the concat-demuxer hard-cut body for Part 5 v8+.
 
-    Xfade duration = cfg.seam_xfade_duration (default 0.15s). Each xfade eats the
-    last 0.15s of clip N and first 0.15s of clip N+1 — net body length shrinks
-    by (N-1) * xfade.
+    Xfade duration = cfg.seam_xfade_duration (default 0.15s). Each xfade eats
+    the last 0.15s of chunk N and first 0.15s of chunk N+1 — net body length
+    shrinks by (N-1) * xfade unless offsets are beat-snapped (then the math
+    is the supplied offsets directly).
+
+    If `beat_snapped_offsets` is given, it must be a list of length N-1 with
+    body-absolute xfade start times from beat_sync.snap_xfade_offsets.
+    Otherwise naive cumulative offsets are used (hard rhythm, no beat align).
 
     Uses one giant filter_complex across all N chunk inputs. Practical up to
-    ~80 chunks on 32 GB RAM. If the graph is too large, caller should fall back
-    to hard-cut concat demuxer.
+    ~140 chunks on 32 GB RAM.
     """
     if out_path.exists():
         print(f"  [cache] {out_path.name}")
@@ -217,9 +243,24 @@ def assemble_body_with_xfades(
     x = cfg.seam_xfade_duration
     durs = [_probe_duration(c, cfg) for c in chunks]
 
+    # Decide xfade offsets: beat-snapped or naive cumulative.
+    if beat_snapped_offsets is not None:
+        if len(beat_snapped_offsets) != N - 1:
+            raise ValueError(
+                f"beat_snapped_offsets length {len(beat_snapped_offsets)} "
+                f"!= N-1 ({N-1})"
+            )
+        offsets = list(beat_snapped_offsets)
+        print(f"  [xfade] using beat-snapped offsets ({N-1} seams)")
+    else:
+        offsets = []
+        cum = 0.0
+        for i in range(N - 1):
+            cum += durs[i] - x
+            offsets.append(sum(durs[:i+1]) - (i+1) * x)
+        print(f"  [xfade] naive cumulative offsets ({N-1} seams)")
+
     # Build filter_complex
-    # Video: chain xfade across chunks
-    # Audio: chain acrossfade across chunks
     v_parts = []
     a_parts = []
     # Normalize every input first so SAR/fps match exactly (defensive)
@@ -229,8 +270,6 @@ def assemble_body_with_xfades(
         )
         a_parts.append(f"[{i}:a]aresample=async=1[a{i}]")
 
-    # xfade chain: cumulative offset = sum(durs[0..i-1]) - i * x
-    offset = durs[0] - x
     prev_v = "v0"
     prev_a = "a0"
     xchain = []
@@ -238,17 +277,16 @@ def assemble_body_with_xfades(
     for i in range(1, N):
         out_v = f"vx{i}"
         out_a = f"ax{i}"
+        seam_offset = offsets[i - 1]
         xchain.append(
             f"[{prev_v}][v{i}]xfade=transition=fade:duration={x:.3f}:"
-            f"offset={offset:.3f}[{out_v}]"
+            f"offset={seam_offset:.3f}[{out_v}]"
         )
         achain.append(
             f"[{prev_a}][a{i}]acrossfade=d={x:.3f}[{out_a}]"
         )
         prev_v = out_v
         prev_a = out_a
-        if i < N - 1:
-            offset += durs[i] - x
 
     filter_complex = ";".join(v_parts + a_parts + xchain + achain)
     final_v = prev_v
@@ -483,10 +521,31 @@ def main():
     title_card   = ensure_title_card(part, cfg)
     pantheon     = ensure_pantheon_trim(cfg)
 
+    # --- Beat-snap seam offsets (Rule P1-V) ---
+    # We need chunk durs first, then consult the main music track's pre-computed
+    # beat grid. If no beats sidecar exists (or part skipped), fall back to naive.
+    beat_snapped: Optional[List[float]] = None
+    main_music = ROOT / "phase1" / "music" / f"part{part:02d}_music.mp3"
+    beats_file = find_beats_file(main_music) if main_music.exists() else None
+    if beats_file is not None and cfg.seam_xfade_duration > 0 and len(chunks) > 1:
+        durs = [_probe_duration(c, cfg) for c in chunks]
+        beats = load_beats(beats_file)
+        beat_snapped, stats = snap_xfade_offsets(
+            durs=durs,
+            beats=beats,
+            xfade=cfg.seam_xfade_duration,
+            intro_offset=cfg.intro_clip_duration + 8.0,  # PANTHEON + title
+            max_shift=0.300,
+        )
+        print(f"  [beat-sync] {stats['snapped']}/{stats['n_seams']} seams "
+              f"snapped ({stats['snap_rate']*100:.0f} %), "
+              f"total shift {stats['total_shift']:.2f} s")
+
     # --- Body assembly: single mp4 with seam xfades (Rule P1-H v3) ---
     body_xfaded = chunks_dir / "_body_xfaded.mp4"
     if cfg.seam_xfade_duration > 0:
-        assemble_body_with_xfades(chunks, body_xfaded, cfg)
+        assemble_body_with_xfades(chunks, body_xfaded, cfg,
+                                  beat_snapped_offsets=beat_snapped)
     else:
         # hard-cut fallback via concat demuxer → remux into a single mp4
         if not body_xfaded.exists():
