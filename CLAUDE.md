@@ -167,6 +167,46 @@ it slow once replay it normal speed, or the other way around."*
 - Replaces beat-sync truncation (which is now banned by Rule P1-L)
 - Research agent to survey additional replay-style effects → `docs/research/effect-catalog-expansion.md`
 
+### Rule P1-S: Beat-Sync Governs Transitions, Never Clip Duration (NEW 2026-04-18)
+**Beat-match lives on the JOIN between clips — it sets WHEN a cut happens, not HOW LONG a clip is.**
+User verdict: *"we dont beat match cutting the clips as the clips ARE the frags
+if you show 2sec of a 5sec clip it will be pointless for phase1, we need to
+beatmatch on transition for phase1."*
+- Phase 1 clips are already-rendered AVIs — each clip = one frag. The clip IS the moment.
+- Beat-sync may ONLY nudge **transition points** (the hard cut between clip N and N+1):
+  - `Clip N` plays its full post-P1-L-trim duration.
+  - The next beat ≥ `clip_N.end` becomes the cut-in time for `Clip N+1`.
+  - If the gap between `clip_N.end` and the next beat is large, fill with
+    a full-length T3 cinematic (Rule P1-P) — **never** extend clip N artificially.
+- Beat-sync may NOT:
+  - Truncate clip content to land on a beat (banned — see Rule P1-L, P1-P)
+  - Time-stretch clips (banned — speed changes only via REPLAY_SPEED_CONTRAST per P1-Q)
+  - Shift audio by clip-body milliseconds — audio crossfades happen at the cut seam only
+- `plan_beat_cuts()` returns *cut timestamps*, not *clip durations*. Any code path that
+  shortens a clip below `full_length - head_trim - tail_trim` is broken.
+- This formalizes the golden rule P1-I ("frag + effect + music align") — alignment
+  is at the seam, not inside the frag.
+
+### Rule P1-R: Three-Track Music Structure (NEW 2026-04-18 music-picks approval)
+**Every Part ships with THREE music tracks: intro + main + outro. One-track renders are invalid.**
+User verdict: *"we need to have multiple audio track for the whole video we need intro and outro!"*
+- Music layout per Part:
+  - **Intro track** — plays under PANTHEON logo (7s) + title card (8s) = ~15 s atmospheric build
+  - **Main track** — the curated per-Part hype/energy track (body of the Part)
+  - **Outro track** — ~30 s cooldown/closer at the tail, matches intro in tone
+- Series-wide defaults (PANTHEON identity):
+  - `phase1/music/pantheon_intro_music.mp3` — *Cinema - Sped Up* (JKRS)
+  - `phase1/music/pantheon_outro_music.mp3` — *Eple* (Badger)
+- Per-Part overrides: `partNN_intro_music.*` / `partNN_outro_music.*` (resolved first)
+- Crossfades between tracks are **beat-locked** (librosa onset snap), not time-locked:
+  - `intro_music_crossfade = 1.5s`, `outro_music_crossfade = 2.0s`
+- Rule P1-O (music coverage continuity) still applies — no silence gaps anywhere.
+- Config accessors: `Config.intro_music_path(part)` / `music_path(part)` / `outro_music_path(part)`.
+  `None` from main = hard fail; `None` from intro/outro = warning + degrade to main-only.
+- 2026-04-18 music drop (committed): Part 4 MAKEBA · Part 5 Phonky Tribu · Part 6 Past Lives
+  Hardtekk · Part 7 SPRINTER Techno · Part 8 bulletproof tekkno · Part 9 Zoo Rave Edit ·
+  Part 10 ANXIETY HYPERTECHNO · Part 11 Timewarp (Dimension Rmx) · Part 12 Vois sur ton chemin.
+
 ### Rule P1-I: Golden Rule — Frag + Effect + Music Must Align
 **The chosen effect (slow-mo, zoom, fast-forward, hard cut) must match both the frag type AND the music beat/section.**
 - A T1 peak without matching musical weight is a miss

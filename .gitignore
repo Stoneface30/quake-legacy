@@ -88,6 +88,12 @@ docs/visual-record/*/gameplay-frames/*.png
 docs/visual-record/*/render-frames/*.jpg
 docs/visual-record/*/render-frames/*.png
 phase1/music/library/
+# Copyrighted music — kept local, never committed to public repo (Rule P1-R assets)
+phase1/music/*.mp3
+phase1/music/*.ogg
+phase1/music/*.wav
+phase1/music/*.flac
+phase1/music/_stitched/
 
 
 # Creative Suite v2 local storage

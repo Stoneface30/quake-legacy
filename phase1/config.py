@@ -112,6 +112,24 @@ class Config:
         self.music_loop_if_short: bool = True
         self.music_crossfade_on_loop: float = 0.5  # seconds of crossfade when looping/queuing
 
+        # ── Rule P1-R: Three-track music structure (NEW 2026-04-18 review) ──
+        # User verdict: "we need multiple audio track for the whole video
+        #               we need intro and outro!"
+        # Every Part ships with THREE music tracks, crossfaded on beat:
+        #   [1] INTRO music — plays under PANTHEON logo + title card
+        #       (≈15 s window: 7 s logo + 8 s title card). Atmospheric build.
+        #   [2] MAIN  music — the hype/energy track for the body of the Part
+        #       (partNN_music.mp3). Covers from title-card-end to outro-start.
+        #   [3] OUTRO music — cooldown/closer under the fade-out card
+        #       (≈30 s at the tail). Atmospheric, matches intro in tone.
+        # Fallback order for intro/outro: per-Part override
+        # (partNN_intro_music.* / partNN_outro_music.*) → series-wide
+        # (pantheon_intro_music.* / pantheon_outro_music.*).
+        # Crossfades between tracks are BEAT-LOCKED (librosa onset snap), not time-locked.
+        self.intro_music_crossfade: float = 1.5   # beat-aligned crossfade intro→main
+        self.outro_music_crossfade: float = 2.0   # beat-aligned crossfade main→outro
+        self.outro_music_duration:  float = 30.0  # seconds of outro track at tail
+
         # ── Clip-trim convention (Rule P1-L REVISED, Part 4 review 2026-04-17) ──
         # User verdict: "cut the first second and the 2 last second."
         # Every Phase 1 AVI clip has ~2s pre-action + ~3s post-action padding.
@@ -159,10 +177,30 @@ class Config:
         return norm_dir / (avi_path.stem + "_cfr60.mp4")
 
     def music_path(self, part: int) -> Optional[Path]:
-        """Auto-detect music file for this Part. Returns None if not found."""
+        """Auto-detect MAIN music file for this Part. Returns None if not found."""
         music_dir = ROOT / "phase1" / "music"
         for ext in [".mp3", ".ogg", ".wav", ".flac"]:
             candidate = music_dir / f"part{part:02d}_music{ext}"
             if candidate.exists():
                 return candidate
+        return None
+
+    def intro_music_path(self, part: int) -> Optional[Path]:
+        """Rule P1-R: intro music — per-Part override, fallback to pantheon_intro_music."""
+        music_dir = ROOT / "phase1" / "music"
+        for stem in (f"part{part:02d}_intro_music", "pantheon_intro_music"):
+            for ext in (".mp3", ".ogg", ".wav", ".flac"):
+                candidate = music_dir / f"{stem}{ext}"
+                if candidate.exists():
+                    return candidate
+        return None
+
+    def outro_music_path(self, part: int) -> Optional[Path]:
+        """Rule P1-R: outro music — per-Part override, fallback to pantheon_outro_music."""
+        music_dir = ROOT / "phase1" / "music"
+        for stem in (f"part{part:02d}_outro_music", "pantheon_outro_music"):
+            for ext in (".mp3", ".ogg", ".wav", ".flac"):
+                candidate = music_dir / f"{stem}{ext}"
+                if candidate.exists():
+                    return candidate
         return None
