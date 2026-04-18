@@ -1,12 +1,24 @@
-# Part 6 clip list -- v8 all-tiers (T1+T2+T3) for tier-interleave
+# Part 6 clip list -- v9 (Part 6 v8 draft review 2026-04-18)
+# User edits applied:
+#  - Demo (107)  - 14 REMOVED per user "remove 107-14"
+#  - Demo (107FL2) relocated next to Demo (107) - 13 (was floating in T1 head)
+#    so FL2 sits as the angle-replay of 107-13/107FL1 per Rule P1-K.
+#  - Demo (17)  -  112 and Demo (152)  -  83: flagged [slow] — user asked for
+#    "replay normal then slowmo" (17-112) and "slowmo last second" (152-83).
+#    Full-clip slow is the v9 approximation; [replay]/[slow_tail] grammar
+#    ships in v10.
+#  - Demo (205FL2) last-frame bug: no per-frame trim grammar yet in v9;
+#    workaround = the 2.5 s tail trim (P1-L v3) should eat the bug frame.
+#    If not, v10 adds bad-frame exclusion registry.
 # One filename per line. Lines starting with # are ignored.
+# Grammar: `[slow]` = 0.5× slowmo on the clip; `[fast]`, `[zoom]`, `[intro]`.
 
-# --- T1 (61 clips) ---
+# --- T1 (60 clips) ---
 Demo (107)  - 13.avi
 Demo (107FL1).avi
 Demo (107FL2).avi
 Demo (121)  - 38.avi
-Demo (152)  - 83.avi
+Demo (152)  - 83.avi [slow]
 Demo (161)  - 99.avi
 Demo (161FL2).avi
 Demo (161FL3).avi
@@ -64,13 +76,12 @@ Demo (885FL1).avi
 Demo (908)  -  1164.avi
 Demo (928)  -  1198.avi
 
-# --- T2 (55 clips) ---
-Demo (107)  - 14.avi
+# --- T2 (54 clips — 107-14 removed per user) ---
 Demo (119)  - 34.avi
 Demo (132)  - 52.avi
 Demo (132FL1).avi
 Demo (149)  - 77.avi
-Demo (17)  -  112.avi
+Demo (17)  -  112.avi [slow]
 Demo (172)  -  119.avi
 Demo (194)  -  151.avi
 Demo (205)  -  177.avi

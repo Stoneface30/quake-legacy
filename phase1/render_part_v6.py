@@ -511,55 +511,119 @@ def assemble_body_with_xfades(
 
     # Build filter_complex
     v_parts = []
-    a_parts = []
-    # Normalize every input first so SAR/fps match exactly (defensive)
-    # Rule P1-H v4 audio-drift fix: every chunk enters the chain with PTS reset
-    # to zero and async=1:first_pts=0. The v8 chain compounded ~40 ms drift per
-    # N seams because acrossfade preserves upstream PTS wobble — pinning every
-    # chunk's PTS origin kills the drift before it starts.
+    # Normalize every input's video first so SAR/fps match exactly (defensive).
+    # Audio is normalized inside the a_faded chain below (asetpts+aresample),
+    # so we do NOT pre-build [a0..aN] labels — they would be orphaned because
+    # a_faded reads [i:a] directly and emits [A0..AN].
+    # Review-quick: pre-scale every input to cfg.review_scale before xfade
+    # so compositing 117 inputs @ 540p is 4× faster than @ 1080p.
+    scale_tok = ""
+    if cfg.review_mode and getattr(cfg, "review_scale", ""):
+        scale_tok = f"scale={cfg.review_scale}:flags=fast_bilinear,"
     for i in range(N):
         v_parts.append(
-            f"[{i}:v]setpts=PTS-STARTPTS,setsar=1,fps={cfg.target_fps},format=yuv420p[v{i}]"
-        )
-        a_parts.append(
-            f"[{i}:a]asetpts=PTS-STARTPTS,aresample=async=1:first_pts=0[a{i}]"
+            f"[{i}:v]setpts=PTS-STARTPTS,setsar=1,fps={cfg.target_fps},"
+            f"{scale_tok}format=yuv420p[v{i}]"
         )
 
+    # ----- VIDEO: chained xfade (unchanged — xfade handles PTS correctly) -----
     prev_v = "v0"
-    prev_a = "a0"
     xchain = []
-    achain = []
     for i in range(1, N):
         out_v = f"vx{i}"
-        out_a = f"ax{i}"
         seam_offset = offsets[i - 1]
         xchain.append(
             f"[{prev_v}][v{i}]xfade=transition=fade:duration={x:.3f}:"
             f"offset={seam_offset:.3f}[{out_v}]"
         )
-        achain.append(
-            f"[{prev_a}][a{i}]acrossfade=d={x:.3f}[{out_a}]"
-        )
         prev_v = out_v
-        prev_a = out_a
 
-    filter_complex = ";".join(v_parts + a_parts + xchain + achain)
+    # ----- AUDIO: absolute-delay + afade + amix (drift-free) -----
+    # Rule P1-AA v2 bans acrossfade chains because they accumulate ~68 ms of
+    # drift per seam (ffmpeg #9248/#10229 class — acrossfade's internal timing
+    # math survives PTS reset + async resample). Across 117 seams that was
+    # 7.53 s on Part 4 v10.2. Fix: every chunk emits a delayed+faded audio
+    # stream with ABSOLUTE body timestamps, then a single amix blends all N.
+    # Zero cumulative drift because delays are absolute, not relative.
+    #
+    # Per-chunk body start time:
+    #   chunk 0: 0
+    #   chunk i: offsets[i-1]  (same offset used by the video xfade)
+    start_times: List[float] = [0.0]
+    for i in range(1, N):
+        start_times.append(offsets[i - 1])
+
+    a_faded: List[str] = []
+    a_labels: List[str] = []
+    for i in range(N):
+        d = durs[i]
+        head_fade = "" if i == 0 else f"afade=t=in:st=0:d={x:.3f},"
+        tail_fade = "" if i == N - 1 else f"afade=t=out:st={max(d - x, 0):.3f}:d={x:.3f},"
+        delay_ms = int(round(start_times[i] * 1000))
+        delay = "" if delay_ms == 0 else f"adelay={delay_ms}|{delay_ms},"
+        label = f"A{i}"
+        a_faded.append(
+            f"[{i}:a]asetpts=PTS-STARTPTS,aresample=async=1:first_pts=0,"
+            f"{head_fade}{tail_fade}{delay}apad[{label}]"
+        )
+        a_labels.append(f"[{label}]")
+
+    mix_inputs = "".join(a_labels)
+    # duration=first means final length = chunk 0's total timeline contribution;
+    # but chunk 0 has no delay/pad extension, so we actually want the amix to
+    # span the full body — use duration=longest with an explicit atrim to the
+    # expected video length afterwards.
+    #
+    # CRITICAL: video end is `offsets[-1] + durs[-1]` when beat-snapped offsets
+    # are in play (the last beat can land well short of the naive sum). Using
+    # the naive `sum(durs) - (N-1)*x` here leaves audio 8 s longer than video
+    # (Part 4 v10.3 sync-audit: drift=8246 ms, constant across all probes).
+    # Match audio to the ACTUAL video end so the streams stay locked.
+    if N >= 2 and offsets:
+        expected_body_dur = offsets[-1] + durs[-1]
+    else:
+        expected_body_dur = sum(durs) - (N - 1) * x
+    a_finalize = (
+        f"{mix_inputs}amix=inputs={N}:duration=longest:normalize=0,"
+        f"atrim=0:{expected_body_dur:.3f},asetpts=PTS-STARTPTS[a_body]"
+    )
+
+    filter_complex = ";".join(v_parts + xchain + a_faded + [a_finalize])
     final_v = prev_v
-    final_a = prev_a
+    final_a = "a_body"
 
     input_args: List[str] = []
     for c in chunks:
         input_args += ["-i", str(c)]
 
+    # Windows CreateProcess has a 32 KB command-line limit. With 100+ chunks
+    # the filter_complex graph alone blows past that. Write it to a script file
+    # and pass -filter_complex_script instead. (P1-BB follow-up fix.)
+    fc_script = out_path.with_suffix(".filter.txt")
+    fc_script.write_text(filter_complex, encoding="utf-8")
+
     cmd = [
         str(cfg.ffmpeg_bin), "-y",
         *input_args,
-        "-filter_complex", filter_complex,
+        "-filter_complex_script", str(fc_script),
         "-map", f"[{final_v}]", "-map", f"[{final_a}]",
-        "-c:v", "libx264",
-        "-crf", str(cfg.review_body_crf if cfg.review_mode else 18),
-        "-preset", (cfg.review_body_preset if cfg.review_mode else "fast"),
-        "-profile:v", "high", "-pix_fmt", "yuv420p",
+    ]
+    if cfg.review_mode and getattr(cfg, "review_use_nvenc", False):
+        cmd += [
+            "-c:v", "h264_nvenc",
+            "-preset", cfg.review_nvenc_preset,
+            "-cq", str(cfg.review_nvenc_cq),
+            "-rc", "vbr",
+            "-profile:v", "high", "-pix_fmt", "yuv420p",
+        ]
+    else:
+        cmd += [
+            "-c:v", "libx264",
+            "-crf", str(cfg.review_body_crf if cfg.review_mode else 18),
+            "-preset", (cfg.review_body_preset if cfg.review_mode else "fast"),
+            "-profile:v", "high", "-pix_fmt", "yuv420p",
+        ]
+    cmd += [
         "-r", str(cfg.target_fps),
         "-g", str(cfg.target_fps * 2),
         # Rule P1-BB: keep PCM through the body master so AAC priming delay
@@ -685,9 +749,22 @@ def final_render(
         "segC_mus", "segC_game"
     )
 
+    # Review-quick: body was pre-scaled to cfg.review_scale during xfade assembly.
+    # PANTHEON + title card are native 1920x1080 — scale them down to match
+    # before concat, otherwise ffmpeg refuses the concat (size mismatch).
+    if cfg.review_mode and getattr(cfg, "review_scale", ""):
+        rs = cfg.review_scale
+        vchain = (
+            f"[0:v]scale={rs}:flags=fast_bilinear,setsar=1[v0];"
+            f"[1:v]scale={rs}:flags=fast_bilinear,setsar=1[v1];"
+            f"[v0][v1][2:v]concat=n=3:v=1:a=0[vout];"
+        )
+    else:
+        vchain = f"[0:v][1:v][2:v]concat=n=3:v=1:a=0[vout];"
+
     filter_complex = (
         # Video: plain concat of 3 files (body already has internal xfades)
-        f"[0:v][1:v][2:v]concat=n=3:v=1:a=0[vout];"
+        vchain +
 
         # --- Segment A: PANTHEON audio, no music ---
         f"[0:a]aresample=48000:async=1,"
@@ -701,7 +778,16 @@ def final_render(
         f"aresample=48000:async=1[segB];"
 
         # --- Segment C: body game audio + ducked music ---
+        # Rule P1-G v4 calibration: loudnorm the game stream to -18 LUFS BEFORE
+        # the volume scale. Raw Quake clip audio is typically -28 .. -34 LUFS
+        # native (quiet ambient + sharp transients), which made the music level
+        # gate impossible to satisfy on commercial-mastered music tracks.
+        # Normalizing game to -18 gives music at 0.20 × -14 LUFS master a
+        # realistic ~4-10 LU integrated delta and ~15 LU peak delta, passing
+        # P1-G v4 when measured against game peak LU. See
+        # `phase1/audio_levels.py::extract_game_stem` for the matching gate.
         f"[2:a]aresample=48000:async=1,"
+        f"loudnorm=I=-18:TP=-1.5:LRA=11,"
         f"asetpts=PTS-STARTPTS,volume={game_vol}[segC_game];"
         f"[3:a]atrim=start={title_dur},asetpts=PTS-STARTPTS,"
         f"volume={mus_vol},apad,"
@@ -1018,6 +1104,10 @@ def main():
     print(f"Total video   : {total_video_dur:.1f} s ({total_video_dur/60:.1f} min)")
 
     # ── Legacy v10 beat-plan artifact (partNN_beats.json — kept for downstream gates) ──
+    # Reuses the v2 template-matched event peaks (from chunk_infos) instead of
+    # librosa whole-clip onset detection. The latter silently returns None on
+    # our `ipcm`-tagged mp4 chunks — producing all-SKIP_ALIGN output that hid
+    # beat-sync signal. v2 peaks are authoritative and already computed above.
     if structure is not None:
         try:
             def _tier_tag_legacy(p: Path) -> str:
@@ -1026,11 +1116,28 @@ def main():
                 if "\\T2\\" in s or "/T2/" in s: return "T2"
                 if "\\T3\\" in s or "/T3/" in s: return "T3"
                 return "T2"
-            clip_paths = [str(c) for c in ordered_chunks]
-            peaks = _audio_onsets.find_action_peaks_per_clip(clip_paths)
-            ordered_for_beat = ordered_chunks
+            # Build peak dict from recognize_game_events results (best event per chunk).
+            events_by_chunk: dict[str, list] = {
+                str(c): evs for (c, _d, _t, evs) in chunk_infos
+            }
+            peaks: dict[str, float | None] = {}
+            for c in ordered_chunks:
+                cp = str(c)
+                evs = events_by_chunk.get(cp, [])
+                if evs:
+                    # Pick highest (weight × confidence), matching P1-Z v2 priority.
+                    best = max(
+                        evs,
+                        key=lambda e: (
+                            float(getattr(e, "weight", 0.5))
+                            * float(getattr(e, "confidence", 0.0))
+                        ),
+                    )
+                    peaks[cp] = float(getattr(best, "t", 0.0))
+                else:
+                    peaks[cp] = None
             clips_meta: list[dict[str, object]] = []
-            for c in ordered_for_beat:
+            for c in ordered_chunks:
                 clips_meta.append({
                     "path": str(c),
                     "tier": _tier_tag_legacy(c),
@@ -1044,8 +1151,10 @@ def main():
             )
             beats_path = write_beats_json(seams_legacy, part, OUTPUT_DIR)
             tight = sum(1 for s in seams_legacy if s["tag"] == "TIGHT")
-            print(f"  [beat-plan-legacy] wrote {beats_path.name}  tight={tight}/"
-                  f"{len(seams_legacy)}")
+            weak = sum(1 for s in seams_legacy if s["tag"] == "WEAK_ALIGN")
+            skip = sum(1 for s in seams_legacy if s["tag"] == "SKIP_ALIGN")
+            print(f"  [beat-plan-legacy] wrote {beats_path.name}  "
+                  f"tight={tight} weak={weak} skip={skip} / {len(seams_legacy)}")
         except Exception as exc:
             print(f"  [beat-plan-legacy] WARN: plan_beat_cuts failed ({exc})")
 
@@ -1151,6 +1260,19 @@ def main():
     print(f"  Size : {size_mb:.1f} MB")
     print(f"  Time : {elapsed/60:.1f} min")
     print("=" * 60)
+
+    # Rule VIS-1 post-render visual capture. Best-effort, never fails the render.
+    try:
+        from phase1.visual_record import safe_capture as _vr_safe_capture
+    except Exception:  # noqa: BLE001
+        try:
+            from visual_record import safe_capture as _vr_safe_capture  # type: ignore[no-redef]
+        except Exception as _exc:  # noqa: BLE001
+            print(f"  [visual-record] import failed ({_exc!r}), skipping")
+            _vr_safe_capture = None  # type: ignore[assignment]
+    if _vr_safe_capture is not None:
+        _vr_safe_capture(final_out, part, cfg)
+
     return 0
 
 
