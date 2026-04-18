@@ -189,7 +189,7 @@ Both models auto-downloaded: `4x-UltraSharp.pth` + `control_v11f1e_sd15_tile.pth
 | qldemo-python | 145 | 208 | 12 | `game-dissection/qldemo-python/graphify-out/graph.html` |
 | WolfWhisperer scripts | 10 | 5 | 5 | `game-dissection/wolfwhisperer-scripts/graphify-out/graph.html` |
 | uberdemotools | 1,997 | 4,218 | 33 | `game-dissection/uberdemotools/graphify-out/graph.html` |
-| **canonical engine tree** (2026-04-17) | *running* | *running* | *running* | `tools/quake-source/_canonical/graphify-out/graph.html` — 9,895 source files deduped by SHA-256 across 18 repos |
+| **canonical engine tree** (2026-04-17) | 43,423 | 81,362 | 332 | `game-dissection/graphify-out/_canonical-2026-04-17/graphify-out/graph_top500_hubs.html` — 9,895 source files / 520 MB deduped by SHA-256 across 18 repos. Top hub: `HandleCommand()` in `radiant/mainframe.cpp` (deg 280). Full GraphRAG JSON (47 MB) at `graph.json`; interactive HTML is top-400-hub + 1-hop subgraph (graphify blocks HTML >5k nodes). |
 
 **Querying:** Open any `graphify-out/graph.html` in browser → search nodes → click to explore communities.
 
