@@ -23,6 +23,15 @@ Traditional fragmovie production for that corpus would take years of manual revi
 
 Concrete state of the project today, not vaporware.
 
+### 2026-04-17 session — Creative Suite v2 Step 2, engine consolidation, Part 4 v5
+
+- **Creative Suite v2 Step 1-2 shipped** — FastAPI + SQLite WAL + uvicorn at `http://127.0.0.1:8765`. Annotation UI live at `/annotate`: pick Part, scrub video, mark moments with keyboard shortcuts (Space / ← → / Shift+← → / M), tag with avi-effect + dream-effect + free tags. JSONL is source of truth, SQLite is rebuildable mirror. All DOM writes are `createElement + textContent` — zero `innerHTML` from network data. Plan: [`docs/superpowers/plans/2026-04-17-creative-suite-v2-plan.md`](docs/superpowers/plans/2026-04-17-creative-suite-v2-plan.md). Gate **ANN-1** (10-annotation stress test on Part 4) pending user.
+- **Part 4 v5 delivered** — title card block (PANTHEON 7s + "QUAKE TRIBUTE / Part 4 / By Tr4sH" 8s), music halved to 0.5 with game audio at 1.0 (Rule P1-G revised), hard cuts only (P1-H), FP-backbone + single FL slow-contrast per frag (P1-K revised), 1s head / 2s tail trim (P1-L), full-length clips (P1-P), replay-speed contrast on short T1 clips (P1-Q). Rendered via av1_nvenc p7 uhq 10-bit.
+- **Engine consolidation PR #1** — 18 source trees deduped into one canonical tree by SHA-256 with authority order `wolfcamql-src > quake3e > q3mme > ioquake3 > quake3-source`. Result: 9,895 source files / 520 MB at `tools/quake-source/_canonical/`. Build script committed at `tools/quake-source/build_canonical.py`. Knowledge graph over the canonical tree running (graphify agent).
+- **Proto-73 port blueprint** — [`docs/research/proto73-port-review-2026-04-17.md`](docs/research/proto73-port-review-2026-04-17.md). Per-file analysis of the 7 diff files (msg.c, huffman.c, common.c, cl_parse.c, bg_public.h, client.h, qcommon.h), 18-item port checklist ordered CRITICAL→LOW, 7 sharp edges (2D snapshot array, VoIP op-code collision, huffman `maxoffset` guard, protocol-91 CS reshuffle, `MAX_MSGLEN 49152` stack pressure, `Huff_Init #if 0` silent corruption, `pos.gravity` field presence). This is the spec for Phase 3.5 Track A — port protocol 73 into q3mme and retire wolfcam.
+- **New rules in `CLAUDE.md`** — P1-N title card contract · P1-O music coverage continuity · P1-P full-length clip contract · P1-Q replay-speed contrast · ENG-1..4 (Steam paks are asset truth, `zzz_*.pk3`, `sv_pure 0` for testing, Steam paks read-only).
+- **Tomorrow wrap-up** — [`docs/sessions/2026-04-17-wrapup-TOMORROW.md`](docs/sessions/2026-04-17-wrapup-TOMORROW.md) — single-doc briefing: three gates (ANN-1, PR #1 review, Part 4 v5 watch-through), file-path cheatsheet, ingestion commands.
+
 ### `.dm_73` binary format
 Protocol-73 parser reading Huffman-compressed server snapshots, `EV_OBITUARY` extraction with `otherEntityNum`/`otherEntityNum2`/`eventParm` triples (victim / killer / MOD_* weapon). Running against a 10-demo sample set, the parser extracts **222 frags** end-to-end with millisecond-accurate `server_time` stamps. Player identities are stored as SHA256 `anon_hash` — no handles, no Steam IDs, ever.
 
@@ -244,9 +253,11 @@ Part 4 final (v4) incorporates the Gate-1 review fixes: PANTHEON intro prepended
 
 | Phase | Status | Python LOC | Output |
 |---|---|---|---|
-| Phase 1 — FFmpeg assembly | **Shipping** | 3,223 | Parts 3-4 rendered, styles locked |
+| Phase 1 — FFmpeg assembly | **Shipping** | 3,223 | Parts 4-6 Style B rendered; Part 4 v5 (title card, P1-G/K/L/N/O/P/Q) delivered 2026-04-17 |
+| Phase 1.5 — Creative Suite v2 | **Step 2 shipped** (end of day 1 deliverable) | — | FastAPI + SQLite at `:8765`; annotation UI live; Gate ANN-1 pending |
 | Phase 2 — Demo intelligence | Unblocked pending Gate P3-0 | 1,135 | Parser validated on 10 demos / 222 frags |
-| Phase 3 — AI cinematography | Research / awaiting Phase 2 | — | 5 knowledge graphs built |
+| Phase 3 — AI cinematography | Research / awaiting Phase 2 | — | 10 knowledge graphs + canonical engine tree (9,895 files / 520 MB) |
+| Phase 3.5 — Proto-73 port (q3mme) | **Blueprint delivered** | — | [`docs/research/proto73-port-review-2026-04-17.md`](docs/research/proto73-port-review-2026-04-17.md) |
 | Phase 4 — Public CLI | Vision | — | `pip install quake-legacy` target |
 | Phase 5 — Textures | **Shipped** | 843 | 107-asset `zzz_photorealistic.pk3` |
 

@@ -1,6 +1,6 @@
 # QUAKE LEGACY — Master Documentation Index
-**Last Updated:** 2026-04-17
-**Status:** Phase 1 Part 3 full-length renders shipped (3 styles × 5:07). Awaiting user style lock. Phase 2 parser ready, awaiting Gate P3-0. Phase 5 textures shipped.
+**Last Updated:** 2026-04-17 (session 2 wrap-up)
+**Status:** Creative Suite v2 Step 2 shipped · Part 4 v5 delivered (title card + revised audio mix + hard cuts + FP-backbone) · Engine consolidation PR #1 open (9,895 source files deduped) · Proto-73 port blueprint committed · Gates pending: **ANN-1**, **PR #1 review**, **Part 4 v5 watch-through**.
 
 ---
 
@@ -8,8 +8,11 @@
 
 | What | File | Purpose |
 |------|------|---------|
-| **Awaiting-user decisions** | [`/HUMAN-QUESTIONS.md`](../HUMAN-QUESTIONS.md) | **Single source of truth for everything blocking on human input.** Read this first. |
-| State review doc | [reviews/2026-04-17-phase1-2-3-5-state-for-user-review.md](reviews/2026-04-17-phase1-2-3-5-state-for-user-review.md) | Consolidated report of what's shipped since last user review |
+| **TOMORROW** | [sessions/2026-04-17-wrapup-TOMORROW.md](sessions/2026-04-17-wrapup-TOMORROW.md) | **Single-doc briefing: three gates, file-path cheatsheet, ingestion commands.** Read this first tomorrow morning. |
+| **Awaiting-user decisions** | [`/HUMAN-QUESTIONS.md`](../HUMAN-QUESTIONS.md) | Source of truth for everything blocking on human input. |
+| Creative Suite v2 plan | [superpowers/plans/2026-04-17-creative-suite-v2-plan.md](superpowers/plans/2026-04-17-creative-suite-v2-plan.md) | 9-step build plan · Steps 1-2 shipped · Gate ANN-1 pending |
+| Proto-73 port review | [research/proto73-port-review-2026-04-17.md](research/proto73-port-review-2026-04-17.md) | Blueprint for Phase 3.5 Track A — port protocol 73 into q3mme |
+| State review doc | [reviews/2026-04-17-phase1-2-3-5-state-for-user-review.md](reviews/2026-04-17-phase1-2-3-5-state-for-user-review.md) | Prior consolidated state report |
 | Deep plan — current tracks | [superpowers/plans/2026-04-17-deep-plan-focus-and-tracks.md](superpowers/plans/2026-04-17-deep-plan-focus-and-tracks.md) | Active work tracks A-E |
 
 ---
@@ -55,8 +58,9 @@
 ### Current Render Status
 ```
 output/previews/
-  Part3_styleA_preview.mp4   ← RENDERING NOW (Cinematic, 3 min, Sonic Mayhem)
-  Part3_styleB_preview.mp4   ← RENDERING NOW (Punchy, 3 min, Sonic Mayhem)
+  part03_stylea_preview.mp4  ✓ 5:07 rendered (Cinematic) — user review pending re-render
+  part03_styleb_preview.mp4  ✓ 5:07 rendered (Punchy) — user review pending re-render
+  part03_stylec_preview.mp4  ✓ 5:07 rendered (Showcase) — user review pending re-render
   Part4_styleA_preview.mp4   ✓ Done
   Part4_styleB_preview.mp4   ✓ Done
   Part4_styleC_preview.mp4   ✓ Done
@@ -185,6 +189,7 @@ Both models auto-downloaded: `4x-UltraSharp.pth` + `control_v11f1e_sd15_tile.pth
 | qldemo-python | 145 | 208 | 12 | `game-dissection/qldemo-python/graphify-out/graph.html` |
 | WolfWhisperer scripts | 10 | 5 | 5 | `game-dissection/wolfwhisperer-scripts/graphify-out/graph.html` |
 | uberdemotools | 1,997 | 4,218 | 33 | `game-dissection/uberdemotools/graphify-out/graph.html` |
+| **canonical engine tree** (2026-04-17) | *running* | *running* | *running* | `tools/quake-source/_canonical/graphify-out/graph.html` — 9,895 source files deduped by SHA-256 across 18 repos |
 
 **Querying:** Open any `graphify-out/graph.html` in browser → search nodes → click to explore communities.
 
@@ -241,12 +246,13 @@ tools/quake-source/.../game/graphify-out/GRAPH_REPORT.md  ← wolfcam/game
 
 ---
 
-## Next Actions (Prioritized)
+## Next Actions (Prioritized — 2026-04-17 session 2)
 
-1. **Drop `part04_music.mp3`** in `phase1/music/` → re-run Part 4 with all fixes
-2. **Watch Part 3 Style A + B** renders (rendering now) → approve or adjust
-3. **Gate P3-0:** Highlight criteria session — define airshot/multi-kill rules
-4. **Phase 2 cgame extension:** `wolfcam_extract_frags` command (~200 lines C)
-5. **Download ComfyUI models:** 4x-UltraSharp + ControlNet Tile
+1. **Gate ANN-1** — Creative Suite v2: `uvicorn creative_suite.app:create_app --factory --port 8765` → open `/annotate` → mark 10 moments on Part 4 → confirm JSONL + SQLite agree
+2. **Review PR #1** — engine consolidation: 9,895 source files / 520 MB canonical tree, SHA-256 dedup with authority order
+3. **Watch Part 4 v5** full render (`output/full/part04_v5_*.mp4`) → approve title card · music mix · hard cuts · FP+FL contrast · full-length clips
+4. **Proto-73 port decision** — read [proto73-port-review](research/proto73-port-review-2026-04-17.md), choose Path A (wolfcam-only until port) / B (port now) / C (hybrid)
+5. **Creative Suite Steps 3-9** — queued: clip-picker, render queue, ComfyUI bridge, pack compiler (pending Step 2 merge)
+6. **Gate P3-0** — highlight criteria session (remains open from prior sessions)
 
-*Generated: 2026-04-16 | QUAKE LEGACY — AI Fragmovie Pipeline*
+*Generated: 2026-04-17 session 2 | QUAKE LEGACY — AI Fragmovie Pipeline*
