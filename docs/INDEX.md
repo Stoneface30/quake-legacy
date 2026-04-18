@@ -1,6 +1,7 @@
 # QUAKE LEGACY — Master Documentation Index
-**Last Updated:** 2026-04-17 (session 2 wrap-up)
-**Status:** Creative Suite v2 Step 2 shipped · Part 4 v5 delivered (title card + revised audio mix + hard cuts + FP-backbone) · Engine consolidation PR #1 open (9,895 source files deduped) · Proto-73 port blueprint committed · Gates pending: **ANN-1**, **PR #1 review**, **Part 4 v5 watch-through**.
+**Last Updated:** 2026-04-18 (session 3)
+**Status:** Rule P1-R (three-track music: intro + main playlist + outro) and P1-S (beat-sync on transitions, never clip duration) added tonight. Music playlists dropped for Parts 4-12. Dual Part 4 v6 + Part 5 v6 render running in background as the new-rules baseline. Creative Suite v2 Step 2 still shipped · Engine PR #1 still open · Proto-73 port blueprint committed.
+**Gates pending:** **ANN-1** (annotation stress test), **PR #1 review** (engine consolidation), **Part 4 v6 + Part 5 v6 watch-through** (replaces v5).
 
 ---
 

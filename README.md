@@ -23,6 +23,14 @@ Traditional fragmovie production for that corpus would take years of manual revi
 
 Concrete state of the project today, not vaporware.
 
+### 2026-04-18 session — three-track music (P1-R) + beat-sync-on-transitions (P1-S) + dual v6 render
+- **Rule P1-R** — every Part ships with three music tracks: `intro + main-playlist + outro`. Series-wide defaults `pantheon_intro_music.mp3` (Cinema - Sped Up) and `pantheon_outro_music.mp3` (Eple). Per-Part override via `partNN_intro_music.*` / `partNN_outro_music.*`. Main is a PLAYLIST (`partNN_music_01..NN.mp3`) — Parts 4 and 5 got 5 and 6 tracks respectively so music covers the full body runtime without loops. Stitched at render time by `phase1/music_stitcher.py` (beat-locked acrossfade, SHA-256 cache, coverage validator). Music MP3s are `.gitignore`d — kept local.
+- **Rule P1-S** — beat-sync nudges *transition* timestamps between clips, never clip duration. Clips ARE the frags; showing 2 s of a 5 s clip to hit a beat is invalid.
+- **Music drops** — MAKEBA / GET SHAKY / BULLETPROOF / OBSESSED / Papi Chulo (Pt 4) · Phonky Tribu / ICE / When The Sun Goes Down / All Of It / 3tage phonk / Dimensional Drift (Pt 5) · Past Lives Hardtekk / MEMORIES OF YOU / paper planes tekkno (Pt 6) · SPRINTER / BARBIE WORLD / BEAMER BOY (Pt 7) · bulletproof tekkno / we are the people / paper planes (Pt 8) · Zoo Rave / CarbonaRave / Moonlight Rave (Pt 9) · ANXIETY / OBSESSED / Papi Chulo (Pt 10) · Timewarp (Dimension Rmx) / Do It To It (Sub Focus Rmx) / Back On 74 (Pt 11) · Vois sur ton chemin / MAKEBA / Timewarp (Pt 12).
+- **Dual v6 render kicked** — background agent producing `output/Part4_v6_newrules_2026-04-18.mp4` and `output/Part5_v6_newrules_2026-04-18.mp4`. These become the new baseline for transition/effect fine-tuning; Part 4 v5 is archived.
+- **Learnings** — L101 (three-track music is the minimum; one track = broken), L102 (beat-sync at seams, not content) appended to `Vault/learnings.md`.
+- **Commits (session 3):** `9ec90477` rules + stitcher · `fe642088` ported title_card + transitions · `944e6ca6` wrap-up addendum.
+
 ### 2026-04-17 session — Creative Suite v2 Step 2, engine consolidation, Part 4 v5
 
 - **Creative Suite v2 Step 1-2 shipped** — FastAPI + SQLite WAL + uvicorn at `http://127.0.0.1:8765`. Annotation UI live at `/annotate`: pick Part, scrub video, mark moments with keyboard shortcuts (Space / ← → / Shift+← → / M), tag with avi-effect + dream-effect + free tags. JSONL is source of truth, SQLite is rebuildable mirror. All DOM writes are `createElement + textContent` — zero `innerHTML` from network data. Plan: [`docs/superpowers/plans/2026-04-17-creative-suite-v2-plan.md`](docs/superpowers/plans/2026-04-17-creative-suite-v2-plan.md). Gate **ANN-1** (10-annotation stress test on Part 4) pending user.
