@@ -127,6 +127,17 @@ class Config:
         self.music_fadein_s:     float = 2.0   # fade music up over 2 s under PANTHEON
         self.music_fadeout_s:    float = 2.5   # matches outro closeout
         self.music_level_gate_lu: float = 12.0 # music integrated must be ≥12 LU below game peak
+
+        # ── plan_flow_cuts_v2 (event-driven ordering + seam placement) ─────
+        # Rule P1-CC v2 + P1-Z v2: event recognition must DRIVE clip order
+        # and seam placement, not be a post-render log artifact.
+        #   anticipation_ms: cut fires this many ms BEFORE the downbeat so the
+        #                    visual peak lands ON the beat (2 frames @ 60 fps).
+        #   flow_event_weight_floor: (weight*confidence) floor below which an
+        #                    event isn't considered "high-weight" (i.e. clip
+        #                    won't compete for a drop slot).
+        self.anticipation_ms: int = 33
+        self.flow_event_weight_floor: float = 0.55
         # Rule P1-O: music must cover end-of-title-card → start-of-outro continuously.
         # If a single track is shorter than Part runtime, pipeline queues a second
         # track or loops with a beat-matched stitch. Silence gaps are a failure.
@@ -162,19 +173,21 @@ class Config:
         # slow/normal replay of the same clip instead of truncating action.
         self.clip_pad_head: float = 2.0         # original pre-roll length (reference)
         self.clip_pad_tail: float = 3.0         # original post-roll length (reference)
-        # Rule P1-L v2 (Part 5 v7 review 2026-04-18): FP vs FL head-trim split.
-        # User verdict: "head is 1 or 2 there are difference in the FL clips as you
-        # need to cut the console 2sec in". FL (free-look) clips show console/loading
-        # for ~2s; FP clips only ~1s. Tail trim unchanged — 2s is "space for
-        # transitions" per user directive.
-        self.clip_head_trim_fp: float = 1.0     # FP clips: strip 1s off head
-        self.clip_head_trim_fl: float = 2.0     # FL clips: strip 2s (kills console view)
-        self.clip_head_trim: float = 1.0        # legacy — kept for back-compat
-        # Rule P1-L v3 (Part 6 v8 draft review 2026-04-18): bump tail 2.0 → 2.5.
-        # User verdict: "09Sec we can see the console need to cut clip 0.5 shorter
-        # in the end". Extra 0.5 s kills the post-action console reappearance and
-        # also budgets the new 0.4 s xfade (H v4) without eating into action.
-        self.clip_tail_trim: float = 2.5        # strip 2.5s off tail (console + xfade budget)
+        # Rule P1-L v4 (Part 4 v10 review 2026-04-18): trimming is FL-ONLY.
+        # User verdict: "the 1 second before 2 second in the end rule was only
+        # for the FL views". FP clips are the frag itself — trimming head/tail
+        # was cutting real content. Only FL (free-look) clips show the console/
+        # loading overlay that needs cropping; FP is clean start to clean end.
+        self.clip_head_trim_fp: float = 0.0     # FP: NO head trim (full frag)
+        self.clip_head_trim_fl: float = 1.0     # FL: 1s head (original rule)
+        self.clip_head_trim: float = 0.0        # legacy — default to FP (no trim)
+        self.clip_tail_trim_fp: float = 0.0     # FP: NO tail trim (full frag)
+        self.clip_tail_trim_fl: float = 2.0     # FL: 2s tail (original rule)
+        self.clip_tail_trim: float = 0.0        # legacy mirror of FP default
+        # Tail-trim no longer carries the xfade budget — xfade overlap is taken
+        # from the fade-in of the NEXT clip (xfade naturally consumes half from
+        # each side), and we accept the 0.4s visual blend. If this eats real
+        # content on FP clips user will escalate; for now, full frags.
         # Rule P1-L v3 short-clip protection floor: if clip_dur - head - tail < this,
         # SKIP the clip from the Part (do not stretch, do not compress, just drop).
         # User verdict: "149-77 is cut we can't see anything ensure we don't cut

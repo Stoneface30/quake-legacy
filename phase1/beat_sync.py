@@ -44,8 +44,12 @@ from __future__ import annotations
 
 import bisect
 import json
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable, Optional
+from typing import Any, Iterable, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from phase1.audio_onsets import GameEvent
 
 # ---------------------------------------------------------------------------
 # Legacy API (v8/v9 — kept for back-compat with render_part_v6.py)
@@ -349,6 +353,10 @@ __all__ = [
     "plan_flow_cuts",
     "classify_section_shape",
     "write_flow_plan_json",
+    # v12 (event-driven ordering + seam placement)
+    "PlannedClip",
+    "plan_flow_cuts_v2",
+    "snap_seams_to_events",
     # legacy
     "load_beats",
     "nearest_beat",
@@ -463,7 +471,13 @@ def plan_flow_cuts(
     shift_cap: float = 0.4,
     min_playable_s: float = 2.0,
 ) -> list[dict]:
-    """Flow-driven cut plan (Rule P1-CC v2).
+    """DEPRECATED — use :func:`plan_flow_cuts_v2` instead.
+
+    v1 ran AFTER body assembly and only produced a log artifact — it never
+    changed clip order or seam placement. Kept for back-compat with existing
+    tests (`phase1/tests/test_flow_planner.py`) and external callers.
+
+    Flow-driven cut plan (Rule P1-CC v2).
 
     Walks music sections in time order. For each section, scores available
     clips by (flow_fit(clip_events, section.shape), tier_rank). Best clip
@@ -567,31 +581,451 @@ def plan_flow_cuts(
 
 
 def write_flow_plan_json(
-    cuts: list[dict],
-    part: int,
-    out_dir: Path | str | None = None,
+    cuts_or_clips: "list[dict] | list[PlannedClip]",
+    seam_offsets_or_part: "list[float | None] | int | None" = None,
+    part_or_out_dir: "int | Path | str | None" = None,
+    output_dir: "Path | str | None" = None,
+    *,
+    part: "int | None" = None,
+    out_dir: "Path | str | None" = None,
 ) -> Path:
-    """Write the flow plan to `output/partNN_flow_plan.json`."""
-    out_dir = Path(out_dir) if out_dir else (Path(__file__).resolve().parent.parent / "output")
+    """Write the flow plan to ``output/partNN_flow_plan.json``.
+
+    Two call signatures are supported:
+
+    1. **v1 (deprecated, kept for back-compat)**::
+
+           write_flow_plan_json(cuts: list[dict], part: int, out_dir=None)
+
+       Writes legacy ``{part, cuts, stats}`` schema.
+
+    2. **v2 (new — event-driven ordering + seams)**::
+
+           write_flow_plan_json(clips: list[PlannedClip],
+                                seam_offsets: list[float|None],
+                                part: int,
+                                output_dir=Path)
+
+       Writes new ``{part, clips, seams}`` schema per the v12 spec.
+    """
+    # Keyword-path (v1) support: write_flow_plan_json(cuts, part=N, out_dir=P)
+    if part is not None and seam_offsets_or_part is None:
+        seam_offsets_or_part = part
+    if out_dir is not None and part_or_out_dir is None:
+        part_or_out_dir = out_dir
+
+    # Signature dispatch
+    if isinstance(seam_offsets_or_part, int):
+        # v1 signature
+        cuts = cuts_or_clips  # type: ignore[assignment]
+        part_val: int = seam_offsets_or_part
+        out_dir_in = part_or_out_dir
+        out_dir_p = Path(out_dir_in) if out_dir_in else \
+            (Path(__file__).resolve().parent.parent / "output")
+        out_dir_p.mkdir(parents=True, exist_ok=True)
+        out = out_dir_p / f"part{part_val:02d}_flow_plan.json"
+        tight = sum(1 for c in cuts if c.get("tag") == "TIGHT")  # type: ignore[attr-defined]
+        summary = {
+            "part": part_val,
+            "cuts": cuts,
+            "stats": {
+                "total": len(cuts),
+                "tight": tight,
+                "weak": sum(1 for c in cuts if c.get("tag") == "WEAK_ALIGN"),  # type: ignore[attr-defined]
+                "skip": sum(1 for c in cuts if c.get("tag") == "SKIP_ALIGN"),  # type: ignore[attr-defined]
+                "by_shape": {
+                    shp: sum(1 for c in cuts if c.get("section_shape") == shp)  # type: ignore[attr-defined]
+                    for shp in ("intro", "build", "drop", "break", "outro")
+                },
+            },
+        }
+        out.write_text(json.dumps(summary, indent=2))
+        return out
+
+    # v2 signature
+    clips: list[PlannedClip] = cuts_or_clips  # type: ignore[assignment]
+    seam_offsets: list[float | None] = seam_offsets_or_part  # type: ignore[assignment]
+    part_v: int = int(part_or_out_dir) if part_or_out_dir is not None else 0
+    out_dir = Path(output_dir) if output_dir else \
+        (Path(__file__).resolve().parent.parent / "output")
     out_dir.mkdir(parents=True, exist_ok=True)
-    out = out_dir / f"part{part:02d}_flow_plan.json"
-    tight = sum(1 for c in cuts if c.get("tag") == "TIGHT")
+    out = out_dir / f"part{part_v:02d}_flow_plan.json"
+
+    clips_json: list[dict[str, Any]] = []
+    for pc in clips:
+        te = pc.top_event
+        clips_json.append({
+            "chunk": str(pc.chunk),
+            "tier": pc.tier,
+            "section_role": pc.section_role,
+            "duration": float(pc.duration),
+            "top_event": None if te is None else {
+                "type": te.event_type,
+                "t": float(te.t),
+                "confidence": float(te.confidence),
+                "weight": float(te.weight),
+                "score": float(te.score),
+            },
+            "event_count": len(pc.events),
+        })
+
+    # Build seam descriptors. We only know where each seam was anchored if
+    # plan_flow_cuts_v2 attached metadata via `_seam_metadata` (a sibling list
+    # carried on the PlannedClip collection). Fall back to minimal schema.
+    seams_json: list[dict[str, Any]] = []
+    for i, s in enumerate(seam_offsets):
+        meta = getattr(clips[i], "_seam_meta", None) if i < len(clips) else None
+        entry: dict[str, Any] = {
+            "idx": i,
+            "offset_s": None if s is None else float(s),
+            "anchor": (meta or {}).get("anchor", "naive"),
+        }
+        if meta:
+            if meta.get("event_t_in_next") is not None:
+                entry["event_t_in_next"] = float(meta["event_t_in_next"])
+            if meta.get("downbeat_t") is not None:
+                entry["downbeat_t"] = float(meta["downbeat_t"])
+            if meta.get("shift_ms") is not None:
+                entry["shift_ms"] = int(meta["shift_ms"])
+        seams_json.append(entry)
+
+    anchored = sum(1 for s in seams_json if s["anchor"] == "event")
     summary = {
-        "part": part,
-        "cuts": cuts,
+        "part": part_v,
+        "clips": clips_json,
+        "seams": seams_json,
         "stats": {
-            "total": len(cuts),
-            "tight": tight,
-            "weak": sum(1 for c in cuts if c.get("tag") == "WEAK_ALIGN"),
-            "skip": sum(1 for c in cuts if c.get("tag") == "SKIP_ALIGN"),
-            "by_shape": {
-                shp: sum(1 for c in cuts if c.get("section_shape") == shp)
-                for shp in ("intro", "build", "drop", "break", "outro")
+            "total_clips": len(clips_json),
+            "total_seams": len(seams_json),
+            "event_anchored_seams": anchored,
+            "by_role": {
+                role: sum(1 for c in clips_json if c["section_role"] == role)
+                for role in ("intro", "build", "drop", "break", "outro", "body")
             },
         },
     }
     out.write_text(json.dumps(summary, indent=2))
     return out
+
+
+# ---------------------------------------------------------------------------
+# v12 API — event-driven ordering + event-anchored seam placement
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class PlannedClip:
+    """A clip in its planned position with its anchoring event.
+
+    Attributes:
+        chunk:        Path to the encoded body chunk mp4.
+        duration:     Post-trim body duration (seconds).
+        tier:         "T1" | "T2" | "T3".
+        top_event:    Highest ``weight * confidence`` event in the clip, or
+                      None if recognition failed.
+        events:       Full event list (already sorted by score desc).
+        section_role: Planner-assigned role — intro|build|drop|break|outro|body.
+    """
+    chunk: Path
+    duration: float
+    tier: str
+    top_event: Optional["GameEvent"]
+    events: list["GameEvent"] = field(default_factory=list)
+    section_role: str = "body"
+
+
+# Events that are "high-weight" for drop-section assignment (Rule P1-Z v2).
+_DROP_EVENT_TYPES: set[str] = {
+    "player_death",
+    "rocket_impact",
+    "rail_fire",
+    "grenade_explode",
+    "grenade_direct",
+}
+
+
+def _section_for_time(t: float, sections: list[dict[str, Any]]) -> str:
+    """Return the annotated `shape` of the section containing t (or 'body')."""
+    for s in sections:
+        if float(s.get("start", 0.0)) <= t < float(s.get("end", 0.0)):
+            return str(s.get("shape", "body"))
+    return "body"
+
+
+def _collect_downbeat_times(music_structure: dict[str, Any]) -> list[float]:
+    """Return a sorted list of downbeat timestamps (music-absolute)."""
+    dbs = music_structure.get("downbeats") or []
+    ts: list[float] = []
+    for d in dbs:
+        if isinstance(d, dict) and "t" in d:
+            ts.append(float(d["t"]))
+        elif isinstance(d, (int, float)):
+            ts.append(float(d))
+    ts.sort()
+    return ts
+
+
+def _nearest_in_sorted(arr: list[float], t: float) -> Optional[float]:
+    if not arr:
+        return None
+    i = bisect.bisect_left(arr, t)
+    cands: list[float] = []
+    if i < len(arr):
+        cands.append(arr[i])
+    if i > 0:
+        cands.append(arr[i - 1])
+    return min(cands, key=lambda x: abs(x - t))
+
+
+def snap_seams_to_events(
+    clips: list[PlannedClip],
+    music_structure: dict[str, Any],
+    xfade: float,
+    intro_offset: float,
+    anticipation_ms: int = 33,
+    max_shift: float = 0.400,
+) -> list[float | None]:
+    """Compute body-absolute xfade start offsets for an already-ordered clip list.
+
+    For each seam i (between clips[i] and clips[i+1]):
+      1. Compute naive seam offset: seam = cumulative_end_of_clip_i - xfade.
+         Body-absolute naive t = seam. Music-absolute naive t = intro_offset + seam.
+      2. If clips[i+1].top_event is available, try to place clips[i+1] so its
+         event peak lands on the nearest music downbeat.
+           music_t_peak_target = music-absolute time where the event would land
+                                 if we used naive seam = seam + next_event.t
+                                 + xfade  (clip starts at seam, then plays xfade
+                                 seconds of overlap, then event at +t).
+         We simplify: clip_{i+1} visually enters at body-time `seam`, and its
+         internal clock t=0 is at that moment. So the event peak lands at
+         music-absolute = intro_offset + seam + next_event.t.
+      3. Find nearest downbeat within +/- max_shift of that target.
+      4. Adjust seam so event peak lands on downbeat, minus anticipation_ms/1000.
+      5. Clamp to valid range (cannot overlap past end of clip_i, cannot go
+         before start of clip_i).
+
+    Returns a list of length ``len(clips) - 1`` of body-absolute xfade starts
+    (floats). Returns [] for len(clips) < 2.
+
+    Each PlannedClip gets a ``_seam_meta`` attr assigned describing the anchor
+    choice (for flow-plan JSON reporting).
+    """
+    N = len(clips)
+    if N < 2:
+        return []
+
+    downbeats = _collect_downbeat_times(music_structure)
+    anticipation_s = float(anticipation_ms) / 1000.0
+    EPS = 0.02
+    min_clip_visible = 1.0
+
+    offsets: list[float | None] = []
+    prev_offset = 0.0
+
+    for i in range(N - 1):
+        clip_i = clips[i]
+        clip_next = clips[i + 1]
+        dur_i = float(clip_i.duration)
+
+        # Naive cumulative seam offset
+        if i == 0:
+            naive = dur_i - xfade
+        else:
+            naive = prev_offset + dur_i - xfade
+
+        # Clamp bounds for seam i
+        if i == 0:
+            lo = min_clip_visible
+            hi = dur_i - xfade - EPS
+        else:
+            lo = prev_offset + min_clip_visible
+            hi = prev_offset + dur_i - xfade - EPS
+        if hi <= lo:
+            # Clip too short to position — fall back to naive clamped.
+            chosen = max(lo, min(naive, max(lo, hi)))
+            offsets.append(chosen)
+            setattr(clip_i, "_seam_meta", {"anchor": "naive"})
+            prev_offset = chosen
+            continue
+
+        top = clip_next.top_event
+        anchor_mode = "naive"
+        anchor_shift_ms: Optional[int] = None
+        anchor_downbeat: Optional[float] = None
+        anchor_event_t: Optional[float] = None
+
+        chosen = max(lo, min(naive, hi))
+
+        if top is not None and downbeats:
+            # Music-absolute event-peak time if we use naive seam
+            event_t_in_next = float(top.t)
+            music_t_peak_naive = intro_offset + naive + event_t_in_next
+            nearest_db = _nearest_in_sorted(downbeats, music_t_peak_naive)
+            if nearest_db is not None:
+                shift = nearest_db - music_t_peak_naive  # + = delay clip start
+                if abs(shift) <= max_shift:
+                    target = naive + shift - anticipation_s
+                    clamped = max(lo, min(target, hi))
+                    # Only count as event-anchored if the clamp didn't eat the shift.
+                    if abs(clamped - target) <= 0.01:
+                        chosen = clamped
+                        anchor_mode = "event"
+                        anchor_downbeat = nearest_db
+                        anchor_event_t = event_t_in_next
+                        anchor_shift_ms = int(round(shift * 1000.0))
+
+        offsets.append(chosen)
+        setattr(clip_i, "_seam_meta", {
+            "anchor": anchor_mode,
+            "event_t_in_next": anchor_event_t,
+            "downbeat_t": anchor_downbeat,
+            "shift_ms": anchor_shift_ms,
+        })
+        prev_offset = chosen
+
+    # Last clip carries no outgoing seam metadata.
+    if N >= 1:
+        setattr(clips[-1], "_seam_meta", {"anchor": "n/a"})
+    return offsets
+
+
+def _high_weight(top: Optional["GameEvent"], floor: float) -> bool:
+    if top is None:
+        return False
+    if top.event_type not in _DROP_EVENT_TYPES:
+        return False
+    return top.score >= floor
+
+
+def plan_flow_cuts_v2(
+    chunks_with_events: list[tuple[Path, float, str, list["GameEvent"]]],
+    music_structure: dict[str, Any],
+    cfg: Any,
+    intro_offset: float,
+    xfade: float,
+    anticipation_ms: int = 33,
+) -> tuple[list[PlannedClip], list[float | None]]:
+    """Event-driven ordering + event-anchored seam placement (Rule P1-CC v2).
+
+    Preserves the user's FIFO clip_list ordering WITHIN each role bucket —
+    we do not globally sort by score. We just partition clips into three
+    buckets (drop / build / break) based on their top event + tier, then
+    concatenate the buckets. This respects the ``partNN_styleb.txt`` intent
+    while still guaranteeing that a `player_death` lands in a drop section
+    of the music.
+
+    Args:
+        chunks_with_events: list of (chunk_path, duration, tier, events).
+            ``events`` should be pre-sorted by score descending (as produced
+            by ``audio_onsets.recognize_game_events``).
+        music_structure:    output of ``music_structure.analyze_music``.
+        cfg:                Config (reads ``flow_event_weight_floor``).
+        intro_offset:       PANTHEON + title-card pre-content offset.
+        xfade:              seam xfade duration (cfg.seam_xfade_duration).
+        anticipation_ms:    visual-peak lead time in ms (default 33 = 2 frames@60fps).
+
+    Returns:
+        (reordered, seam_offsets) where:
+          - reordered:   PlannedClip list in body order.
+          - seam_offsets: body-absolute xfade start times, length N-1.
+    """
+    floor = float(getattr(cfg, "flow_event_weight_floor", 0.55))
+
+    # Annotate sections (drop/build/break/intro/outro) once.
+    annotated_sections = _annotate_sections(music_structure)
+    # Which section shapes exist? We need counts to size buckets.
+    section_shapes = [str(s.get("shape", "body")) for s in annotated_sections]
+    n_drops = sum(1 for sh in section_shapes if sh == "drop")
+    n_breaks = sum(1 for sh in section_shapes if sh == "break")
+    # If music has no drops (degenerate), treat every high-weight clip as
+    # "body" and skip drop-bucket assignment.
+    have_drop_sections = n_drops > 0
+    have_break_sections = n_breaks > 0
+
+    # Partition — preserve FIFO within each bucket.
+    drop_bucket: list[PlannedClip] = []
+    break_bucket: list[PlannedClip] = []
+    build_bucket: list[PlannedClip] = []
+
+    for chunk, dur, tier, events in chunks_with_events:
+        top = events[0] if events else None
+        pc = PlannedClip(
+            chunk=Path(chunk),
+            duration=float(dur),
+            tier=str(tier),
+            top_event=top,
+            events=list(events),
+            section_role="body",
+        )
+
+        if have_drop_sections and _high_weight(top, floor):
+            pc.section_role = "drop"
+            drop_bucket.append(pc)
+        elif top is None:
+            # No recognized event — good filler for build (atmospheric).
+            pc.section_role = "build"
+            build_bucket.append(pc)
+        elif have_break_sections and dur >= 6.0 and len(events) <= 2:
+            # Long clip with few events — let the viewer breathe.
+            pc.section_role = "break"
+            break_bucket.append(pc)
+        else:
+            pc.section_role = "build"
+            build_bucket.append(pc)
+
+    # Interleave: drop clips distributed across the ordering so they roughly
+    # align with music drops (not clustered). We keep the user's FIFO within
+    # each bucket, then weave: one build, then one drop (if available), etc.
+    # If fewer drop clips than drop sections, some drop sections just get a
+    # build-bucket clip. If more drops than sections, excess drop clips fall
+    # to the end (still prominent — they'll land on strong downbeats via
+    # snap_seams_to_events).
+    reordered: list[PlannedClip] = []
+    total = len(drop_bucket) + len(build_bucket) + len(break_bucket)
+    if total == 0:
+        return [], []
+
+    # Simple weave: target drop density = n_drops / total.
+    # Walk build_bucket + break_bucket in order; sprinkle drop_bucket at
+    # roughly-even positions. Tier is tiebreaker only.
+    if drop_bucket and (len(build_bucket) + len(break_bucket)) > 0:
+        filler = build_bucket + break_bucket  # FIFO-preserving (builds first)
+        n_slots = max(len(drop_bucket), 1)
+        # Evenly spaced drop indices within `total` output positions.
+        drop_positions: set[int] = set()
+        for k in range(n_slots):
+            pos = int(round((k + 1) * total / (n_slots + 1)))
+            # avoid collisions by bumping forward
+            while pos in drop_positions and pos < total:
+                pos += 1
+            drop_positions.add(pos)
+
+        di = 0
+        fi = 0
+        for pos in range(total):
+            if pos in drop_positions and di < len(drop_bucket):
+                reordered.append(drop_bucket[di])
+                di += 1
+            elif fi < len(filler):
+                reordered.append(filler[fi])
+                fi += 1
+            elif di < len(drop_bucket):
+                reordered.append(drop_bucket[di])
+                di += 1
+    else:
+        # No drop sections, or no non-drop clips — just concatenate buckets
+        # in a sensible order.
+        reordered = drop_bucket + build_bucket + break_bucket
+
+    # Now compute seam offsets with event anchoring.
+    seam_offsets = snap_seams_to_events(
+        clips=reordered,
+        music_structure=music_structure,
+        xfade=xfade,
+        intro_offset=intro_offset,
+        anticipation_ms=anticipation_ms,
+    )
+    return reordered, seam_offsets
 
 
 if __name__ == "__main__":  # pragma: no cover
