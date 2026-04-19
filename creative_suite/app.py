@@ -28,6 +28,7 @@ def create_app() -> FastAPI:
         md3,
         ollama,
         packs,
+        phase1,
         parts,
         variants,
     )
@@ -39,6 +40,7 @@ def create_app() -> FastAPI:
     app.include_router(variants.router)
     app.include_router(md3.router)
     app.include_router(packs.router)
+    app.include_router(phase1.router)
     app.include_router(ollama.router)
     app.include_router(capture.router)
 
