@@ -1,0 +1,94 @@
+# PE probe: wolfcamql-11.3_uix86.dll
+- size: 1,160,960 bytes
+- machine: x86 (I386)
+- pe32+: False
+- image_base: 0x63640000
+- timestamp: 1471095935 (unix epoch)
+- characteristics: 0x2106
+- debug_dir: rva=0x0 size=0 (0 = no debug info / stripped)
+- import_dir: rva=0x132000 size=1628
+
+## Sections
+  .text      vaddr=0x00001000 vsize=0x00037614 rsize=0x00037800 flags=[CODE|INITIALIZED_DATA|EXECUTE|READ]
+  .data      vaddr=0x00039000 vsize=0x0000273c rsize=0x00002800 flags=[INITIALIZED_DATA|READ|WRITE]
+  .rdata     vaddr=0x0003c000 vsize=0x0000ae24 rsize=0x0000b000 flags=[INITIALIZED_DATA|READ]
+  .bss       vaddr=0x00047000 vsize=0x000e63c0 rsize=0x00000000 flags=[UNINITIALIZED_DATA|READ|WRITE]
+  .edata     vaddr=0x0012e000 vsize=0x00003d37 rsize=0x00003e00 flags=[INITIALIZED_DATA|READ]
+  .idata     vaddr=0x00132000 vsize=0x0000065c rsize=0x00000800 flags=[INITIALIZED_DATA|READ|WRITE]
+  .CRT       vaddr=0x00133000 vsize=0x0000002c rsize=0x00000200 flags=[INITIALIZED_DATA|READ|WRITE]
+  .tls       vaddr=0x00134000 vsize=0x00000020 rsize=0x00000200 flags=[INITIALIZED_DATA|READ|WRITE]
+  .reloc     vaddr=0x00135000 vsize=0x00006b88 rsize=0x00006c00 flags=[INITIALIZED_DATA|READ]
+  /4         vaddr=0x0013c000 vsize=0x00000930 rsize=0x00000a00 flags=[INITIALIZED_DATA|READ]
+  /19        vaddr=0x0013d000 vsize=0x00071667 rsize=0x00071800 flags=[INITIALIZED_DATA|READ]
+  /31        vaddr=0x001af000 vsize=0x0000b26f rsize=0x0000b400 flags=[INITIALIZED_DATA|READ]
+  /45        vaddr=0x001bb000 vsize=0x0000d376 rsize=0x0000d400 flags=[INITIALIZED_DATA|READ]
+  /57        vaddr=0x001c9000 vsize=0x000077a4 rsize=0x00007800 flags=[INITIALIZED_DATA|READ]
+  /70        vaddr=0x001d1000 vsize=0x000006e6 rsize=0x00000800 flags=[INITIALIZED_DATA|READ]
+  /81        vaddr=0x001d2000 vsize=0x0001f63c rsize=0x0001f800 flags=[INITIALIZED_DATA|READ]
+  /92        vaddr=0x001f2000 vsize=0x00002d40 rsize=0x00002e00 flags=[INITIALIZED_DATA|READ]
+
+## Imports (DLL -> first 50 symbols)
+  KERNEL32.dll
+    DeleteCriticalSection
+    EnterCriticalSection
+    GetCurrentProcess
+    GetCurrentProcessId
+    GetCurrentThreadId
+    GetLastError
+    GetModuleHandleA
+    GetProcAddress
+    GetSystemTimeAsFileTime
+    GetTickCount
+    InitializeCriticalSection
+    LeaveCriticalSection
+    QueryPerformanceCounter
+    SetUnhandledExceptionFilter
+    Sleep
+    TerminateProcess
+    TlsGetValue
+    UnhandledExceptionFilter
+    VirtualProtect
+    VirtualQuery
+  msvcrt.dll
+    __dllonexit
+    __setusermatherr
+    _amsg_exit
+    _errno
+    _initterm
+    _iob
+    _lock
+    _onexit
+    _vsnprintf
+    calloc
+    exit
+    fprintf
+    free
+    fwrite
+    isalnum
+    localeconv
+    malloc
+    memcpy
+    memmove
+    qsort
+    rand
+    strcat
+    strchr
+    strcmp
+    strcpy
+    strlen
+    strncmp
+    strrchr
+    strstr
+    _unlock
+    abort
+    acos
+    atan2
+    atof
+    atoi
+    tan
+    tolower
+    toupper
+    vfprintf
+
+## Strings  (ASCII + UTF-16LE, min_len=6, total=7,720)
+  ... (7720 more strings truncated)
