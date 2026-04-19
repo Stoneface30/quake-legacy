@@ -7,6 +7,7 @@ Phase B/C/D.
 from __future__ import annotations
 
 import json
+import sqlite3
 from pathlib import Path
 from typing import Any
 
@@ -65,3 +66,18 @@ def get_flow_plan(n: int, request: Request) -> dict[str, Any]:
     if not p.exists():
         raise HTTPException(404, f"No flow plan for part {n}")
     return json.loads(p.read_text(encoding="utf-8"))
+
+
+@router.get("/parts/{n}/versions")
+def list_versions(n: int, request: Request) -> list[dict[str, Any]]:
+    cfg = request.app.state.cfg
+    con = sqlite3.connect(str(cfg.db_path))
+    try:
+        con.row_factory = sqlite3.Row
+        cur = con.execute(
+            "SELECT * FROM render_versions WHERE part = ? ORDER BY created_at DESC",
+            (n,),
+        )
+        return [dict(r) for r in cur.fetchall()]
+    finally:
+        con.close()

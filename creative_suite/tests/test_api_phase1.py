@@ -99,3 +99,36 @@ def test_list_parts_returns_parts_with_flow_plans(
         nums = sorted(p["part"] for p in parts)
         assert nums == [4, 5]
         assert all(p["has_flow_plan"] for p in parts)
+
+
+def test_versions_list_returns_db_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = tmp_path / "output"
+    _seed_output(out, 4)
+    monkeypatch.setenv("CS_STORAGE_ROOT", str(tmp_path / "storage"))
+    monkeypatch.setenv("CS_PHASE1_OUTPUT_DIR", str(out))
+    with TestClient(create_app()) as c:
+        import sqlite3
+        from creative_suite.config import Config
+        cfg = Config()
+        con = sqlite3.connect(str(cfg.db_path))
+        con.execute(
+            "INSERT INTO render_versions "
+            "(part, tag, notes, flow_plan_git_sha, flow_plan_path, mp4_path, "
+            "level_pass, level_delta_lu, max_drift_ms, mode) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?)",
+            (4, "v10.4-manual", "first real", "a" * 40,
+             "output/part04_flow_plan.json", "output/Part4_v10.4_manual.mp4",
+             1, -21.0, 7.0, "ship"),
+        )
+        con.commit()
+        con.close()
+
+        r = c.get("/api/phase1/parts/4/versions")
+        assert r.status_code == 200
+        rows = r.json()
+        assert len(rows) == 1
+        assert rows[0]["tag"] == "v10.4-manual"
+        assert rows[0]["level_pass"] == 1
+        assert rows[0]["mp4_path"].endswith(".mp4")
