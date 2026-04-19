@@ -107,11 +107,18 @@ def extract_game_stem(
     rendered_mp4: Path | str,
     clip_list: Iterable[Path | str],
     out_wav: Path | str,
+    loudnorm_target: float | None = -18.0,
 ) -> Path:
     """Concatenate the game audio tracks from the listed clips into a WAV.
 
     This isolates the game-only side of the mix so ebur128 can measure game
     loudness independent of music.
+
+    CRITICAL: render_part_v6.py applies `loudnorm=I=-18:TP=-1.5:LRA=11` to
+    the game stream before mixing. If the stem extract here skips that, the
+    gate measures -31 LUFS while the actual mix has game at -18 LUFS, so
+    the gate lies by ~13 LU. Default `loudnorm_target=-18.0` mirrors the
+    renderer; pass `None` to measure pre-loudnorm (debugging only).
     """
     out = Path(out_wav)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -151,25 +158,25 @@ def extract_game_stem(
             wav_entries.append(tmp_wav)
         lines = [f"file '{p.as_posix()}'\n" for p in wav_entries]
         list_file.write_text("".join(lines))
-        subprocess.run(
-            [
-                _ffmpeg(),
-                "-y",
-                "-hide_banner",
-                "-loglevel",
-                "error",
-                "-f",
-                "concat",
-                "-safe",
-                "0",
-                "-i",
-                str(list_file),
-                "-c:a",
-                "pcm_s16le",
-                str(out),
-            ],
-            check=True,
-        )
+        concat_cmd = [
+            _ffmpeg(),
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-f",
+            "concat",
+            "-safe",
+            "0",
+            "-i",
+            str(list_file),
+        ]
+        # Match render_part_v6's `loudnorm=I=-18:TP=-1.5:LRA=11` on game stream
+        # so the gate measures game AS MIXED, not raw clip-audio loudness.
+        if loudnorm_target is not None:
+            concat_cmd += ["-af", f"loudnorm=I={loudnorm_target}:TP=-1.5:LRA=11"]
+        concat_cmd += ["-c:a", "pcm_s16le", str(out)]
+        subprocess.run(concat_cmd, check=True)
     finally:
         if list_file.exists():
             list_file.unlink()
