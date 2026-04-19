@@ -14,7 +14,7 @@ import hashlib, json, os, sys, re
 from pathlib import Path
 from collections import defaultdict
 
-ROOT = Path(r"G:/QUAKE_LEGACY/tools/quake-source")
+ROOT = Path(r"G:/QUAKE_LEGACY/game-dissection/engines/variants")
 OUT  = Path(r"G:/QUAKE_LEGACY/game-dissection/engines/_manifest")
 OUT.mkdir(parents=True, exist_ok=True)
 

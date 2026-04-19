@@ -1,0 +1,12 @@
+*egg-info
+setuptools*
+dist/*
+.env
+output
+*.dm_73
+demos/*
+api/*
+build
+__pycache__
+*.so
+*pyc

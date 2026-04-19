@@ -123,7 +123,14 @@ class Config:
         # (phase1/audio_levels.py) that BLOCKS render ship if music integrated
         # loudness is < 12 LU below game peak. Subjective mixing is over — numbers
         # decide from here. User: "please use 2 channel and check level".
-        self.music_volume:       float = 0.20  # music at 20% — objective-gated
+        # Rule P1-G v5+fix (Part 4 v11 gate honesty pass 2026-04-19): once the
+        # measurement bug in extract_music_stem was fixed (was measuring RAW
+        # source, not the 0.20-scaled mix), the gate failed honestly at
+        # delta=-9 LU. Further audit showed render applies loudnorm I=-18 on
+        # game stream — so real mix = game@-18, music@source-14dB. With
+        # source music at ~-8.5 LUFS, music_volume must be ≤ 0.08 for music
+        # final ≤ -30 LUFS, giving delta ≥ +12 LU. 0.20 → 0.08 path-B fix.
+        self.music_volume:       float = 0.08  # music at 8% — gate-compliant (prediction +12.4 LU margin)
         self.music_fadein_s:     float = 2.0   # fade music up over 2 s under PANTHEON
         self.music_fadeout_s:    float = 2.5   # matches outro closeout
         self.music_level_gate_lu: float = 12.0 # music integrated must be ≥12 LU below game peak

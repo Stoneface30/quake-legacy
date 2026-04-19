@@ -1,7 +1,16 @@
 # Phase A1 Canonical Tree — Ready for Deletion Checkpoint
 
-Canonical tree is built at `game-dissection/engines/_canonical/` plus
-per-tree variant dirs at `game-dissection/engines/<tree>/`.
+**STATUS 2026-04-19: EXECUTED — tools/quake-source/ removed entirely.**
+The rm-rf list below is archival. Per the engine-folder-unification plan
+(`docs/research/engine-folder-unification-plan-2026-04-19.md`):
+- `tools/quake-source/REPOS.md` → `game-dissection/engines/REPOS.md`
+- `tools/quake-source/q3mme/` → `game-dissection/engines/_forks/q3mme/`
+- `tools/quake-source/{all others}/` → deleted after extraction of proto-73
+  patch series into `game-dissection/engines/wolfcam-knowledge/patches/`
+- Per-tree variant dirs now live under `game-dissection/engines/variants/`.
+
+Canonical tree remains at `game-dissection/engines/_canonical/`.
+Per-tree thin variant dirs now at `game-dissection/engines/variants/<tree>/`.
 
 ## Statistics
 

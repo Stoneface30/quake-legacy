@@ -37,6 +37,8 @@ class ClipEntry:
     segments: List[str]          # ordered filenames (1 = single, 2+ = multi-angle)
     slow: bool = False           # apply slow-motion filter to last segment
     intro: bool = False          # hard cut before this entry (no xfade from prior)
+    speedup: bool = False        # apply fast-forward to last segment (silence-ff, [fast])
+    zoom: bool = False           # apply zoom/crop effect (reserved, [zoom])
     raw_line: str = ""           # original text for debugging
 
 
@@ -47,12 +49,21 @@ def parse_clip_entry(line: str) -> ClipEntry:
     # Extract flags
     slow = "[slow]" in raw
     intro = "[intro]" in raw
-    cleaned = raw.replace("[slow]", "").replace("[intro]", "").strip()
+    speedup = "[fast]" in raw or "[speedup]" in raw
+    zoom = "[zoom]" in raw
+    cleaned = (raw
+               .replace("[slow]", "")
+               .replace("[intro]", "")
+               .replace("[fast]", "")
+               .replace("[speedup]", "")
+               .replace("[zoom]", "")
+               .strip())
 
     # Split on > for multi-angle
     segments = [s.strip() for s in cleaned.split(">") if s.strip()]
 
-    return ClipEntry(segments=segments, slow=slow, intro=intro, raw_line=raw)
+    return ClipEntry(segments=segments, slow=slow, intro=intro,
+                     speedup=speedup, zoom=zoom, raw_line=raw)
 
 
 def load_clip_list(path: Path) -> List[str]:

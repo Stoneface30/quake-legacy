@@ -1395,6 +1395,7 @@ def main():
         stem_dir.mkdir(parents=True, exist_ok=True)
         mus_stem = _audio_levels.extract_music_stem(
             final_out, music_path, stem_dir / "music.wav",
+            music_volume=cfg.music_volume,
         )
         game_stem = _audio_levels.extract_game_stem(
             final_out, chunks, stem_dir / "game.wav",
