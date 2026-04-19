@@ -20,6 +20,18 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Creative Suite v2", version=VERSION)
     app.state.cfg = cfg
 
+    from creative_suite.api._render_worker import JobQueue
+
+    app.state.job_queue = JobQueue()
+
+    @app.on_event("startup")  # pyright: ignore[reportDeprecated]
+    async def _cinema_startup() -> None:  # pyright: ignore[reportUnusedFunction]
+        await app.state.job_queue.start()
+
+    @app.on_event("shutdown")  # pyright: ignore[reportDeprecated]
+    async def _cinema_shutdown() -> None:  # pyright: ignore[reportUnusedFunction]
+        await app.state.job_queue.stop()
+
     from creative_suite.api import (
         annotations,
         assets,

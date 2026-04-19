@@ -152,3 +152,27 @@ def test_put_flow_plan_writes_file(
         body = r.json()
         assert body["saved"] is True
         assert (out / "part04_flow_plan.json").exists()
+
+
+def test_rebuild_returns_job_id_and_second_submit_409(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import subprocess as sp
+    out = tmp_path / "output"
+    out.mkdir()
+    sp.run(["git", "init", "-q", str(out)], check=True)
+    sp.run(["git", "-C", str(out), "config", "user.email", "t@t"], check=True)
+    sp.run(["git", "-C", str(out), "config", "user.name", "t"], check=True)
+    (out / "part04_flow_plan.json").write_text('{"clips":[]}', encoding="utf-8")
+    monkeypatch.setenv("CS_STORAGE_ROOT", str(tmp_path / "storage"))
+    monkeypatch.setenv("CS_PHASE1_OUTPUT_DIR", str(out))
+    monkeypatch.setenv("CS_REBUILD_MOCK", "1")
+    with TestClient(create_app()) as c:
+        r = c.post("/api/phase1/parts/4/rebuild",
+                   json={"tag": "v-test", "notes": "", "mode": "ship"})
+        assert r.status_code == 200
+        jid = r.json()["job_id"]
+        # Immediately try again — should be 409 (mock still running in queue)
+        r2 = c.post("/api/phase1/parts/4/rebuild",
+                    json={"tag": "v-test-2", "notes": "", "mode": "ship"})
+        assert r2.status_code == 409

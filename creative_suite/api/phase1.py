@@ -6,15 +6,19 @@ Phase B/C/D.
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import sqlite3
 from pathlib import Path
-from typing import Any
+from typing import Any, Awaitable, Callable
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from creative_suite.api._waveform import compute_peaks
+from creative_suite.api._render_worker import JobQueue
+from creative_suite.api._rebuild_job import rebuild_part
 
 router = APIRouter(prefix="/api/phase1", tags=["phase1"])
 
@@ -114,3 +118,54 @@ def put_flow_plan(n: int, body: FlowPlanBody, request: Request) -> dict[str, Any
     jpath = out / f"part{n:02d}_flow_plan.json"
     jpath.write_text(json.dumps(body.model_dump(), indent=2), encoding="utf-8")
     return {"saved": True, "path": str(jpath)}
+
+
+class RebuildBody(BaseModel):
+    tag: str
+    notes: str = ""
+    mode: str = "ship"
+
+
+@router.post("/parts/{n}/rebuild")
+async def post_rebuild(
+    n: int, body: RebuildBody, request: Request, response: Response
+) -> dict[str, Any]:
+    cfg = request.app.state.cfg
+    q: JobQueue = request.app.state.job_queue
+    output_dir = cfg.phase1_output_dir
+    db_path = cfg.db_path
+    repo_root = Path(__file__).resolve().parents[2]
+
+    async def run(emit: Callable[[str, int, str], Awaitable[None]]) -> None:
+        await rebuild_part(
+            emit=emit, part=n, tag=body.tag, notes=body.notes, mode=body.mode,
+            output_dir=output_dir, db_path=db_path, repo_root=repo_root,
+        )
+
+    try:
+        jid = q.submit(run)
+    except RuntimeError:
+        response.status_code = 409
+        return {"error": "busy"}
+    return {"job_id": jid}
+
+
+@router.get("/jobs/{job_id}/events")
+async def job_events(job_id: str, request: Request) -> StreamingResponse:
+    q: JobQueue = request.app.state.job_queue
+
+    async def gen():
+        last_idx = 0
+        for _ in range(1200):  # ~10 min cap @ 500 ms
+            evts = q.events(job_id)
+            while last_idx < len(evts):
+                yield f"data: {json.dumps(evts[last_idx])}\n\n"
+                last_idx += 1
+            status = q.status(job_id)
+            if status in ("done", "failed"):
+                final = {"phase": status, "pct": 100, "msg": "end"}
+                yield f"data: {json.dumps(final)}\n\n"
+                return
+            await asyncio.sleep(0.5)
+
+    return StreamingResponse(gen(), media_type="text/event-stream")
