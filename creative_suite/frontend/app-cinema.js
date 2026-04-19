@@ -3,6 +3,7 @@ import { api } from "/cinema-static/api-client.js";
 import { renderMusic } from "/cinema-static/panel-music.js";
 import { renderLevels } from "/cinema-static/panel-levels.js";
 import { renderVersions } from "/cinema-static/panel-versions.js";
+import { renderFlow, reorderClips } from "/cinema-static/panel-flow.js";
 
 export const S = {
   part: null,
@@ -57,10 +58,41 @@ export async function loadPart(n) {
     onLoadA: (r) => console.log("load A", r),
     onLoadB: (r) => console.log("load B", r),
   });
+  S.dirty = false;
+  document.getElementById("flow-save").disabled = true;
+  document.getElementById("flow-dirty").textContent = "";
+  refreshFlow();
   // panel modules are wired in later tasks; loadPart stays the dispatch point
+}
+
+function refreshFlow() {
+  renderFlow({
+    gridEl: document.getElementById("flow-grid"),
+    flowPlan: S.flowPlan,
+    onReorder: (from, to) => {
+      S.flowPlan.clips = reorderClips(S.flowPlan.clips, from, to);
+      markDirty();
+      refreshFlow();
+    },
+    onClipOverride: null,   // wired in Task C2
+    onSeamDrag: null,       // wired in Task C3
+  });
+}
+
+function markDirty() {
+  S.dirty = true;
+  document.getElementById("flow-save").disabled = false;
+  document.getElementById("flow-dirty").textContent = " · unsaved changes";
 }
 
 loadParts().catch((err) => {
   document.getElementById("status-pill").textContent = "load failed";
   console.error(err);
+});
+
+document.getElementById("flow-save").addEventListener("click", async () => {
+  await api.putFlowPlan(S.part, S.flowPlan);
+  S.dirty = false;
+  document.getElementById("flow-save").disabled = true;
+  document.getElementById("flow-dirty").textContent = " · saved";
 });
