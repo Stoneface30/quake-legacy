@@ -5,16 +5,37 @@ from pathlib import Path
 import pytest
 
 from creative_suite.clips.ffprobe import probe_duration
-from creative_suite.config import Config
+from creative_suite.config import REPO_ROOT, Config
 from creative_suite.db.migrate import migrate
 
-FFMPEG = shutil.which("ffmpeg") or str(
-    Path(__file__).resolve().parent.parent.parent / "tools" / "ffmpeg" / "ffmpeg.exe"
-)
+
+def _find_ffmpeg() -> str:
+    """Locate ffmpeg: PATH → repo tools dir → absolute vendored install.
+
+    Worktrees live deeper than the main repo, so a simple `parent.parent.parent`
+    traversal misses the vendored `tools/ffmpeg/ffmpeg.exe`. We walk candidates
+    in preference order and return whichever exists.
+    """
+    on_path = shutil.which("ffmpeg")
+    if on_path:
+        return on_path
+    candidates = [
+        REPO_ROOT / "tools" / "ffmpeg" / "ffmpeg.exe",
+        Path("G:/QUAKE_LEGACY/tools/ffmpeg/ffmpeg.exe"),
+    ]
+    for c in candidates:
+        if c.exists():
+            return str(c)
+    return str(candidates[0])  # non-existent; test will skip below
+
+
+FFMPEG = _find_ffmpeg()
 
 
 @pytest.mark.skipif(not Path(FFMPEG).exists(), reason="ffmpeg not found")
-def test_probe_duration_caches(tmp_path: Path, monkeypatch) -> None:
+def test_probe_duration_caches(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("CS_STORAGE_ROOT", str(tmp_path))
     cfg = Config()
     migrate(cfg)
