@@ -58,6 +58,21 @@ Everything downstream — AI cinematography, automated fragmovie assembly, photo
 
 ---
 
+## Latest — 2026-04-19 (Cinema Suite Phase 1 ships)
+
+- **Cinema Suite Phase 1 shipped** — `creative_suite/` FastAPI + vanilla-JS web UI replacing text-file editing. 25-task plan delivered across Phase A→D via `superpowers:subagent-driven-development`. **132 tests pass · pyright 0 errors · 4 code-review findings fixed.** Branch `creative-suite-v2-step2`.
+  - **Panels:** Part picker · clip sequence · per-clip overrides · waveform + flow · seam drag→downbeat · music track swap · **Tier A** mp4 draft preview (wolfcam→ffmpeg, ~45s) · **Tier B** live engine scrub (WebSocket + BitBlt JPEG @ 4 Hz)
+  - **Spec §11.1 hook:** `render_part_v6.py` reads `beat_snapped_offsets[]` from `flow_plan.json` and overrides `body_seam_offsets[i]` bounds-checked before `assemble_body_with_xfades`. Byte-identical render when no override present.
+  - **Concurrency:** single-worker `asyncio.Queue` (depth=1, 409-on-busy) — user never runs two renders at once, simplicity wins.
+  - **Version history:** git sub-repo at `output/.git`, tags `part{NN}/{tag}`, refname-validated to prevent DB/git divergence.
+  - **Mock gates for CI:** `CS_REBUILD_MOCK`, `CS_PREVIEW_MOCK`, `CS_ENGINE_MOCK` — tests run without wolfcam/ffmpeg binaries.
+  - **Designer liaison doc:** [`docs/handoff/claude-designer-liaison-2026-04-19.md`](docs/handoff/claude-designer-liaison-2026-04-19.md) — single source of truth for the parallel Claude Designer chat.
+- **Demo corpus fully extracted** — 6,465 `.dm_73` files · 13.19 GB · 11 anonymized players on disk. FT-1 (C++ parser full-corpus run) and FT-5 (nickname regex dictionary) unblocked.
+- **npm allowance unlocked** — OSS-only, pinned versions, `npm audit` + Snyk clean, no build-time network calls. First candidate queued: `wavesurfer.js` v7 (BSD-3, ~60KB) for Panel 4 upgrade in follow-up commit.
+- **Ghidra FT-4 sandbox scaffold** ([`game-dissection/ghidra/`](game-dissection/ghidra/)) — 7-binary inventory, PE-probe script (no Ghidra required), preliminary dumps: **`qagamex86.dll` has DWARF + STABS — not stripped**; 34-entry MOD_* enum seed (protocol-73 confirmed via `MOD_HMG` + `MOD_RAILGUN_HEADSHOT`); 103-entry EV_* enum seed; WolfcamQL capture-cvar seed. Blockers for full dissection: Ghidra 11.3 + JDK 21 install + `Wolf Whisperer.rar` extraction (user actions).
+
+---
+
 ## Latest — 2026-04-18 (session 5)
 
 - **Body-drift root cause fixed** — the xfade-chain body-audio `atrim` was computed as `sum(durs) - (N-1)*x`, which assumes uniform xfade offsets. Once `plan_flow_cuts_v2()` started emitting beat-snapped per-seam offsets, the naive sum over-estimated the video end by 8,246 ms on Part 4. Fix: `expected_body_dur = offsets[-1] + durs[-1]`. Part 4 v10.3 ships with **max drift 6.3 ms** across the 25-minute body (gate is 40 ms). See L129 in `Vault/learnings.md`.
