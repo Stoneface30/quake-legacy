@@ -10,6 +10,7 @@ const state = {
   activeAssetId: null,
   filter: "",
   md3: null,  // active MD3Viewer instance (disposed on re-select)
+  ollamaDisabled: false,  // Task 9.2 — session-wide latch after first 503
 };
 
 async function loadTree() {
@@ -196,6 +197,10 @@ function selectAsset(id, path) {
   });
 
   document.getElementById("btn-generate").disabled = false;
+  // Task 9.2 — Ollama chips button stays enabled until the session-wide
+  // `ollamaDisabled` flag is set (flipped true on first 503 response).
+  document.getElementById("btn-suggest").disabled = state.ollamaDisabled === true;
+  document.getElementById("chips").innerHTML = "";  // clear stale chips
   loadVariants(id);
 }
 
@@ -381,6 +386,69 @@ function wireGenerate() {
   btn.addEventListener("click", submitGenerate);
 }
 
+// ---------------------------------------------------------------------- //
+// Task 9.2 — Ollama prompt-suggest chips.
+//
+// On click: POST /api/ollama/suggest with the active asset_id, render the
+// returned 3 suffixes as clickable pill chips. Clicking a chip appends
+// the text to the suffix textarea (with a leading comma-space if the
+// textarea is non-empty). A single 503 disables the button for the rest
+// of the session — per spec §11.4 we never show a modal for it.
+// ---------------------------------------------------------------------- //
+
+async function fetchPromptSuggestions() {
+  if (!state.activeAssetId) return;
+  const btn = document.getElementById("btn-suggest");
+  const chips = document.getElementById("chips");
+  btn.disabled = true;
+  btn.textContent = "Thinking…";
+  chips.innerHTML = "";
+  try {
+    const r = await fetch("/api/ollama/suggest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ asset_id: state.activeAssetId }),
+    });
+    if (r.status === 503) {
+      state.ollamaDisabled = true;
+      btn.title = "Ollama unavailable — restart server to retry";
+      return;
+    }
+    if (!r.ok) throw new Error(`suggest failed: ${r.status}`);
+    const { suggestions } = await r.json();
+    renderChips(suggestions || []);
+  } catch (e) {
+    console.error(e);
+  } finally {
+    btn.textContent = "Suggest prompts";
+    // Only re-enable if we didn't latch ollamaDisabled above.
+    if (!state.ollamaDisabled) btn.disabled = false;
+  }
+}
+
+function renderChips(suggestions) {
+  const chips = document.getElementById("chips");
+  chips.innerHTML = "";
+  suggestions.forEach(s => {
+    const chip = document.createElement("span");
+    chip.className = "chip";
+    chip.textContent = s;
+    chip.addEventListener("click", () => {
+      const ta = document.getElementById("user-suffix");
+      const cur = ta.value.trim();
+      ta.value = cur ? `${cur}, ${s}` : s;
+    });
+    chips.appendChild(chip);
+  });
+}
+
+function wireSuggest() {
+  document.getElementById("btn-suggest").addEventListener(
+    "click", fetchPromptSuggestions,
+  );
+}
+
 loadTree();
 wireFilter();
 wireGenerate();
+wireSuggest();

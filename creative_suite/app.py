@@ -22,9 +22,11 @@ def create_app() -> FastAPI:
     from creative_suite.api import (
         annotations,
         assets,
+        capture,
         clips,
         comfy,
         md3,
+        ollama,
         packs,
         parts,
         variants,
@@ -37,6 +39,8 @@ def create_app() -> FastAPI:
     app.include_router(variants.router)
     app.include_router(md3.router)
     app.include_router(packs.router)
+    app.include_router(ollama.router)
+    app.include_router(capture.router)
 
     # Spec §11.3 mitigation: check img2img workflow placeholders at boot.
     # This only logs — it never aborts startup, so a ComfyUI update that
