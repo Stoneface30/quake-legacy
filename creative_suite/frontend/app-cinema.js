@@ -1,6 +1,7 @@
 // creative_suite/frontend/app-cinema.js
 import { api } from "/cinema-static/api-client.js";
 import { renderMusic } from "/cinema-static/panel-music.js";
+import { renderLevels } from "/cinema-static/panel-levels.js";
 
 export const S = {
   part: null,
@@ -40,6 +41,13 @@ export async function loadPart(n) {
     metaEl: document.getElementById("wave-meta"),
     waveform: S.waveform,
     musicStructure: S.artifacts?.music_structure,
+  });
+  renderLevels({
+    barsEl: document.getElementById("levels-bars"),
+    canvas: document.getElementById("drift-canvas"),
+    gateEl: document.getElementById("levels-gate"),
+    levels: S.artifacts?.levels,
+    syncAudit: S.artifacts?.sync_audit,
   });
   // panel modules are wired in later tasks; loadPart stays the dispatch point
 }
