@@ -4,6 +4,7 @@ import { renderMusic, renderMusicSlots } from "/cinema-static/panel-music.js";
 import { renderLevels } from "/cinema-static/panel-levels.js";
 import { renderVersions } from "/cinema-static/panel-versions.js";
 import { renderFlow, reorderClips } from "/cinema-static/panel-flow.js";
+import { wirePreviewA } from "/cinema-static/panel-preview.js";
 
 export const S = {
   part: null,
@@ -89,6 +90,14 @@ export async function loadPart(n) {
   document.getElementById("flow-save").disabled = true;
   document.getElementById("flow-dirty").textContent = "";
   refreshFlow();
+  wirePreviewA({
+    logEl: document.getElementById("preview-log"),
+    box: document.getElementById("preview-a-box"),
+    btn: document.getElementById("preview-draft"),
+    getSelection: () => Array.from(document.querySelectorAll('.clip-card[data-selected="1"]'))
+      .map(el => S.flowPlan.clips[parseInt(el.dataset.idx, 10)].chunk),
+    getPart: () => S.part,
+  });
   // panel modules are wired in later tasks; loadPart stays the dispatch point
 }
 
@@ -119,6 +128,13 @@ function markDirty() {
   document.getElementById("flow-save").disabled = false;
   document.getElementById("flow-dirty").textContent = " · unsaved changes";
 }
+
+document.getElementById("flow-grid").addEventListener("clip-select-changed", () => {
+  const n = document.querySelectorAll('.clip-card[data-selected="1"]').length;
+  document.getElementById("preview-selection-count").textContent =
+    `${n} clip${n === 1 ? "" : "s"} selected`;
+  document.getElementById("preview-draft").disabled = n === 0;
+});
 
 loadParts().catch((err) => {
   document.getElementById("status-pill").textContent = "load failed";
