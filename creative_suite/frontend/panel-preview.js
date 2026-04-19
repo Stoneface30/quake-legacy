@@ -49,3 +49,38 @@ function renderMp4(box, mp4Path) {
   v.src = `/media/phase1/${rel}`;
   box.append(v);
 }
+
+export function wireEngine({ launchBtn, frameImg, metaEl, onSeekFn, getPart }) {
+  let ws = null;
+  launchBtn.addEventListener("click", () => {
+    if (ws) {
+      ws.close(); ws = null;
+      launchBtn.textContent = "LAUNCH ENGINE (B)";
+      frameImg.style.display = "none";
+      return;
+    }
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    ws = new WebSocket(`${proto}//${location.host}/api/phase1/parts/${getPart()}/engine`);
+    ws.onopen = () => {
+      launchBtn.textContent = "STOP ENGINE";
+      frameImg.style.display = "block";
+    };
+    ws.onmessage = (ev) => {
+      const msg = JSON.parse(ev.data);
+      if (msg.kind === "frame") {
+        frameImg.src = `data:image/jpeg;base64,${msg.jpeg_b64}`;
+        metaEl.textContent = `t=${((msg.t_ms ?? 0) / 1000).toFixed(2)}s`;
+      } else if (msg.kind === "error") {
+        metaEl.textContent = `engine error: ${msg.msg}`;
+      }
+    };
+    ws.onclose = () => {
+      ws = null;
+      launchBtn.textContent = "LAUNCH ENGINE (B)";
+      frameImg.style.display = "none";
+    };
+    onSeekFn?.((ms) => {
+      if (ws && ws.readyState === 1) ws.send(JSON.stringify({ cmd: "seek", t_ms: ms }));
+    });
+  });
+}

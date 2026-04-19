@@ -4,7 +4,7 @@ import { renderMusic, renderMusicSlots } from "/cinema-static/panel-music.js";
 import { renderLevels } from "/cinema-static/panel-levels.js";
 import { renderVersions } from "/cinema-static/panel-versions.js";
 import { renderFlow, reorderClips } from "/cinema-static/panel-flow.js";
-import { wirePreviewA } from "/cinema-static/panel-preview.js";
+import { wirePreviewA, wireEngine } from "/cinema-static/panel-preview.js";
 
 export const S = {
   part: null,
@@ -14,6 +14,8 @@ export const S = {
   overrides: [],
   dirty: false,
 };
+
+let seekFn = null;
 
 async function loadParts() {
   const parts = await api.listParts();
@@ -134,6 +136,23 @@ document.getElementById("flow-grid").addEventListener("clip-select-changed", () 
   document.getElementById("preview-selection-count").textContent =
     `${n} clip${n === 1 ? "" : "s"} selected`;
   document.getElementById("preview-draft").disabled = n === 0;
+});
+
+wireEngine({
+  launchBtn: document.getElementById("preview-launch"),
+  frameImg: document.getElementById("engine-frame"),
+  metaEl: document.getElementById("engine-meta"),
+  onSeekFn: (fn) => { seekFn = fn; },
+  getPart: () => S.part,
+});
+
+document.getElementById("flow-grid").addEventListener("click", (ev) => {
+  if (ev.ctrlKey || ev.shiftKey) return;
+  const card = ev.target.closest(".clip-card");
+  if (!card) return;
+  const idx = parseInt(card.dataset.idx, 10);
+  const clip = S.flowPlan?.clips?.[idx];
+  if (clip?.demo_time_ms != null && seekFn) seekFn(clip.demo_time_ms);
 });
 
 loadParts().catch((err) => {

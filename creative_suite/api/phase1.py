@@ -7,12 +7,14 @@ Phase B/C/D.
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
+import os
 import sqlite3
 from pathlib import Path
 from typing import Any, Awaitable, Callable
 
-from fastapi import APIRouter, HTTPException, Request, Response
+from fastapi import APIRouter, HTTPException, Request, Response, WebSocket, WebSocketDisconnect
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -20,6 +22,7 @@ from creative_suite.api._waveform import compute_peaks
 from creative_suite.api._render_worker import JobQueue
 from creative_suite.api._rebuild_job import rebuild_part
 from creative_suite.api._preview_job import run_preview_tier_a
+from creative_suite.engine.supervisor import EngineSupervisor
 from creative_suite.overrides.file_io import (
     ClipOverride, read_overrides, write_overrides,
 )
@@ -272,3 +275,60 @@ async def post_preview(
         response.status_code = 409
         return {"error": "busy"}
     return {"job_id": jid}
+
+
+@router.websocket("/parts/{n}/engine")
+async def engine_ws(websocket: WebSocket, n: int) -> None:
+    await websocket.accept()
+    cfg = websocket.app.state.cfg
+    repo_root = Path(__file__).resolve().parents[2]
+    wolfcam = repo_root / "tools" / "wolfcamql" / "wolfcamql.exe"
+    thumb_dir = (
+        cfg.phase1_output_dir.parent / "creative_suite" / "generated" / "engine_thumbs"
+    )
+
+    flow_plan_p = cfg.phase1_output_dir / f"part{n:02d}_flow_plan.json"
+    fp: dict[str, Any] = (
+        json.loads(flow_plan_p.read_text(encoding="utf-8"))
+        if flow_plan_p.exists() else {}
+    )
+    clips: list[dict[str, Any]] = fp.get("clips") or [{}]
+    demo = clips[0].get("demo")
+    if demo is None:
+        await websocket.send_json({"kind": "error", "msg": "no demo resolvable"})
+        await websocket.close()
+        return
+
+    sup = EngineSupervisor(
+        engine_cmd=[str(wolfcam), "+demo", demo, "+set", "cg_drawHUD", "0"],
+        thumb_dir=thumb_dir,
+        mock_grab=bool(os.getenv("CS_ENGINE_MOCK")),
+    )
+    await sup.start()
+    try:
+        async def fan_out() -> None:
+            while True:
+                frame = await sup.next_frame(timeout_s=2.0)
+                if frame is None: continue
+                try:
+                    await websocket.send_json({
+                        "kind": "frame",
+                        "t_ms": sup.last_seek_ms,
+                        "jpeg_b64": base64.b64encode(frame).decode("ascii"),
+                    })
+                except Exception:
+                    return
+        fan_task = asyncio.create_task(fan_out())
+        try:
+            while True:
+                cmd = await websocket.receive_json()
+                if cmd.get("cmd") == "seek":
+                    await sup.seek(ms=int(cmd["t_ms"]))
+                elif cmd.get("cmd") == "quit":
+                    break
+        except WebSocketDisconnect:
+            pass
+        finally:
+            fan_task.cancel()
+    finally:
+        await sup.stop()
