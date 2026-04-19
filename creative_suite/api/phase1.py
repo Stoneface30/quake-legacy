@@ -13,6 +13,8 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 
+from creative_suite.api._waveform import compute_peaks
+
 router = APIRouter(prefix="/api/phase1", tags=["phase1"])
 
 _ARTIFACT_KEYS = (
@@ -81,3 +83,17 @@ def list_versions(n: int, request: Request) -> list[dict[str, Any]]:
         return [dict(r) for r in cur.fetchall()]
     finally:
         con.close()
+
+
+@router.get("/parts/{n}/waveform")
+def get_waveform(n: int, request: Request) -> dict[str, Any]:
+    out = _output_dir(request)
+    candidates = [
+        out / f"part{n:02d}_stitched.wav",
+        out / f"part{n:02d}_music.wav",
+    ]
+    wav = next((c for c in candidates if c.exists()), None)
+    if wav is None:
+        raise HTTPException(404, f"No wav for part {n}")
+    peaks = compute_peaks(wav, target=6000)
+    return {"peaks": peaks, "count": len(peaks), "source": wav.name}
