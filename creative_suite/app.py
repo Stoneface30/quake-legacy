@@ -24,6 +24,7 @@ def create_app() -> FastAPI:
         assets,
         clips,
         comfy,
+        md3,
         parts,
         variants,
     )
@@ -33,6 +34,7 @@ def create_app() -> FastAPI:
     app.include_router(assets.router)
     app.include_router(comfy.router)
     app.include_router(variants.router)
+    app.include_router(md3.router)
 
     @app.get("/")
     def index() -> FileResponse:  # pyright: ignore[reportUnusedFunction]

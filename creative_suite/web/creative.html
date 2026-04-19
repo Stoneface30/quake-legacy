@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Creative Suite — Photoreal Factory</title>
+  <link rel="stylesheet" href="/web/css/base.css" />
+  <link rel="stylesheet" href="/web/css/creative.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <header class="top">
+    <h1>Creative Suite — Photoreal Factory</h1>
+    <nav>
+      <a href="/annotate">/annotate</a>
+      <a href="/creative" class="active">/creative</a>
+    </nav>
+  </header>
+
+  <main class="creative-grid">
+    <aside class="tree-col">
+      <h2>Assets <span id="asset-count" class="muted">—</span></h2>
+      <input id="filter" type="search" placeholder="filter paths…" />
+      <div id="tree"></div>
+    </aside>
+
+    <section class="preview-col">
+      <h2 id="preview-title">Select an asset</h2>
+      <div id="preview-body" class="preview-body">
+        <p class="muted">Click a texture / model in the tree.</p>
+      </div>
+      <p class="muted" id="preview-meta"></p>
+    </section>
+
+    <aside class="prompt-col">
+      <h2>Prompt</h2>
+      <textarea id="seed-prompt" readonly rows="3">photorealistic PBR material, 8k, physically based rendering, tactile surface detail, no stylization,</textarea>
+      <label>Your suffix:
+        <textarea id="user-suffix" rows="3" placeholder="heavier rust, darker concrete…"></textarea>
+      </label>
+      <div class="row">
+        <button id="btn-suggest" disabled title="Ollama prompt assist — wired in Task 9">Suggest prompts</button>
+        <button id="btn-generate" disabled title="ComfyUI queue — wired in Task 5">Generate</button>
+      </div>
+      <div id="chips" class="chips"></div>
+      <h3>Variants</h3>
+      <div id="variants-grid" class="variants-grid">
+        <p class="muted">No variants yet. Task 5 wires this up.</p>
+      </div>
+    </aside>
+  </main>
+
+  <script type="module" src="/web/js/creative.js"></script>
+</body>
+</html>
