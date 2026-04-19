@@ -132,3 +132,23 @@ def test_versions_list_returns_db_rows(
         assert rows[0]["tag"] == "v10.4-manual"
         assert rows[0]["level_pass"] == 1
         assert rows[0]["mp4_path"].endswith(".mp4")
+
+
+def test_put_flow_plan_writes_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import subprocess as sp
+    out = tmp_path / "output"
+    out.mkdir()
+    sp.run(["git", "init", "-q", str(out)], check=True)
+    sp.run(["git", "-C", str(out), "config", "user.email", "t@t"], check=True)
+    sp.run(["git", "-C", str(out), "config", "user.name", "t"], check=True)
+    monkeypatch.setenv("CS_STORAGE_ROOT", str(tmp_path / "storage"))
+    monkeypatch.setenv("CS_PHASE1_OUTPUT_DIR", str(out))
+    with TestClient(create_app()) as c:
+        r = c.put("/api/phase1/parts/4/flow-plan",
+                  json={"clips": [{"chunk": "chunk_0001.mp4"}], "seams": []})
+        assert r.status_code == 200
+        body = r.json()
+        assert body["saved"] is True
+        assert (out / "part04_flow_plan.json").exists()

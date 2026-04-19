@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 
 from creative_suite.api._waveform import compute_peaks
 
@@ -97,3 +98,19 @@ def get_waveform(n: int, request: Request) -> dict[str, Any]:
         raise HTTPException(404, f"No wav for part {n}")
     peaks = compute_peaks(wav, target=6000)
     return {"peaks": peaks, "count": len(peaks), "source": wav.name}
+
+
+class FlowPlanBody(BaseModel):
+    clips: list[dict[str, Any]]
+    seams: list[dict[str, Any]] = []
+    notes: str = ""
+    beat_snapped_offsets: list[dict[str, Any]] = []
+    section_role_overrides: dict[str, str] = {}
+
+
+@router.put("/parts/{n}/flow-plan")
+def put_flow_plan(n: int, body: FlowPlanBody, request: Request) -> dict[str, Any]:
+    out = _output_dir(request)
+    jpath = out / f"part{n:02d}_flow_plan.json"
+    jpath.write_text(json.dumps(body.model_dump(), indent=2), encoding="utf-8")
+    return {"saved": True, "path": str(jpath)}
