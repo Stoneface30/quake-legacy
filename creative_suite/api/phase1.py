@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from creative_suite.api._waveform import compute_peaks
 from creative_suite.api._render_worker import JobQueue
 from creative_suite.api._rebuild_job import rebuild_part
+from creative_suite.api._preview_job import run_preview_tier_a
 from creative_suite.overrides.file_io import (
     ClipOverride, read_overrides, write_overrides,
 )
@@ -241,3 +242,33 @@ def list_tracks(request: Request) -> list[dict[str, Any]]:
          if f.suffix.lower() in (".mp3", ".wav", ".m4a", ".ogg")],
         key=lambda x: x["name"],
     )
+
+
+class PreviewBody(BaseModel):
+    clip_chunks: list[str]
+    tier: str = "A"
+
+
+@router.post("/parts/{n}/preview")
+async def post_preview(
+    n: int, body: PreviewBody, request: Request, response: Response
+) -> dict[str, Any]:
+    cfg = request.app.state.cfg
+    q: JobQueue = request.app.state.job_queue
+    output_dir = cfg.phase1_output_dir
+    repo_root = Path(__file__).resolve().parents[2]
+    wolfcam = repo_root / "tools" / "wolfcamql" / "wolfcamql.exe"
+    ffmpeg_exe = repo_root / "tools" / "ffmpeg" / "ffmpeg.exe"
+
+    async def run(emit: Callable[[str, int, str], Awaitable[None]]) -> None:
+        await run_preview_tier_a(
+            emit=emit, part=n, clip_chunks=body.clip_chunks,
+            output_dir=output_dir, wolfcam_exe=wolfcam, ffmpeg_exe=ffmpeg_exe,
+        )
+
+    try:
+        jid = q.submit(run)
+    except RuntimeError:
+        response.status_code = 409
+        return {"error": "busy"}
+    return {"job_id": jid}

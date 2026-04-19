@@ -198,3 +198,18 @@ def test_put_then_get_overrides_roundtrips(
         assert len(rows) == 1
         assert rows[0]["chunk"] == "chunk_0014.mp4"
         assert rows[0]["slow"] == 0.5
+
+
+def test_preview_tier_a_enqueues_job(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = tmp_path / "output"
+    out.mkdir()
+    monkeypatch.setenv("CS_STORAGE_ROOT", str(tmp_path / "storage"))
+    monkeypatch.setenv("CS_PHASE1_OUTPUT_DIR", str(out))
+    monkeypatch.setenv("CS_PREVIEW_MOCK", "1")
+    with TestClient(create_app()) as c:
+        r = c.post("/api/phase1/parts/4/preview",
+                   json={"clip_chunks": ["chunk_0014.mp4", "chunk_0015.mp4"], "tier": "A"})
+        assert r.status_code == 200
+        assert r.json()["job_id"]
