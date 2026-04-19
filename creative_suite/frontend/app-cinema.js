@@ -2,6 +2,7 @@
 import { api } from "/cinema-static/api-client.js";
 import { renderMusic } from "/cinema-static/panel-music.js";
 import { renderLevels } from "/cinema-static/panel-levels.js";
+import { renderVersions } from "/cinema-static/panel-versions.js";
 
 export const S = {
   part: null,
@@ -48,6 +49,13 @@ export async function loadPart(n) {
     gateEl: document.getElementById("levels-gate"),
     levels: S.artifacts?.levels,
     syncAudit: S.artifacts?.sync_audit,
+  });
+  const versions = await api.listVersions(n);
+  renderVersions({
+    listEl: document.getElementById("versions-list"),
+    rows: versions,
+    onLoadA: (r) => console.log("load A", r),
+    onLoadB: (r) => console.log("load B", r),
   });
   // panel modules are wired in later tasks; loadPart stays the dispatch point
 }
