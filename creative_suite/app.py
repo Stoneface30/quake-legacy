@@ -28,8 +28,8 @@ def create_app() -> FastAPI:
         md3,
         ollama,
         packs,
-        phase1,
         parts,
+        phase1,
         variants,
     )
     app.include_router(annotations.router)
