@@ -16,7 +16,7 @@ import json, shutil, subprocess, sys, os
 from pathlib import Path
 from collections import defaultdict
 
-ROOT = Path(r"G:/QUAKE_LEGACY/tools/quake-source")
+ROOT = Path(r"G:/QUAKE_LEGACY/game-dissection/engines/variants")
 OUT  = Path(r"G:/QUAKE_LEGACY/game-dissection/engines")
 MAN  = OUT / "_manifest"
 
@@ -197,7 +197,7 @@ def main():
     print(f"generated {generated_diffs} diff docs", file=sys.stderr)
 
     # ----- DELETE_READY.md checkpoint -----
-    # Sum up the bytes currently in tools/quake-source/
+    # Sum up the bytes currently in engines/variants/
     total_src_bytes = sum(e["size"] or 0 for e in inv if not e.get("is_dir"))
     canonical_bytes = sum(m["size"] or 0 for m in canonical_map.values())
     variant_bytes   = sum(v["size"] or 0 for m in canonical_map.values() for v in m["variants"])
@@ -220,7 +220,7 @@ def main():
         f.write("ls G:/QUAKE_LEGACY/game-dissection/engines/_canonical/\n")
         f.write("# Then, after approval:\n")
         for t in sorted({e['tree'] for e in inv}):
-            f.write(f"rm -rf 'G:/QUAKE_LEGACY/tools/quake-source/{t}'\n")
+            f.write(f"rm -rf 'G:/QUAKE_LEGACY/game-dissection/engines/variants/{t}'\n")
         f.write("```\n\n")
         f.write("## Trees preserved as variants (near-dup cases)\n\n")
         for t in sorted(trees_with_variants):

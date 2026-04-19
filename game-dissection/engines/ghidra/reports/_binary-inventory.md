@@ -25,9 +25,9 @@ Per `CLAUDE.md` "Key Technical Facts", these were expected — they are NOT pres
 | Expected path | Status |
 |---|---|
 | `G:\QUAKE_LEGACY\tools\wolfcamql\wolfcamql.exe` | **Missing** — no `tools/wolfcamql/` directory. Binary lives only inside `WOLF WHISPERER/Backup/wolfcamql-11.{1,3}.zip`. CLAUDE.md reference is stale. |
-| `G:\QUAKE_LEGACY\tools\uberdemotools\UDT_json.exe` | **Missing** — no `tools/uberdemotools/` directory. Only source checkout exists at `tools/quake-source/uberdemotools/`. No built binary on disk. |
+| `G:\QUAKE_LEGACY\tools\uberdemotools\UDT_json.exe` | **Missing** — `tools/uberdemotools/README.md` is a stub (2026-04-19 unification). Source retired from tree. Build via upstream mightycow/uberdemotools. Reference notes at `engines/variants/uberdemotools/`. |
 | `G:\QUAKE_LEGACY\WOLF WHISPERER\WolfWhisperer.exe` | **Missing** — `WOLF WHISPERER/` contains only `Backup/` (zips) + `Wolf Whisperer.rar` (unextracted archive, not yet inventoried) + `WolfcamQL/wolfcam-ql/` (demo corpus). `WolfWhisperer.exe` itself is not present. |
-| `q3mme.exe` | **Missing** — `tools/quake-source/q3mme/` is source-only (git checkout). No built binary anywhere in the tree. Only `q3asm.exe` (build tool) was found. |
+| `q3mme.exe` | **Missing** — `engines/_forks/q3mme/` (moved 2026-04-19) is source-only (git checkout). No built binary anywhere in the tree. Only `q3asm.exe` (build tool) was found. |
 
 **Action item for human:** extract `Wolf Whisperer.rar` (or confirm it's obsolete) and re-stage any binaries therein. If that rar contains `WolfWhisperer.exe`, add it to the sandbox as binary #8.
 
@@ -39,7 +39,7 @@ Per `CLAUDE.md` "Key Technical Facts", these were expected — they are NOT pres
 | `tools/ffmpeg/ffprobe.exe` (202 MB) | Same as ffmpeg.exe. |
 | `tools/virtualdub2/VirtualDub.exe` (4 MB) + `VirtualDub64.exe` (5 MB) | Open source (GPL). Source is available; disassembly adds no new knowledge. |
 | `tools/virtualdub2/vdub.exe` / `vdub64.exe` | Launcher stubs. |
-| `tools/quake-source/quake3-source/lcc/bin/*.exe` | Q3 build tools (LCC compiler). Source is right next to them. |
-| `tools/quake-source/q3mme/trunk/code/tools/asm/q3asm.exe` | Build tool. Source is right next to it. |
+| `engines/variants/quake3-source/lcc/bin/*.exe` (retired — source gone, see _canonical/) | Q3 build tools (LCC compiler). |
+| `engines/_forks/q3mme/trunk/code/tools/asm/q3asm.exe` | Build tool. Source is right next to it. |
 
 If FT-4 is ever expanded to cover these, add them to this inventory with SHA-256 + provenance at that time.

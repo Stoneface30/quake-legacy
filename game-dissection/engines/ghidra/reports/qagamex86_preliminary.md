@@ -87,7 +87,7 @@ The `.bss` section is **~4.3 MB uninitialized data** (`vsize=0x41dfc0`) — that
 3. Confirm `.edata` parsing gives us `vmMain` and `dllEntry` as named exports. If not, use the standard Q3 native-game-module offsets (exports are ordinal 1 and 2 respectively).
 4. Locate `dllEntry` → find where it stores its callback argument to a global. That global IS `trap` — every `trap_*` wrapper calls through it.
 5. Walk `vmMain`'s switch statement → enumerate the `GAME_*` command IDs (`GAME_INIT`, `GAME_SHUTDOWN`, `GAME_CLIENT_CONNECT`, `GAME_CLIENT_COMMAND`, etc.).
-6. Cross-check: the wolfcam source we have at `tools/quake-source/wolfcamql-src/code/game/` should match. Log ANY drift.
+6. Cross-check: the authoritative merged source at `game-dissection/engines/_canonical/code/game/` (with proto-73 deltas in `engines/wolfcam-knowledge/patches/`) should match. Log ANY drift into `engines/wolfcam-knowledge/shipped-binary-deltas.patch`.
 
 ---
 

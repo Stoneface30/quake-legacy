@@ -10,7 +10,7 @@ coordinates the ORDER and the HANDOFFS between them.
 From `CLAUDE.md`:
 > Endgame: port wolfcamql's protocol-73 patches into q3mme (Phase 3.5 research track), then retire wolfcam entirely.
 
-To port wolfcam's patches into q3mme we need to know **exactly what wolfcam patches, at what call sites, in what order**. The vanilla-Q3 source we have is the BEFORE; the wolfcam source checkout (`tools/quake-source/wolfcamql-src/`) is the ALLEGED AFTER. Ghidra on the shipped `wolfcamql.exe` is the ORACLE — it tells us whether the source checkout drifted from the shipped binary, and where any build-time deltas live.
+To port wolfcam's patches into q3mme we need to know **exactly what wolfcam patches, at what call sites, in what order**. The vanilla-Q3 source we have is the BEFORE; the wolfcam source deltas (now at `game-dissection/engines/wolfcam-knowledge/patches/0001..0007` after 2026-04-19 retirement of `tools/quake-source/wolfcamql-src/`) are the ALLEGED AFTER. Ghidra on the shipped `wolfcamql.exe` is the ORACLE — it tells us whether the patch series drifted from the shipped binary, and where any build-time deltas live (captured in `engines/wolfcam-knowledge/shipped-binary-deltas.patch` when derived).
 
 Secondary question: **what is the max-quality wolfcam capture cvar set?** This feeds `phase1/render_part_v6.py` spec §4.4.
 

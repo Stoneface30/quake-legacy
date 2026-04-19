@@ -1,5 +1,19 @@
 # Ghidra Sandbox — FT-4 Reverse-Engineering Track
 
+**Path moved 2026-04-19:** `game-dissection/ghidra/` → `game-dissection/engines/ghidra/`
+(unified under `engines/` per `docs/research/engine-folder-unification-plan-2026-04-19.md`).
+
+## Binary → source mapping (after wolfcam retirement)
+
+| Binary | Source authority |
+|---|---|
+| `binaries/wolfcamql-11.{1,3}.exe` | `engines/_canonical/code/client/` (Q3 base) + `engines/wolfcam-knowledge/patches/` (proto-73 deltas) |
+| `binaries/wolfcamql-11.3_cgamex86.dll` | `engines/_canonical/code/cgame/` + `engines/wolfcam-knowledge/patches/0007-cgame-wolfcam_modules-*.patch` |
+| `binaries/wolfcamql-11.3_qagamex86.dll` | `engines/_canonical/code/game/` |
+| `binaries/WolfWhisperer.exe` | no source — RE target |
+| `binaries/StartupWizard.exe` | no source — RCData 101 extracts WolfWhisperer |
+| `binaries/UDT_json.exe` (when built) | upstream mightycow/uberdemotools — source retired from tree; reference stub `tools/uberdemotools/README.md` |
+
 **Status:** prepared (2026-04-19). No live Ghidra sessions yet — Ghidra is not installed on this machine.
 **Scope:** funded track FT-4 from `CLAUDE.md` — "Ghidra every executable".
 **Strategic goal:** the endgame of the engine split in `CLAUDE.md` — port wolfcam's protocol-73 (QL `.dm_73`) patches into q3mme, then retire wolfcam. This sandbox is where we confirm, at the binary level, what those patches ARE.
