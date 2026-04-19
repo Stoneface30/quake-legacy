@@ -1,5 +1,6 @@
 // creative_suite/frontend/app-cinema.js
 import { api } from "/cinema-static/api-client.js";
+import { renderMusic } from "/cinema-static/panel-music.js";
 
 export const S = {
   part: null,
@@ -33,6 +34,13 @@ export async function loadPart(n) {
   try { S.waveform = await api.getWaveform(n); }
   catch { S.waveform = null; }
   S.flowPlan = S.artifacts?.flow_plan ?? null;
+  renderMusic({
+    canvas: document.getElementById("wave-canvas"),
+    overlay: document.getElementById("wave-overlay"),
+    metaEl: document.getElementById("wave-meta"),
+    waveform: S.waveform,
+    musicStructure: S.artifacts?.music_structure,
+  });
   // panel modules are wired in later tasks; loadPart stays the dispatch point
 }
 
