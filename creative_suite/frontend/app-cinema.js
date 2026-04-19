@@ -96,3 +96,44 @@ document.getElementById("flow-save").addEventListener("click", async () => {
   document.getElementById("flow-save").disabled = true;
   document.getElementById("flow-dirty").textContent = " · saved";
 });
+
+const rebuildBtn = document.getElementById("rebuild-btn");
+rebuildBtn.disabled = false;
+rebuildBtn.textContent = "REBUILD";
+document.getElementById("rebuild-form").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  const tag = document.getElementById("rebuild-tag").value.trim();
+  const notes = document.getElementById("rebuild-notes").value;
+  if (!tag) return;
+  const logEl = document.getElementById("rebuild-log");
+  logEl.replaceChildren();
+  rebuildBtn.disabled = true;
+  try {
+    const { job_id } = await api.rebuild(S.part, tag, notes, "ship");
+    const es = api.subscribeJob(job_id, (ev) => {
+      const line = document.createElement("div");
+      line.textContent = `[${ev.phase} ${ev.pct}%] ${ev.msg}`;
+      logEl.append(line);
+      logEl.scrollTop = logEl.scrollHeight;
+      if (ev.phase === "done" || ev.phase === "failed") {
+        es.close();
+        rebuildBtn.disabled = false;
+        if (ev.phase === "done") loadPart(S.part);
+      }
+    }, (err) => {
+      const line = document.createElement("div");
+      line.textContent = `[error] ${err?.message ?? err}`;
+      line.style.color = "#ef4444";
+      logEl.append(line);
+      rebuildBtn.disabled = false;
+    });
+  } catch (err) {
+    const line = document.createElement("div");
+    line.textContent = err?.code === 409
+      ? "Another render is running. Wait."
+      : `failed: ${err.message}`;
+    line.style.color = "#ef4444";
+    logEl.append(line);
+    rebuildBtn.disabled = false;
+  }
+});
