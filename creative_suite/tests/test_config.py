@@ -1,9 +1,11 @@
 from pathlib import Path
 
+import pytest
+
 from creative_suite.config import Config
 
 
-def test_config_has_required_paths(tmp_path: Path, monkeypatch) -> None:
+def test_config_has_required_paths(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CS_STORAGE_ROOT", str(tmp_path))
     cfg = Config()
     assert cfg.storage_root == tmp_path
@@ -19,3 +21,14 @@ def test_config_has_required_paths(tmp_path: Path, monkeypatch) -> None:
     assert cfg.phase1_output_dir.name == "output"
     assert cfg.phase1_clip_lists.name == "clip_lists"
     assert cfg.full_catalog_json.name == "FULL_CATALOG.json"
+
+
+def test_phase1_output_dir_honors_env_var(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    custom = tmp_path / "custom_output"
+    custom.mkdir()
+    monkeypatch.setenv("CS_PHASE1_OUTPUT_DIR", str(custom))
+    from creative_suite.config import Config
+    cfg = Config()
+    assert cfg.phase1_output_dir == custom

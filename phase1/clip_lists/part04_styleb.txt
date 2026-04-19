@@ -1,46 +1,114 @@
-# Part 4 — Style B: PUNCHY
-# First-person only. No slow-mo. Maximum energy.
-#
+# Part clip list — rebuilt from disk scan (FP > FL grammar)
+# Rule P1-K: FL follows FP in same entry so renderer treats
+# them as ONE frag with FL as slow-contrast replay angle.
+# Rule P1-U tier-interleave handles pacing at render time.
+
+# --- T1 (43 frags: 12 multi-angle + 31 singles) ---
+Demo (37)  -  446.avi > Demo (37FL1).avi
+Demo (104) - 8.avi > Demo (104FL1).avi
+Demo (152)  - 84.avi > Demo (152FL1).avi
+Demo (209)  -  183.avi > Demo (209FL1).avi > Demo (209FL2).avi
+Demo (288)  -  318.avi > Demo (288FL1).avi
+Demo (383)  -  469.avi > Demo (383FL1).avi
+Demo (490)  - 596.avi > Demo (490FL1).avi
+Demo (560)  - 699.avi > Demo (560FL1).avi > Demo (560FL2).avi
+Demo (625)  -  780.avi > Demo (625FL1).avi
+Demo (670)  - 848.avi > Demo (670FL1).avi > Demo (670FL2).avi
+Demo (788)  -  978.avi > Demo (788FL1).avi
+Demo (875)  -  1112.avi > Demo (875FL1).avi
 Demo (22)  -  195.avi
-Demo (37)  -  446.avi
 Demo (46)  - 565.avi
 Demo (66)  - 824.avi
 Demo (91)  -  1167.avi
-Demo (104) - 8.avi
 Demo (112)  - 21.avi
 Demo (151)  - 80.avi
-Demo (152)  - 84.avi
 Demo (176)  -  125.avi
-Demo (209)  -  183.avi
 Demo (226)  -  206.avi
 Demo (244)  -  232.avi
 Demo (266)  -  277.avi
-Demo (288)  -  318.avi
 Demo (296)  -  330.avi
 Demo (320)  -  358.avi
 Demo (361)  -  433.avi
-Demo (383)  -  469.avi
 Demo (387)  -  474.avi
 Demo (402) - 501.avi
 Demo (428)  - 533.avi
 Demo (481)  - 585.avi
-Demo (490)  - 596.avi
 Demo (520)  -  638.avi
-Demo (560)  - 699.avi
 Demo (562)  - 703.avi
 Demo (596)  - 744.avi
-Demo (625)  -  780.avi
 Demo (634)  -  793.avi
 Demo (661)  - 828.avi
-Demo (670)  - 848.avi
 Demo (684)  - 867.avi
 Demo (722)-002.avi
 Demo (775)  -  961.avi
-Demo (788)  -  978.avi
 Demo (810)  -  1008.avi
 Demo (840)  -  1052.avi
 Demo (858)  -  1082.avi
-Demo (875)  -  1112.avi
 Demo (893)  -  1137.avi
 Demo (913)  -  1172.avi
 Demo (937)  -  1209.avi
+
+# --- T2 (47 frags: 8 multi-angle + 39 singles) ---
+Demo (101) - 4.avi > Demo (101FL1).avi > Demo (101FL2).avi > Demo (101FL3).avi
+Demo (194)  -  150.avi > Demo (194FL1).avi
+Demo (253)  -  247.avi > Demo (253FL1).avi
+Demo (389)  -  481.avi > Demo (389FL1).avi
+Demo (578)  - 726.avi > Demo (578FL1).avi
+Demo (707)  - 892.avi > Demo (707FL1).avi
+Demo (817)  -  1019.avi > Demo (817FL1).avi > Demo (817FL2).avi
+Demo (916)  -  1179.avi > Demo (916FL2).avi
+Demo (14)  - 65.avi
+Demo (44)  - 541.avi
+Demo (68)  - 861.avi
+Demo (79)  -  982.avi
+Demo (103) - 7.avi
+Demo (118)  - 31.avi
+Demo (149)  - 75.avi
+Demo (171)  -  117.avi
+Demo (190)  -  146.avi
+Demo (213)  -  188.avi
+Demo (248)  -  239.avi
+Demo (261)  -  268.avi
+Demo (276)  -  299.avi
+Demo (290)  -  324.avi
+Demo (317)  -  351.avi
+Demo (333)  -  379.avi
+Demo (345)  -  406.avi
+Demo (370)  -  449.avi
+Demo (387)  -  478.avi
+Demo (411)  - 514.avi
+Demo (443)  - 546.avi
+Demo (471)  - 575.avi
+Demo (500)  -  605.avi
+Demo (525)  -  642.avi
+Demo (538)  - 668.avi
+Demo (558)  - 694.avi
+Demo (603)  -  757.avi
+Demo (640)  -  801.avi
+Demo (665)  - 835.avi
+Demo (688)  - 873.avi
+Demo (720)  - 911.avi
+Demo (763)  -  948.avi
+Demo (787)  -  976.avi
+Demo (826)  -  1031.avi
+Demo (835)  -  1042.avi
+Demo (850)  -  1071.avi
+Demo (871)  -  1105.avi
+Demo (902)  -  1153.avi
+Demo (919)  -  1183.avi
+
+# --- T3 (13 frags: 1 multi-angle + 12 singles) ---
+Demo (176)  -  124.avi > Demo (176FL1).avi
+Demo (13)  - 48.avi
+Demo (73)  -  922.avi
+Demo (85)  -  1069.avi
+Demo (160)  - 96.avi
+Demo (199)  -  161.avi
+Demo (255)  -  252.avi
+Demo (325)  -  364.avi
+Demo (348)  -  412.avi
+Demo (479)  - 581.avi
+Demo (569)  - 714.avi
+Demo (825)  -  1029.avi
+Demo (893)  -  1138.avi
+

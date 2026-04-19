@@ -1,0 +1,74 @@
+# AI tooling references for Creative Suite v2.
+# Python Config reads this file at boot. Paths are relative to repo root
+# G:/QUAKE_LEGACY unless absolute.
+#
+# Research: docs/research/ai-tooling-inventory-2026-04-19.md
+# Workflow placeholders: {{input_image}} {{prompt}} {{seed}} {{denoise}} {{cnet_image}}
+
+# ---------------------------------------------------------------------------
+# SDXL checkpoint (img2img photoreal PBR).
+# Choice: Juggernaut XI v11 — SOTA photoreal-SDXL finetune (RunDiffusion, 2026).
+# Alternatives (fallback order): RealVisXL V5.0, epiCRealism XL.
+# ---------------------------------------------------------------------------
+sdxl_checkpoint:
+  name: "RealVisXL_V5.0_fp16"
+  filename: "RealVisXL_V5.0_fp16.safetensors"
+  path: "tools/comfyui/models/checkpoints/RealVisXL_V5.0_fp16.safetensors"
+  hf_repo: "SG161222/RealVisXL_V5.0"
+  size_bytes: 6938065488
+  sha256: "6a35a7855770ae9820a3c931d4964c3817b6d9e3c6f9c4dabb5b3a94e5643b80"
+  # Juggernaut XI v11 is the ideal alternative but HF-gated (access request).
+  # RealVisXL V5 is stronger for texture/material fidelity anyway — see
+  # docs/research/ai-tooling-inventory-2026-04-19.md §2.
+
+# ---------------------------------------------------------------------------
+# ControlNet (edge preservation for PBR texture img2img).
+# Choice: xinsir Union ProMax — one model covers canny + depth + normal + lineart
+# + scribble + segment + openpose. For textures we use canny/lineart mode.
+# ---------------------------------------------------------------------------
+controlnet_canny:
+  name: "xinsir-controlnet-union-sdxl-1.0-promax"
+  filename: "diffusion_pytorch_model_promax.safetensors"
+  path: "tools/comfyui/models/controlnet/xinsir-union-promax/diffusion_pytorch_model_promax.safetensors"
+  hf_repo: "xinsir/controlnet-union-sdxl-1.0"
+  size_bytes: 2513342408
+  sha256: "9fae2e50cb431bfcbe05822b59ec2228df545ef27f711dea8949e9f4ed9f7cdc"
+  # Union model — set control_type="canny" (or "lineart") at inference time.
+  control_type: "canny"
+
+# ---------------------------------------------------------------------------
+# Ollama vision model (prompt-assist button, optional).
+# Choice: gemma3:4b — Google's multimodal 4B with 128k context, vision capable.
+# The suffix `:4b-it-qat` is a quantization-aware tuned variant for lower VRAM.
+# `gemma3:4b` is the baseline Q4_K_M quant that Ollama pulls by default.
+# ---------------------------------------------------------------------------
+ollama_vision_model:
+  tag: "gemma3:4b"
+  size_bytes: 3300000000  # ~3.3 GB on disk
+  supports_vision: true
+  context_window: 131072
+  pull_command: "ollama pull gemma3:4b"
+
+# ---------------------------------------------------------------------------
+# ComfyUI runtime.
+# ---------------------------------------------------------------------------
+comfyui:
+  install_dir: "tools/comfyui"
+  base_url: "http://127.0.0.1:8188"
+  launcher: "tools/comfyui/ComfyUI/main.py"
+  models_root: "tools/comfyui/models"
+  workflow_path: "creative_suite/comfy/workflows/img2img_sdxl.json"
+  denoise_default: 0.35
+  steps_default: 28
+  cfg_default: 6.0
+  sampler: "dpmpp_2m_sde_gpu"
+  scheduler: "karras"
+
+# ---------------------------------------------------------------------------
+# Negative prompt block (shared with creative_suite/comfy/prompts.py).
+# Kept here only as a reference for whoever edits tuning — prompts.py is the
+# single source of truth for actual runtime string.
+# ---------------------------------------------------------------------------
+negative_prompt_reference: |
+  stylized, cartoon, anime, flat shading, low poly, low-resolution,
+  blurry, jpeg artifacts, text, watermark, signature

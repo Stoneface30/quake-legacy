@@ -1,0 +1,17 @@
+# Creative Suite v2 — runtime Python deps.
+#
+# Install:    pip install -r creative_suite/requirements.txt
+# Pyright:    pyright creative_suite/
+# Tests:      pytest creative_suite/tests/
+#
+# Host Python: 3.11+  (type-param generics + tomllib).
+
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+httpx>=0.27,<1.0
+Pillow>=10.3,<12.0
+pyyaml>=6.0,<7.0           # config_tools.yaml loader
+pytest>=8.0
+pytest-asyncio>=0.23
+websockets>=12.0           # FastAPI WebSocket progress stream
+python-multipart>=0.0.9    # FastAPI form/file uploads

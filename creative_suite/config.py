@@ -49,6 +49,9 @@ class Config:
 
     @property
     def phase1_output_dir(self) -> Path:
+        override = os.getenv("CS_PHASE1_OUTPUT_DIR")
+        if override:
+            return Path(override)
         return REPO_ROOT / "output"
 
     @property
