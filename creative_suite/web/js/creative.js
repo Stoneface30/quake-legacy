@@ -3,6 +3,7 @@
 // Task 5/6/9 will flesh out the prompt + variant panel.
 
 import { MD3Viewer } from "/web/js/md3viewer.js";
+import { openTextureCompare, openMd3Compare } from "/web/js/compare.js";
 
 const state = {
   tree: null,
@@ -267,6 +268,14 @@ function insertTile(v) {
   btnRow.appendChild(rerollBtn);
   tile.appendChild(btnRow);
 
+  // Task 7 — compare button opens side-by-side modal (only meaningful once
+  // the variant PNG exists).
+  if (v.png_url) {
+    const compareBtn = mkEl("button", { cls: "btn-compare", text: "⇆ Compare with original" });
+    compareBtn.addEventListener("click", () => openVariantCompare(v));
+    tile.appendChild(compareBtn);
+  }
+
   // Prepend newest first.
   if (grid.firstChild) grid.insertBefore(tile, grid.firstChild); else grid.appendChild(tile);
 }
@@ -334,6 +343,20 @@ async function watchJob(variantId, jobId) {
     }
     if (fresh.png_url) { insertTile(fresh); return; }
     if (fresh.status === "failed") { insertTile(fresh); return; }
+  }
+}
+
+async function openVariantCompare(v) {
+  // Look up the source asset so we know whether to open texture or MD3 compare.
+  const asset = await fetch(`/api/assets/${v.asset_id}`).then(r => r.json());
+  const isMd3 = (asset.internal_path || "").toLowerCase().endsWith(".md3");
+  if (isMd3) {
+    // Variants for MD3s are not yet produced (Task 8 scope). Fall back to
+    // side-by-side of the same source until we have dual MD3 outputs.
+    openMd3Compare(`/api/md3/${v.asset_id}`, `/api/md3/${v.asset_id}`,
+                   "Source MD3", "Source MD3");
+  } else {
+    openTextureCompare(`/api/assets/${v.asset_id}/raw`, v.png_url);
   }
 }
 
