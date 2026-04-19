@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from creative_suite.config import Config
+
 
 # Spec §4.4 verbatim order — any reorder breaks the cfg-diff smoke test.
 # cg_drawGun is appended separately because its value flips per view
@@ -80,3 +82,41 @@ def write_gamestart_cfg(
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+PREVIEW_CVARS: list[str] = [
+    "r_mode 4",
+    "r_customwidth 1920",
+    "r_customheight 1080",
+    "r_picmip 1",
+    "com_maxfps 60",
+    "r_ext_max_anisotropy 4",
+    "cg_drawHUD 0",
+]
+
+
+def write_preview_cfg(
+    *, cfg: Config, demo_name: str,
+    seek_clock: str, quit_at: str, fp_view: bool,
+) -> Path:
+    """Write a degraded-quality capture cfg for Tier A drafts.
+
+    Raises ValueError on semicolon injection (same as ship path).
+    """
+    for s in (demo_name, seek_clock, quit_at):
+        if ";" in s or "\n" in s:
+            raise ValueError(f"unsafe character in capture input: {s!r}")
+    preview_dir = (
+        cfg.phase1_output_dir.parent
+        / "creative_suite" / "generated" / "preview"
+    )
+    preview_dir.mkdir(parents=True, exist_ok=True)
+    path = preview_dir / f"{demo_name}_preview.cfg"
+    lines = [f"// PREVIEW (Tier A) cfg for {demo_name}"]
+    lines.extend(PREVIEW_CVARS)
+    lines.append(f"cg_drawGun {1 if fp_view else 0}")
+    lines.append(f"seekclock {seek_clock}")
+    lines.append(f'video avi name :"{demo_name}_preview"')
+    lines.append(f"at {quit_at} quit")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path

@@ -80,3 +80,21 @@ def test_post_gamestart_fl_view_writes_draw_gun_0(
     text = Path(r.json()["cfg_path"]).read_text(encoding="utf-8")
     assert "cg_drawGun 0" in text
     assert "cg_drawGun 1" not in text
+
+
+def test_write_preview_cfg_uses_degraded_cvars(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CS_STORAGE_ROOT", str(tmp_path / "storage"))
+    from creative_suite.capture.gamestart import PREVIEW_CVARS, write_preview_cfg
+    cfg = Config()
+    cfg.ensure_dirs()
+    path = write_preview_cfg(
+        cfg=cfg, demo_name="prv_test",
+        seek_clock="0:00", quit_at="0:10", fp_view=True,
+    )
+    text = path.read_text(encoding="utf-8")
+    for cv in PREVIEW_CVARS:
+        assert cv in text
+    assert "r_customwidth 3840" not in text
+    assert "r_mode 4" in text
