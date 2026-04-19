@@ -203,3 +203,41 @@ async def job_events(job_id: str, request: Request) -> StreamingResponse:
             await asyncio.sleep(0.5)
 
     return StreamingResponse(gen(), media_type="text/event-stream")
+
+
+@router.get("/parts/{n}/music-override")
+def get_music_override(n: int, request: Request) -> dict[str, Any]:
+    out = _output_dir(request)
+    p = out / f"part{n:02d}_music_override.json"
+    if not p.exists(): return {}
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
+class MusicOverrideBody(BaseModel):
+    intro: str | None = None
+    main: list[str] = []
+    outro: str | None = None
+
+
+@router.put("/parts/{n}/music-override")
+def put_music_override(
+    n: int, body: MusicOverrideBody, request: Request
+) -> dict[str, Any]:
+    out = _output_dir(request)
+    p = out / f"part{n:02d}_music_override.json"
+    p.write_text(json.dumps(body.model_dump(), indent=2), encoding="utf-8")
+    return {"saved": True}
+
+
+@router.get("/music/tracks")
+def list_tracks(request: Request) -> list[dict[str, Any]]:
+    repo = Path(__file__).resolve().parents[2]
+    music_dir = repo / "phase1" / "music"
+    if not music_dir.exists():
+        return []
+    return sorted(
+        [{"name": f.name, "path": str(f)}
+         for f in music_dir.iterdir()
+         if f.suffix.lower() in (".mp3", ".wav", ".m4a", ".ogg")],
+        key=lambda x: x["name"],
+    )

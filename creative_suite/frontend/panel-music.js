@@ -92,3 +92,33 @@ function drawWave(canvas, waveform) {
   }
   ctx.stroke();
 }
+
+export function renderMusicSlots({ slotsEl, tracks, override, onChange }) {
+  slotsEl.replaceChildren();
+  const roles = [
+    { key: "intro", label: "Intro" },
+    { key: "main", label: "Main" },
+    { key: "outro", label: "Outro" },
+  ];
+  for (const r of roles) {
+    const row = document.createElement("div");
+    row.className = "music-slot";
+    const lbl = document.createElement("span");
+    lbl.textContent = r.label;
+    const sel = document.createElement("select");
+    const none = document.createElement("option");
+    none.value = ""; none.textContent = "— default —";
+    sel.append(none);
+    for (const t of tracks) {
+      const opt = document.createElement("option");
+      opt.value = t.path;
+      opt.textContent = t.name;
+      sel.append(opt);
+    }
+    const current = r.key === "main" ? override?.main?.[0] : override?.[r.key];
+    if (current) sel.value = current;
+    sel.addEventListener("change", () => onChange?.(r.key, sel.value || null));
+    row.append(lbl, sel);
+    slotsEl.append(row);
+  }
+}

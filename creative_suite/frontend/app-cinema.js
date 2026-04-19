@@ -1,6 +1,6 @@
 // creative_suite/frontend/app-cinema.js
 import { api } from "/cinema-static/api-client.js";
-import { renderMusic } from "/cinema-static/panel-music.js";
+import { renderMusic, renderMusicSlots } from "/cinema-static/panel-music.js";
 import { renderLevels } from "/cinema-static/panel-levels.js";
 import { renderVersions } from "/cinema-static/panel-versions.js";
 import { renderFlow, reorderClips } from "/cinema-static/panel-flow.js";
@@ -50,6 +50,20 @@ export async function loadPart(n) {
       else S.flowPlan.beat_snapped_offsets.push({ seam_idx: seamIdx, target_t_s: tS });
       await api.putFlowPlan(S.part, S.flowPlan);
       document.getElementById("flow-dirty").textContent = ` · seam ${seamIdx} → ${tS.toFixed(2)}s`;
+    },
+  });
+  const tracks = await api.listTracks();
+  const mov = await api.getMusicOverride(n);
+  renderMusicSlots({
+    slotsEl: document.getElementById("music-slots"),
+    tracks,
+    override: mov,
+    onChange: async (role, path) => {
+      const next = { ...mov };
+      if (role === "main") next.main = path ? [path] : [];
+      else next[role] = path;
+      await api.putMusicOverride(S.part, next);
+      Object.assign(mov, next);
     },
   });
   renderLevels({
