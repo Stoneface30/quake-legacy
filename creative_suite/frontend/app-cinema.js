@@ -58,6 +58,11 @@ export async function loadPart(n) {
     onLoadA: (r) => console.log("load A", r),
     onLoadB: (r) => console.log("load B", r),
   });
+  S.overrides = await api.getOverrides(n);
+  const byChunk = new Map(S.overrides.map(o => [o.chunk, o]));
+  if (S.flowPlan?.clips) {
+    for (const c of S.flowPlan.clips) c.override = byChunk.get(c.chunk) ?? {};
+  }
   S.dirty = false;
   document.getElementById("flow-save").disabled = true;
   document.getElementById("flow-dirty").textContent = "";
@@ -74,7 +79,15 @@ function refreshFlow() {
       markDirty();
       refreshFlow();
     },
-    onClipOverride: null,   // wired in Task C2
+    onClipOverride: async (clip, field, value) => {
+      const existing = S.overrides.find(o => o.chunk === clip.chunk)
+        ?? { chunk: clip.chunk };
+      existing[field] = value;
+      const idx = S.overrides.findIndex(o => o.chunk === clip.chunk);
+      if (idx < 0) S.overrides.push(existing); else S.overrides[idx] = existing;
+      clip.override = existing;
+      await api.putOverrides(S.part, S.overrides);
+    },
     onSeamDrag: null,       // wired in Task C3
   });
 }

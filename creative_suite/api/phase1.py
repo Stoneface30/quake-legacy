@@ -19,6 +19,9 @@ from pydantic import BaseModel
 from creative_suite.api._waveform import compute_peaks
 from creative_suite.api._render_worker import JobQueue
 from creative_suite.api._rebuild_job import rebuild_part
+from creative_suite.overrides.file_io import (
+    ClipOverride, read_overrides, write_overrides,
+)
 
 router = APIRouter(prefix="/api/phase1", tags=["phase1"])
 
@@ -148,6 +151,37 @@ async def post_rebuild(
         response.status_code = 409
         return {"error": "busy"}
     return {"job_id": jid}
+
+
+@router.get("/parts/{n}/overrides")
+def get_overrides(n: int, request: Request) -> list[dict[str, Any]]:
+    out = _output_dir(request)
+    return [e.__dict__ for e in read_overrides(out / f"part{n:02d}_overrides.txt")]
+
+
+class OverrideBody(BaseModel):
+    entries: list[dict[str, Any]]
+
+
+@router.put("/parts/{n}/overrides")
+def put_overrides(n: int, body: OverrideBody, request: Request) -> dict[str, Any]:
+    out = _output_dir(request)
+    p = out / f"part{n:02d}_overrides.txt"
+    entries: list[ClipOverride] = []
+    for e in body.entries:
+        chunk = e.get("chunk")
+        if not chunk or not isinstance(chunk, str):
+            continue
+        entries.append(ClipOverride(
+            chunk=chunk,
+            slow=e.get("slow"),
+            slow_window=e.get("slow_window"),
+            head_trim=e.get("head_trim"),
+            tail_trim=e.get("tail_trim"),
+            section_role=e.get("section_role"),
+        ))
+    write_overrides(p, entries)
+    return {"saved": True, "count": len(entries)}
 
 
 @router.get("/jobs/{job_id}/events")

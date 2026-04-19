@@ -176,3 +176,25 @@ def test_rebuild_returns_job_id_and_second_submit_409(
         r2 = c.post("/api/phase1/parts/4/rebuild",
                     json={"tag": "v-test-2", "notes": "", "mode": "ship"})
         assert r2.status_code == 409
+
+
+def test_put_then_get_overrides_roundtrips(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = tmp_path / "output"
+    out.mkdir()
+    monkeypatch.setenv("CS_STORAGE_ROOT", str(tmp_path / "storage"))
+    monkeypatch.setenv("CS_PHASE1_OUTPUT_DIR", str(out))
+    with TestClient(create_app()) as c:
+        body = {"entries": [
+            {"chunk": "chunk_0014.mp4", "slow": 0.5, "slow_window": 1.6,
+             "head_trim": None, "tail_trim": None, "section_role": "peak"},
+        ]}
+        r = c.put("/api/phase1/parts/4/overrides", json=body)
+        assert r.status_code == 200
+        r2 = c.get("/api/phase1/parts/4/overrides")
+        assert r2.status_code == 200
+        rows = r2.json()
+        assert len(rows) == 1
+        assert rows[0]["chunk"] == "chunk_0014.mp4"
+        assert rows[0]["slow"] == 0.5
