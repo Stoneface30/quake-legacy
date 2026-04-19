@@ -195,6 +195,7 @@ function selectAsset(id, path) {
   });
 
   document.getElementById("btn-generate").disabled = false;
+  loadVariants(id);
 }
 
 function wireFilter() {
@@ -205,5 +206,158 @@ function wireFilter() {
   });
 }
 
+// ---------------------------------------------------------------------- //
+// Variant panel — Task 5 (generate) + Task 6 (approve/reject/reroll)
+// ---------------------------------------------------------------------- //
+
+async function loadVariants(assetId) {
+  const grid = document.getElementById("variants-grid");
+  clearChildren(grid);
+  const r = await fetch(`/api/variants?asset_id=${assetId}`);
+  if (!r.ok) {
+    grid.appendChild(mkEl("p", { cls: "muted", text: `(list failed: ${r.status})` }));
+    return;
+  }
+  const data = await r.json();
+  if (!data.variants.length) {
+    grid.appendChild(mkEl("p", { cls: "muted", text: "No variants yet. Hit Generate." }));
+    return;
+  }
+  for (const v of data.variants) insertTile(v);
+}
+
+function statusBadge(status) {
+  const span = mkEl("span", { cls: `badge badge-${status}`, text: status });
+  return span;
+}
+
+function insertTile(v) {
+  const grid = document.getElementById("variants-grid");
+  // Replace existing tile with same id (used after approve/reject updates).
+  const existing = grid.querySelector(`[data-variant-id="${v.id}"]`);
+  if (existing) existing.remove();
+
+  const tile = mkEl("div", { cls: "variant-tile" });
+  tile.dataset.variantId = String(v.id);
+  const thumb = mkEl("div", { cls: "variant-thumb" });
+  if (v.png_url) {
+    thumb.appendChild(mkEl("img", { attrs: { src: v.png_url, alt: `variant ${v.id}` } }));
+  } else {
+    thumb.appendChild(mkEl("p", { cls: "muted", text: "rendering…" }));
+  }
+  tile.appendChild(thumb);
+
+  const meta = mkEl("div", { cls: "variant-meta" });
+  meta.appendChild(mkEl("span", { text: `#${v.id}` }));
+  meta.appendChild(statusBadge(v.status));
+  if (v.seed != null) meta.appendChild(mkEl("span", { cls: "muted", text: `seed ${v.seed}` }));
+  tile.appendChild(meta);
+
+  const btnRow = mkEl("div", { cls: "variant-btns" });
+  const approveBtn = mkEl("button", { cls: "btn-approve", text: "✓ Approve" });
+  const rejectBtn = mkEl("button", { cls: "btn-reject", text: "✗ Reject" });
+  const rerollBtn = mkEl("button", { cls: "btn-reroll", text: "⟳ Reroll" });
+  approveBtn.addEventListener("click", () => sendVariantAction(v.id, "approve"));
+  rejectBtn.addEventListener("click", () => sendVariantAction(v.id, "reject"));
+  rerollBtn.addEventListener("click", () => sendVariantAction(v.id, "reroll"));
+  if (v.status === "approved") approveBtn.disabled = true;
+  if (v.status === "rejected") rejectBtn.disabled = true;
+  btnRow.appendChild(approveBtn);
+  btnRow.appendChild(rejectBtn);
+  btnRow.appendChild(rerollBtn);
+  tile.appendChild(btnRow);
+
+  // Prepend newest first.
+  if (grid.firstChild) grid.insertBefore(tile, grid.firstChild); else grid.appendChild(tile);
+}
+
+async function sendVariantAction(variantId, action) {
+  const r = await fetch(`/api/variants/${variantId}/${action}`, { method: "POST" });
+  if (!r.ok) {
+    console.warn(`${action} failed`, r.status);
+    return;
+  }
+  const body = await r.json();
+  if (action === "reroll") {
+    // New pending tile. Refresh the whole grid to pick it up.
+    if (state.activeAssetId) loadVariants(state.activeAssetId);
+    if (body.new_variant_id) watchJob(body.new_variant_id, null);
+  } else {
+    // approve/reject — re-fetch single row for fresh state.
+    const fresh = await fetch(`/api/variants/${variantId}`).then(x => x.json());
+    if (fresh.id) insertTile(fresh);
+  }
+}
+
+async function submitGenerate() {
+  if (!state.activeAssetId) return;
+  const suffix = document.getElementById("user-suffix").value.trim();
+  const btn = document.getElementById("btn-generate");
+  btn.disabled = true;
+  btn.textContent = "Queuing…";
+  try {
+    const r = await fetch("/api/comfy/queue", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ asset_id: state.activeAssetId, user_prompt: suffix }),
+    });
+    if (!r.ok) throw new Error(`queue failed: ${r.status}`);
+    const body = await r.json();
+    // Insert a skeleton tile immediately.
+    insertTile({
+      id: body.variant_id, asset_id: body.asset_id, status: "pending",
+      seed: body.seed, png_url: null,
+    });
+    watchJob(body.variant_id, /* jobId unknown yet */ null);
+  } catch (e) {
+    console.error(e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Generate";
+  }
+}
+
+/**
+ * Poll the variants/{id} endpoint until png_path is populated, then update
+ * the tile. We also open a WS to /api/comfy/progress/{job_id} once we know
+ * the job id, for live status if the runner is async in production.
+ */
+async function watchJob(variantId, jobId) {
+  const deadline = Date.now() + 5 * 60_000;
+  let comfyJobId = jobId;
+  while (Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 1000));
+    const fresh = await fetch(`/api/variants/${variantId}`).then(x => x.json());
+    if (fresh.comfy_job_id && !comfyJobId) {
+      comfyJobId = fresh.comfy_job_id;
+      openProgressSocket(comfyJobId, variantId);
+    }
+    if (fresh.png_url) { insertTile(fresh); return; }
+    if (fresh.status === "failed") { insertTile(fresh); return; }
+  }
+}
+
+function openProgressSocket(jobId, variantId) {
+  try {
+    const ws = new WebSocket(
+      `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/api/comfy/progress/${jobId}`
+    );
+    ws.onmessage = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data);
+        if (msg.type === "done" && msg.png_url) {
+          fetch(`/api/variants/${variantId}`).then(r => r.json()).then(insertTile);
+        }
+      } catch (_) { /* ignore */ }
+    };
+  } catch (_) { /* WS not available — polling keeps it alive */ }
+}
+
+function wireGenerate() {
+  const btn = document.getElementById("btn-generate");
+  btn.addEventListener("click", submitGenerate);
+}
+
 loadTree();
 wireFilter();
+wireGenerate();
