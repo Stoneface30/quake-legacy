@@ -11,6 +11,7 @@ import json
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -37,7 +38,7 @@ class GitFlow:
         return bool(r.stdout.strip())
 
     def save_and_tag(
-        self, *, part: int, flow_plan: dict, tag: str, notes: str
+        self, *, part: int, flow_plan: dict[str, Any], tag: str, notes: str
     ) -> str:
         """Write JSON, commit, tag. Returns commit SHA."""
         full_tag = f"part{part:02d}/{tag}"
