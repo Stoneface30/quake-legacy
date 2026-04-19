@@ -88,8 +88,80 @@ docs/visual-record/*/gameplay-frames/*.png
 docs/visual-record/*/render-frames/*.jpg
 docs/visual-record/*/render-frames/*.png
 phase1/music/library/
+# Copyrighted music — kept local, never committed to public repo (Rule P1-R assets)
+phase1/music/*.mp3
+phase1/music/*.ogg
+phase1/music/*.wav
+phase1/music/*.flac
+phase1/music/_stitched/
 
 
 # Creative Suite v2 local storage
 storage/
+
+# 2026-04-19 video tooling upgrade — downloaded binaries stay local, never committed
+tools/ffmpeg-7/
+tools/ffmpeg-8/
+tools/virtualdub2/
+tools/davinci/
+tools/premiere/
+tools/aftereffects/
+tools/topaz/
+*.iso
+
+# Creative Suite v2 — ComfyUI runtime (model weights, custom nodes, I/O are
+# regenerable and would bloat the repo / license-leak model files).
+tools/comfyui/models/**
+tools/comfyui/custom_nodes/**
+tools/comfyui/output/**
+tools/comfyui/input/**
+tools/comfyui/ComfyUI/**
+tools/comfyui/python_embeded/**
+tools/comfyui/update/**
+tools/comfyui/*.7z
+tools/comfyui/*.bat
+# But keep a top-level README if we write one
+!tools/comfyui/README.md
+
+# Engine consolidation — canonical tree and per-tree variants (third-party source,
+# too large + license-mixed for public repo). Only manifest/diffs/docs are tracked.
+game-dissection/engines/_canonical/
+game-dissection/engines/darkplaces/
+game-dissection/engines/demodumper/
+game-dissection/engines/gtkradiant/
+game-dissection/engines/ioquake3/
+game-dissection/engines/openarena-engine/
+game-dissection/engines/openarena-gamecode/
+game-dissection/engines/q3mme/
+game-dissection/engines/q3vm/
+game-dissection/engines/qldemo-python/
+game-dissection/engines/quake1-source/
+game-dissection/engines/quake2-source/
+game-dissection/engines/quake3-source/
+game-dissection/engines/quake3e/
+game-dissection/engines/uberdemotools/
+game-dissection/engines/wolfcamql-src/
+game-dissection/engines/wolfcamql-local-src/
+game-dissection/engines/wolfet-source/
+game-dissection/engines/yamagi-quake2/
+# But DO track the inventory, diffs, and docs:
+!game-dissection/engines/_manifest/
+!game-dissection/engines/_diffs/
+!game-dissection/engines/*.md
+
+# Private nickname map — sha8(nick) -> real nickname. NEVER commit.
+.nickname_map.json
+
+# Ghidra sandbox (FT-4 reverse-engineering track)
+# Projects are huge (.gpr + .rep per-binary databases). Binaries are id Software IP
+# (QL / Q3A derivatives) — reference only, never redistribute. Reports + scripts
+# + ipc-maps + symbols ARE committed — that is the deliverable.
+game-dissection/ghidra/projects/
+game-dissection/ghidra/binaries/
+game-dissection/ghidra/_staging_extract/
+!game-dissection/ghidra/reports/
+!game-dissection/ghidra/scripts/
+!game-dissection/ghidra/ipc-maps/
+!game-dissection/ghidra/symbols/
+!game-dissection/ghidra/README.md
 

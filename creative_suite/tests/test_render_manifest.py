@@ -17,3 +17,18 @@ def test_manifest_written_next_to_mp4(tmp_path: Path) -> None:
     assert data["mp4"] == str(mp4)
     assert data["extras"]["encoder"] == "libx264"
     assert "written_at" in data
+
+
+def test_manifest_authoritative_home_is_phase1_pipeline() -> None:
+    """Spec §11.1: write_render_manifest lives in phase1/pipeline.py.
+
+    creative_suite.clips.parser keeps a thin re-export for backward
+    compat but the function's canonical module must be phase1.pipeline.
+    """
+    from creative_suite.clips import parser as cs_parser
+    from phase1 import pipeline as p1_pipeline
+
+    # Same function object reached from both import paths.
+    assert cs_parser.write_render_manifest is p1_pipeline.write_render_manifest
+    # Defined in phase1.pipeline (not parser).
+    assert p1_pipeline.write_render_manifest.__module__ == "phase1.pipeline"

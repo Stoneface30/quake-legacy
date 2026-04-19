@@ -7,12 +7,37 @@ In-game sounds (grenade hits, rocket impacts, rail cracks) are the texture of th
 Music at full volume, game audio at cfg.game_audio_volume (default 0.30).
 """
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 import json, subprocess
 from phase1.config import Config
 from phase1.inventory import get_clip_info
 from phase1.transitions import Transition, TransitionKind
+
+
+def write_render_manifest(
+    mp4_path: Path,
+    clip_list_path: Path,
+    extras: dict[str, Any] | None = None,
+) -> Path:
+    """Write {Part}.render_manifest.json next to the rendered mp4.
+
+    Spec §11.1 — Creative Suite v2. Called at the end of every full render
+    so the annotation tool (Track 2) knows which clip list was actually used
+    to produce the mp4. Authoritative home per the design spec; a thin
+    re-export lives in `creative_suite.clips.parser` for backward compat
+    with earlier callers (e.g. `scripts/backfill_manifests.py`).
+    """
+    manifest_path = mp4_path.with_suffix(".render_manifest.json")
+    payload = {
+        "mp4": str(mp4_path),
+        "clip_list": str(clip_list_path),
+        "written_at": datetime.now(timezone.utc).isoformat(),
+        "extras": extras or {},
+    }
+    manifest_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return manifest_path
 
 
 @dataclass
@@ -497,9 +522,8 @@ def _assemble_via_concat_demuxer(
     except OSError as e:
         print(f"  [cleanup] could not fully remove {work_dir}: {e}")
 
-    # Creative Suite v2: record which clip list produced this mp4.
+    # Creative Suite v2 — Spec §11.1: record which clip list produced this mp4.
     if clip_list_path is not None:
-        from creative_suite.clips.parser import write_render_manifest
         write_render_manifest(
             output_path, clip_list_path,
             extras={"encoder": codec_override or "libx264",
@@ -687,10 +711,10 @@ def assemble_part(
 
     size_mb = output_path.stat().st_size / 1024 / 1024
     print(f"  [DONE] {output_path} ({size_mb:.0f}MB)")  # S7 fix: no emoji
-    # Creative Suite v2: record which clip list produced this mp4 so the
-    # annotation tool (storage/annotations/) can resolve mp4_time -> clip_index.
+    # Creative Suite v2 — Spec §11.1: record which clip list produced this
+    # mp4 so the annotation tool (storage/annotations/) can resolve mp4_time
+    # -> clip_index.
     if clip_list_path is not None:
-        from creative_suite.clips.parser import write_render_manifest
         write_render_manifest(
             output_path, clip_list_path,
             extras={"encoder": codec_override or "libx264",
@@ -789,4 +813,117 @@ def prepend_intro(
 
     size_mb = output_path.stat().st_size / 1024 / 1024
     print(f"  [DONE] {output_path.name} with intro ({size_mb:.0f}MB)")
+    return output_path
+
+
+def prepend_intro_sequence(
+    part: int,
+    body_path: Path,
+    output_path: Path,
+    cfg: Config,
+    intro_duration: Optional[float] = None,
+    title_duration: float = 8.0,
+) -> Path:
+    """
+    Rule P1-N: prepend the full Part intro sequence to a rendered body.
+
+    Sequence (total 15s before content):
+        0s  → 7s   PANTHEON (first 7s of IntroPart2.mp4)
+        7s  → 15s  Title card (QUAKE TRIBUTE / Part N / By Tr4sH / fade)
+       15s+       Content body
+
+    Uses ffmpeg concat filter with re-encode to guarantee seamless joins
+    (Rule P1-H: HARD CUTS ONLY — no xfade between segments).
+
+    Args:
+        part:            Part number for the title card
+        body_path:       Assembled content body (the rendered clips)
+        output_path:     Final output path (with intro sequence prepended)
+        cfg:             Config
+        intro_duration:  Seconds of PANTHEON intro (default cfg.intro_clip_duration = 7.0)
+        title_duration:  Seconds of title card (default 8.0 per Rule P1-N)
+
+    Returns: output_path
+    """
+    from phase1.title_card import render_title_card
+
+    if intro_duration is None:
+        intro_duration = cfg.intro_clip_duration
+
+    if not cfg.intro_source.exists():
+        raise FileNotFoundError(
+            f"PANTHEON intro not found: {cfg.intro_source}"
+        )
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # Step 1: trim PANTHEON to N seconds
+    tmp_dir = output_path.parent
+    pantheon_trim = tmp_dir / f"_pantheon_trim_{intro_duration:.0f}s.mp4"
+    if not pantheon_trim.exists():
+        cmd_trim = [
+            str(cfg.ffmpeg_bin), "-y",
+            "-ss", "0",
+            "-t", str(intro_duration),
+            "-i", str(cfg.intro_source),
+            "-c:v", "libx264",
+            "-crf", "17",
+            "-preset", "fast",
+            "-pix_fmt", "yuv420p",
+            "-r", str(cfg.target_fps),
+            "-vf", f"scale={cfg.target_width}:{cfg.target_height}:flags=lanczos",
+            "-c:a", "aac",
+            "-ar", "48000",
+            "-b:a", "192k",
+            str(pantheon_trim),
+        ]
+        result = subprocess.run(cmd_trim, capture_output=True, text=True,
+                                encoding="utf-8", errors="replace")
+        if result.returncode != 0:
+            raise RuntimeError(f"PANTHEON trim failed:\n{result.stderr[-500:]}")
+
+    # Step 2: render title card for this Part (cache under phase1/assets/)
+    assets_dir = Path(__file__).parent / "assets"
+    assets_dir.mkdir(parents=True, exist_ok=True)
+    title_card_path = assets_dir / f"title_card_part{part:02d}.mp4"
+    if not title_card_path.exists():
+        render_title_card(part, title_card_path, cfg, duration=title_duration)
+
+    # Step 3: concat PANTHEON + title card + body in one filter_complex pass.
+    # Re-encode everything for codec/PTS consistency — this is the FINAL render
+    # so we use NVENC if the body was already NVENC; otherwise match body codec.
+    # For simplicity we use libx264 high-quality for the intro+card+body stitch
+    # since only the first 15s changes and everything beyond that is stream-copy
+    # impossible with the filter_complex path. We accept a single re-encode here.
+    print(f"  Stitching intro sequence: PANTHEON 7s + Title card 8s + body -> {output_path.name}")
+    cmd = [
+        str(cfg.ffmpeg_bin), "-y",
+        "-i", str(pantheon_trim),
+        "-i", str(title_card_path),
+        "-i", str(body_path),
+        "-filter_complex",
+        "[0:v][0:a][1:v][1:a][2:v][2:a]concat=n=3:v=1:a=1[vout][aout]",
+        "-map", "[vout]",
+        "-map", "[aout]",
+        "-c:v", "libx264",
+        "-crf", "17",
+        "-preset", "slow",
+        "-profile:v", "high",
+        "-pix_fmt", "yuv420p",
+        "-r", str(cfg.target_fps),
+        "-g", str(cfg.target_fps * 2),
+        "-bf", "2",
+        "-c:a", "aac",
+        "-ar", "48000",
+        "-b:a", cfg.audio_bitrate,
+        "-movflags", "+faststart",
+        str(output_path),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True,
+                            encoding="utf-8", errors="replace")
+    if result.returncode != 0:
+        raise RuntimeError(f"Intro sequence stitch failed:\n{result.stderr[-800:]}")
+
+    size_mb = output_path.stat().st_size / 1024 / 1024
+    print(f"  [DONE] {output_path.name} (PANTHEON+title+body, {size_mb:.0f}MB)")
     return output_path

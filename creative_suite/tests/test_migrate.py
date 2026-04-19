@@ -1,11 +1,13 @@
 import sqlite3
 from pathlib import Path
 
+import pytest
+
 from creative_suite.config import Config
 from creative_suite.db.migrate import migrate
 
 
-def test_migrate_creates_all_tables(tmp_path: Path, monkeypatch) -> None:
+def test_migrate_creates_all_tables(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CS_STORAGE_ROOT", str(tmp_path))
     cfg = Config()
     cfg.ensure_dirs()
@@ -22,7 +24,7 @@ def test_migrate_creates_all_tables(tmp_path: Path, monkeypatch) -> None:
         con.close()
 
 
-def test_migrate_is_idempotent(tmp_path: Path, monkeypatch) -> None:
+def test_migrate_is_idempotent(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CS_STORAGE_ROOT", str(tmp_path))
     cfg = Config()
     cfg.ensure_dirs()

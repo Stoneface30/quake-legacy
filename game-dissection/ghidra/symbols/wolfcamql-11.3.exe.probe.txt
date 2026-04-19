@@ -1,0 +1,292 @@
+# PE probe: wolfcamql-11.3.exe
+- size: 10,838,297 bytes
+- machine: x86 (I386)
+- pe32+: False
+- image_base: 0x400000
+- timestamp: 1471095887 (unix epoch)
+- characteristics: 0x0107
+- debug_dir: rva=0x0 size=0 (0 = no debug info / stripped)
+- import_dir: rva=0x340b000 size=10828
+
+## Sections
+  .text      vaddr=0x00001000 vsize=0x00296628 rsize=0x00296800 flags=[CODE|INITIALIZED_DATA|EXECUTE|READ]
+  .data      vaddr=0x00298000 vsize=0x0000a1c8 rsize=0x0000a200 flags=[INITIALIZED_DATA|READ|WRITE]
+  .rdata     vaddr=0x002a3000 vsize=0x00062410 rsize=0x00062600 flags=[INITIALIZED_DATA|READ]
+  .bss       vaddr=0x00306000 vsize=0x03104d40 rsize=0x00000000 flags=[UNINITIALIZED_DATA|READ|WRITE]
+  .idata     vaddr=0x0340b000 vsize=0x00002a4c rsize=0x00002c00 flags=[INITIALIZED_DATA|READ|WRITE]
+  .CRT       vaddr=0x0340e000 vsize=0x00000034 rsize=0x00000200 flags=[INITIALIZED_DATA|READ|WRITE]
+  .tls       vaddr=0x0340f000 vsize=0x00000020 rsize=0x00000200 flags=[INITIALIZED_DATA|READ|WRITE]
+  .rsrc      vaddr=0x03410000 vsize=0x00006698 rsize=0x00006800 flags=[INITIALIZED_DATA|READ|WRITE]
+  .stab      vaddr=0x03417000 vsize=0x000079a4 rsize=0x00007a00 flags=[INITIALIZED_DATA|READ]
+  .stabstr   vaddr=0x0341f000 vsize=0x00029e4f rsize=0x0002a000 flags=[INITIALIZED_DATA|READ]
+  /4         vaddr=0x03449000 vsize=0x00002718 rsize=0x00002800 flags=[INITIALIZED_DATA|READ]
+  /19        vaddr=0x0344c000 vsize=0x00001cc9 rsize=0x00001e00 flags=[INITIALIZED_DATA|READ]
+  /35        vaddr=0x0344e000 vsize=0x00398f7d rsize=0x00399000 flags=[INITIALIZED_DATA|READ]
+  /47        vaddr=0x037e7000 vsize=0x00037f08 rsize=0x00038000 flags=[INITIALIZED_DATA|READ]
+  /61        vaddr=0x0381f000 vsize=0x0007f0c1 rsize=0x0007f200 flags=[INITIALIZED_DATA|READ]
+  /73        vaddr=0x0389f000 vsize=0x0002f91c rsize=0x0002fa00 flags=[INITIALIZED_DATA|READ]
+  /86        vaddr=0x038cf000 vsize=0x0000c330 rsize=0x0000c400 flags=[INITIALIZED_DATA|READ]
+  /97        vaddr=0x038dc000 vsize=0x001d5a5d rsize=0x001d5c00 flags=[INITIALIZED_DATA|READ]
+  /108       vaddr=0x03ab2000 vsize=0x00036010 rsize=0x00036200 flags=[INITIALIZED_DATA|READ]
+
+## Imports (DLL -> first 50 symbols)
+  ADVAPI32.dll
+    CryptAcquireContextA
+    CryptGenRandom
+    CryptReleaseContext
+    GetUserNameA
+  KERNEL32.dll
+    AttachConsole
+    CloseHandle
+    CreateDirectoryA
+    CreateEventA
+    CreateMutexA
+    CreatePipe
+    CreateProcessA
+    CreateSemaphoreW
+    DeleteCriticalSection
+    DuplicateHandle
+    EnterCriticalSection
+    ExpandEnvironmentStringsA
+    FindClose
+    FindFirstFileA
+    FindNextFileA
+    FormatMessageA
+    FreeLibrary
+    GetCommandLineA
+    GetConsoleScreenBufferInfo
+    GetCurrentProcess
+    GetCurrentProcessId
+    GetCurrentThreadId
+    GetExitCodeProcess
+    GetExitCodeThread
+    GetLastError
+    GetModuleFileNameA
+    GetModuleFileNameW
+    GetModuleHandleA
+    GetNativeSystemInfo
+    GetProcAddress
+    GetStartupInfoA
+    GetStdHandle
+    GetSystemTimeAsFileTime
+    GetTickCount
+    GetVersionExA
+    GlobalAlloc
+    GlobalLock
+    GlobalMemoryStatus
+    GlobalSize
+    GlobalUnlock
+    InitializeCriticalSection
+    LeaveCriticalSection
+    LoadLibraryA
+    MapViewOfFile
+    OpenFileMappingW
+    QueryPerformanceCounter
+    ReadFile
+    ReleaseMutex
+    ReleaseSemaphore
+    SetConsoleTextAttribute
+    ... (21 more)
+  msvcrt.dll
+    __dllonexit
+    __doserrno
+    __getmainargs
+    __initenv
+    __lconv_init
+    __mb_cur_max
+    __pioinfo
+    __set_app_type
+    __setusermatherr
+    _access
+    _acmdln
+    _amsg_exit
+    _beginthreadex
+    _cexit
+    _errno
+    _exit
+    _filelengthi64
+    _fileno
+    _findclose
+    _findnext
+    _fmode
+    _getcwd
+    _getpid
+    _initterm
+    _iob
+    _isctype
+    _lock
+    _lseeki64
+    _onexit
+    _pctype
+    _putenv
+    _setjmp
+    _setjmp3
+    _snwprintf
+    _stat
+    _stati64
+    _vsnprintf
+    time
+    localtime
+    ctime
+    calloc
+    clock
+    exit
+    fclose
+    feof
+    ferror
+    fflush
+    fgetc
+    fgetpos
+    fgets
+    ... (83 more)
+  OPENGL32.DLL
+    glAlphaFunc
+    glArrayElement
+    glBegin
+    glBindTexture
+    glBlendFunc
+    glClear
+    glClearColor
+    glClearDepth
+    glClearStencil
+    glClipPlane
+    glColor3f
+    glColor4f
+    glColor4ubv
+    glColorMask
+    glColorPointer
+    glCopyTexSubImage2D
+    glCullFace
+    glDeleteTextures
+    glDepthFunc
+    glDepthMask
+    glDepthRange
+    glDisable
+    glDisableClientState
+    glDrawBuffer
+    glDrawElements
+    glEnable
+    glEnableClientState
+    glEnd
+    glFinish
+    glGenTextures
+    glGetBooleanv
+    glGetError
+    glGetIntegerv
+    glGetString
+    glGetTexImage
+    glLineWidth
+    glLoadIdentity
+    glLoadMatrixf
+    glMatrixMode
+    glOrtho
+    glPolygonMode
+    glPolygonOffset
+    glPopMatrix
+    glPushMatrix
+    glReadBuffer
+    glReadPixels
+    glScissor
+    glShadeModel
+    glStencilFunc
+    glStencilMask
+    ... (19 more)
+  USER32.dll
+    CloseClipboard
+    EmptyClipboard
+    GetClipboardData
+    GetSystemMetrics
+    MessageBoxA
+    MessageBoxW
+    OpenClipboard
+    SetClipboardData
+  WINMM.DLL
+    timeBeginPeriod
+    timeEndPeriod
+    timeGetDevCaps
+    timeGetTime
+  WS2_32.dll
+    WSACleanup
+    WSAGetLastError
+    WSASetLastError
+    WSAStartup
+    __WSAFDIsSet
+    accept
+    bind
+    closesocket
+    connect
+    freeaddrinfo
+    getaddrinfo
+    gethostbyname
+    gethostname
+    getnameinfo
+    getsockname
+    getsockopt
+    htons
+    inet_addr
+    inet_ntoa
+    ioctlsocket
+    listen
+    ntohs
+    recv
+    recvfrom
+    select
+    send
+    sendto
+    setsockopt
+    socket
+  SDL.dll
+    SDL_AudioDriverName
+    SDL_CloseAudio
+    SDL_CreateRGBSurfaceFrom
+    SDL_EnableKeyRepeat
+    SDL_EnableUNICODE
+    SDL_FreeSurface
+    SDL_GL_GetProcAddress
+    SDL_GL_SetAttribute
+    SDL_GL_SwapBuffers
+    SDL_GetAppState
+    SDL_GetError
+    SDL_GetKeyName
+    SDL_GetKeyState
+    SDL_GetVideoInfo
+    SDL_GetVideoSurface
+    SDL_Has3DNow
+    SDL_Has3DNowExt
+    SDL_HasAltiVec
+    SDL_HasMMX
+    SDL_HasMMXExt
+    SDL_HasRDTSC
+    SDL_HasSSE
+    SDL_HasSSE2
+    SDL_Init
+    SDL_JoystickClose
+    SDL_JoystickEventState
+    SDL_JoystickGetAxis
+    SDL_JoystickGetBall
+    SDL_JoystickGetButton
+    SDL_JoystickGetHat
+    SDL_JoystickName
+    SDL_JoystickNumAxes
+    SDL_JoystickNumBalls
+    SDL_JoystickNumButtons
+    SDL_JoystickNumHats
+    SDL_JoystickOpen
+    SDL_JoystickUpdate
+    SDL_Linked_Version
+    SDL_ListModes
+    SDL_LoadFunction
+    SDL_LoadObject
+    SDL_LockAudio
+    SDL_NumJoysticks
+    SDL_OpenAudio
+    SDL_PauseAudio
+    SDL_PeepEvents
+    SDL_PollEvent
+    SDL_PumpEvents
+    SDL_Quit
+    SDL_QuitSubSystem
+    ... (19 more)
+
+## Strings  (ASCII + UTF-16LE, min_len=6, total=46,117)
+  ... (46117 more strings truncated)

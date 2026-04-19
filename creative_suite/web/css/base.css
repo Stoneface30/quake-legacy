@@ -1,0 +1,16 @@
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, sans-serif; background: #15181c;
+       color: #dcdfe4; }
+header { display: flex; align-items: center; gap: 2rem; padding: .75rem 1rem;
+         background: #0f1216; border-bottom: 1px solid #22262c; }
+header h1 { margin: 0; font-size: 1.1rem; letter-spacing: .05em; }
+header nav a { color: #8a93a0; text-decoration: none; margin-right: 1rem; }
+header nav a.active { color: #f0c674; }
+button { background: #2b313b; color: #dcdfe4; border: 1px solid #3a4150;
+         padding: .4rem .8rem; cursor: pointer; }
+button:hover { background: #3a4150; }
+input, textarea, select { background: #0f1216; color: #dcdfe4;
+                          border: 1px solid #22262c; padding: .4rem; width: 100%; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: .3rem .5rem; border-bottom: 1px solid #22262c;
+         text-align: left; font-size: .9rem; }

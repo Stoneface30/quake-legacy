@@ -61,3 +61,24 @@ CREATE TABLE IF NOT EXISTS clip_durations (
   duration_s      REAL NOT NULL,
   probed_at       DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS render_versions (
+  id                INTEGER PRIMARY KEY,
+  part              INTEGER NOT NULL,
+  tag               TEXT NOT NULL,
+  notes             TEXT,
+  flow_plan_git_sha TEXT NOT NULL,
+  flow_plan_path    TEXT NOT NULL,
+  mp4_path          TEXT NOT NULL,
+  body_dur_s        REAL,
+  level_pass        INTEGER,
+  level_delta_lu    REAL,
+  max_drift_ms      REAL,
+  render_time_s     REAL,
+  parent_version_id INTEGER REFERENCES render_versions(id),
+  mode              TEXT NOT NULL,
+  created_at        DATETIME DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (part, tag)
+);
+CREATE INDEX IF NOT EXISTS idx_render_versions_part
+  ON render_versions(part, created_at DESC);
