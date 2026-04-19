@@ -43,6 +43,14 @@ export async function loadPart(n) {
     metaEl: document.getElementById("wave-meta"),
     waveform: S.waveform,
     musicStructure: S.artifacts?.music_structure,
+    onDownbeatDrop: async (seamIdx, tS) => {
+      S.flowPlan.beat_snapped_offsets = S.flowPlan.beat_snapped_offsets ?? [];
+      const existing = S.flowPlan.beat_snapped_offsets.findIndex(o => o.seam_idx === seamIdx);
+      if (existing >= 0) S.flowPlan.beat_snapped_offsets[existing].target_t_s = tS;
+      else S.flowPlan.beat_snapped_offsets.push({ seam_idx: seamIdx, target_t_s: tS });
+      await api.putFlowPlan(S.part, S.flowPlan);
+      document.getElementById("flow-dirty").textContent = ` · seam ${seamIdx} → ${tS.toFixed(2)}s`;
+    },
   });
   renderLevels({
     barsEl: document.getElementById("levels-bars"),

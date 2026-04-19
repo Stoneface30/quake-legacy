@@ -22,11 +22,12 @@ Output:
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -453,6 +454,170 @@ def build_body_chunks(
         encoding="utf-8",
     )
     return concat_list, chunks
+
+
+def _manual_curated_reorder(
+    chunk_infos: List[Tuple[Path, float, str, list]],
+) -> List[PlannedClip]:
+    """Hand-picked curated flow: opener → build → climax → cooldown.
+
+    Strategy:
+      - Score each clip by top_event.score (55%), has_player_death (20%),
+        event density (15%), duration (10%).
+      - Sort all clips by composite score descending.
+      - Reserve top-5 as "peaks" placed at ~25%, ~50%, ~70%, ~85%, ~95%.
+      - Opener (first 3 slots) = medium clips (event_count ≥ 3, duration 4-10s)
+        that ease the viewer in — not the loudest, not the quietest.
+      - Cooldown (last 2 slots before final peak) = lower-score longer clips.
+      - Remaining clips fill the middle in a gently ascending intensity ramp,
+        shuffling within tier buckets so weapon types don't cluster.
+
+    Returns PlannedClip list in the curated order. section_role is informational
+    only — assembly uses naive cumulative xfade offsets.
+    """
+    # Score each clip.
+    scored: list[tuple[int, float, dict]] = []
+    for idx, (c, d, tier, evs) in enumerate(chunk_infos):
+        top = evs[0] if evs else None
+        top_score = float(top.score) if top is not None else 0.0
+        has_death = any(getattr(e, "event_type", "") == "player_death" for e in evs)
+        event_density = min(len(evs) / 10.0, 1.0)
+        dur_norm = min(d / 30.0, 1.0)
+        composite = (
+            top_score * 0.55
+            + (1.0 if has_death else 0.0) * 0.20
+            + event_density * 0.15
+            + dur_norm * 0.10
+        )
+        top_type = top.event_type if top is not None else None
+        scored.append((idx, composite, {
+            "top_score": top_score,
+            "has_death": has_death,
+            "event_count": len(evs),
+            "duration": d,
+            "top_type": top_type,
+            "tier": tier,
+        }))
+
+    N = len(scored)
+    scored_sorted = sorted(scored, key=lambda s: s[1], reverse=True)
+
+    # Top 5 = peaks.
+    peak_ids = {s[0] for s in scored_sorted[: min(5, N)]}
+
+    # Opener candidates: medium clips (event_count 3-8, 4-12s dur, NOT peaks).
+    opener_pool = [
+        s for s in scored
+        if s[0] not in peak_ids
+        and 3 <= s[2]["event_count"] <= 8
+        and 4.0 <= s[2]["duration"] <= 12.0
+    ]
+    # If pool too small, relax to anything non-peak with at least 2 events.
+    if len(opener_pool) < 3:
+        opener_pool = [s for s in scored if s[0] not in peak_ids and s[2]["event_count"] >= 2]
+    opener_pool.sort(key=lambda s: s[1])  # ascending: gentler first
+    openers = [s[0] for s in opener_pool[:3]]
+
+    # Cooldown candidates: low-score longer clips, NOT peaks, NOT openers.
+    used = set(openers) | peak_ids
+    cooldown_pool = [
+        s for s in scored
+        if s[0] not in used and s[2]["duration"] >= 6.0
+    ]
+    cooldown_pool.sort(key=lambda s: s[1])  # ascending
+    cooldowns = [s[0] for s in cooldown_pool[:2]]
+    used.update(cooldowns)
+
+    # Middle = everything else, sorted ascending by score (gentle ramp).
+    middle_pool = [s for s in scored if s[0] not in used]
+    middle_pool.sort(key=lambda s: s[1])
+    # De-cluster: simple interleave by top_type so same weapon doesn't repeat.
+    middle_ids = _decluster_by_type(middle_pool)
+
+    # Build final sequence: [openers(3)] [middle + peaks sprinkled] [cooldowns(2)] [final peak]
+    # Peak placement targets (by position index in final list).
+    peaks_ordered = sorted(peak_ids, key=lambda i: -dict((s[0], s[1]) for s in scored)[i])
+    # final peak = the highest-scored one, held for the end
+    final_peak = peaks_ordered[0]
+    other_peaks = peaks_ordered[1:]  # up to 4 peaks to sprinkle
+
+    # Estimate total body length = 3 openers + middle + 4 peaks + 2 cooldowns + 1 final peak
+    body_ids: list[int] = list(openers)
+    # Place peaks inside middle at fractional positions [0.25, 0.5, 0.7, 0.85]
+    # of the middle pool length, padded.
+    middle_with_peaks = list(middle_ids)
+    if other_peaks and middle_with_peaks:
+        slots = [0.25, 0.50, 0.70, 0.85][: len(other_peaks)]
+        for peak, frac in zip(other_peaks, slots):
+            insert_at = int(len(middle_with_peaks) * frac)
+            middle_with_peaks.insert(insert_at, peak)
+    elif other_peaks:
+        # No middle at all — peaks all go at the end.
+        middle_with_peaks = list(other_peaks)
+    body_ids.extend(middle_with_peaks)
+    body_ids.extend(cooldowns)
+    body_ids.append(final_peak)
+
+    # Safety: if any chunk got dropped or duplicated, reconcile.
+    seen: set[int] = set()
+    deduped: list[int] = []
+    for i in body_ids:
+        if i not in seen:
+            seen.add(i)
+            deduped.append(i)
+    # Append anything missing (defensive) at end in original order.
+    for idx in range(N):
+        if idx not in seen:
+            deduped.append(idx)
+            seen.add(idx)
+    assert len(deduped) == N, f"reorder produced {len(deduped)}/{N} clips"
+
+    # Materialize PlannedClip list.
+    role_by_position = lambda i, total: (
+        "intro" if i < 3
+        else "outro" if i >= total - 3
+        else ("drop" if i in set(s[0] for s in scored_sorted[: min(5, total)]) else "build")
+    )
+    result: List[PlannedClip] = []
+    for pos, chunk_idx in enumerate(deduped):
+        c, d, tier, evs = chunk_infos[chunk_idx]
+        top = evs[0] if evs else None
+        result.append(PlannedClip(
+            chunk=c,
+            duration=d,
+            tier=tier,
+            top_event=top,
+            events=list(evs),
+            section_role=role_by_position(pos, N),
+        ))
+
+    # Logging: show the curated order summary.
+    print(f"  [manual-reorder] arc = openers×{len(openers)} → middle×{len(middle_with_peaks)} "
+          f"→ cooldown×{len(cooldowns)} → final_peak")
+    print(f"  [manual-reorder] peak ids at positions: "
+          f"{[i for i, idx in enumerate(deduped) if idx in peak_ids]}")
+    return result
+
+
+def _decluster_by_type(
+    pool: List[Tuple[int, float, dict]],
+) -> List[int]:
+    """Return indices from pool, round-robin'd by top_event type so same weapon
+    doesn't repeat. Within each type bucket, preserve ascending-score order.
+    """
+    from collections import defaultdict, deque
+    buckets: dict[str, deque[int]] = defaultdict(deque)
+    for idx, _score, meta in pool:
+        key = meta.get("top_type") or "none"
+        buckets[key].append(idx)
+    # Round-robin drain.
+    out: list[int] = []
+    keys = list(buckets.keys())
+    while any(buckets[k] for k in keys):
+        for k in keys:
+            if buckets[k]:
+                out.append(buckets[k].popleft())
+    return out
 
 
 def assemble_body_with_xfades(
@@ -1051,7 +1216,24 @@ def main():
     reordered: List[PlannedClip] = []
     ordered_chunks: List[Path] = list(chunks)
     body_seam_offsets: Optional[List[float]] = None
-    if structure is not None and len(chunk_infos) >= 1:
+
+    # --- CS_MANUAL_REORDER bypass: hand-picked curated flow, no flow-plan-v2 ---
+    # Rationale (user 2026-04-19): flow-plan-v2 bucketed 116/117 clips as "drop"
+    # which produces a flat intensity curve. Manual reorder uses event recognition
+    # already computed above to build an opener→build→climax→cooldown arc.
+    if os.environ.get("CS_MANUAL_REORDER") == "1" and len(chunk_infos) >= 1:
+        print("  [manual-reorder] CS_MANUAL_REORDER=1 → bypassing flow-plan-v2")
+        reordered = _manual_curated_reorder(chunk_infos)
+        ordered_chunks = [pc.chunk for pc in reordered]
+        body_seam_offsets = None  # naive cumulative offsets in assemble_body_with_xfades
+        # Write an audit flow-plan so downstream gates + humans can inspect.
+        try:
+            fp = write_flow_plan_json(reordered, [], part, OUTPUT_DIR)
+            print(f"  [manual-reorder] wrote audit plan: {fp.name}  "
+                  f"clips={len(reordered)}")
+        except Exception as exc:
+            print(f"  [manual-reorder] WARN: audit plan write failed ({exc})")
+    elif structure is not None and len(chunk_infos) >= 1:
         try:
             reordered, seam_offsets = plan_flow_cuts_v2(
                 chunk_infos,
@@ -1077,6 +1259,31 @@ def main():
             reordered = []
             ordered_chunks = list(chunks)
             body_seam_offsets = None
+
+    # --- spec §11.1 override: cinema suite seam → downbeat drops ---
+    # When the user drags a seam handle onto a music downbeat in the cinema
+    # suite UI, the frontend writes {seam_idx, target_t_s} entries into
+    # flow_plan.beat_snapped_offsets. Honor those here by overwriting the
+    # per-seam offset computed by plan_flow_cuts_v2 above. Absent the key,
+    # the existing Parts 4-12 render byte-identical.
+    import json as _json
+    fp_path = OUTPUT_DIR / f"part{part:02d}_flow_plan.json"
+    try:
+        _fp = _json.loads(fp_path.read_text(encoding="utf-8"))
+        _seam_overrides = {
+            int(o["seam_idx"]): float(o["target_t_s"])
+            for o in _fp.get("beat_snapped_offsets", [])
+        }
+    except (OSError, ValueError, KeyError):
+        _seam_overrides = {}
+    if _seam_overrides:
+        if body_seam_offsets is None:
+            body_seam_offsets = [0.0] * max(0, len(ordered_chunks) - 1)
+        for i in range(len(body_seam_offsets)):
+            if i in _seam_overrides:
+                body_seam_offsets[i] = _seam_overrides[i]
+        print(f"  [cinema-suite] applied {len(_seam_overrides)} seam override(s) "
+              f"from {fp_path.name}")
 
     # --- Body assembly: single mp4 with seam xfades (Rule P1-H v3) ---
     body_xfaded = chunks_dir / "_body_xfaded.mp4"

@@ -2,7 +2,7 @@
 // Draws the waveform + downbeat grid + drop markers + section bands.
 // All dynamic DOM built via createElement + textContent. No innerHTML.
 
-export function renderMusic({ canvas, overlay, metaEl, waveform, musicStructure }) {
+export function renderMusic({ canvas, overlay, metaEl, waveform, musicStructure, onDownbeatDrop }) {
   drawWave(canvas, waveform);
   overlay.replaceChildren();
   const bodyDur = musicStructure?.body_duration_s ?? waveform?.duration_s ?? 0;
@@ -28,6 +28,25 @@ export function renderMusic({ canvas, overlay, metaEl, waveform, musicStructure 
     line.style.left = `${(db.t / bodyDur) * W}px`;
     line.style.opacity = String(0.2 + 0.8 * (db.salience ?? 0.5));
     line.dataset.tMs = String(Math.round(db.t * 1000));
+    line.addEventListener("dragover", (ev) => {
+      ev.preventDefault();
+      line.classList.add("dblit");
+      line.style.background = "#fbbf24";
+    });
+    line.addEventListener("dragleave", () => {
+      line.classList.remove("dblit");
+      line.style.background = "#ffffff";
+    });
+    line.addEventListener("drop", (ev) => {
+      ev.preventDefault();
+      line.classList.remove("dblit");
+      line.style.background = "#ffffff";
+      const data = ev.dataTransfer.getData("text/plain");
+      if (!data.startsWith("seam:")) return;
+      const seamIdx = parseInt(data.slice(5), 10);
+      const tS = parseInt(line.dataset.tMs, 10) / 1000;
+      onDownbeatDrop?.(seamIdx, tS);
+    });
     overlay.append(line);
   }
   for (const d of musicStructure.drops ?? []) {
