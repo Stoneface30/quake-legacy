@@ -1270,20 +1270,24 @@ def main():
     fp_path = OUTPUT_DIR / f"part{part:02d}_flow_plan.json"
     try:
         _fp = _json.loads(fp_path.read_text(encoding="utf-8"))
+        _raw_overrides = _fp.get("beat_snapped_offsets", [])
         _seam_overrides = {
             int(o["seam_idx"]): float(o["target_t_s"])
-            for o in _fp.get("beat_snapped_offsets", [])
+            for o in _raw_overrides
+            if int(o["seam_idx"]) >= 0  # drop negative indices silently
         }
     except (OSError, ValueError, KeyError):
         _seam_overrides = {}
     if _seam_overrides:
         if body_seam_offsets is None:
             body_seam_offsets = [0.0] * max(0, len(ordered_chunks) - 1)
+        applied = 0
         for i in range(len(body_seam_offsets)):
             if i in _seam_overrides:
                 body_seam_offsets[i] = _seam_overrides[i]
-        print(f"  [cinema-suite] applied {len(_seam_overrides)} seam override(s) "
-              f"from {fp_path.name}")
+                applied += 1
+        print(f"  [cinema-suite] applied {applied}/{len(_seam_overrides)} seam "
+              f"override(s) from {fp_path.name}")
 
     # --- Body assembly: single mp4 with seam xfades (Rule P1-H v3) ---
     body_xfaded = chunks_dir / "_body_xfaded.mp4"

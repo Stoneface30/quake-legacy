@@ -41,6 +41,9 @@ async def run_preview_tier_a(
         await emit("done", 100, str(out_mp4))
         return str(out_mp4)
 
+    if not clip_chunks:
+        raise ValueError("clip_chunks must be non-empty")
+
     await emit("cfg-write", 20, "building cfg")
     demo_name = clip_chunks[0].replace("chunk_", "demo_").replace(".mp4", "")
 
@@ -52,7 +55,19 @@ async def run_preview_tier_a(
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
     )
-    await proc.wait()
+    try:
+        await proc.wait()
+    except (asyncio.CancelledError, BaseException):
+        # Cancellation or shutdown: terminate wolfcam (it's a GUI process
+        # that would otherwise survive as an orphan holding the engine open).
+        if proc.returncode is None:
+            try:
+                proc.terminate()
+                await asyncio.wait_for(proc.wait(), timeout=3)
+            except (ProcessLookupError, asyncio.TimeoutError):
+                proc.kill()
+                await proc.wait()
+        raise
     await emit("capture", 75, "engine exited")
 
     avi = next(preview_dir.glob(f"*{demo_name}_preview*.avi"), None)
@@ -67,6 +82,16 @@ async def run_preview_tier_a(
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.STDOUT,
     )
-    await ffp.wait()
+    try:
+        await ffp.wait()
+    except (asyncio.CancelledError, BaseException):
+        if ffp.returncode is None:
+            try:
+                ffp.terminate()
+                await asyncio.wait_for(ffp.wait(), timeout=3)
+            except (ProcessLookupError, asyncio.TimeoutError):
+                ffp.kill()
+                await ffp.wait()
+        raise
     await emit("done", 100, str(out_mp4))
     return str(out_mp4)

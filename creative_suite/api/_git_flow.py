@@ -8,10 +8,24 @@ never pushed — it is a local-only history for the cinema suite.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+
+
+# Git refname constraints we can enforce cheaply: word chars + dot/hyphen,
+# non-empty, no leading dot or hyphen (git rejects those), no double dots.
+_TAG_RE = re.compile(r"^(?![.\-])[\w.\-]+$")
+
+
+def _validate_tag(tag: str) -> None:
+    if not tag or ".." in tag or not _TAG_RE.match(tag):
+        raise ValueError(
+            f"invalid tag {tag!r}: must match [A-Za-z0-9_.-]+, no leading "
+            f"dot/hyphen, no '..'"
+        )
 
 
 @dataclass(frozen=True)
@@ -40,7 +54,13 @@ class GitFlow:
     def save_and_tag(
         self, *, part: int, flow_plan: dict[str, Any], tag: str, notes: str
     ) -> str:
-        """Write JSON, commit, tag. Returns commit SHA."""
+        """Write JSON, commit, tag. Returns commit SHA.
+
+        Raises ValueError if ``tag`` isn't a safe refname component
+        (prevents DB row / missing-git-tag divergence if git rejects the
+        tag AFTER the render_versions INSERT has already been written).
+        """
+        _validate_tag(tag)
         full_tag = f"part{part:02d}/{tag}"
         if self._tag_exists(full_tag):
             raise ValueError(f"Tag {full_tag} already exists")

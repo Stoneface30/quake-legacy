@@ -67,7 +67,7 @@ def write_gamestart_cfg(
         cg_drawGun {1|0}
         seekclock 8:52; video avi name :frag_001; at 9:05 quit
     """
-    if not demo_name or "\n" in demo_name:
+    if not demo_name or "\n" in demo_name or ";" in demo_name:
         raise ValueError(f"invalid demo_name: {demo_name!r}")
     for label, value in (("seek_clock", seek_clock), ("quit_at", quit_at)):
         if not value or "\n" in value or ";" in value:
