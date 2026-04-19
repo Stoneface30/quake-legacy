@@ -11,6 +11,7 @@ from creative_suite.db.migrate import migrate
 
 VERSION = "0.1.0"
 WEB_ROOT = Path(__file__).parent / "web"
+FRONTEND_ROOT = Path(__file__).parent / "frontend"
 
 
 def create_app() -> FastAPI:
@@ -72,6 +73,13 @@ def create_app() -> FastAPI:
             return FileResponse(path)
         return FileResponse(WEB_ROOT / "annotate.html")
 
+    @app.get("/cinema")
+    def cinema_page() -> FileResponse:  # pyright: ignore[reportUnusedFunction]
+        path = FRONTEND_ROOT / "cinema.html"
+        if path.exists():
+            return FileResponse(path)
+        return FileResponse(WEB_ROOT / "annotate.html")
+
     if WEB_ROOT.exists():
         app.mount("/web", StaticFiles(directory=str(WEB_ROOT)), name="web")
     if cfg.phase1_output_dir.exists():
@@ -80,4 +88,8 @@ def create_app() -> FastAPI:
             StaticFiles(directory=str(cfg.phase1_output_dir)),
             name="media",
         )
+    if FRONTEND_ROOT.exists():
+        app.mount("/cinema-static", StaticFiles(directory=str(FRONTEND_ROOT)), name="cinema-static")
+    if cfg.phase1_output_dir.exists():
+        app.mount("/media/phase1", StaticFiles(directory=str(cfg.phase1_output_dir)), name="media-phase1")
     return app
