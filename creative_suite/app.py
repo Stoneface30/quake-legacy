@@ -36,6 +36,14 @@ def create_app() -> FastAPI:
     app.include_router(variants.router)
     app.include_router(md3.router)
 
+    # Spec §11.3 mitigation: check img2img workflow placeholders at boot.
+    # This only logs — it never aborts startup, so a ComfyUI update that
+    # renames nodes leaves the rest of the app usable.
+    from creative_suite.comfy.client import validate_workflow_file
+    validate_workflow_file(
+        Path(__file__).parent / "comfy" / "workflows" / "img2img_sdxl.json"
+    )
+
     @app.get("/")
     def index() -> FileResponse:  # pyright: ignore[reportUnusedFunction]
         return FileResponse(WEB_ROOT / "annotate.html")
