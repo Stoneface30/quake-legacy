@@ -7,12 +7,37 @@ In-game sounds (grenade hits, rocket impacts, rail cracks) are the texture of th
 Music at full volume, game audio at cfg.game_audio_volume (default 0.30).
 """
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 import json, subprocess
 from phase1.config import Config
 from phase1.inventory import get_clip_info
 from phase1.transitions import Transition, TransitionKind
+
+
+def write_render_manifest(
+    mp4_path: Path,
+    clip_list_path: Path,
+    extras: dict[str, Any] | None = None,
+) -> Path:
+    """Write {Part}.render_manifest.json next to the rendered mp4.
+
+    Spec §11.1 — Creative Suite v2. Called at the end of every full render
+    so the annotation tool (Track 2) knows which clip list was actually used
+    to produce the mp4. Authoritative home per the design spec; a thin
+    re-export lives in `creative_suite.clips.parser` for backward compat
+    with earlier callers (e.g. `scripts/backfill_manifests.py`).
+    """
+    manifest_path = mp4_path.with_suffix(".render_manifest.json")
+    payload = {
+        "mp4": str(mp4_path),
+        "clip_list": str(clip_list_path),
+        "written_at": datetime.now(timezone.utc).isoformat(),
+        "extras": extras or {},
+    }
+    manifest_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    return manifest_path
 
 
 @dataclass
@@ -497,9 +522,8 @@ def _assemble_via_concat_demuxer(
     except OSError as e:
         print(f"  [cleanup] could not fully remove {work_dir}: {e}")
 
-    # Creative Suite v2: record which clip list produced this mp4.
+    # Creative Suite v2 — Spec §11.1: record which clip list produced this mp4.
     if clip_list_path is not None:
-        from creative_suite.clips.parser import write_render_manifest
         write_render_manifest(
             output_path, clip_list_path,
             extras={"encoder": codec_override or "libx264",
@@ -687,10 +711,10 @@ def assemble_part(
 
     size_mb = output_path.stat().st_size / 1024 / 1024
     print(f"  [DONE] {output_path} ({size_mb:.0f}MB)")  # S7 fix: no emoji
-    # Creative Suite v2: record which clip list produced this mp4 so the
-    # annotation tool (storage/annotations/) can resolve mp4_time -> clip_index.
+    # Creative Suite v2 — Spec §11.1: record which clip list produced this
+    # mp4 so the annotation tool (storage/annotations/) can resolve mp4_time
+    # -> clip_index.
     if clip_list_path is not None:
-        from creative_suite.clips.parser import write_render_manifest
         write_render_manifest(
             output_path, clip_list_path,
             extras={"encoder": codec_override or "libx264",
