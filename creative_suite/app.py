@@ -94,6 +94,13 @@ def create_app() -> FastAPI:
             return FileResponse(path)
         return FileResponse(WEB_ROOT / "annotate.html")
 
+    @app.get("/editor")
+    def editor_page() -> FileResponse:  # pyright: ignore[reportUnusedFunction]
+        path = FRONTEND_ROOT / "editor.html"
+        if path.exists():
+            return FileResponse(path)
+        return FileResponse(WEB_ROOT / "annotate.html")
+
     if WEB_ROOT.exists():
         app.mount("/web", StaticFiles(directory=str(WEB_ROOT)), name="web")
     if cfg.phase1_output_dir.exists():

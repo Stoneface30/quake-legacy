@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>PANTHEON Editor — Quake Legacy</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="/cinema-static/editor.css">
+<script type="importmap">
+{
+  "imports": {
+    "wavesurfer": "https://cdn.jsdelivr.net/npm/wavesurfer.js@7.8.16/dist/wavesurfer.esm.js",
+    "tweakpane": "https://cdn.jsdelivr.net/npm/tweakpane@4.0.5/dist/tweakpane.min.js"
+  }
+}
+</script>
+</head>
+<body data-theme="dark">
+<header id="top-bar">
+  <h1>PANTHEON · EDITOR</h1>
+  <label class="part-picker">Part
+    <select id="part-select"></select>
+  </label>
+  <span id="status-pill">loading…</span>
+  <nav class="top-nav">
+    <a href="/cinema">← Cinema Suite</a>
+  </nav>
+  <div class="render-controls">
+    <button id="render-preview" class="btn btn-ghost" disabled>Preview render</button>
+    <button id="render-ship" class="btn btn-primary" disabled>Ship render</button>
+  </div>
+</header>
+
+<main id="editor-layout">
+
+  <aside id="pane-left">
+    <section class="pane-section">
+      <h2>Parts</h2>
+      <ul id="parts-list" class="parts-list"></ul>
+    </section>
+    <section class="pane-section">
+      <h2>Effects (drag to clip)</h2>
+      <ul id="effects-palette" class="effect-palette">
+        <li class="effect-card" data-effect="slow">🐢 Slow-mo 0.5×</li>
+        <li class="effect-card" data-effect="zoom">🔍 Zoom 1.2×</li>
+        <li class="effect-card" data-effect="grade_v2">🎨 V2 Punchy grade</li>
+        <li class="effect-card" data-effect="title_style">🏛️ Title card style</li>
+      </ul>
+    </section>
+  </aside>
+
+  <section id="pane-center">
+    <div id="monitor-wrap">
+      <video id="monitor-video" controls preload="metadata"
+             poster="" muted></video>
+      <div id="monitor-meta" class="monitor-meta">
+        <span class="clip-label">—</span>
+        <span class="clip-tier"></span>
+        <span class="clip-section"></span>
+        <span class="clip-dur"></span>
+      </div>
+    </div>
+
+    <div id="timeline-wrap">
+      <div id="timeline-ruler"></div>
+      <div id="timeline-tracks">
+        <div id="track-video" class="track">
+          <div class="track-label">V1 body</div>
+          <div id="track-video-strip" class="track-strip"></div>
+        </div>
+        <div id="track-audio-game" class="track">
+          <div class="track-label">A1 game</div>
+          <div id="track-audio-game-strip" class="track-strip"></div>
+        </div>
+        <div id="track-audio-music" class="track">
+          <div class="track-label">A2 music</div>
+          <div id="track-audio-music-strip" class="track-strip"></div>
+        </div>
+      </div>
+      <div id="timeline-status" class="timeline-status">
+        <span id="clip-count">0 clips</span>
+        <span id="removed-count">0 removed</span>
+        <span id="body-duration">body 0.0s</span>
+        <span id="dirty-flag"></span>
+      </div>
+    </div>
+  </section>
+
+  <aside id="pane-right">
+    <section class="pane-section">
+      <h2>Inspector</h2>
+      <div id="inspector">
+        <p class="hint">Click a clip in the timeline to edit.</p>
+      </div>
+    </section>
+    <section class="pane-section">
+      <h2>Render log</h2>
+      <pre id="render-log" class="render-log"></pre>
+    </section>
+  </aside>
+
+</main>
+
+<script type="module" src="/cinema-static/editor-app.js"></script>
+</body>
+</html>
