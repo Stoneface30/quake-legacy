@@ -50,7 +50,7 @@ async def rebuild_part(
         return
 
     await emit("body-xfade", 10, "invoking render_part_v6")
-    script = repo_root / "phase1" / "render_part_v6.py"
+    script = repo_root / "creative_suite" / "engine" / "render_part_v6.py"
     cmd = [
         "python", str(script), "--part", str(part),
         "--output-dir", str(output_dir), "--tag", tag,

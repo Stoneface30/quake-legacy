@@ -45,7 +45,7 @@ class Config:
 
     @property
     def phase1_clip_lists(self) -> Path:
-        return REPO_ROOT / "phase1" / "clip_lists"
+        return REPO_ROOT / "creative_suite" / "engine" / "clip_lists"
 
     @property
     def phase1_output_dir(self) -> Path:

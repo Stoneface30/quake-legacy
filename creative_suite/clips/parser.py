@@ -4,9 +4,9 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Spec §11.1: authoritative home is phase1/pipeline.py. Re-exported here so
+# Spec §11.1: authoritative home is creative_suite/engine/pipeline.py. Re-exported here so
 # existing callers (scripts/backfill_manifests.py, tests, etc.) keep working.
-from phase1.pipeline import write_render_manifest as write_render_manifest  # noqa: F401
+from creative_suite.engine.pipeline import write_render_manifest as write_render_manifest  # noqa: F401
 
 _FILE_RE = re.compile(r"^file\s+'([^']+)'\s*$")
 _HINT_RE = re.compile(r"Demo\s*\((\d+)")
