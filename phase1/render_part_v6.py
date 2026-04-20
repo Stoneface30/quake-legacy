@@ -180,11 +180,13 @@ def normalize_and_expand(part: int, clip_list_path: Path, cfg: Config) -> List[P
     short_t1_forced = 0
     for entry in entries:
         entry_tier = _tier_of(entry)
-        # Rule P1-Q: short-T1 auto-slowmo (user 2026-04-18 "check for t1 auto
-        # slowmo when the clip is short"). Probe the first segment's duration;
-        # if the post-trim body is under threshold AND the entry has no speed
-        # mod yet AND the clip is tier T1, flip entry.slow.
-        if (entry_tier == "T1"
+        # Rule P1-Q v2: short-clip auto-slowmo ALL tiers (user 2026-04-19
+        # "expand the slowmo rule for not only t1 but t1 and t2 and t3 but
+        # time constraint t1 is 5sec t2 4sec amd t3 2sec"). Probe the first
+        # segment's duration; if post-trim body is under this tier's
+        # threshold AND the entry has no speed mod yet, flip entry.slow.
+        tier_threshold = cfg.short_slowmo_thresholds.get(entry_tier)
+        if (tier_threshold is not None
                 and not (entry.slow or entry.speedup or entry.zoom)
                 and entry.segments):
             first_src = resolve_clip_path(entry.segments[0], part, cfg)
@@ -197,13 +199,39 @@ def normalize_and_expand(part: int, clip_list_path: Path, cfg: Config) -> List[P
                             else cfg.clip_tail_trim_fp)
                     dur_full = _probe_duration(first_src, cfg)
                     post_trim = dur_full - head - tail
-                    if 0 < post_trim < cfg.short_t1_slowmo_threshold:
+                    if 0 < post_trim < tier_threshold:
                         entry.slow = True
                         short_t1_forced += 1
-                        print(f"  [short-T1-slow] {first_src.name} "
-                              f"(post-trim={post_trim:.2f}s)")
+                        print(f"  [short-{entry_tier}-slow] {first_src.name} "
+                              f"(post-trim={post_trim:.2f}s, "
+                              f"threshold={tier_threshold:.1f}s)")
                 except Exception:
                     pass
+
+        # Rule P1-V v2: loud-chaos auto-slowmo (user 2026-04-19 "slowmo when
+        # the game sound is a big mess"). If the clip body has sustained high
+        # RMS (≥ loud_chaos_min_frac fraction above loud_chaos_rms_db), slow
+        # it. Pair with existing silence-ff which handles the quiet case.
+        if (not (entry.slow or entry.speedup or entry.zoom)
+                and entry.segments
+                and not (cfg.review_mode and cfg.review_skip_silence_detect)):
+            first_src = resolve_clip_path(entry.segments[0], part, cfg)
+            if first_src is not None:
+                try:
+                    from phase1.silence_detect import measure_rms_profile
+                    mean_db, frac_loud = measure_rms_profile(
+                        first_src, cfg.ffmpeg_bin,
+                        threshold_db=cfg.loud_chaos_rms_db,
+                    )
+                    dur_full = _probe_duration(first_src, cfg)
+                    if (dur_full >= cfg.loud_chaos_min_duration_s
+                            and frac_loud >= cfg.loud_chaos_min_frac):
+                        entry.slow = True
+                        print(f"  [loud-chaos-slow] {first_src.name} "
+                              f"(mean_db={mean_db:.1f}, frac_loud="
+                              f"{frac_loud:.2f})")
+                except Exception:
+                    pass  # loud-chaos probe is advisory; don't block render
 
         for seg_idx, seg_filename in enumerate(entry.segments):
             src = resolve_clip_path(seg_filename, part, cfg)
@@ -910,8 +938,16 @@ def final_render(
     fadein = min(1.5, cfg.music_fadein_s)
 
     # Sidechain the music under game audio for segment C.
+    # Rule P1-G v5 (user 2026-04-19 "music go low and high no game audio or
+    # ultra low"): threshold=0.05 (-26 dBFS) is too sensitive — game ambient
+    # bed always exceeds, pumping the music continuously. Auto-tune from the
+    # music track's integrated LUFS: quiet beds → 0.03, normal → 0.05, loud
+    # mastered → 0.08.
+    sc_threshold = _sidechain.auto_tune_threshold_from_ebur128(music_path)
+    print(f"  [sidechain] auto-tuned threshold={sc_threshold:.3f} "
+          f"(from {Path(music_path).name} LUFS)")
     sidechain_frag = _sidechain.build_sidechain_filter_chain(
-        "segC_mus", "segC_game"
+        "segC_mus", "segC_game", threshold=sc_threshold,
     )
 
     # Review-quick: body was pre-scaled to cfg.review_scale during xfade assembly.
@@ -1053,10 +1089,18 @@ def main():
     ap.add_argument("--output",
                     help="Override final output file path (absolute or relative to project)")
     ap.add_argument("--review", action="store_true",
-                    help="Draft/review mode: fast libx264 encoders, skip "
-                         "silence-detect probe, watermark stays on. For 5-min "
-                         "iteration cycles with the user. Final build drops "
-                         "the flag for AV1 NVENC UHQ 10-bit quality ceiling.")
+                    help="(deprecated alias for --profile preview) Draft/"
+                         "review mode: fast libx264 encoders, skip silence-"
+                         "detect probe, watermark stays on.")
+    ap.add_argument("--profile", choices=("preview", "final"),
+                    default=None,
+                    help="Rule P1-J v2 (2026-04-19): preview = CRF 23 "
+                         "veryfast libx264 for review iterations; final = "
+                         "AV1 NVENC p7 uhq 10-bit for ship renders. Default "
+                         "is preview unless you pass --profile final OR "
+                         "--output includes '_FINAL_'. A review render that "
+                         "leaks through as final has cost us ~25 min × N "
+                         "rounds — this flag is a hard gate.")
     ap.add_argument("--no-watermark", action="store_true",
                     help="Disable clip-name burn-in (use for final public render).")
     ap.add_argument("--smoke", action="store_true",
@@ -1069,10 +1113,24 @@ def main():
 
     part = args.part
     cfg = Config()
-    if args.review:
+
+    # Rule P1-J v2 profile gate. Default = preview. Only an explicit
+    # --profile final (or deprecated legacy behavior: --review absent and
+    # output name has _FINAL_) promotes to the quality ceiling.
+    profile = args.profile
+    if profile is None:
+        profile = "preview" if (args.review or args.smoke) else "preview"
+        # ^ default is preview, even without --review. A "final" render MUST
+        # be explicit. User 2026-04-19: "we wasted 24 min again" — this is
+        # the hard gate.
+    if profile == "final":
+        cfg.review_mode = False
+        print("[PROFILE] FINAL — AV1 NVENC p7 uhq 10-bit (quality ceiling, "
+              "~20 min/Part)")
+    else:
         cfg.review_mode = True
-        print("[MODE] review/draft — fast encoders, silence-detect skipped, "
-              "watermark ON")
+        print("[PROFILE] PREVIEW — libx264 veryfast CRF 23 (Rule P1-J v2, "
+              "target <5 min/Part, silence-detect skipped)")
     if args.no_watermark:
         cfg.review_burn_clip_name = False
         print("[MODE] clip-name watermark OFF")
@@ -1083,11 +1141,28 @@ def main():
               f"review encoders, watermark OFF")
     started = time.time()
 
-    clip_list_name = args.clip_list or f"part{part:02d}_styleb.txt"
-    clip_list_path = cfg.clip_lists_dir / clip_list_name
-    if not clip_list_path.exists():
-        print(f"[FATAL] clip list missing: {clip_list_path}")
-        return 1
+    # Clip-list resolution with fallback chain (Fix #1, 2026-04-20):
+    # If the caller didn't specify --clip-list, prefer styleb; if styleb is
+    # absent, fall back to the plain partNN.txt so Parts 8-12 (which only have
+    # the base list authored) become renderable instead of hard-failing.
+    if args.clip_list:
+        clip_list_path = cfg.clip_lists_dir / args.clip_list
+        if not clip_list_path.exists():
+            print(f"[FATAL] clip list missing: {clip_list_path}")
+            return 1
+    else:
+        candidates = [
+            cfg.clip_lists_dir / f"part{part:02d}_styleb.txt",
+            cfg.clip_lists_dir / f"part{part:02d}.txt",
+        ]
+        clip_list_path = next((c for c in candidates if c.exists()), None)
+        if clip_list_path is None:
+            print(f"[FATAL] no clip list for Part {part}. Tried: "
+                  + ", ".join(str(c.name) for c in candidates))
+            return 1
+        if clip_list_path.name != f"part{part:02d}_styleb.txt":
+            print(f"[fallback] using {clip_list_path.name} "
+                  f"(no styleb clip list for Part {part})")
 
     # Pick chunk dir. Reuse legacy v5 folder for Part 4 if caller didn't override.
     if args.chunks_dir:
@@ -1105,7 +1180,7 @@ def main():
         chunks = sorted(chunks_dir.glob("chunk_*.mp4"))
         print(f"[reuse] {len(chunks)} existing chunks in {chunks_dir.name}")
     else:
-        print(f"Normalizing + expanding clip list {clip_list_name}...")
+        print(f"Normalizing + expanding clip list {clip_list_path.name}...")
         normalized = normalize_and_expand(part, clip_list_path, cfg)
         if not normalized:
             print("[FATAL] no clips resolved")
@@ -1118,6 +1193,21 @@ def main():
         concat_list, chunks = build_body_chunks(
             part, normalized, chunks_dir, cfg, overrides=overrides,
         )
+
+    # --- Tier 1 clip-removal (2026-04-20) ---
+    # Honor `removed=true` from cinema suite overrides (output/partNN_overrides.txt).
+    # Filter AFTER chunks exist but BEFORE body-dur estimate feeds music stitcher,
+    # so the music plan auto-regens for the shorter body.
+    try:
+        from phase1.clip_filter import load_removed_chunks, filter_chunks
+        removed = load_removed_chunks(part, cfg.output_dir)
+        if removed:
+            before = len(chunks)
+            chunks = filter_chunks(chunks, removed)
+            print(f"  [clip-removal] dropped {before - len(chunks)} of {before} "
+                  f"chunks via cinema suite overrides (removed=true)")
+    except ImportError:
+        pass  # cinema_suite package absent in standalone render
 
     # --- Intro assets ---
     title_card   = ensure_title_card(part, cfg)
