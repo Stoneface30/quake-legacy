@@ -21,21 +21,18 @@ FFMPEG_ENV_MOCK = "CS_FFMPEG_MOCK"
 
 
 def _ffmpeg_bin() -> str:
-    """Resolve ffmpeg binary path. Prefers `tools/ffmpeg/ffmpeg.exe` if
-    present, else relies on PATH.
+    """Resolve ffmpeg binary path. Checks creative_suite/tools/ffmpeg/ first,
+    then falls back to PATH.
     """
-    local = Path("tools/ffmpeg/ffmpeg.exe")
-    if local.exists():
-        return str(local.resolve())
-    # Also try absolute path in the standard project location
-    absolute = Path("G:/QUAKE_LEGACY/tools/ffmpeg/ffmpeg.exe")
+    from creative_suite.config import TOOLS_ROOT  # local import avoids circular
+    absolute = TOOLS_ROOT / "ffmpeg" / "ffmpeg.exe"
     if absolute.exists():
         return str(absolute)
     which = shutil.which("ffmpeg")
     if which:
         return which
     raise FileNotFoundError(
-        "ffmpeg not found — install to tools/ffmpeg/ffmpeg.exe or PATH"
+        "ffmpeg not found — install to creative_suite/tools/ffmpeg/ffmpeg.exe or PATH"
     )
 
 

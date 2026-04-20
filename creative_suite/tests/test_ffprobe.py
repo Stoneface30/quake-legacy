@@ -5,23 +5,18 @@ from pathlib import Path
 import pytest
 
 from creative_suite.clips.ffprobe import probe_duration
-from creative_suite.config import REPO_ROOT, Config
+from creative_suite.config import TOOLS_ROOT, Config
 from creative_suite.db.migrate import migrate
 
 
 def _find_ffmpeg() -> str:
-    """Locate ffmpeg: PATH → repo tools dir → absolute vendored install.
-
-    Worktrees live deeper than the main repo, so a simple `parent.parent.parent`
-    traversal misses the vendored `tools/ffmpeg/ffmpeg.exe`. We walk candidates
-    in preference order and return whichever exists.
-    """
+    """Locate ffmpeg: PATH → creative_suite/tools/ffmpeg/ vendored install."""
     on_path = shutil.which("ffmpeg")
     if on_path:
         return on_path
     candidates = [
-        REPO_ROOT / "tools" / "ffmpeg" / "ffmpeg.exe",
-        Path("G:/QUAKE_LEGACY/tools/ffmpeg/ffmpeg.exe"),
+        TOOLS_ROOT / "ffmpeg" / "ffmpeg.exe",
+        Path("G:/QUAKE_LEGACY/creative_suite/tools/ffmpeg/ffmpeg.exe"),
     ]
     for c in candidates:
         if c.exists():

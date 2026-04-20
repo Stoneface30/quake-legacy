@@ -4,9 +4,9 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Spec §11.1: authoritative home is phase1/pipeline.py. Re-exported here so
+# Spec §11.1: authoritative home is creative_suite/engine/pipeline.py. Re-exported here so
 # existing callers (scripts/backfill_manifests.py, tests, etc.) keep working.
-from phase1.pipeline import write_render_manifest as write_render_manifest  # noqa: F401
+from creative_suite.engine.pipeline import write_render_manifest as write_render_manifest  # noqa: F401
 
 _FILE_RE = re.compile(r"^file\s+'([^']+)'\s*$")
 _HINT_RE = re.compile(r"Demo\s*\((\d+)")
@@ -63,6 +63,19 @@ def _parse_line(line: str, idx: int) -> ClipEntry | None:
         angles=angles,
         flags=flags,
     )
+
+
+def parse_clip_entry(line: str, idx: int = 0) -> ClipEntry | None:
+    """Parse a single clip list line into a ClipEntry.
+
+    Returns None for blank lines, comment lines, and non-clip directives.
+    Public wrapper around _parse_line — canonical source of truth for clip
+    line parsing (imported by creative_suite.engine.clip_list).
+    """
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#"):
+        return None
+    return _parse_line(stripped, idx)
 
 
 def parse_clip_list(path: Path) -> list[ClipEntry]:

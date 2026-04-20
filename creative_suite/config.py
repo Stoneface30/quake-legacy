@@ -6,6 +6,14 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
+# Music full-length contract (Rule P1-R + P1-AA)
+MUSIC_FULL_LENGTH_MIN_PCT: float = 100.0   # track must cover 100% of body
+MUSIC_COVERAGE_WARN_PCT: float = 90.0       # warn if < 90% coverage
+# creative_suite/ sub-dirs (moved here from repo root in Plan 1 Task 4)
+CS_ROOT = Path(__file__).resolve().parent
+TOOLS_ROOT = CS_ROOT / "tools"
+DATABASE_ROOT = CS_ROOT / "database"
+
 
 @dataclass(frozen=True)
 class Config:
@@ -17,7 +25,7 @@ class Config:
 
     @property
     def storage_root(self) -> Path:
-        return Path(os.environ.get("CS_STORAGE_ROOT", str(REPO_ROOT / "storage")))
+        return Path(os.environ.get("CS_STORAGE_ROOT", str(CS_ROOT / "storage")))
 
     @property
     def db_path(self) -> Path:
@@ -45,7 +53,11 @@ class Config:
 
     @property
     def phase1_clip_lists(self) -> Path:
-        return REPO_ROOT / "phase1" / "clip_lists"
+        return REPO_ROOT / "creative_suite" / "engine" / "clip_lists"
+
+    @property
+    def phase1_music_dir(self) -> Path:
+        return CS_ROOT / "engine" / "music"
 
     @property
     def phase1_output_dir(self) -> Path:
@@ -56,11 +68,11 @@ class Config:
 
     @property
     def full_catalog_json(self) -> Path:
-        return REPO_ROOT / "tools" / "game-assets" / "FULL_CATALOG.json"
+        return TOOLS_ROOT / "game-assets" / "FULL_CATALOG.json"
 
     @property
     def wolfcam_baseq3(self) -> Path:
-        return REPO_ROOT / "tools" / "wolfcamql" / "baseq3"
+        return TOOLS_ROOT / "wolfcamql" / "baseq3"
 
     def ensure_dirs(self) -> None:
         for p in (

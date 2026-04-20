@@ -240,7 +240,7 @@ def put_music_override(
 @router.get("/music/tracks")
 def list_tracks(request: Request) -> list[dict[str, Any]]:
     repo = Path(__file__).resolve().parents[2]
-    music_dir = repo / "phase1" / "music"
+    music_dir = repo / "creative_suite" / "engine" / "music"
     if not music_dir.exists():
         return []
     return sorted(

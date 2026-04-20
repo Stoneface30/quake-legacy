@@ -39,11 +39,13 @@ def create_app() -> FastAPI:
         clips,
         comfy,
         editor,
+        forge,
         md3,
         ollama,
         packs,
         parts,
         phase1,
+        studio,
         variants,
     )
     app.include_router(annotations.router)
@@ -58,6 +60,8 @@ def create_app() -> FastAPI:
     app.include_router(ollama.router)
     app.include_router(capture.router)
     app.include_router(editor.router)
+    app.include_router(studio.router)
+    app.include_router(forge.router)
 
     # Spec §11.3 mitigation: check img2img workflow placeholders at boot.
     # This only logs — it never aborts startup, so a ComfyUI update that
@@ -101,6 +105,10 @@ def create_app() -> FastAPI:
             return FileResponse(path)
         return FileResponse(WEB_ROOT / "annotate.html")
 
+    @app.get("/studio")
+    def studio_page() -> FileResponse:  # pyright: ignore[reportUnusedFunction]
+        return FileResponse(FRONTEND_ROOT / "studio.html")
+
     if WEB_ROOT.exists():
         app.mount("/web", StaticFiles(directory=str(WEB_ROOT)), name="web")
     if cfg.phase1_output_dir.exists():
@@ -111,6 +119,12 @@ def create_app() -> FastAPI:
         )
     if FRONTEND_ROOT.exists():
         app.mount("/cinema-static", StaticFiles(directory=str(FRONTEND_ROOT)), name="cinema-static")
+        # /static → frontend root (studio.css, studio-store.js, studio-app.js, …)
+        app.mount("/static", StaticFiles(directory=str(FRONTEND_ROOT)), name="static")
+        # /vendor → frontend/vendor/ (wavesurfer, litegraph, tweakpane, etc.)
+        vendor_dir = FRONTEND_ROOT / "vendor"
+        if vendor_dir.exists():
+            app.mount("/vendor", StaticFiles(directory=str(vendor_dir)), name="vendor")
     if cfg.phase1_output_dir.exists():
         app.mount("/media/phase1", StaticFiles(directory=str(cfg.phase1_output_dir)), name="media-phase1")
     return app

@@ -1,0 +1,510 @@
+# Near-Duplicate Files — Diff Targets
+
+Total near-duplicate files: **561**
+Interesting (C/H/CPP/PY): **513**
+
+These files exist at the same relative path in multiple trees but have different
+contents — they are the INTERESTING files to document in DIFFS.md.
+
+- `code/asm/ftola.c` — ioquake3, openarena-engine, wolfcamql-src
+- `code/asm/qasm.h` — openarena-engine, quake3e
+- `code/asm/snapvector.c` — ioquake3, openarena-engine, wolfcamql-src
+- `code/botlib/aasfile.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas.h` — ioquake3, openarena-engine, openarena-gamecode, quake3e, wolfcamql-src
+- `code/botlib/be_aas_bsp.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_bspq3.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_cluster.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_cluster.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_debug.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_debug.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_def.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_entity.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_entity.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_file.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_file.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_funcs.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_main.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_main.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_move.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_move.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_optimize.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_optimize.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_reach.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_reach.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_route.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_route.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_routealt.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_routealt.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_sample.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_aas_sample.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_ai_char.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_ai_char.h` — ioquake3, openarena-engine, openarena-gamecode, quake3e, wolfcamql-src
+- `code/botlib/be_ai_chat.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_ai_chat.h` — ioquake3, openarena-engine, openarena-gamecode, quake3e, wolfcamql-src
+- `code/botlib/be_ai_gen.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_ai_goal.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_ai_goal.h` — ioquake3, openarena-engine, openarena-gamecode, quake3e, wolfcamql-src
+- `code/botlib/be_ai_move.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_ai_move.h` — ioquake3, openarena-engine, openarena-gamecode, quake3e, wolfcamql-src
+- `code/botlib/be_ai_weap.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_ai_weap.h` — ioquake3, openarena-engine, openarena-gamecode, quake3e, wolfcamql-src
+- `code/botlib/be_ai_weight.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_ai_weight.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_ea.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_ea.h` — ioquake3, openarena-engine, openarena-gamecode, quake3e, wolfcamql-src
+- `code/botlib/be_interface.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/be_interface.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/botlib.h` — ioquake3, openarena-engine, openarena-gamecode, quake3e, wolfcamql-src
+- `code/botlib/l_crc.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/l_crc.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/l_libvar.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/l_libvar.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/l_log.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/l_log.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/l_memory.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/l_memory.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/l_precomp.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/l_precomp.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/l_script.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/l_script.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/l_struct.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/l_struct.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/botlib/l_utils.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/cgame/cg_consolecmds.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/cgame/cg_draw.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/cgame/cg_drawtools.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/cgame/cg_effects.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/cgame/cg_ents.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/cgame/cg_event.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/cgame/cg_info.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/cgame/cg_local.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/cgame/cg_localents.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/cgame/cg_main.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/cgame/cg_marks.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/cgame/cg_newdraw.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/cgame/cg_particles.c` — ioquake3, openarena-engine, quake3-source, wolfcamql-src
+- `code/cgame/cg_players.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/cgame/cg_playerstate.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/cgame/cg_predict.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/cgame/cg_public.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/cgame/cg_scoreboard.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/cgame/cg_servercmds.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/cgame/cg_snapshot.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/cgame/cg_syscalls.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/cgame/cg_view.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/cgame/cg_weapons.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/client/cl_avi.c` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/client/cl_cgame.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/client/cl_cin.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/client/cl_console.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/client/cl_curl.c` — openarena-engine, quake3e, wolfcamql-src
+- `code/client/cl_curl.h` — openarena-engine, quake3e, wolfcamql-src
+- `code/client/cl_input.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/client/cl_keys.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/client/cl_main.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/client/cl_net_chan.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/client/cl_parse.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/client/cl_scrn.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/client/cl_ui.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/client/client.h` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/client/keycodes.h` — ioquake3, openarena-engine, openarena-gamecode, quake3e, wolfcamql-src
+- `code/client/keys.h` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/client/libmumblelink.c` — ioquake3, openarena-engine, wolfcamql-src
+- `code/client/qal.c` — ioquake3, openarena-engine, wolfcamql-src
+- `code/client/qal.h` — ioquake3, openarena-engine, wolfcamql-src
+- `code/client/snd_adpcm.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/client/snd_altivec.c` — ioquake3, wolfcamql-src
+- `code/client/snd_codec.c` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/client/snd_codec.h` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/client/snd_codec_ogg.c` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/client/snd_codec_wav.c` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/client/snd_dma.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/client/snd_local.h` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/client/snd_main.c` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/client/snd_mem.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/client/snd_mix.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/client/snd_openal.c` — ioquake3, openarena-engine, wolfcamql-src
+- `code/client/snd_public.h` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/client/snd_wavelet.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/game/ai_chat.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/ai_chat.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/ai_cmd.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/ai_cmd.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/ai_dmnet.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/ai_dmnet.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/ai_dmq3.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/ai_dmq3.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/ai_main.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/ai_main.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/ai_team.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/ai_team.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/ai_vcmd.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/ai_vcmd.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/bg_lib.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/bg_lib.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/bg_local.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/bg_misc.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/bg_pmove.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/bg_public.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/game/bg_slidemove.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/chars.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_active.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_arenas.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_bot.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_client.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_cmds.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_combat.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_items.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_local.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_main.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_mem.c` — ioquake3, openarena-engine, quake3-source, wolfcamql-src
+- `code/game/g_misc.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_missile.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_mover.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_public.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/game/g_rankings.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_rankings.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_session.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_spawn.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_svcmds.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_syscalls.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_target.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_team.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_team.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_trigger.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_utils.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/g_weapon.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/inv.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/match.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/game/syn.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/null/mac_net.c` — openarena-engine, quake3-source
+- `code/null/null_client.c` — ioquake3, openarena-engine, quake3-source, wolfcamql-src
+- `code/null/null_glimp.c` — openarena-engine, quake3-source
+- `code/null/null_input.c` — ioquake3, openarena-engine, quake3-source, wolfcamql-src
+- `code/null/null_main.c` — openarena-engine, quake3-source
+- `code/null/null_net.c` — openarena-engine, quake3-source
+- `code/null/null_snddma.c` — ioquake3, openarena-engine, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_addbots.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_atoms.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_cdkey.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_cinematics.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_confirm.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_connect.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_controls2.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_credits.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_demo2.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_display.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_gameinfo.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_ingame.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_loadconfig.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_local.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_login.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_main.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_menu.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_mfield.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_mods.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_network.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_options.c` — ioquake3, openarena-engine, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_playermodel.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_players.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_playersettings.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_preferences.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_qmenu.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_rankings.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_rankstatus.c` — ioquake3, openarena-engine, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_removebots.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_saveconfig.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_serverinfo.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_servers2.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_setup.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_signup.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_sound.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_sparena.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_specifyleague.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_specifyserver.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_splevel.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_sppostgame.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_spreset.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_spskill.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_startserver.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_team.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_teamorders.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/q3_ui/ui_video.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/qcommon/cm_load.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/cm_local.h` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/cm_patch.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/cm_patch.h` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/cm_polylib.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/cm_polylib.h` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/cm_public.h` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/cm_test.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/cm_trace.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/cmd.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/common.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/cvar.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/files.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/huffman.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/ioapi.c` — ioquake3, openarena-engine, wolfcamql-src
+- `code/qcommon/ioapi.h` — ioquake3, openarena-engine, wolfcamql-src
+- `code/qcommon/md4.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/md5.c` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/qcommon/msg.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/net_chan.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/net_ip.c` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/qcommon/puff.c` — openarena-engine, quake3e
+- `code/qcommon/q_math.c` — ioquake3, openarena-engine, openarena-gamecode, quake3e, wolfcamql-src
+- `code/qcommon/q_platform.h` — ioquake3, openarena-engine, openarena-gamecode, quake3e, wolfcamql-src
+- `code/qcommon/q_shared.c` — ioquake3, openarena-engine, openarena-gamecode, quake3e, wolfcamql-src
+- `code/qcommon/q_shared.h` — ioquake3, openarena-engine, openarena-gamecode, quake3e, wolfcamql-src
+- `code/qcommon/qcommon.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/qfiles.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/surfaceflags.h` — ioquake3, openarena-engine, openarena-gamecode, quake3e, wolfcamql-src
+- `code/qcommon/unzip.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/unzip.h` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/vm.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/vm_armv7l.c` — ioquake3, quake3e, wolfcamql-src
+- `code/qcommon/vm_interpreted.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/vm_local.h` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/qcommon/vm_powerpc.c` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/qcommon/vm_sparc.c` — ioquake3, openarena-engine, wolfcamql-src
+- `code/qcommon/vm_x86.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/renderer/qgl.h` — quake3-source, quake3e
+- `code/renderer/tr_animation.c` — quake3-source, quake3e
+- `code/renderer/tr_backend.c` — quake3-source, quake3e
+- `code/renderer/tr_bsp.c` — quake3-source, quake3e
+- `code/renderer/tr_cmds.c` — quake3-source, quake3e
+- `code/renderer/tr_curve.c` — quake3-source, quake3e
+- `code/renderer/tr_flares.c` — quake3-source, quake3e
+- `code/renderer/tr_image.c` — quake3-source, quake3e
+- `code/renderer/tr_init.c` — quake3-source, quake3e
+- `code/renderer/tr_light.c` — quake3-source, quake3e
+- `code/renderer/tr_local.h` — quake3-source, quake3e
+- `code/renderer/tr_main.c` — quake3-source, quake3e
+- `code/renderer/tr_marks.c` — quake3-source, quake3e
+- `code/renderer/tr_mesh.c` — quake3-source, quake3e
+- `code/renderer/tr_model.c` — quake3-source, quake3e
+- `code/renderer/tr_scene.c` — quake3-source, quake3e
+- `code/renderer/tr_shade.c` — quake3-source, quake3e
+- `code/renderer/tr_shade_calc.c` — quake3-source, quake3e
+- `code/renderer/tr_shader.c` — quake3-source, quake3e
+- `code/renderer/tr_shadows.c` — quake3-source, quake3e
+- `code/renderer/tr_sky.c` — quake3-source, quake3e
+- `code/renderer/tr_surface.c` — quake3-source, quake3e
+- `code/renderer/tr_world.c` — quake3-source, quake3e
+- `code/renderercommon/puff.h` — ioquake3, wolfcamql-src
+- `code/renderercommon/qgl.h` — ioquake3, openarena-engine, wolfcamql-src
+- `code/renderercommon/tr_common.h` — ioquake3, openarena-engine, wolfcamql-src
+- `code/renderercommon/tr_font.c` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/renderercommon/tr_image_bmp.c` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/renderercommon/tr_image_jpg.c` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/renderercommon/tr_image_pcx.c` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/renderercommon/tr_image_png.c` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/renderercommon/tr_image_tga.c` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/renderercommon/tr_noise.c` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/renderercommon/tr_public.h` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/renderercommon/tr_types.h` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/renderergl1/tr_animation.c` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_backend.c` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_bsp.c` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_cmds.c` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_curve.c` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_flares.c` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_image.c` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_init.c` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_light.c` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_local.h` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_main.c` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_marks.c` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_mesh.c` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_model.c` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_model_iqm.c` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_scene.c` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_shade.c` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_shade_calc.c` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_shader.c` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_shadows.c` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_sky.c` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_surface.c` — ioquake3, wolfcamql-src
+- `code/renderergl1/tr_world.c` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_backend.c` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_bsp.c` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_cmds.c` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_dsa.c` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_dsa.h` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_fbo.c` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_flares.c` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_glsl.c` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_image.c` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_init.c` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_light.c` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_local.h` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_main.c` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_marks.c` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_mesh.c` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_model.c` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_postprocess.c` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_scene.c` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_shade.c` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_shader.c` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_sky.c` — ioquake3, wolfcamql-src
+- `code/renderergl2/tr_surface.c` — ioquake3, wolfcamql-src
+- `code/sdl/sdl_gamma.c` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/sdl/sdl_glimp.c` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/sdl/sdl_icon.h` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/sdl/sdl_input.c` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/sdl/sdl_snd.c` — ioquake3, openarena-engine, quake3e, wolfcamql-src
+- `code/server/server.h` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/server/sv_bot.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/server/sv_ccmds.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/server/sv_client.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/server/sv_game.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/server/sv_init.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/server/sv_main.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/server/sv_net_chan.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/server/sv_rankings.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/server/sv_snapshot.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/server/sv_world.c` — ioquake3, openarena-engine, quake3-source, quake3e, wolfcamql-src
+- `code/splines/math_matrix.h` — quake3-source, wolfcamql-src
+- `code/splines/math_quaternion.h` — quake3-source, wolfcamql-src
+- `code/splines/math_vector.cpp` — quake3-source, wolfcamql-src
+- `code/splines/math_vector.h` — quake3-source, wolfcamql-src
+- `code/splines/q_parse.cpp` — quake3-source, wolfcamql-src
+- `code/splines/q_shared.h` — quake3-source, wolfcamql-src
+- `code/splines/q_shared.hpp` — quake3-source, wolfcamql-src
+- `code/splines/splines.cpp` — quake3-source, wolfcamql-src
+- `code/splines/util_str.cpp` — quake3-source, wolfcamql-src
+- `code/splines/util_str.h` — quake3-source, wolfcamql-src
+- `code/sys/con_log.c` — ioquake3, openarena-engine, wolfcamql-src
+- `code/sys/con_tty.c` — ioquake3, openarena-engine, wolfcamql-src
+- `code/sys/con_win32.c` — ioquake3, openarena-engine, wolfcamql-src
+- `code/sys/sys_loadlib.h` — ioquake3, openarena-engine, wolfcamql-src
+- `code/sys/sys_local.h` — ioquake3, openarena-engine, wolfcamql-src
+- `code/sys/sys_main.c` — ioquake3, openarena-engine, wolfcamql-src
+- `code/sys/sys_unix.c` — ioquake3, openarena-engine, wolfcamql-src
+- `code/sys/sys_win32.c` — ioquake3, openarena-engine, wolfcamql-src
+- `code/tools/asm/cmdlib.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/asm/cmdlib.h` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/asm/q3asm.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/cpp/cpp.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/cpp/cpp.h` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/cpp/include.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/cpp/lex.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/cpp/macro.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/cpp/tokens.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/cpp/unix.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/etc/bytecode.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/etc/lcc.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/lburg/gram.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/lburg/lburg.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/src/bytecode.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/src/c.h` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/src/config.h` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/src/dag.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/src/decl.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/src/enode.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/src/error.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/src/expr.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/src/gen.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/src/init.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/src/list.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/src/output.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/src/simp.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/src/stmt.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/src/sym.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/src/trace.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/src/tree.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/tools/lcc/src/types.c` — ioquake3, openarena-engine, openarena-gamecode, wolfcamql-src
+- `code/ui/ui_atoms.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/ui/ui_gameinfo.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/ui/ui_local.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/ui/ui_main.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/ui/ui_players.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/ui/ui_public.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, quake3e, wolfcamql-src
+- `code/ui/ui_shared.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/ui/ui_shared.h` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/ui/ui_syscalls.c` — ioquake3, openarena-engine, openarena-gamecode, quake3-source, wolfcamql-src
+- `code/unix/linux_glimp.c` — quake3-source, quake3e
+- `code/unix/linux_joystick.c` — quake3-source, quake3e
+- `code/unix/linux_local.h` — quake3-source, quake3e
+- `code/unix/linux_qgl.c` — quake3-source, quake3e
+- `code/unix/linux_signals.c` — quake3-source, quake3e
+- `code/unix/linux_snd.c` — quake3-source, quake3e
+- `code/unix/unix_glw.h` — quake3-source, quake3e
+- `code/unix/unix_main.c` — quake3-source, quake3e
+- `code/unix/unix_shared.c` — quake3-source, quake3e
+- `code/win32/glw_win.h` — quake3-source, quake3e
+- `code/win32/resource.h` — quake3-source, quake3e
+- `code/win32/win_gamma.c` — quake3-source, quake3e
+- `code/win32/win_glimp.c` — quake3-source, quake3e
+- `code/win32/win_input.c` — quake3-source, quake3e
+- `code/win32/win_local.h` — quake3-source, quake3e
+- `code/win32/win_main.c` — quake3-source, quake3e
+- `code/win32/win_qgl.c` — quake3-source, quake3e
+- `code/win32/win_shared.c` — quake3-source, quake3e
+- `code/win32/win_snd.c` — quake3-source, quake3e
+- `code/win32/win_syscon.c` — quake3-source, quake3e
+- `code/win32/win_wndproc.c` — quake3-source, quake3e
+- `huffman/huffman.c` — demodumper, qldemo-python
+- `huffman/pyhuffman.c` — demodumper, qldemo-python
+- `huffman/qcommon.h` — demodumper, qldemo-python
+- `lcc/cpp/cpp.c` — q3vm, quake3-source
+- `lcc/cpp/cpp.h` — q3vm, quake3-source
+- `lcc/cpp/eval.c` — q3vm, quake3-source
+- `lcc/cpp/getopt.c` — q3vm, quake3-source
+- `lcc/cpp/include.c` — q3vm, quake3-source
+- `lcc/cpp/macro.c` — q3vm, quake3-source
+- `lcc/cpp/nlist.c` — q3vm, quake3-source
+- `lcc/cpp/tokens.c` — q3vm, quake3-source
+- `lcc/cpp/unix.c` — q3vm, quake3-source
+- `lcc/etc/lcc.c` — q3vm, quake3-source
+- `lcc/lburg/gram.c` — q3vm, quake3-source
+- `lcc/src/bind.c` — q3vm, quake3-source
+- `lcc/src/bytecode.c` — q3vm, quake3-source
+- `lcc/src/c.h` — q3vm, quake3-source
+- `lcc/src/dag.c` — q3vm, quake3-source
+- `lcc/src/decl.c` — q3vm, quake3-source
+- `lcc/src/enode.c` — q3vm, quake3-source
+- `lcc/src/error.c` — q3vm, quake3-source
+- `lcc/src/expr.c` — q3vm, quake3-source
+- `lcc/src/gen.c` — q3vm, quake3-source
+- `lcc/src/init.c` — q3vm, quake3-source
+- `lcc/src/inits.c` — q3vm, quake3-source
+- `lcc/src/input.c` — q3vm, quake3-source
+- `lcc/src/lex.c` — q3vm, quake3-source
+- `lcc/src/list.c` — q3vm, quake3-source
+- `lcc/src/null.c` — q3vm, quake3-source
+- `lcc/src/output.c` — q3vm, quake3-source
+- `lcc/src/prof.c` — q3vm, quake3-source
+- `lcc/src/profio.c` — q3vm, quake3-source
+- `lcc/src/simp.c` — q3vm, quake3-source
+- `lcc/src/stmt.c` — q3vm, quake3-source
+- `lcc/src/sym.c` — q3vm, quake3-source
+- `lcc/src/symbolic.c` — q3vm, quake3-source
+- `lcc/src/trace.c` — q3vm, quake3-source
+- `lcc/src/tree.c` — q3vm, quake3-source
+- `lcc/src/types.c` — q3vm, quake3-source
+- `libs/cmdlib.h` — gtkradiant, quake3-source
+- `libs/cmdlib/cmdlib.cpp` — gtkradiant, quake3-source
+- `libs/pak/pakstuff.cpp` — gtkradiant, quake3-source
+- `libs/pak/unzip.cpp` — gtkradiant, quake3-source
+- `libs/pak/unzip.h` — gtkradiant, quake3-source
+- `libs/pakstuff.h` — gtkradiant, quake3-source
+- `libs/str.h` — gtkradiant, quake3-source
+- `q3asm/cmdlib.c` — q3vm, quake3-source
+- `q3asm/cmdlib.h` — q3vm, quake3-source
+- `q3asm/opstrings.h` — q3vm, quake3-source
+- `q3asm/q3asm.c` — q3vm, quake3-source
+- `qldemo/constants.py` — demodumper, qldemo-python
+- `qldemo/data.py` — demodumper, qldemo-python
+- `qldemo/demo.py` — demodumper, qldemo-python
+- `setup.py` — demodumper, qldemo-python
+- `src/client/cl_cin.c` — wolfet-source, yamagi-quake2
+- `src/client/cl_console.c` — wolfet-source, yamagi-quake2
+- `src/client/cl_input.c` — wolfet-source, yamagi-quake2
+- `src/client/cl_main.c` — wolfet-source, yamagi-quake2
+- `src/client/cl_parse.c` — wolfet-source, yamagi-quake2
+- `src/game/g_cmds.c` — wolfet-source, yamagi-quake2
+- `src/game/g_combat.c` — wolfet-source, yamagi-quake2
+- `src/game/g_items.c` — wolfet-source, yamagi-quake2
+
+_(truncated: 13 more)_

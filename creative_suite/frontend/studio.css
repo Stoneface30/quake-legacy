@@ -1,0 +1,597 @@
+/* ── PANTHEON STUDIO — Dark Theme ─────────────────────────────────────────── */
+
+:root {
+  --gold:        #C9A84C;
+  --deep-blue:   #002147;
+  --bg-dark:     #0D0D0D;
+  --bg-panel:    #141414;
+  --bg-sidebar:  #1A1A1A;
+  --text-primary:   #E8E8E8;
+  --text-secondary: #888888;
+  --accent:      #FF4500;
+  --border:      #2A2A2A;
+  --header-h:    40px;
+  --sidebar-w:   220px;
+  --status-h:    24px;
+}
+
+/* ── Reset / Base ─────────────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+  overflow: hidden;
+}
+
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── App Grid ─────────────────────────────────────────────────────────────── */
+
+#app-grid {
+  display: grid;
+  height: 100vh;
+  grid-template-rows: var(--header-h) 1fr var(--status-h);
+  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-areas:
+    "header  header"
+    "sidebar main"
+    "status  status";
+}
+
+/* ── Headerbar ────────────────────────────────────────────────────────────── */
+
+#headerbar {
+  grid-area: header;
+  height: var(--header-h);
+  background: #111;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
+}
+
+#logo-text {
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  margin-right: 8px;
+}
+
+#header-center {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+#transport {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#transport button {
+  font-family: monospace;
+  min-width: 32px;
+}
+
+#header-right {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────────────────── */
+
+#sidebar {
+  grid-area: sidebar;
+  width: var(--sidebar-w);
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+#nav-list {
+  padding-top: 8px;
+}
+
+.nav-item {
+  padding: 10px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  transition: color 0.15s, background 0.15s;
+  border-left: 2px solid transparent;
+  user-select: none;
+}
+
+.nav-item:hover,
+.nav-item.active {
+  color: var(--text-primary);
+  background: rgba(201, 168, 76, 0.08);
+}
+
+.nav-item.active {
+  border-left: 2px solid var(--gold);
+}
+
+.nav-icon {
+  font-size: 14px;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.nav-label {
+  flex: 1;
+}
+
+/* ── Main area ────────────────────────────────────────────────────────────── */
+
+#main-area {
+  grid-area: main;
+  flex: 1;
+  overflow: hidden;
+  background: var(--bg-panel);
+}
+
+.panel-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-secondary);
+  font-size: 14px;
+  pointer-events: none;
+}
+
+.panel-not-loaded {
+  color: var(--accent);
+  font-size: 12px;
+  padding: 16px;
+}
+
+/* ── Statusbar ────────────────────────────────────────────────────────────── */
+
+#statusbar {
+  grid-area: status;
+  height: var(--status-h);
+  background: #0A0A0A;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* ── Form Controls ────────────────────────────────────────────────────────── */
+
+select,
+button {
+  background: #1E1E1E;
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 12px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+select:focus,
+button:focus {
+  outline: 1px solid var(--gold);
+  outline-offset: 0;
+}
+
+button:hover {
+  border-color: #444;
+}
+
+.btn-primary {
+  background: var(--gold);
+  color: #000;
+  font-weight: 600;
+  padding: 4px 14px;
+  border-color: var(--gold);
+}
+
+.btn-primary:hover {
+  background: #d4b05a;
+  border-color: #d4b05a;
+}
+
+/* ── Preview Panel ────────────────────────────────────────────────────────── */
+
+.preview-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-dark);
+}
+.preview-viewport {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  overflow: hidden;
+}
+#preview-canvas {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.preview-overlay {
+  position: absolute;
+  bottom: 8px;
+  left: 0; right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 12px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.7);
+  pointer-events: none;
+}
+.preview-controls {
+  padding: 8px 12px;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+}
+.preview-scrubbar input[type=range] {
+  width: 100%;
+  accent-color: var(--gold);
+}
+.preview-info {
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
+
+/* ── Clip Timeline Panel ──────────────────────────────────────────────────── */
+
+.timeline-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-dark);
+}
+
+.timeline-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.timeline-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-right: 4px;
+}
+
+.timeline-canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.timeline-footer {
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.tl-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+/* ── Audio Waveform Panel (studio-audio.js) ──────────────────────────────── */
+
+.audio-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-dark);
+}
+
+.audio-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.audio-label {
+  font-weight: 600;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-right: 4px;
+}
+
+.audio-track-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.audio-tracks-wrap {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 8px;
+  min-height: 0;
+}
+
+.audio-no-support {
+  color: var(--text-secondary);
+  font-size: 13px;
+  padding: 24px;
+  margin: 0;
+}
+
+.audio-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+/* ── Beat Markers Overlay (studio-beatmarkers.js) ────────────────────────── */
+
+.beatmarkers-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-dark);
+  height: 80px;
+  flex-shrink: 0;
+}
+
+.bm-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.bm-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: var(--gold);
+}
+
+.bm-count {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.bm-canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.bm-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ── Music Library Panel (studio-musiclib.js) ────────────────────────────── */
+
+.musiclib-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-dark);
+}
+
+.ml-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.ml-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.ml-track {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ml-track:hover,
+.ml-track[data-selected] {
+  background: rgba(201, 168, 76, 0.08);
+}
+
+.ml-track-role {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 5px;
+  border-radius: 2px;
+  background: #333;
+  color: var(--text-secondary);
+  min-width: 40px;
+  text-align: center;
+}
+
+.ml-role-main  { background: rgba(255, 69, 0, 0.3);   color: #FF4500; }
+.ml-role-intro { background: rgba(201, 168, 76, 0.2);  color: var(--gold); }
+.ml-role-outro { background: rgba(0, 33, 71, 0.5);     color: #6699cc; }
+
+.ml-track-name     { flex: 1; color: var(--text-primary); }
+.ml-track-duration { color: var(--text-secondary); font-size: 11px; }
+.ml-track-match    { font-size: 11px; min-width: 35px; text-align: right; }
+
+/* ── Effect Node Graph Panel (studio-litegraph.js) ───────────────────────── */
+
+.effects-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: #0A0A0A;
+}
+
+.effects-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.effects-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: var(--gold);
+  margin-right: 4px;
+}
+
+.effects-canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+#effects-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.effects-status {
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.ef-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+/* ── Inspector Panel (studio-inspector.js) ───────────────────────────────── */
+
+.inspector-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-dark);
+}
+
+.inspector-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-secondary);
+  justify-content: space-between;
+}
+
+.inspector-label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  color: var(--gold);
+}
+
+.inspector-clip-name {
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-style: italic;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 140px;
+}
+
+.inspector-pane-wrap {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.inspector-anim-wrap {
+  min-height: 80px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+}
