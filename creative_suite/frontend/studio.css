@@ -222,3 +222,53 @@ button:hover {
   background: #d4b05a;
   border-color: #d4b05a;
 }
+
+/* ── Preview Panel ────────────────────────────────────────────────────────── */
+
+.preview-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-dark);
+}
+.preview-viewport {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  overflow: hidden;
+}
+#preview-canvas {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.preview-overlay {
+  position: absolute;
+  bottom: 8px;
+  left: 0; right: 0;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 12px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.7);
+  pointer-events: none;
+}
+.preview-controls {
+  padding: 8px 12px;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+}
+.preview-scrubbar input[type=range] {
+  width: 100%;
+  accent-color: var(--gold);
+}
+.preview-info {
+  display: flex;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-top: 6px;
+}
