@@ -1,0 +1,236 @@
+{
+  "nodes": [
+    {
+      "id": "demo_corpus",
+      "label": "Demo Corpus\n(6,465 .dm_73 files)",
+      "category": "DEMOS"
+    },
+    {
+      "id": "dm73_parser",
+      "label": "dm73 C++17\nParser (FT-1)",
+      "category": "DEMOS"
+    },
+    {
+      "id": "frag_events",
+      "label": "Frag Events\n(JSON Lines)",
+      "category": "DEMOS"
+    },
+    {
+      "id": "highlight_criteria",
+      "label": "Highlight\nCriteria v2",
+      "category": "ANALYSIS"
+    },
+    {
+      "id": "frag_scoring",
+      "label": "Frag Scoring\nEngine",
+      "category": "ANALYSIS"
+    },
+    {
+      "id": "music_matcher",
+      "label": "Music Match\nEngine",
+      "category": "ANALYSIS"
+    },
+    {
+      "id": "clip_lists",
+      "label": "Clip Lists\n(part04-12.txt)",
+      "category": "RENDER"
+    },
+    {
+      "id": "phase1_pipeline",
+      "label": "Phase 1\nFFmpeg Pipeline",
+      "category": "RENDER"
+    },
+    {
+      "id": "otio_bridge",
+      "label": "OTIO Bridge\n(.otio output)",
+      "category": "RENDER"
+    },
+    {
+      "id": "music_contract",
+      "label": "Music Full-Length\nContract",
+      "category": "RENDER"
+    },
+    {
+      "id": "wolfcamql",
+      "label": "WolfcamQL\n(demo playback)",
+      "category": "ENGINE"
+    },
+    {
+      "id": "q3mme",
+      "label": "q3mme\n(4K capture)",
+      "category": "ENGINE"
+    },
+    {
+      "id": "forge",
+      "label": "FORGE Engine\n(stub)",
+      "category": "ENGINE"
+    },
+    {
+      "id": "studio_ui",
+      "label": "PANTHEON\nStudio UI",
+      "category": "STUDIO"
+    },
+    {
+      "id": "preview_panel",
+      "label": "Preview Panel\n(WebCodecs)",
+      "category": "STUDIO"
+    },
+    {
+      "id": "timeline_panel",
+      "label": "Clip Timeline",
+      "category": "STUDIO"
+    },
+    {
+      "id": "audio_panel",
+      "label": "Audio Timeline\n(wavesurfer)",
+      "category": "STUDIO"
+    },
+    {
+      "id": "effects_panel",
+      "label": "Effect Graph\n(LiteGraph)",
+      "category": "STUDIO"
+    },
+    {
+      "id": "inspector_panel",
+      "label": "Inspector\n(Tweakpane)",
+      "category": "STUDIO"
+    },
+    {
+      "id": "music_panel",
+      "label": "Music Library",
+      "category": "STUDIO"
+    },
+    {
+      "id": "beatmarkers",
+      "label": "Beat Markers\nOverlay",
+      "category": "STUDIO"
+    }
+  ],
+  "edges": [
+    {
+      "source": "demo_corpus",
+      "target": "dm73_parser",
+      "label": "parses"
+    },
+    {
+      "source": "dm73_parser",
+      "target": "frag_events",
+      "label": "emits"
+    },
+    {
+      "source": "frag_events",
+      "target": "frag_scoring",
+      "label": "scored by"
+    },
+    {
+      "source": "highlight_criteria",
+      "target": "frag_scoring",
+      "label": "defines rules for"
+    },
+    {
+      "source": "frag_scoring",
+      "target": "clip_lists",
+      "label": "populates"
+    },
+    {
+      "source": "clip_lists",
+      "target": "phase1_pipeline",
+      "label": "assembles"
+    },
+    {
+      "source": "phase1_pipeline",
+      "target": "otio_bridge",
+      "label": "emits artifact"
+    },
+    {
+      "source": "music_matcher",
+      "target": "music_contract",
+      "label": "validates"
+    },
+    {
+      "source": "music_contract",
+      "target": "phase1_pipeline",
+      "label": "gates"
+    },
+    {
+      "source": "wolfcamql",
+      "target": "demo_corpus",
+      "label": "records from"
+    },
+    {
+      "source": "q3mme",
+      "target": "wolfcamql",
+      "label": "will replace"
+    },
+    {
+      "source": "forge",
+      "target": "wolfcamql",
+      "label": "controls"
+    },
+    {
+      "source": "forge",
+      "target": "dm73_parser",
+      "label": "uses"
+    },
+    {
+      "source": "studio_ui",
+      "target": "phase1_pipeline",
+      "label": "triggers rebuild"
+    },
+    {
+      "source": "studio_ui",
+      "target": "preview_panel",
+      "label": "mounts"
+    },
+    {
+      "source": "studio_ui",
+      "target": "timeline_panel",
+      "label": "mounts"
+    },
+    {
+      "source": "studio_ui",
+      "target": "audio_panel",
+      "label": "mounts"
+    },
+    {
+      "source": "studio_ui",
+      "target": "effects_panel",
+      "label": "mounts"
+    },
+    {
+      "source": "studio_ui",
+      "target": "inspector_panel",
+      "label": "mounts"
+    },
+    {
+      "source": "studio_ui",
+      "target": "music_panel",
+      "label": "mounts"
+    },
+    {
+      "source": "studio_ui",
+      "target": "beatmarkers",
+      "label": "mounts"
+    },
+    {
+      "source": "timeline_panel",
+      "target": "inspector_panel",
+      "label": "drives"
+    },
+    {
+      "source": "music_panel",
+      "target": "music_contract",
+      "label": "displays"
+    },
+    {
+      "source": "phase1_pipeline",
+      "target": "studio_ui",
+      "label": "streams SSE to"
+    },
+    {
+      "source": "beatmarkers",
+      "target": "phase1_pipeline",
+      "label": "reads beats from"
+    }
+  ]
+}
