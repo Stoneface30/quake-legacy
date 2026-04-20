@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PANTHEON STUDIO</title>
+  <link rel="stylesheet" href="/static/studio.css">
+</head>
+<body>
+  <div id="app-grid">
+
+    <!-- ── Headerbar ───────────────────────────────────────────── -->
+    <header id="headerbar">
+      <span id="logo-text">PANTHEON STUDIO</span>
+
+      <div id="header-center">
+        <select id="part-select" title="Select part">
+          <!-- Populated by studio-app.js -->
+        </select>
+      </div>
+
+      <div id="transport">
+        <button id="btn-rew" title="Rewind">&#9664;&#9664;</button>
+        <button id="btn-play" title="Play">&#9654;</button>
+        <button id="btn-fwd" title="Forward">&#9654;&#9654;</button>
+      </div>
+
+      <div id="header-right">
+        <button id="btn-rebuild" class="btn-primary">REBUILD</button>
+      </div>
+    </header>
+
+    <!-- ── Sidebar ─────────────────────────────────────────────── -->
+    <nav id="sidebar">
+      <ul id="nav-list">
+        <li class="nav-item active" data-page="preview">
+          <span class="nav-icon">&#9654;</span>
+          <span class="nav-label">PREVIEW</span>
+        </li>
+        <li class="nav-item" data-page="timeline">
+          <span class="nav-icon">&#8862;</span>
+          <span class="nav-label">TIMELINE</span>
+        </li>
+        <li class="nav-item" data-page="audio">
+          <span class="nav-icon">&#9835;</span>
+          <span class="nav-label">AUDIO</span>
+        </li>
+        <li class="nav-item" data-page="effects">
+          <span class="nav-icon">&#9889;</span>
+          <span class="nav-label">EFFECTS</span>
+        </li>
+        <li class="nav-item" data-page="inspector">
+          <span class="nav-icon">&#8857;</span>
+          <span class="nav-label">INSPECTOR</span>
+        </li>
+      </ul>
+    </nav>
+
+    <!-- ── Main area ───────────────────────────────────────────── -->
+    <main id="main-area">
+      <div id="panel-slot" class="panel-placeholder">Select a panel</div>
+    </main>
+
+    <!-- ── Statusbar ───────────────────────────────────────────── -->
+    <footer id="statusbar">
+      <span id="status-text">Ready</span>
+    </footer>
+
+  </div><!-- /#app-grid -->
+
+  <!-- Vendor libraries (order matters) -->
+  <script src="/vendor/wavesurfer.js"></script>
+  <script src="/vendor/wavesurfer-multitrack.js"></script>
+  <script src="/vendor/animation-timeline.js"></script>
+  <script src="/vendor/litegraph.js"></script>
+  <script src="/vendor/tweakpane.js"></script>
+  <script src="/vendor/mp4box.js"></script>
+  <script src="/vendor/theatre-core-studio.js"></script>
+
+  <!-- App scripts -->
+  <script src="/static/studio-store.js"></script>
+  <script src="/static/studio-app.js"></script>
+</body>
+</html>
