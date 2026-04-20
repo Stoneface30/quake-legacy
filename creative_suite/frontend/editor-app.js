@@ -36,6 +36,9 @@ const els = {
   previewBtn: document.getElementById("render-preview"),
   shipBtn:    document.getElementById("render-ship"),
   renderLog:  document.getElementById("render-log"),
+  srcBanner:  document.getElementById("source-banner"),
+  srcBannerText: document.getElementById("source-banner-text"),
+  srcBannerBtn:  document.getElementById("source-banner-prepare"),
 };
 
 function setStatus(text, state) {
@@ -115,7 +118,36 @@ async function loadPart(n) {
   setStatus(`part ${n} ready`, "ok");
   els.previewBtn.disabled = false;
   els.shipBtn.disabled = false;
+  // Check source-chunk availability (missing = run preview render to populate)
+  checkChunksAvailability(n).catch((e) =>
+    logLine(`chunks check: ${e.message}`, "#ef4444"));
 }
+
+async function checkChunksAvailability(n) {
+  let rows;
+  try {
+    const res = await editorApi.listChunks(n);
+    rows = res?.chunks ?? [];
+  } catch (e) {
+    // Fall through — not fatal.
+    return;
+  }
+  const total = rows.length;
+  const missing = rows.filter((r) => !r.exists).length;
+  if (missing === 0) {
+    els.srcBanner.hidden = true;
+    return;
+  }
+  els.srcBanner.hidden = false;
+  els.srcBannerText.textContent =
+    `${missing}/${total} source chunks not on disk — proxies + preview are unavailable ` +
+    `until chunks are built. Build chunks once via a preview render; they persist after.`;
+}
+
+els.srcBannerBtn?.addEventListener("click", () => {
+  if (!S.part) return;
+  doRender("preview");
+});
 
 function paintAll() {
   renderTimeline({
@@ -217,6 +249,10 @@ async function doRender(mode) {
                   ev.phase === "done" ? "ok" : "err");
         els.previewBtn.disabled = false;
         els.shipBtn.disabled = false;
+        // After a successful render, chunks exist. Re-check.
+        if (ev.phase === "done" && S.part != null) {
+          checkChunksAvailability(S.part).catch(() => {});
+        }
       }
     }, (err) => {
       logLine(`[error] ${err?.message ?? err}`, "#ef4444");

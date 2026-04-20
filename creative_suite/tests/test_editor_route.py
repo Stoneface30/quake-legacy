@@ -29,6 +29,9 @@ def test_editor_route_serves_html(
         # Render buttons
         assert 'id="render-preview"' in body
         assert 'id="render-ship"' in body
+        # Source-missing banner (hidden by default)
+        assert 'id="source-banner"' in body
+        assert 'id="source-banner-prepare"' in body
 
 
 def test_editor_static_js_served(

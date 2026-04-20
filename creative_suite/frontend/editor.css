@@ -24,6 +24,26 @@ body {
   flex-direction: column;
 }
 
+/* ── Source-missing banner ─────────────────── */
+.src-banner {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 16px;
+  background: #3a1f0d;
+  border-bottom: 1px solid #7c2d12;
+  color: #fde68a;
+  font-size: 13px;
+}
+.src-banner[hidden] { display: none; }
+.src-banner-icon {
+  font-size: 18px;
+  color: var(--accent);
+}
+.src-banner-text {
+  flex: 1;
+}
+
 /* ── Top bar ────────────────────────────────── */
 #top-bar {
   display: flex;
