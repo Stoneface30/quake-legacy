@@ -362,7 +362,10 @@
       _animWrapEl = null;
       _container  = null;
       _currentClip = null;
-      _theatreObj  = null;
+      if (_theatreObj) {
+        try { _theatreObj.detachFromParent && _theatreObj.detachFromParent(); } catch (e) {}
+        _theatreObj = null;
+      }
     },
 
     /**
