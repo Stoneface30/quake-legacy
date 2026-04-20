@@ -256,12 +256,38 @@ class Config:
         # = 1-2 min just to analyze). Review iterations should not pay this.
         self.review_skip_silence_detect: bool = True
 
-        # ── Rule P1-Q (short-clip auto-slowmo) ─────────────────
-        # User verdict 2026-04-18: "check for t1 auto slowmo when the clip
-        # is short". A very-short post-trim T1 (<3s) is a peak-moment blip;
-        # slowing it to 0.5× gives the crowd time to register. Applied in
-        # normalize_and_expand only to T1-tier entries without prior speed flag.
-        self.short_t1_slowmo_threshold: float = 3.0   # post-trim seconds
+        # ── Rule P1-Q v2 (short-clip auto-slowmo, ALL TIERS) ────────
+        # User verdict 2026-04-19: "expand the slowmo rule for not only t1
+        # but t1 and t2 and t3 but time constraint t1 is 5sec t2 4sec amd
+        # t3 2sec". A short post-trim clip is a peak-moment blip; slowing
+        # it gives the crowd time to register. Per-tier thresholds below.
+        # Applied in normalize_and_expand to entries without prior speed flag.
+        self.short_slowmo_thresholds: dict = {
+            "T1": 5.0,   # elite peak frags — be generous
+            "T2": 4.0,   # main-meal backbone
+            "T3": 2.0,   # filler — only the tiniest get slow-mo
+        }
+        # Legacy alias — keep pointing at T1 threshold for backward compat.
+        self.short_t1_slowmo_threshold: float = self.short_slowmo_thresholds["T1"]
+
+        # ── Rule P1-V v2 (audio-pattern speed effects) ──────────────
+        # User verdict 2026-04-19: "we can speed up when no game sound and
+        # slowmo when the game sound is a big mess". Two heuristics:
+        #   * analyze_silence → speedup (existing, via phase1.silence_detect)
+        #   * RMS sustained above loud_chaos_rms_db → slowmo (NEW)
+        # Applied ONLY on clips that don't already have a speed flag AND
+        # don't already have the short-clip auto-slowmo (Rule P1-Q v2) set.
+        self.loud_chaos_rms_db: float = -14.0       # mean RMS threshold dBFS
+        self.loud_chaos_min_frac: float = 0.50      # ≥50% of clip body above
+        self.loud_chaos_min_duration_s: float = 2.5 # skip on very short clips
+
+        # ── Rule P1-Q audio handling ────────────────────────────────
+        # User verdict 2026-04-19: "ensure it apply to the video clip and
+        # not the audio we dont want audio compressed or sped up or lower
+        # higher". Slow/fast change VIDEO only. Audio plays at natural
+        # rate; if shorter than new video duration, pad with silence.
+        # If longer (speedup), truncate at new video duration.
+        self.speed_change_audio_natural: bool = True
 
         # ── Rule P1-Y v2: Per-Part Quake-style hero font ──────
         # User verdict 2026-04-18: "do 4 5 6 using one of each font".
