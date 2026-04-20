@@ -1,7 +1,10 @@
 # MLT Verification Record
 
 **Date:** 2026-04-20
-**Verdict:** DEFER
+**Verdict:** ADOPT (via conda-forge) — install unblocked by user
+
+**User ruling (2026-04-20):** conda-forge 600MB overhead is acceptable. Install via
+`conda install -c conda-forge mlt` and proceed with MLT integration.
 
 ## Gate 1: Availability
 
@@ -42,24 +45,20 @@ None of these constitute a deployable dependency for a `pip install quake-legacy
 
 ## Decision
 
-**DEFER** — MLT is not available on this machine, not installable via pip, and has no
-cross-platform pip deployment path. The project's Phase 4 public CLI vision requires
-`pip install quake-legacy` to work cleanly on Windows/Mac/Linux without a separate
-native library install. MLT cannot satisfy that constraint today.
+**ADOPT via conda-forge** — User confirmed conda-forge overhead (~600 MB) is acceptable.
 
-The existing direct-FFmpeg pipeline (`creative_suite/engine/`, P1-BB split graph +
-PCM WAV + CFR) remains the correct approach. No migration needed.
+Install: `conda install -c conda-forge mlt`
 
-## If DEFERRED: Next action
+This unlocks:
+- `melt` CLI (Gate 1: PASS after install)
+- Python `mlt` or `mlt7` bindings
+- AVI input via MLT's FFmpeg producer (Gate 2: expected PASS)
+- Phase 4 CLI can ship a conda-aware variant or a Docker image (Gate 3: PASS)
 
-Revisit this decision if **any** of the following change:
+**Action items:**
+1. Install: `conda install -c conda-forge mlt` on this machine
+2. Re-run Gate 1 and Gate 2 after install (verify melt handles `.avi` clips)
+3. Write a `creative_suite/engine/mlt_pipeline.py` as optional render path
+4. Gate: if MLT render quality matches FFmpeg at CRF 15-17, replace P1-BB concat with MLT XML pipeline for Parts 7-12
 
-1. An `mlt` or `mlt7` wheel appears on PyPI with Windows/Mac/Linux support
-   (check: `pip index versions mlt` — currently returns no versions)
-2. MLT gains a conda-forge package that can be declared as an optional conda dep
-   without breaking the pip install path for non-conda users
-3. The Phase 4 deployment target shifts to a Docker image (in which case
-   `apt install melt` in the Dockerfile is trivial and Gate 3 would PASS)
-
-To re-run these gates: repeat the three commands in Gate 1 and Gate 3, then
-re-evaluate against the decision table in the P3-T5 spec.
+The existing direct-FFmpeg pipeline remains the default until Gate 2 is confirmed.
