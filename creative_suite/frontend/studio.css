@@ -173,6 +173,12 @@ ul {
   pointer-events: none;
 }
 
+.panel-not-loaded {
+  color: var(--accent);
+  font-size: 12px;
+  padding: 16px;
+}
+
 /* ── Statusbar ────────────────────────────────────────────────────────────── */
 
 #statusbar {
