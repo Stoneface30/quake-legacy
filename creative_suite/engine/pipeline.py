@@ -11,9 +11,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, List, Optional
 import json, subprocess
-from phase1.config import Config
-from phase1.inventory import get_clip_info
-from phase1.transitions import Transition, TransitionKind
+from creative_suite.engine.config import Config
+from creative_suite.engine.inventory import get_clip_info
+from creative_suite.engine.transitions import Transition, TransitionKind
 
 
 def write_render_manifest(
@@ -845,7 +845,7 @@ def prepend_intro_sequence(
 
     Returns: output_path
     """
-    from phase1.title_card import render_title_card
+    from creative_suite.engine.title_card import render_title_card
 
     if intro_duration is None:
         intro_duration = cfg.intro_clip_duration

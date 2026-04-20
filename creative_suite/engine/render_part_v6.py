@@ -34,27 +34,27 @@ if hasattr(sys.stdout, "reconfigure"):
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from phase1.config import Config
-from phase1.title_card import render_title_card
-from phase1.clip_list import parse_clip_entry
-from phase1.normalize import normalize_clip
-from phase1.experiment import resolve_clip_path
-from phase1.music_stitcher import stitch_part_music, validate_coverage
-from phase1.beat_sync import (
+from creative_suite.engine.config import Config
+from creative_suite.engine.title_card import render_title_card
+from creative_suite.engine.clip_list import parse_clip_entry
+from creative_suite.engine.normalize import normalize_clip
+from creative_suite.engine.experiment import resolve_clip_path
+from creative_suite.engine.music_stitcher import stitch_part_music, validate_coverage
+from creative_suite.engine.beat_sync import (
     load_beats, snap_xfade_offsets, find_beats_file,
     plan_beat_cuts, write_beats_json,
     plan_flow_cuts_v2, write_flow_plan_json, PlannedClip,
 )
-from phase1.silence_detect import analyze_silence
-from phase1 import music_structure as _music_structure
-from phase1 import audio_onsets as _audio_onsets
-from phase1 import audio_levels as _audio_levels
-from phase1 import sidechain as _sidechain
-from phase1.effects import event_localized as _event_localized
+from creative_suite.engine.silence_detect import analyze_silence
+from creative_suite.engine import music_structure as _music_structure
+from creative_suite.engine import audio_onsets as _audio_onsets
+from creative_suite.engine import audio_levels as _audio_levels
+from creative_suite.engine import sidechain as _sidechain
+from creative_suite.engine.effects import event_localized as _event_localized
 
 ROOT = Path("G:/QUAKE_LEGACY")
 OUTPUT_DIR = ROOT / "output"
-ASSETS_DIR = ROOT / "phase1" / "assets"
+ASSETS_DIR = ROOT / "creative_suite" / "engine" / "assets"
 
 # Target output filename convention.
 OUTPUT_NAME_TMPL = "Part{n}_v6_newrules_2026-04-18.mp4"
@@ -218,7 +218,7 @@ def normalize_and_expand(part: int, clip_list_path: Path, cfg: Config) -> List[P
             first_src = resolve_clip_path(entry.segments[0], part, cfg)
             if first_src is not None:
                 try:
-                    from phase1.silence_detect import measure_rms_profile
+                    from creative_suite.engine.silence_detect import measure_rms_profile
                     mean_db, frac_loud = measure_rms_profile(
                         first_src, cfg.ffmpeg_bin,
                         threshold_db=cfg.loud_chaos_rms_db,
@@ -1199,7 +1199,7 @@ def main():
     # Filter AFTER chunks exist but BEFORE body-dur estimate feeds music stitcher,
     # so the music plan auto-regens for the shorter body.
     try:
-        from phase1.clip_filter import load_removed_chunks, filter_chunks
+        from creative_suite.engine.clip_filter import load_removed_chunks, filter_chunks
         removed = load_removed_chunks(part, cfg.output_dir)
         if removed:
             before = len(chunks)
@@ -1243,7 +1243,7 @@ def main():
     # ── Rule P1-AA v2: video-first music plan (body is source of truth) ──
     if getattr(cfg, "body_duration_first", False):
         try:
-            from phase1 import music_stitcher as _ms
+            from creative_suite.engine import music_stitcher as _ms
             v2_plan = _ms.plan_stitch_v2(
                 part=part,
                 body_duration_s=body_dur_estimate,
@@ -1565,7 +1565,7 @@ def main():
 
     # Rule VIS-1 post-render visual capture. Best-effort, never fails the render.
     try:
-        from phase1.visual_record import safe_capture as _vr_safe_capture
+        from creative_suite.engine.visual_record import safe_capture as _vr_safe_capture
     except Exception:  # noqa: BLE001
         try:
             from visual_record import safe_capture as _vr_safe_capture  # type: ignore[no-redef]

@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Dict
 import subprocess, json
-from phase1.config import Config
+from creative_suite.engine.config import Config
 
 
 @dataclass

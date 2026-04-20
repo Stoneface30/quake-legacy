@@ -49,7 +49,7 @@ from pathlib import Path
 from typing import Any, Iterable, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from phase1.audio_onsets import GameEvent
+    from creative_suite.engine.audio_onsets import GameEvent
 
 # ---------------------------------------------------------------------------
 # Legacy API (v8/v9 — kept for back-compat with render_part_v6.py)

@@ -17,7 +17,7 @@ import re
 import subprocess
 from pathlib import Path
 
-from phase1.config import Config
+from creative_suite.engine.config import Config
 
 
 def build_sidechain_filter_chain(

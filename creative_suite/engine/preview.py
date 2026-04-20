@@ -4,10 +4,10 @@ Takes the first N clips and renders at preview quality (fast).
 """
 from pathlib import Path
 from typing import Optional
-from phase1.config import Config
-from phase1.clip_list import get_clip_paths
-from phase1.normalize import normalize_part
-from phase1.pipeline import assemble_part, GradePreset
+from creative_suite.engine.config import Config
+from creative_suite.engine.clip_list import get_clip_paths
+from creative_suite.engine.normalize import normalize_part
+from creative_suite.engine.pipeline import assemble_part, GradePreset
 import subprocess
 
 

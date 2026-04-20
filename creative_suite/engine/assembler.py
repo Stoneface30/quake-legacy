@@ -9,11 +9,11 @@ Usage:
 import argparse
 from pathlib import Path
 from typing import Optional
-from phase1.config import Config
-from phase1.clip_list import get_clip_paths
-from phase1.normalize import normalize_part
-from phase1.pipeline import assemble_part, GradePreset
-from phase1.preview import render_preview
+from creative_suite.engine.config import Config
+from creative_suite.engine.clip_list import get_clip_paths
+from creative_suite.engine.normalize import normalize_part
+from creative_suite.engine.pipeline import assemble_part, GradePreset
+from creative_suite.engine.preview import render_preview
 
 
 def render_part(
@@ -64,7 +64,7 @@ def render_part(
 
     # 6. Prepend intro if available
     if cfg.intro_source.exists():
-        from phase1.intro import prepend_intro
+        from creative_suite.engine.intro import prepend_intro
         final = prepend_intro(output, cfg)
         print(f"  Intro prepended: {final}")
     else:

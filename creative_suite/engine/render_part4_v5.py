@@ -27,11 +27,11 @@ if hasattr(sys.stdout, "reconfigure"):
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from phase1.config import Config
-from phase1.clip_list import parse_clip_entry
-from phase1.normalize import normalize_clip
-from phase1.pipeline import assemble_part, GradePreset, prepend_intro_sequence
-from phase1.experiment import resolve_clip_path
+from creative_suite.engine.config import Config
+from creative_suite.engine.clip_list import parse_clip_entry
+from creative_suite.engine.normalize import normalize_clip
+from creative_suite.engine.pipeline import assemble_part, GradePreset, prepend_intro_sequence
+from creative_suite.engine.experiment import resolve_clip_path
 
 PART = 4
 CLIP_LIST_NAME = "part04_styleb.txt"

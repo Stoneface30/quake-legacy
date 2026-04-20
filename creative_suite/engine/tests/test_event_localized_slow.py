@@ -5,7 +5,7 @@ import pytest
 
 
 def test_build_filter_returns_two_strings():
-    from phase1.effects.event_localized import build_event_localized_slow_filter
+    from creative_suite.engine.effects.event_localized import build_event_localized_slow_filter
     v, a = build_event_localized_slow_filter(event_t=2.5, slow_rate=0.5,
                                               window_s=0.8)
     assert isinstance(v, str) and v
@@ -13,7 +13,7 @@ def test_build_filter_returns_two_strings():
 
 
 def test_video_filter_contains_setpts():
-    from phase1.effects.event_localized import build_event_localized_slow_filter
+    from creative_suite.engine.effects.event_localized import build_event_localized_slow_filter
     v, _ = build_event_localized_slow_filter(event_t=3.0, slow_rate=0.5,
                                               window_s=0.5)
     assert "setpts=" in v
@@ -21,7 +21,7 @@ def test_video_filter_contains_setpts():
 
 def test_parens_balanced_in_video_filter():
     """Regression: old versions emitted unbalanced parens that crashed ffmpeg."""
-    from phase1.effects.event_localized import build_event_localized_slow_filter
+    from creative_suite.engine.effects.event_localized import build_event_localized_slow_filter
     v, _ = build_event_localized_slow_filter(event_t=3.0, slow_rate=0.5,
                                               window_s=0.8)
     assert v.count("(") == v.count(")")
@@ -29,7 +29,7 @@ def test_parens_balanced_in_video_filter():
 
 def test_window_clamped_to_clip_duration():
     """If event_t + window_s exceeds clip_duration, the upper bound clamps."""
-    from phase1.effects.event_localized import (
+    from creative_suite.engine.effects.event_localized import (
         build_event_localized_slow_filter,
         _clamp_window,
     )
@@ -42,24 +42,24 @@ def test_window_clamped_to_clip_duration():
 
 
 def test_select_audio_mode_player_death_is_mute():
-    from phase1.effects.event_localized import select_audio_mode
+    from creative_suite.engine.effects.event_localized import select_audio_mode
     assert select_audio_mode("player_death") == "mute"
 
 
 def test_select_audio_mode_weapon_is_speed_comp():
-    from phase1.effects.event_localized import select_audio_mode
+    from creative_suite.engine.effects.event_localized import select_audio_mode
     assert select_audio_mode("rail_fire") == "speed_comp"
     assert select_audio_mode("rocket_impact") == "speed_comp"
     assert select_audio_mode("grenade_direct") == "speed_comp"
 
 
 def test_select_audio_mode_multi_kill_is_natural_quiet():
-    from phase1.effects.event_localized import select_audio_mode
+    from creative_suite.engine.effects.event_localized import select_audio_mode
     assert select_audio_mode("multi_kill") == "natural_quiet"
 
 
 def test_audio_filter_mute_contains_volume_zero():
-    from phase1.effects.event_localized import build_event_localized_slow_filter
+    from creative_suite.engine.effects.event_localized import build_event_localized_slow_filter
     _, a = build_event_localized_slow_filter(event_t=2.0, slow_rate=0.5,
                                               window_s=0.5,
                                               audio_mode="mute")
@@ -67,7 +67,7 @@ def test_audio_filter_mute_contains_volume_zero():
 
 
 def test_audio_filter_speed_comp_uses_atempo():
-    from phase1.effects.event_localized import build_event_localized_slow_filter
+    from creative_suite.engine.effects.event_localized import build_event_localized_slow_filter
     _, a = build_event_localized_slow_filter(event_t=2.0, slow_rate=0.5,
                                               window_s=0.5,
                                               audio_mode="speed_comp")
@@ -75,7 +75,7 @@ def test_audio_filter_speed_comp_uses_atempo():
 
 
 def test_requires_event_t():
-    from phase1.effects.event_localized import build_event_localized_slow_filter
+    from creative_suite.engine.effects.event_localized import build_event_localized_slow_filter
     with pytest.raises(ValueError):
         build_event_localized_slow_filter(event_t=None, slow_rate=0.5,  # type: ignore[arg-type]
                                           window_s=0.5)

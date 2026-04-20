@@ -8,14 +8,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from phase1.audio_onsets import GameEvent, EVENT_WEIGHTS
-from phase1.beat_sync import (
+from creative_suite.engine.audio_onsets import GameEvent, EVENT_WEIGHTS
+from creative_suite.engine.beat_sync import (
     PlannedClip,
     plan_flow_cuts_v2,
     snap_seams_to_events,
     write_flow_plan_json,
 )
-from phase1.config import Config
+from creative_suite.engine.config import Config
 
 
 def _evt(etype: str, t: float = 1.0, conf: float = 0.85) -> GameEvent:

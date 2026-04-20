@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from phase1.clip_filter import filter_chunks, load_removed_chunks
+from creative_suite.engine.clip_filter import filter_chunks, load_removed_chunks
 
 
 def test_filter_chunks_drops_removed_preserves_order(tmp_path: Path) -> None:

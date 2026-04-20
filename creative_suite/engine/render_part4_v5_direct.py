@@ -26,8 +26,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from phase1.config import Config
-from phase1.title_card import render_title_card
+from creative_suite.engine.config import Config
+from creative_suite.engine.title_card import render_title_card
 
 ROOT = Path("G:/QUAKE_LEGACY")
 CHUNKS_DIR = ROOT / "output" / "_part4_v5_body_chunks"
@@ -41,7 +41,7 @@ def main():
     start = time.time()
 
     # 1) Ensure title card exists
-    title_card = ROOT / "phase1" / "assets" / "title_card_part04.mp4"
+    title_card = ROOT / "creative_suite" / "engine" / "assets" / "title_card_part04.mp4"
     if not title_card.exists():
         print("Rendering title card...")
         render_title_card(4, title_card, cfg)

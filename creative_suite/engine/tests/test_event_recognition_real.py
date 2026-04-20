@@ -21,7 +21,7 @@ from typing import List
 
 import pytest
 
-from phase1 import audio_onsets as ao
+from creative_suite.engine import audio_onsets as ao
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "clip_audio"

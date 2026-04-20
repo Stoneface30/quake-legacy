@@ -176,7 +176,7 @@ def put_overrides(n: int, body: OverrideBody, request: Request) -> dict[str, Any
         chunk = e.get("chunk")
         if not chunk or not isinstance(chunk, str):
             continue
-        # Normalize to basename so the render-side filter (phase1/clip_filter.py)
+        # Normalize to basename so the render-side filter (creative_suite/engine/clip_filter.py)
         # can match by Path.name regardless of whether the UI passed a full path.
         chunk = Path(chunk.replace("\\", "/")).name
         entries.append(ClipOverride(

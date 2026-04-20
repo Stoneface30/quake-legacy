@@ -1,12 +1,12 @@
 """Tests for Rule P1-CC v2 flow-driven plan_flow_cuts."""
 from __future__ import annotations
 
-from phase1.beat_sync import (
+from creative_suite.engine.beat_sync import (
     plan_flow_cuts,
     classify_section_shape,
     write_flow_plan_json,
 )
-from phase1.audio_onsets import GameEvent, EVENT_WEIGHTS
+from creative_suite.engine.audio_onsets import GameEvent, EVENT_WEIGHTS
 
 
 def _evt(etype: str, conf: float = 0.85, t: float = 1.0) -> GameEvent:
