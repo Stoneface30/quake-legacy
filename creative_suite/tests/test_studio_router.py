@@ -162,6 +162,36 @@ def test_flow_returns_json_content(seeded_client: TestClient) -> None:
     assert "clips" in data
 
 
+# ── test: /api/studio/part/{n}/beats ─────────────────────────────────────────
+
+def test_beats_endpoint_valid_part(client: TestClient) -> None:
+    """Valid part with no beats file returns 200 with empty beats array."""
+    r = client.get("/api/studio/part/4/beats")
+    assert r.status_code == 200
+    data = r.json()
+    assert "beats" in data
+    assert isinstance(data["beats"], list)
+    assert data["part"] == 4
+
+
+def test_beats_endpoint_out_of_range(client: TestClient) -> None:
+    """Part number outside 4-12 returns 404."""
+    r = client.get("/api/studio/part/99/beats")
+    assert r.status_code == 404
+
+
+def test_beats_returns_empty_for_missing_part_beats(client: TestClient) -> None:
+    """Missing beats file → 200 with empty beats and sections arrays."""
+    r = client.get("/api/studio/part/7/beats")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["beats"] == []
+    assert data["sections"] == []
+    assert "note" in data
+
+
+# ── test: /api/studio/part/{n}/flow ──────────────────────────────────────────
+
 def test_flow_subdir_layout(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

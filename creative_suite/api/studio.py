@@ -150,6 +150,50 @@ def get_clips(part_num: int, request: Request) -> dict[str, Any]:
     return {"part": part_num, "clips": clips}
 
 
+_VALID_PARTS = range(4, 13)  # parts 4-12 inclusive
+
+
+@router.get("/part/{part_num}/beats")
+def get_beats(part_num: int, request: Request) -> dict[str, Any]:
+    """Return beat and section data for a part.
+
+    Reads output/partNN/partNN_beats.json (or flat output/partNN_beats.json).
+    Returns 200 with empty beats/sections if the file is missing.
+    Returns 404 only if part number is out of the valid range (4-12).
+    """
+    if part_num not in _VALID_PARTS:
+        raise HTTPException(status_code=404, detail=f"Part {part_num} is not in range 4-12")
+
+    out = _output_dir(request)
+    nn = f"{part_num:02d}"
+
+    candidates = [
+        out / f"part{nn}" / f"part{nn}_beats.json",
+        out / f"part{nn}_beats.json",
+    ]
+
+    for path in candidates:
+        if path.exists():
+            try:
+                raw = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, ValueError) as exc:
+                raise HTTPException(
+                    status_code=500, detail=f"Malformed beats file: {exc}"
+                ) from exc
+
+            # Extract known fields; fall back to empty lists if absent
+            beats = raw.get("beats", [])
+            sections = raw.get("sections", [])
+            return {
+                "part": part_num,
+                "beats": beats,
+                "sections": sections,
+                "raw_beats": raw,
+            }
+
+    return {"part": part_num, "beats": [], "sections": [], "note": "no beats file found"}
+
+
 @router.get("/part/{part_num}/flow")
 def get_flow(part_num: int, request: Request) -> dict[str, Any]:
     out = _output_dir(request)
