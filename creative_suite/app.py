@@ -44,6 +44,7 @@ def create_app() -> FastAPI:
         packs,
         parts,
         phase1,
+        studio,
         variants,
     )
     app.include_router(annotations.router)
@@ -58,6 +59,7 @@ def create_app() -> FastAPI:
     app.include_router(ollama.router)
     app.include_router(capture.router)
     app.include_router(editor.router)
+    app.include_router(studio.router)
 
     # Spec §11.3 mitigation: check img2img workflow placeholders at boot.
     # This only logs — it never aborts startup, so a ComfyUI update that
