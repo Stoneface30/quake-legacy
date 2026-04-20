@@ -22,8 +22,15 @@ import logging
 from pathlib import Path
 from typing import Any
 
-import opentimelineio as otio
-from opentimelineio import opentime, schema
+try:
+    import opentimelineio as otio
+    from opentimelineio import opentime, schema
+    _OTIO_AVAILABLE = True
+except ImportError:
+    otio = None  # type: ignore[assignment]
+    opentime = None  # type: ignore[assignment]
+    schema = None  # type: ignore[assignment]
+    _OTIO_AVAILABLE = False
 
 log = logging.getLogger(__name__)
 
@@ -81,6 +88,19 @@ def build_otio_timeline(
         The OTIO Timeline serialised to a plain Python dict (JSON-friendly).
         Also writes the file when *output_path* is given.
     """
+    if not _OTIO_AVAILABLE:
+        log.warning("opentimelineio not installed — returning stub OTIO dict")
+        stub: dict[str, Any] = {
+            "OTIO_SCHEMA": "Timeline.1",
+            "name": f"Part {part:02d}",
+            "metadata": {"pantheon": {"part": part, "generated_by": "pantheon-otio-bridge/1.0"}},
+            "tracks": {"OTIO_SCHEMA": "Stack.1", "name": "tracks", "children": []},
+        }
+        if output_path is not None:
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            output_path.write_text(json.dumps(stub, indent=2), encoding="utf-8")
+        return stub
+
     # ── Build OTIO objects ────────────────────────────────────────────────────
     timeline = schema.Timeline(name=f"Part {part:02d}")
     timeline.metadata["pantheon"] = {
