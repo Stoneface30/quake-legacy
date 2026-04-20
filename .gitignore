@@ -1,3 +1,7 @@
+# npm — node_modules is local only; vendor/ is tracked (generated but needed)
+node_modules/
+package-lock.json
+
 # Large video files - do not commit
 *.avi
 *.mp4
