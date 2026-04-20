@@ -45,13 +45,13 @@ _staging_cleanup/
 .claude/scheduled_tasks.lock
 
 # Phase 5 intermediate pipeline output (regenerable from source)
-phase5/01_png/
-phase5/02_processed/
-phase5/03_tga/
-phase5/04_pk3/
+# phase5/ deleted 2026-04-20; assets moved to creative_suite/comfy/assets/phase5_png/
+creative_suite/comfy/assets/phase5_png/
 
-# Music beat analysis cache (regenerable)
-phase1/music/*.beats.json
+# Music beat analysis cache and stem download manifests (regenerable)
+creative_suite/engine/music/*.beats.json
+creative_suite/engine/music/*_fresh_stems.json
+creative_suite/engine/music/*_repair_map.json
 
 # Graphify intermediate JSON (regenerable)
 engine/.graphify_*.json
@@ -74,9 +74,7 @@ tools/ghidra/projects/
 options_local.ini
 local_config.py
 
-# Phase 3.5 — extracted Q3/QL character assets (copyright id Software)
-phase35/models/
-phase35/out/
+# Phase 3.5 — folder deleted 2026-04-20 (was empty scaffold, no code)
 
 # Visual-record gameplay frames — contain player nameplates / HUD (PII)
 # Only docs/visual-record/github-readme/ is safe for public (manually curated)
@@ -87,17 +85,20 @@ docs/visual-record/*/gameplay-frames/*.jpg
 docs/visual-record/*/gameplay-frames/*.png
 docs/visual-record/*/render-frames/*.jpg
 docs/visual-record/*/render-frames/*.png
-phase1/music/library/
+creative_suite/engine/music/library/
 # Copyrighted music — kept local, never committed to public repo (Rule P1-R assets)
-phase1/music/*.mp3
-phase1/music/*.ogg
-phase1/music/*.wav
-phase1/music/*.flac
-phase1/music/_stitched/
+creative_suite/engine/music/*.mp3
+creative_suite/engine/music/*.ogg
+creative_suite/engine/music/*.wav
+creative_suite/engine/music/*.flac
+creative_suite/engine/music/_stitched/
 
 
 # Creative Suite v2 local storage
 storage/
+
+# Generated pk3 style packs — large binary files, regenerable, not for public repo
+creative_suite/generated/packs/
 
 # 2026-04-19 video tooling upgrade — downloaded binaries stay local, never committed
 tools/ffmpeg-7/
