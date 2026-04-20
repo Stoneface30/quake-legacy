@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Quake Legacy — Stats</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #040610;
+  font-family: 'IBM Plex Mono', 'Courier New', monospace;
+  width: 1600px;
+  height: 900px;
+  overflow: hidden;
+  color: #b0b8d0;
+  position: relative;
+}
+
+/* ── grid lines bg ── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(26,62,154,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(26,62,154,0.06) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+
+/* ── topbar ── */
+.topbar {
+  height: 44px;
+  background: #060a1a;
+  border-bottom: 1px solid #0d1f50;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 20px;
+}
+.logo { color: #e8b923; font-size: 16px; font-weight: bold; letter-spacing: 2px; }
+.sep { color: #1a3e9a; font-size: 12px; }
+.sub { color: #2a3a60; font-size: 10px; letter-spacing: 2px; }
+.badge {
+  margin-left: auto;
+  font-size: 9px;
+  color: #e8b923;
+  border: 1px solid #e8b92333;
+  padding: 3px 10px;
+  letter-spacing: 2px;
+}
+
+/* ── section label ── */
+.section-label {
+  font-size: 9px;
+  letter-spacing: 3px;
+  color: #1a3e9a;
+  text-transform: uppercase;
+  padding: 0 0 8px 0;
+  border-bottom: 1px solid #0d1f50;
+  margin-bottom: 16px;
+}
+
+/* ── main layout ── */
+.main {
+  display: grid;
+  grid-template-columns: 1fr 1px 1fr;
+  height: calc(900px - 44px - 80px);
+}
+.col { padding: 20px 24px; overflow: hidden; }
+.divider-v { background: #0d1f50; }
+
+/* ── hero stat ── */
+.hero-stat {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.hero-num {
+  font-size: 48px;
+  font-weight: 900;
+  color: #e8b923;
+  line-height: 1;
+  letter-spacing: -1px;
+}
+.hero-unit {
+  font-size: 14px;
+  color: #4a5a80;
+  letter-spacing: 2px;
+}
+.hero-label {
+  font-size: 10px;
+  color: #2a3a60;
+  letter-spacing: 2px;
+  margin-bottom: 24px;
+  text-transform: uppercase;
+}
+
+/* ── stat grid ── */
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.stat-card {
+  background: #060c1a;
+  border: 1px solid #0d1f50;
+  padding: 12px 14px;
+  position: relative;
+}
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 2px; height: 100%;
+  background: #1a3e9a;
+}
+.stat-card.gold::before { background: #e8b923; }
+.stat-card.red::before { background: #9a2a1a; }
+.stat-card.green::before { background: #1a6030; }
+.sc-num {
+  font-size: 26px;
+  font-weight: 900;
+  color: #e8b923;
+  line-height: 1.1;
+}
+.sc-num.blue { color: #4a7cdc; }
+.sc-num.dim { color: #3a4a70; }
+.sc-label {
+  font-size: 8px;
+  color: #2a3a60;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
+
+/* ── pipeline ── */
+.pipeline {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 20px;
+}
+.pipe-step {
+  flex: 1;
+  background: #060c1a;
+  border: 1px solid #0d1f50;
+  padding: 8px 10px;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: #4a5a80;
+  text-align: center;
+  position: relative;
+}
+.pipe-step.active { border-color: #e8b92355; color: #e8b923; background: rgba(232,185,35,0.05); }
+.pipe-arrow {
+  width: 16px;
+  font-size: 10px;
+  color: #1a3e9a;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+/* ── time saved ── */
+.time-bar-wrap { margin-bottom: 20px; }
+.time-bar-label { display: flex; justify-content: space-between; margin-bottom: 4px; font-size: 9px; letter-spacing: 1px; }
+.time-bar-label .before-lbl { color: #6a2a1a; }
+.time-bar-label .after-lbl { color: #1a6040; }
+.time-bar-label .val { color: #4a5a80; }
+.time-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.time-bar-track { flex: 1; height: 14px; background: #060c1a; border: 1px solid #0d1f50; position: relative; overflow: hidden; }
+.time-bar-fill { height: 100%; position: absolute; left: 0; top: 0; }
+.time-bar-fill.before-fill { background: linear-gradient(90deg, #4a1a0a, #9a2a1a); }
+.time-bar-fill.after-fill { background: linear-gradient(90deg, #0a2a1a, #1a6040); }
+.time-bar-annot { font-size: 9px; color: #2a3a60; width: 80px; text-align: right; flex-shrink: 0; }
+
+/* ── improvement metrics ── */
+.metric-row {
+  display: flex;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #080f20;
+  gap: 10px;
+}
+.metric-icon { font-size: 14px; width: 20px; text-align: center; }
+.metric-text { flex: 1; font-size: 10px; color: #4a5a80; letter-spacing: 1px; }
+.metric-delta {
+  font-size: 13px;
+  font-weight: bold;
+  color: #1a8040;
+  letter-spacing: 1px;
+}
+.metric-delta.red { color: #9a3a1a; }
+
+/* ── right col: render stats ── */
+.render-stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.rs-card {
+  background: #060c1a;
+  border: 1px solid #0d1f50;
+  padding: 14px;
+}
+.rs-num { font-size: 32px; font-weight: 900; color: #4a7cdc; line-height: 1; }
+.rs-num.gold { color: #e8b923; }
+.rs-label { font-size: 8px; color: #1a2a50; letter-spacing: 2px; margin-top: 4px; }
+.rs-bar { height: 3px; background: #0d1f50; margin-top: 8px; position: relative; }
+.rs-bar-fill { position: absolute; top: 0; left: 0; height: 100%; background: #1a3e9a; }
+.rs-bar-fill.gold { background: #e8b923; }
+
+/* ── quality bars ── */
+.quality-section { margin-bottom: 20px; }
+.qual-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.qual-label { width: 90px; font-size: 9px; color: #2a3a60; letter-spacing: 1px; text-align: right; }
+.qual-track { flex: 1; height: 8px; background: #060c1a; border: 1px solid #0d1f50; position: relative; overflow: hidden; }
+.qual-fill { height: 100%; }
+.qual-pct { width: 36px; font-size: 9px; color: #4a5a80; }
+
+/* ── feature comparison ── */
+.feat-table { width: 100%; border-collapse: collapse; }
+.feat-table th { font-size: 8px; letter-spacing: 2px; color: #1a3e9a; text-align: left; padding: 4px 8px; border-bottom: 1px solid #0d1f50; }
+.feat-table td { font-size: 9px; padding: 5px 8px; border-bottom: 1px solid #060c1a; color: #4a5a80; }
+.feat-table td.check { color: #1a8040; text-align: center; font-size: 12px; }
+.feat-table td.cross { color: #6a2a1a; text-align: center; font-size: 12px; }
+.feat-table td.feat-name { color: #6a7a90; }
+
+/* ── bottom stat strip ── */
+.stat-strip {
+  height: 80px;
+  background: #020408;
+  border-top: 1px solid #0d1f50;
+  display: flex;
+  align-items: center;
+  padding: 0 24px;
+  gap: 0;
+}
+.strip-stat {
+  flex: 1;
+  text-align: center;
+  border-right: 1px solid #0d1f50;
+  padding: 0 16px;
+}
+.strip-stat:last-child { border-right: none; }
+.strip-num { font-size: 28px; font-weight: 900; color: #e8b923; letter-spacing: -1px; }
+.strip-num.blue { color: #4a7cdc; }
+.strip-num.green { color: #2a8050; }
+.strip-label { font-size: 8px; color: #1a2a50; letter-spacing: 2px; text-transform: uppercase; margin-top: 2px; }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="logo">⬡ QUAKE LEGACY</span>
+  <span class="sep">//</span>
+  <span class="sub">CORPUS INTELLIGENCE + PIPELINE METRICS</span>
+  <div class="badge">PRE-ALPHA · 2026</div>
+</div>
+
+<div class="main">
+
+  <!-- ── LEFT: Corpus + Before/After ── -->
+  <div class="col">
+    <div class="section-label">01 · CORPUS AT A GLANCE</div>
+
+    <div class="hero-stat">
+      <div class="hero-num">6,465</div>
+      <div class="hero-unit">DEMOS</div>
+    </div>
+    <div class="hero-label">10 years of .dm_73 recordings · 13.19 GB · 11 players</div>
+
+    <div class="stat-grid">
+      <div class="stat-card gold">
+        <div class="sc-num">13.19</div>
+        <div class="sc-label">GB on disk</div>
+      </div>
+      <div class="stat-card">
+        <div class="sc-num blue">947</div>
+        <div class="sc-label">WolfcamQL staged</div>
+      </div>
+      <div class="stat-card">
+        <div class="sc-num blue">1,579</div>
+        <div class="sc-label">AVI clips (T1/T2/T3)</div>
+      </div>
+      <div class="stat-card green">
+        <div class="sc-num" style="color:#2a8050;">565</div>
+        <div class="sc-label">Tests passing</div>
+      </div>
+      <div class="stat-card">
+        <div class="sc-num blue">39</div>
+        <div class="sc-label">Pantheon icons</div>
+      </div>
+      <div class="stat-card">
+        <div class="sc-num blue">12</div>
+        <div class="sc-label">Parts planned</div>
+      </div>
+    </div>
+
+    <div class="section-label">02 · TIME COST COMPARISON</div>
+
+    <div class="time-bar-wrap">
+      <div class="time-bar-label">
+        <span class="before-lbl">■ BEFORE (manual)</span>
+        <span class="after-lbl">■ AFTER (quake legacy)</span>
+      </div>
+      <div class="time-bar-row">
+        <div style="width:130px; font-size:9px; color:#2a3a60;">Demo triage</div>
+        <div class="time-bar-track"><div class="time-bar-fill before-fill" style="width:85%;"></div></div>
+        <div class="time-bar-annot">~8h → 12min</div>
+      </div>
+      <div class="time-bar-row">
+        <div style="width:130px; font-size:9px; color:#2a3a60;">Clip extraction</div>
+        <div class="time-bar-track"><div class="time-bar-fill before-fill" style="width:92%;"></div></div>
+        <div class="time-bar-annot">~20h → 45min</div>
+      </div>
+      <div class="time-bar-row">
+        <div style="width:130px; font-size:9px; color:#2a3a60;">Timeline assembly</div>
+        <div class="time-bar-track"><div class="time-bar-fill before-fill" style="width:70%;"></div></div>
+        <div class="time-bar-annot">~6h → 1h</div>
+      </div>
+      <div class="time-bar-row">
+        <div style="width:130px; font-size:9px; color:#2a3a60;">Music sync</div>
+        <div class="time-bar-track"><div class="time-bar-fill before-fill" style="width:60%;"></div></div>
+        <div class="time-bar-annot">~4h → 8min</div>
+      </div>
+      <div class="time-bar-row">
+        <div style="width:130px; font-size:9px; color:#2a3a60;">Audio drift fixing</div>
+        <div class="time-bar-track"><div class="time-bar-fill before-fill" style="width:45%;"></div></div>
+        <div class="time-bar-annot">~3h → 0min</div>
+      </div>
+    </div>
+
+    <div class="section-label">03 · PIPELINE STAGES</div>
+    <div class="pipeline">
+      <div class="pipe-step active">SCOUT<br><span style="font-size:8px;color:#4a5a80;">review + mark</span></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step active">EDITOR<br><span style="font-size:8px;color:#4a5a80;">assemble + sync</span></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step active">FX GRAPH<br><span style="font-size:8px;color:#4a5a80;">effects chain</span></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step active">RENDER<br><span style="font-size:8px;color:#4a5a80;">OTIO → MLT</span></div>
+      <div class="pipe-arrow">→</div>
+      <div class="pipe-step">ARCHIVE<br><span style="font-size:8px;color:#4a5a80;">lifecycle index</span></div>
+    </div>
+  </div>
+
+  <div class="divider-v"></div>
+
+  <!-- ── RIGHT: Render metrics + feature table ── -->
+  <div class="col">
+    <div class="section-label">04 · RENDER QUALITY TARGETS</div>
+
+    <div class="render-stat-grid">
+      <div class="rs-card">
+        <div class="rs-num gold">CRF 15</div>
+        <div class="rs-label">quality ceiling</div>
+        <div class="rs-bar"><div class="rs-bar-fill gold" style="width:90%;"></div></div>
+      </div>
+      <div class="rs-card">
+        <div class="rs-num">60 FPS</div>
+        <div class="rs-label">target framerate</div>
+        <div class="rs-bar"><div class="rs-bar-fill" style="width:100%;"></div></div>
+      </div>
+      <div class="rs-card">
+        <div class="rs-num gold" style="font-size:24px;">1920×1080</div>
+        <div class="rs-label">output resolution</div>
+        <div class="rs-bar"><div class="rs-bar-fill gold" style="width:100%;"></div></div>
+      </div>
+      <div class="rs-card">
+        <div class="rs-num" style="font-size:24px;">&lt;40ms</div>
+        <div class="rs-label">max A/V drift gate</div>
+        <div class="rs-bar"><div class="rs-bar-fill" style="width:20%; background:#1a8040;"></div></div>
+      </div>
+    </div>
+
+    <div class="section-label">05 · OUTPUT QUALITY BREAKDOWN</div>
+    <div class="quality-section">
+      <div class="qual-row">
+        <div class="qual-label">Visual</div>
+        <div class="qual-track"><div class="qual-fill" style="width:90%; background:linear-gradient(90deg,#1a3e9a,#e8b923);"></div></div>
+        <div class="qual-pct">CRF 15</div>
+      </div>
+      <div class="qual-row">
+        <div class="qual-label">Audio sync</div>
+        <div class="qual-track"><div class="qual-fill" style="width:98%; background:linear-gradient(90deg,#1a3e9a,#2a8050);"></div></div>
+        <div class="qual-pct">≤40ms</div>
+      </div>
+      <div class="qual-row">
+        <div class="qual-label">Beat accuracy</div>
+        <div class="qual-track"><div class="qual-fill" style="width:85%; background:linear-gradient(90deg,#1a3e9a,#4a7cdc);"></div></div>
+        <div class="qual-pct">±8ms</div>
+      </div>
+      <div class="qual-row">
+        <div class="qual-label">Music coverage</div>
+        <div class="qual-track"><div class="qual-fill" style="width:100%; background:linear-gradient(90deg,#1a3e9a,#2a8050);"></div></div>
+        <div class="qual-pct">100%</div>
+      </div>
+      <div class="qual-row">
+        <div class="qual-label">Event detection</div>
+        <div class="qual-track"><div class="qual-fill" style="width:75%; background:linear-gradient(90deg,#1a3e9a,#4a7cdc);"></div></div>
+        <div class="qual-pct">≥0.55 conf</div>
+      </div>
+    </div>
+
+    <div class="section-label">06 · FEATURE COMPARISON</div>
+    <table class="feat-table">
+      <thead>
+        <tr>
+          <th>FEATURE</th>
+          <th style="text-align:center;color:#6a2a1a;">MANUAL</th>
+          <th style="text-align:center;color:#1a6040;">QUAKE LEGACY</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="feat-name">6,000+ demo browser + FTS5 search</td>
+          <td class="cross">✗</td>
+          <td class="check">✓</td>
+        </tr>
+        <tr>
+          <td class="feat-name">I/O mark clips in browser (no console)</td>
+          <td class="cross">✗</td>
+          <td class="check">✓</td>
+        </tr>
+        <tr>
+          <td class="feat-name">6 camera modes (FP · 3P · Free · Follow · Spline · Projectile)</td>
+          <td class="cross">✗</td>
+          <td class="check">✓</td>
+        </tr>
+        <tr>
+          <td class="feat-name">Beat-locked downbeat snapping</td>
+          <td class="cross">✗</td>
+          <td class="check">✓</td>
+        </tr>
+        <tr>
+          <td class="feat-name">Deterministic render (same input = same SHA-256)</td>
+          <td class="cross">✗</td>
+          <td class="check">✓</td>
+        </tr>
+        <tr>
+          <td class="feat-name">Audio drift prevention (split graph + PCM WAV)</td>
+          <td class="cross">✗</td>
+          <td class="check">✓</td>
+        </tr>
+        <tr>
+          <td class="feat-name">Event-localized slow-mo (±0.8s window)</td>
+          <td class="cross">✗</td>
+          <td class="check">✓</td>
+        </tr>
+        <tr>
+          <td class="feat-name">Render output (avi export, basic)</td>
+          <td class="check" style="color:#4a6030;">✓</td>
+          <td class="check">✓</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ── Bottom strip ── -->
+<div class="stat-strip">
+  <div class="strip-stat">
+    <div class="strip-num">6,465</div>
+    <div class="strip-label">dm_73 demos indexed</div>
+  </div>
+  <div class="strip-stat">
+    <div class="strip-num blue">1,579</div>
+    <div class="strip-label">AVI clips (T1 / T2 / T3)</div>
+  </div>
+  <div class="strip-stat">
+    <div class="strip-num" style="color:#2a8050;">565</div>
+    <div class="strip-label">tests passing</div>
+  </div>
+  <div class="strip-stat">
+    <div class="strip-num blue">39</div>
+    <div class="strip-label">Pantheon icons</div>
+  </div>
+  <div class="strip-stat">
+    <div class="strip-num">&lt;40ms</div>
+    <div class="strip-label">A/V drift gate</div>
+  </div>
+  <div class="strip-stat">
+    <div class="strip-num blue">6</div>
+    <div class="strip-label">camera modes</div>
+  </div>
+  <div class="strip-stat">
+    <div class="strip-num" style="color:#2a8050;">3</div>
+    <div class="strip-label">plans shipped (P1–P3)</div>
+  </div>
+  <div class="strip-stat">
+    <div class="strip-num blue">CRF 15</div>
+    <div class="strip-label">quality ceiling</div>
+  </div>
+</div>
+
+</body>
+</html>
