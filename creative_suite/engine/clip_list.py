@@ -27,13 +27,19 @@ into multiple clip segments joined by a hard cut (no xfade between angles).
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List, Optional
-from phase1.config import Config
-from phase1.inventory import scan_part
+from creative_suite.engine.config import Config
+from creative_suite.engine.inventory import scan_part
+from creative_suite.clips.parser import parse_clip_entry as _canonical_parse_clip_entry
 
 
 @dataclass
 class ClipEntry:
-    """A single line from the clip list, parsed into segments + flags."""
+    """A single line from the clip list, parsed into segments + flags.
+
+    Render-layer representation — maps from the canonical ClipEntry in
+    creative_suite.clips.parser to the mutable form expected by the
+    assembler, render_part_v6, and related render modules.
+    """
     segments: List[str]          # ordered filenames (1 = single, 2+ = multi-angle)
     slow: bool = False           # apply slow-motion filter to last segment
     intro: bool = False          # hard cut before this entry (no xfade from prior)
@@ -43,27 +49,26 @@ class ClipEntry:
 
 
 def parse_clip_entry(line: str) -> ClipEntry:
-    """Parse one clip list line into a ClipEntry."""
+    """Parse one clip list line into a render-layer ClipEntry.
+
+    Delegates parsing to creative_suite.clips.parser.parse_clip_entry
+    (single source of truth) and maps the result to the mutable ClipEntry
+    type expected by render_part_v6 and the assembler.
+    """
     raw = line.strip()
+    canonical = _canonical_parse_clip_entry(raw)
+    if canonical is None:
+        # blank / comment / non-clip line — return empty entry
+        return ClipEntry(segments=[], raw_line=raw)
 
-    # Extract flags
-    slow = "[slow]" in raw
-    intro = "[intro]" in raw
-    speedup = "[fast]" in raw or "[speedup]" in raw
-    zoom = "[zoom]" in raw
-    cleaned = (raw
-               .replace("[slow]", "")
-               .replace("[intro]", "")
-               .replace("[fast]", "")
-               .replace("[speedup]", "")
-               .replace("[zoom]", "")
-               .strip())
-
-    # Split on > for multi-angle
-    segments = [s.strip() for s in cleaned.split(">") if s.strip()]
-
-    return ClipEntry(segments=segments, slow=slow, intro=intro,
-                     speedup=speedup, zoom=zoom, raw_line=raw)
+    return ClipEntry(
+        segments=list(canonical.angles),
+        slow="slow" in canonical.flags,
+        intro="intro" in canonical.flags,
+        speedup="speedup" in canonical.flags or "fast" in canonical.flags,
+        zoom="zoom" in canonical.flags,
+        raw_line=raw,
+    )
 
 
 def load_clip_list(path: Path) -> List[str]:

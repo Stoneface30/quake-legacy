@@ -65,6 +65,19 @@ def _parse_line(line: str, idx: int) -> ClipEntry | None:
     )
 
 
+def parse_clip_entry(line: str, idx: int = 0) -> ClipEntry | None:
+    """Parse a single clip list line into a ClipEntry.
+
+    Returns None for blank lines, comment lines, and non-clip directives.
+    Public wrapper around _parse_line — canonical source of truth for clip
+    line parsing (imported by creative_suite.engine.clip_list).
+    """
+    stripped = line.strip()
+    if not stripped or stripped.startswith("#"):
+        return None
+    return _parse_line(stripped, idx)
+
+
 def parse_clip_list(path: Path) -> list[ClipEntry]:
     out: list[ClipEntry] = []
     idx = 0
