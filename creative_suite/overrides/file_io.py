@@ -1,8 +1,9 @@
 # creative_suite/overrides/file_io.py
 """part{NN}_overrides.txt — one line per clip override.
 
-Format: `chunk=<name> slow=<f> slow_window=<f> head_trim=<f> tail_trim=<f> section_role=<s>`
+Format: `chunk=<name> slow=<f> slow_window=<f> head_trim=<f> tail_trim=<f> section_role=<s> [removed=true]`
 Missing fields are omitted; readers get None for missing fields.
+`removed=true` excludes the clip from the render entirely (Tier 1 clip-removal).
 """
 from __future__ import annotations
 
@@ -18,6 +19,7 @@ class ClipOverride:
     head_trim: float | None = None
     tail_trim: float | None = None
     section_role: str | None = None
+    removed: bool = False
 
 
 def read_overrides(path: Path) -> list[ClipOverride]:
@@ -43,6 +45,7 @@ def read_overrides(path: Path) -> list[ClipOverride]:
             head_trim=_f(kv.get("head_trim")),
             tail_trim=_f(kv.get("tail_trim")),
             section_role=kv.get("section_role"),
+            removed=_bool(kv.get("removed")),
         ))
     return entries
 
@@ -57,8 +60,14 @@ def write_overrides(path: Path, entries: list[ClipOverride]) -> None:
                 toks.append(f"{k}={v}")
         if e.section_role:
             toks.append(f"section_role={e.section_role}")
+        if e.removed:
+            toks.append("removed=true")
         lines.append(" ".join(toks))
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _bool(s: str | None) -> bool:
+    return s is not None and s.lower() in ("1", "true", "yes", "on")
 
 
 def _f(s: str | None) -> float | None:
