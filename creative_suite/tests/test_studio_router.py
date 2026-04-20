@@ -58,7 +58,9 @@ def test_status_ok(client: TestClient) -> None:
     r = client.get("/api/studio/status")
     assert r.status_code == 200
     data = r.json()
-    assert data == {"status": "ok", "version": "studio/v1"}
+    assert data["status"] == "ok"
+    assert data["version"] == "studio/v1"
+    assert "mlt_available" in data
 
 
 # ── test: /api/studio/parts ───────────────────────────────────────────────────
@@ -327,3 +329,70 @@ def test_music_library_includes_part_field(
         assert "part" in track
         assert "filename" in track
         assert "role" in track
+
+
+# ── test: /api/studio/part/{n}/music_contract ────────────────────────────────
+
+def test_music_contract_valid_part(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Valid part with a flow plan returns 200 with a contract key."""
+    music_dir = tmp_path / "music"
+    music_dir.mkdir()
+    out_dir = tmp_path / "output"
+    out_dir.mkdir()
+
+    # Seed a flow plan with body_duration
+    (out_dir / "part04_flow_plan.json").write_text(
+        json.dumps({"body_duration": 180.0, "clips": []}),
+        encoding="utf-8",
+    )
+
+    monkeypatch.setenv("CS_STORAGE_ROOT", str(tmp_path / "storage"))
+    monkeypatch.setattr(Config, "phase1_music_dir", property(lambda _: music_dir))
+    monkeypatch.setattr(Config, "phase1_output_dir", property(lambda _: out_dir))
+
+    c = TestClient(create_app())
+    r = c.get("/api/studio/part/4/music_contract")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["part"] == 4
+    assert "contract" in data
+    contract = data["contract"]
+    # No music files → not covered, gap == body_duration
+    assert contract["covered"] is False
+    assert contract["body_duration_s"] == 180.0
+    assert "tracks" in contract
+    assert "coverage_gap_s" in contract
+    assert "full_length_pct" in contract
+    assert "warnings" in contract
+
+
+def test_music_contract_out_of_range(client: TestClient) -> None:
+    """Part number outside 4-12 returns 404."""
+    r = client.get("/api/studio/part/1/music_contract")
+    assert r.status_code == 404
+
+    r = client.get("/api/studio/part/99/music_contract")
+    assert r.status_code == 404
+
+
+def test_music_contract_no_flow_plan(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Part with no flow_plan.json returns 200 with error in contract."""
+    music_dir = tmp_path / "music"
+    music_dir.mkdir()
+    out_dir = tmp_path / "output"
+    out_dir.mkdir()
+
+    monkeypatch.setenv("CS_STORAGE_ROOT", str(tmp_path / "storage"))
+    monkeypatch.setattr(Config, "phase1_music_dir", property(lambda _: music_dir))
+    monkeypatch.setattr(Config, "phase1_output_dir", property(lambda _: out_dir))
+
+    c = TestClient(create_app())
+    r = c.get("/api/studio/part/5/music_contract")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["part"] == 5
+    assert data["contract"] == {"error": "no flow plan"}

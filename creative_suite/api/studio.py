@@ -2,12 +2,13 @@
 """Studio router — /api/studio
 
 Serves metadata for the /studio editor UI:
-  GET /api/studio/status                  health check
-  GET /api/studio/parts                   list available parts with metadata
-  GET /api/studio/part/{n}/clips          clip list for a specific part
-  GET /api/studio/part/{n}/flow           flow_plan.json for a specific part
-  GET /api/studio/part/{n}/music          music tracks + match % for a part
-  GET /api/studio/music/library           all music tracks across all parts
+  GET /api/studio/status                         health check
+  GET /api/studio/parts                          list available parts with metadata
+  GET /api/studio/part/{n}/clips                 clip list for a specific part
+  GET /api/studio/part/{n}/flow                  flow_plan.json for a specific part
+  GET /api/studio/part/{n}/music                 music tracks + match % for a part
+  GET /api/studio/part/{n}/music_contract        full-length contract coverage check
+  GET /api/studio/music/library                  all music tracks across all parts
 """
 from __future__ import annotations
 
@@ -348,6 +349,47 @@ def get_music(part_num: int, request: Request) -> dict[str, Any]:
 
     tracks = _scan_music_for_part(part_num, music_root, output_dir)
     return {"part": part_num, "tracks": tracks}
+
+
+@router.get("/part/{part_num}/music_contract")
+def get_music_contract(part_num: int, request: Request) -> dict[str, Any]:
+    """Return full-length music contract coverage check for a specific part.
+
+    Returns 404 for part numbers outside 4-12.
+    Returns 200 with contract.error if the flow plan is missing.
+    """
+    if part_num not in _VALID_PARTS:
+        raise HTTPException(status_code=404, detail=f"Part {part_num} is not in range 4-12")
+
+    from creative_suite.engine.music_contract import validate_music_coverage
+
+    cfg = request.app.state.cfg
+    music_root: Path = cfg.phase1_music_dir
+    output_dir: Path = _output_dir(request)
+
+    # Determine body duration from flow_plan
+    body_duration = _get_body_duration(part_num, output_dir)
+    if body_duration is None:
+        return {"part": part_num, "contract": {"error": "no flow plan"}}
+
+    # Collect ordered music files for this part (intro → main → outro)
+    tracks_sorted: list[Path] = []
+    if music_root.exists():
+        role_order = {"intro_music": 0, "music": 1, "outro_music": 2}
+        found: list[tuple[int, Path]] = []
+        for f in sorted(music_root.iterdir()):
+            if f.suffix.lower() not in _MUSIC_EXTS:
+                continue
+            m = _MUSIC_FILE_RE.match(f.stem)
+            if not m or int(m.group(1)) != part_num:
+                continue
+            role_key = m.group(2).lower()
+            found.append((role_order.get(role_key, 1), f))
+        found.sort(key=lambda x: x[0])
+        tracks_sorted = [f for _, f in found]
+
+    contract = validate_music_coverage(tracks_sorted, body_duration)
+    return {"part": part_num, "contract": contract}
 
 
 @router.get("/music/library")

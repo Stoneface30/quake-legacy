@@ -5,6 +5,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+# Music full-length contract (Rule P1-R + P1-AA)
+MUSIC_FULL_LENGTH_MIN_PCT: float = 100.0   # track must cover 100% of body
+MUSIC_COVERAGE_WARN_PCT: float = 90.0       # warn if < 90% coverage
 # creative_suite/ sub-dirs (moved here from repo root in Plan 1 Task 4)
 CS_ROOT = Path(__file__).resolve().parent
 TOOLS_ROOT = CS_ROOT / "tools"
