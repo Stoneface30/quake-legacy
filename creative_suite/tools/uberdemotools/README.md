@@ -6,7 +6,7 @@ Slim holding dir for prebuilt `UDT_json.exe` / `UDT.dll` binaries.
 tree was retired from `tools/quake-source/uberdemotools/` in the engine-folder
 unification. Thin reference is preserved at:
 
-- `game-dissection/engines/variants/uberdemotools/` (variant dissection notes)
+- `engine/engines/variants/uberdemotools/` (variant dissection notes)
 
 To build binaries:
 1. `git clone https://github.com/mightycow/uberdemotools` into a scratch dir
