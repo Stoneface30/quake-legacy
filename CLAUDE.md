@@ -321,6 +321,12 @@ Every npm package install requires ALL of:
 
 **History:** Nearly had a vercel + litellm supply chain incident. Non-negotiable.
 
+### Pre-Approved AGPL Exception
+
+**`@theatre/browser-bundles@0.7.2`** — AGPL-3.0 (Studio UI portion)  
+Pre-approved for local personal use in the Cinema Suite editor.  
+Before any public release of this codebase, replace Theatre Studio with an Apache-2.0 alternative or remove the Studio bundle entirely. `@theatre/core` alone is Apache-2.0.
+
 ## Demo Corpus
 
 | Corpus | Path | Count | Size |
