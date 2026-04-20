@@ -39,6 +39,7 @@ def create_app() -> FastAPI:
         clips,
         comfy,
         editor,
+        forge,
         md3,
         ollama,
         packs,
@@ -60,6 +61,7 @@ def create_app() -> FastAPI:
     app.include_router(capture.router)
     app.include_router(editor.router)
     app.include_router(studio.router)
+    app.include_router(forge.router)
 
     # Spec §11.3 mitigation: check img2img workflow placeholders at boot.
     # This only logs — it never aborts startup, so a ComfyUI update that
