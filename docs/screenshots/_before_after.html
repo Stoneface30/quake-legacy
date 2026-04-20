@@ -1,0 +1,779 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Before / After</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #040610;
+    font-family: 'IBM Plex Mono', 'Courier New', monospace;
+    display: flex;
+    gap: 0;
+    width: 1600px;
+    height: 900px;
+    overflow: hidden;
+  }
+
+  /* ── BEFORE ──────────────────────────────────────────────────── */
+  .before {
+    flex: 1;
+    background: #0a0a0a;
+    border-right: 2px solid #1a1a1a;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .before-topbar {
+    background: #111;
+    border-bottom: 1px solid #222;
+    padding: 6px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .dot.r { background: #ff5f57; }
+  .dot.y { background: #febc2e; }
+  .dot.g { background: #28c840; }
+  .term-title { color: #555; font-size: 11px; margin-left: 8px; }
+
+  .terminal {
+    flex: 1;
+    padding: 16px;
+    overflow: hidden;
+    color: #aaa;
+    font-size: 12.5px;
+    line-height: 1.6;
+  }
+  .terminal .cmd { color: #c0c0c0; }
+  .terminal .out { color: #666; }
+  .terminal .err { color: #c44; }
+  .terminal .warn { color: #a86; }
+  .terminal .ok { color: #4a4; }
+  .terminal .prompt { color: #4a9; }
+
+  .quake-viewport {
+    height: 320px;
+    background: #050510;
+    border-top: 1px solid #181818;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .quake-console-overlay {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    background: rgba(0,0,0,0.85);
+    padding: 10px 14px;
+    font-size: 11px;
+    color: #999;
+    line-height: 1.5;
+    border-bottom: 1px solid #333;
+  }
+  .quake-console-overlay .ql { color: #c8a030; }
+  .player-silhouette {
+    width: 120px;
+    opacity: 0.35;
+  }
+  .map-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(40,40,80,0.2) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(40,40,80,0.2) 1px, transparent 1px);
+    background-size: 28px 28px;
+  }
+  .hud-overlay {
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    background: linear-gradient(transparent, rgba(0,0,0,0.7));
+    padding: 8px 12px;
+    display: flex;
+    justify-content: space-between;
+    color: #888;
+    font-size: 11px;
+  }
+  .before-label {
+    position: absolute;
+    top: 12px; left: 12px;
+    background: rgba(0,0,0,0.8);
+    color: #555;
+    font-size: 10px;
+    letter-spacing: 2px;
+    padding: 4px 10px;
+    border: 1px solid #222;
+    text-transform: uppercase;
+  }
+
+  /* ── AFTER ───────────────────────────────────────────────────── */
+  .after {
+    flex: 1;
+    background: #040610;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+  .after-topbar {
+    background: #060a1a;
+    border-bottom: 1px solid #1a3e9a44;
+    padding: 0 16px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .logo-glyph {
+    color: #e8b923;
+    font-size: 18px;
+    font-weight: bold;
+    letter-spacing: 1px;
+  }
+  .nav-pill {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: #4060a0;
+    padding: 3px 10px;
+    border: 1px solid #1a3e9a33;
+    text-transform: uppercase;
+  }
+  .nav-pill.active {
+    color: #e8b923;
+    border-color: #e8b923;
+    background: rgba(232,185,35,0.07);
+  }
+  .after-body {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 200px 1fr 200px;
+    grid-template-rows: 1fr 200px;
+    gap: 1px;
+    background: #0c1428;
+    overflow: hidden;
+  }
+  .panel {
+    background: #040610;
+    overflow: hidden;
+    position: relative;
+  }
+  .panel-title {
+    font-size: 9px;
+    letter-spacing: 2px;
+    color: #e8b923;
+    padding: 6px 10px;
+    border-bottom: 1px solid #0d1f50;
+    text-transform: uppercase;
+  }
+
+  /* Library */
+  .clip-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    border-bottom: 1px solid #0a1228;
+    font-size: 10px;
+  }
+  .clip-row.sel { background: rgba(232,185,35,0.06); }
+  .tier { width: 20px; font-size: 9px; color: #888; font-weight: bold; }
+  .tier.t1 { color: #e8b923; }
+  .tier.t2 { color: #4a7cdc; }
+  .tier.t3 { color: #444; }
+  .clip-name { color: #b0b8d0; font-size: 10px; flex: 1; }
+  .clip-dur { color: #445; font-size: 9px; }
+
+  /* Viewer */
+  .viewer-panel {
+    background: #020408;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+  .viewer-inner {
+    width: 380px;
+    height: 240px;
+    background: #030610;
+    position: relative;
+    border: 1px solid #0d1f50;
+  }
+  .viewer-map-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(26,62,154,0.15) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(26,62,154,0.15) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+  .viewer-char {
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+  }
+  .cam-label {
+    position: absolute;
+    top: 8px; right: 8px;
+    font-size: 9px;
+    color: #e8b923;
+    letter-spacing: 1px;
+  }
+  .tc-label {
+    position: absolute;
+    top: 8px; left: 8px;
+    font-size: 9px;
+    color: #4a7cdc;
+    letter-spacing: 1px;
+  }
+  .crosshair {
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    color: rgba(232,185,35,0.5);
+    font-size: 18px;
+    line-height: 1;
+    margin-top: -12px;
+  }
+  .viewer-transport {
+    position: absolute;
+    bottom: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .tbtn {
+    width: 22px; height: 22px;
+    background: #0a1228;
+    border: 1px solid #1a3e9a44;
+    color: #4a7cdc;
+    font-size: 10px;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .tbtn.play { background: #e8b923; color: #000; border-color: #e8b923; }
+  .timecode {
+    color: #e8b923;
+    font-size: 10px;
+    letter-spacing: 1px;
+  }
+  .viewer-stats {
+    position: absolute;
+    bottom: 6px; right: 6px;
+    font-size: 9px;
+    color: #4060a0;
+  }
+
+  /* Inspector */
+  .prop-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 10px;
+    border-bottom: 1px solid #080f20;
+    font-size: 10px;
+  }
+  .prop-key { color: #4a5a80; letter-spacing: 1px; font-size: 9px; text-transform: uppercase; }
+  .prop-val { color: #b0b8d0; }
+  .prop-val.gold { color: #e8b923; }
+  .prop-val.blue { color: #4a7cdc; }
+  .tier-badge {
+    font-size: 9px;
+    padding: 2px 8px;
+    background: rgba(232,185,35,0.12);
+    color: #e8b923;
+    border: 1px solid #e8b92355;
+    letter-spacing: 1px;
+  }
+
+  /* Timeline */
+  .timeline-panel {
+    grid-column: 1 / -1;
+    background: #030710;
+    border-top: 1px solid #0d1f50;
+    display: flex;
+    flex-direction: column;
+  }
+  .timeline-header {
+    display: flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-bottom: 1px solid #0d1f50;
+    gap: 16px;
+  }
+  .tl-title { color: #e8b923; font-size: 9px; letter-spacing: 2px; }
+  .tl-stat { color: #2a3a60; font-size: 9px; letter-spacing: 1px; }
+  .tl-stat span { color: #4060a0; }
+  .tl-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .tl-ruler {
+    height: 16px;
+    background: #020508;
+    border-bottom: 1px solid #0d1f50;
+    position: relative;
+    overflow: hidden;
+  }
+  .ruler-tick {
+    position: absolute;
+    top: 4px;
+    width: 1px;
+    height: 6px;
+    background: #1a3e9a55;
+  }
+  .ruler-label {
+    position: absolute;
+    top: 0;
+    font-size: 8px;
+    color: #2a3a60;
+    transform: translateX(-50%);
+  }
+  .tl-track {
+    display: flex;
+    align-items: center;
+    height: 36px;
+    border-bottom: 1px solid #060c1a;
+  }
+  .tl-track-label {
+    width: 70px;
+    font-size: 8px;
+    color: #2a3a60;
+    padding: 0 10px;
+    letter-spacing: 1px;
+    flex-shrink: 0;
+  }
+  .tl-track-content {
+    flex: 1;
+    height: 100%;
+    position: relative;
+    overflow: hidden;
+  }
+  .clip-block {
+    position: absolute;
+    top: 4px;
+    height: 26px;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    padding: 0 6px;
+    font-size: 9px;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .clip-block.t1 { background: rgba(232,185,35,0.15); border: 1px solid #e8b92366; color: #e8b923; }
+  .clip-block.t2 { background: rgba(74,124,220,0.12); border: 1px solid #4a7cdc55; color: #4a7cdc; }
+  .clip-block.t3 { background: rgba(50,50,80,0.3); border: 1px solid #33336055; color: #556; }
+  .seam {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 2px;
+    background: #e8b92388;
+  }
+  .event-pin {
+    position: absolute;
+    top: -2px;
+    width: 8px; height: 8px;
+    background: #e8b923;
+    transform: translateX(-50%) rotate(45deg);
+  }
+  .music-wave {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+  }
+  .wave-bar {
+    flex: 1;
+    background: rgba(74,124,220,0.5);
+    margin: 0 0.5px;
+    border-radius: 1px;
+  }
+  .downbeat-track {
+    display: flex;
+    height: 20px;
+    align-items: center;
+    border-bottom: 1px solid #060c1a;
+  }
+  .db-label { width: 70px; font-size: 8px; color: #1a2a50; padding: 0 10px; letter-spacing: 1px; }
+  .db-tick {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 1px;
+    background: #e8b92344;
+  }
+  .playhead {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 2px;
+    background: #e8b923cc;
+    z-index: 10;
+  }
+  .playhead::before {
+    content: '▼';
+    position: absolute;
+    top: -8px;
+    left: -5px;
+    color: #e8b923;
+    font-size: 10px;
+  }
+
+  .after-label {
+    position: absolute;
+    top: 12px; left: 12px;
+    background: rgba(232,185,35,0.1);
+    color: #e8b923;
+    font-size: 10px;
+    letter-spacing: 2px;
+    padding: 4px 10px;
+    border: 1px solid #e8b92333;
+    text-transform: uppercase;
+  }
+
+  /* Divider */
+  .divider {
+    width: 4px;
+    background: #0d1f50;
+    position: relative;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .divider-arrow {
+    width: 28px;
+    height: 28px;
+    background: #e8b923;
+    color: #000;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    box-shadow: 0 0 16px #e8b92388;
+    position: absolute;
+    z-index: 30;
+    left: -12px;
+  }
+
+  .status-bar {
+    height: 20px;
+    background: #020408;
+    border-top: 1px solid #0d1f50;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    gap: 16px;
+  }
+  .status-item { font-size: 8px; color: #2a3a60; letter-spacing: 1px; }
+  .status-item.ok { color: #2a6040; }
+  .status-item.gold { color: #7a6010; }
+</style>
+</head>
+<body>
+
+<!-- ── BEFORE ── -->
+<div class="before">
+  <div class="before-label">BEFORE</div>
+  <div class="before-topbar">
+    <div class="dot r"></div><div class="dot y"></div><div class="dot g"></div>
+    <span class="term-title">bash — 128×40</span>
+  </div>
+  <div class="terminal">
+    <div class="out"># 2014. You have 6,465 demos. Time to make a fragmovie.</div>
+    <br>
+    <div><span class="prompt">~/demos $</span> <span class="cmd">ls -la *.dm_73 | wc -l</span></div>
+    <div class="out">6465</div>
+    <br>
+    <div><span class="prompt">~/demos $</span> <span class="cmd">wolfcamql.exe +demo ca-asylum-01-48-23.dm_73</span></div>
+    <div class="warn">[wolfcam] loading demo... ok</div>
+    <div class="out">[wolfcam] press ESC to open console</div>
+    <br>
+    <div class="out"># 45 minutes later, in the Quake console:</div>
+    <div class="cmd">&gt; seekclock 1:23</div>
+    <div class="cmd">&gt; video avi name :asylum_frag_01</div>
+    <div class="cmd">&gt; at 1:29 quit</div>
+    <br>
+    <div class="ok">[capture] wrote asylum_frag_01.avi (6.1s @ 60fps)</div>
+    <div class="out"># Repeat 400 times.</div>
+    <br>
+    <div><span class="prompt">~/clips $</span> <span class="cmd">cat timings.txt</span></div>
+    <div class="out">asylum_frag_01.avi  1:23-1:29   good</div>
+    <div class="out">asylum_frag_02.avi  2:44-2:51   maybe</div>
+    <div class="out">campgrounds_01.avi  0:18-0:24   sick rail</div>
+    <div class="out">... 397 more lines</div>
+    <br>
+    <div><span class="prompt">~/clips $</span> <span class="cmd">ffmpeg -f concat -i clips.txt -c:v libx264 output.mp4</span></div>
+    <div class="warn">[ffmpeg] Audio drift detected at 3:25 — sync offset 340ms</div>
+    <div class="err">[ffmpeg] re-encode required. back to premiere.</div>
+    <br>
+    <div class="out"># Weekend: gone.</div>
+  </div>
+  <div class="quake-viewport">
+    <div class="map-grid"></div>
+    <div class="quake-console-overlay">
+      <span class="ql">QUAKE LIVE</span> &nbsp;|&nbsp; ca-asylum &nbsp;|&nbsp; seekclock 1:23 &nbsp;|&nbsp; cam: player_01 (FP)
+    </div>
+    <!-- Player silhouette SVG -->
+    <svg class="player-silhouette" viewBox="0 0 80 160" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Head -->
+      <ellipse cx="40" cy="20" rx="16" ry="18" fill="#4a3010" stroke="#8a6020" stroke-width="1.5"/>
+      <!-- Visor -->
+      <rect x="26" y="14" width="28" height="10" rx="2" fill="#002060" stroke="#0040b0" stroke-width="1"/>
+      <!-- Body -->
+      <rect x="22" y="38" width="36" height="48" rx="3" fill="#3a2010" stroke="#7a4020" stroke-width="1.5"/>
+      <!-- Arms -->
+      <rect x="4" y="40" width="16" height="36" rx="4" fill="#3a2010" stroke="#7a4020" stroke-width="1.5"/>
+      <rect x="60" y="40" width="16" height="36" rx="4" fill="#3a2010" stroke="#7a4020" stroke-width="1.5"/>
+      <!-- Legs -->
+      <rect x="22" y="86" width="15" height="42" rx="3" fill="#2a1810" stroke="#6a3010" stroke-width="1.5"/>
+      <rect x="43" y="86" width="15" height="42" rx="3" fill="#2a1810" stroke="#6a3010" stroke-width="1.5"/>
+      <!-- Rail gun -->
+      <rect x="60" y="56" width="30" height="6" rx="2" fill="#5a5a5a" stroke="#aaa" stroke-width="1"/>
+      <line x1="90" y1="59" x2="120" y2="56" stroke="#a0c0ff" stroke-width="1.5"/>
+    </svg>
+    <div class="hud-overlay">
+      <span>HP: 100 / 150 · CA-ASYLUM · FP CAM</span>
+      <span>FRAME 4960 · 01:23.000</span>
+    </div>
+  </div>
+</div>
+
+<!-- Divider -->
+<div class="divider">
+  <div class="divider-arrow">→</div>
+</div>
+
+<!-- ── AFTER ── -->
+<div class="after">
+  <div class="after-topbar">
+    <span class="logo-glyph">⬡ PANTHEON</span>
+    <span style="color:#1a3e9a; font-size:10px;">//</span>
+    <span style="color:#4060a0; font-size:10px; letter-spacing:1px;">CA-RAIL-SESH-04 · V12</span>
+    <div style="margin-left:auto; display:flex; gap:6px;">
+      <div class="nav-pill">CINEMA</div>
+      <div class="nav-pill active">EDITOR</div>
+      <div class="nav-pill">ARCHIVE</div>
+      <div class="nav-pill">FLAG</div>
+    </div>
+    <div style="margin-left:12px; font-size:9px; color:#2a6040; letter-spacing:1px; border:1px solid #1a4030; padding:3px 10px;">● ENGINE OK</div>
+  </div>
+
+  <div class="after-body">
+    <!-- Library -->
+    <div class="panel">
+      <div class="panel-title">⊹ LIBRARY &nbsp; 47 · 12 ON TL</div>
+      <div class="clip-row sel">
+        <span class="tier t1">T1</span>
+        <span class="clip-name">rail 4-frag asylum</span>
+        <span class="clip-dur">8:47</span>
+      </div>
+      <div class="clip-row">
+        <span class="tier t2">T2</span>
+        <span class="clip-name">lg chain campgrounds</span>
+        <span class="clip-dur">1:12</span>
+      </div>
+      <div class="clip-row">
+        <span class="tier t1">T1</span>
+        <span class="clip-name">direct rocket telefrag</span>
+        <span class="clip-dur">2:03</span>
+      </div>
+      <div class="clip-row">
+        <span class="tier t3">T3</span>
+        <span class="clip-name">humiliation chase</span>
+        <span class="clip-dur">0:58</span>
+      </div>
+      <div class="clip-row">
+        <span class="tier t2">T2</span>
+        <span class="clip-name">rail mid through-shot</span>
+        <span class="clip-dur">3:14</span>
+      </div>
+      <div class="clip-row">
+        <span class="tier t3">T3</span>
+        <span class="clip-name">sg point-blank</span>
+        <span class="clip-dur">0:22</span>
+      </div>
+      <div class="clip-row">
+        <span class="tier t2">T2</span>
+        <span class="clip-name">plasma climb ledge</span>
+        <span class="clip-dur">4:45</span>
+      </div>
+      <div class="clip-row">
+        <span class="tier t3">T3</span>
+        <span class="clip-name">lg duel ra-room</span>
+        <span class="clip-dur">1:09</span>
+      </div>
+    </div>
+
+    <!-- Viewer -->
+    <div class="panel viewer-panel">
+      <div class="after-label">AFTER</div>
+      <div class="viewer-inner">
+        <div class="viewer-map-grid"></div>
+        <div class="cam-label">CAM · PLAYER_01 · q3dm17</div>
+        <div class="tc-label">01 ∥ 00:04.217</div>
+        <div class="crosshair">+</div>
+        <!-- Player model rendering -->
+        <svg viewBox="0 0 80 160" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-60%);width:90px;opacity:0.9;" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <ellipse cx="40" cy="20" rx="16" ry="18" fill="#3a1a06" stroke="#e8b92355" stroke-width="1.5"/>
+          <rect x="26" y="14" width="28" height="10" rx="2" fill="#1a1060" stroke="#4a7cdc" stroke-width="1.2"/>
+          <rect x="22" y="38" width="36" height="48" rx="3" fill="#2a1208" stroke="#e8b92366" stroke-width="1.5"/>
+          <rect x="4" y="40" width="16" height="36" rx="4" fill="#2a1208" stroke="#e8b92344" stroke-width="1.5"/>
+          <rect x="60" y="40" width="16" height="36" rx="4" fill="#2a1208" stroke="#e8b92344" stroke-width="1.5"/>
+          <rect x="22" y="86" width="15" height="42" rx="3" fill="#1a0c06" stroke="#e8b92333" stroke-width="1.5"/>
+          <rect x="43" y="86" width="15" height="42" rx="3" fill="#1a0c06" stroke="#e8b92333" stroke-width="1.5"/>
+          <rect x="60" y="56" width="30" height="6" rx="2" fill="#303030" stroke="#888" stroke-width="1"/>
+          <line x1="90" y1="59" x2="130" y2="54" stroke="#a0c0ff" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="40" cy="20" r="3" fill="#e8b923" opacity="0.4"/>
+        </svg>
+        <!-- HP/Armor bars -->
+        <div style="position:absolute;bottom:30px;left:10px;font-size:14px;color:#e8b923;letter-spacing:2px;font-weight:bold;">100 <span style="color:#2a3a60;">/</span> <span style="color:#4a7cdc;">150</span></div>
+        <div style="position:absolute;bottom:30px;right:14px;font-size:14px;color:#e8b923;letter-spacing:1px;font-weight:bold;">47 ⚡</div>
+        <div class="viewer-transport">
+          <div class="tbtn">⏮</div>
+          <div class="tbtn">◀</div>
+          <div class="tbtn play">▶</div>
+          <div class="tbtn">▶</div>
+          <div class="timecode">00:04.217</div>
+          <div class="tbtn">B</div>
+          <div class="tbtn">M</div>
+        </div>
+        <div class="viewer-stats">60 FPS · 1080P</div>
+      </div>
+    </div>
+
+    <!-- Inspector -->
+    <div class="panel">
+      <div class="panel-title">⊹ INSPECTOR &nbsp; 1 SEL</div>
+      <div style="padding:8px 10px 4px; font-size:9px; letter-spacing:2px; color:#e8b923; border-bottom:1px solid #080f20;">CLIP</div>
+      <div class="prop-row"><span class="prop-key">NAME</span><span class="prop-val">rail 4-frag asylum</span></div>
+      <div class="prop-row"><span class="prop-key">SOURCE</span><span class="prop-val" style="font-size:9px;">CA-asylum.demo</span></div>
+      <div class="prop-row"><span class="prop-key">DURATION</span><span class="prop-val gold">6.000s</span></div>
+      <div class="prop-row"><span class="prop-key">TIER</span><div class="tier-badge">T1 · DROP</div></div>
+      <div class="prop-row"><span class="prop-key">WEAPON</span><span class="prop-val blue">⊹ Railgun</span></div>
+      <div style="padding:8px 10px 4px; font-size:9px; letter-spacing:2px; color:#e8b923; border-bottom:1px solid #080f20; margin-top:4px;">TRANSFORM</div>
+      <div class="prop-row"><span class="prop-key">IN</span><span class="prop-val gold">00:04.217</span></div>
+      <div class="prop-row"><span class="prop-key">OUT</span><span class="prop-val">00:10.817</span></div>
+      <div class="prop-row"><span class="prop-key">SPEED</span><span class="prop-val">1.0×</span></div>
+      <div style="padding:8px 10px 4px; font-size:9px; letter-spacing:2px; color:#e8b923; border-bottom:1px solid #080f20; margin-top:4px;">EFFECTS</div>
+      <div class="prop-row"><span class="prop-key">CRT</span><span class="prop-val">45</span></div>
+      <div class="prop-row"><span class="prop-key">SLOW-MO</span><span class="prop-val gold">event-locked</span></div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="timeline-panel">
+      <div class="timeline-header">
+        <span class="tl-title">| TIMELINE</span>
+        <span class="tl-stat">38.500s · <span>4 TRACKS</span> · <span>5 CLIPS</span> · <span>4 SEAMS</span></span>
+        <div style="margin-left:auto; display:flex; gap:10px; align-items:center;">
+          <span class="tl-stat">ZOOM <span>–</span> <span>+</span></span>
+          <span style="font-size:9px; color:#e8b923; letter-spacing:1px; border:1px solid #e8b92333; padding:2px 8px;">SNAP ✓ DOWNBEAT</span>
+        </div>
+      </div>
+      <div class="tl-body" style="position:relative;">
+        <!-- Ruler -->
+        <div class="tl-ruler">
+          <span class="ruler-label" style="left:70px;">00:00</span>
+          <div class="ruler-tick" style="left:70px;"></div>
+          <span class="ruler-label" style="left:170px;">00:05</span>
+          <div class="ruler-tick" style="left:170px;"></div>
+          <span class="ruler-label" style="left:320px;">00:10</span>
+          <div class="ruler-tick" style="left:320px;"></div>
+          <span class="ruler-label" style="left:470px;">00:15</span>
+          <div class="ruler-tick" style="left:470px;"></div>
+          <span class="ruler-label" style="left:620px;">00:20</span>
+          <div class="ruler-tick" style="left:620px;"></div>
+          <span class="ruler-label" style="left:770px;">00:25</span>
+          <div class="ruler-tick" style="left:770px;"></div>
+          <span class="ruler-label" style="left:920px;">00:30</span>
+          <div class="ruler-tick" style="left:920px;"></div>
+        </div>
+        <!-- Events track -->
+        <div class="tl-track" style="height:24px;">
+          <div class="tl-track-label">EVENTS</div>
+          <div class="tl-track-content" style="position:relative;">
+            <div style="position:absolute;left:100px;top:4px;font-size:8px;background:#4a1a0a;color:#e8b923;border:1px solid #e8b92355;padding:2px 6px;">⊹ RAIL</div>
+            <div style="position:absolute;left:180px;top:4px;font-size:8px;background:#4a1a0a;color:#e8b923;border:1px solid #e8b92355;padding:2px 6px;">⊹ FRAG</div>
+            <div style="position:absolute;left:260px;top:4px;font-size:8px;background:#3a1a0a;color:#e8b923;border:1px solid #e8b92333;padding:2px 6px;">⊹ EXCELLENT</div>
+            <div style="position:absolute;left:400px;top:4px;font-size:8px;background:#0a1a3a;color:#4a7cdc;border:1px solid #4a7cdc55;padding:2px 6px;">⊹ LG CHAIN</div>
+            <div style="position:absolute;left:545px;top:4px;font-size:8px;background:#4a1a0a;color:#e8b923;border:1px solid #e8b92355;padding:2px 6px;">⊹ TELEFRAG</div>
+            <div style="position:absolute;left:680px;top:4px;font-size:8px;background:#4a1a0a;color:#e8b923;border:1px solid #e8b92355;padding:2px 6px;">⊹ RAIL</div>
+          </div>
+        </div>
+        <!-- V1 Frags track -->
+        <div class="tl-track">
+          <div class="tl-track-label" style="color:#4a6090;">V1 FRAGS</div>
+          <div class="tl-track-content" style="position:relative;">
+            <div class="playhead" style="left:160px;"></div>
+            <div class="clip-block t3" style="left:0;width:90px;">INTRO · ESTABLISHING</div>
+            <div class="clip-block t1" style="left:95px;width:195px;">◆ RAIL 4-FRAG ASYLUM</div>
+            <div class="seam" style="left:290px;"></div>
+            <div class="clip-block t2" style="left:295px;width:155px;">LG CHAIN CAMPGROUNDS</div>
+            <div class="seam" style="left:450px;"></div>
+            <div class="clip-block t1" style="left:455px;width:90px;">◆ ROCKET TELEFRAG</div>
+            <div class="seam" style="left:545px;"></div>
+            <div class="clip-block t2" style="left:550px;width:200px;">RAIL MID THROUGHSHOT</div>
+            <div class="seam" style="left:750px;"></div>
+            <div class="clip-block t1" style="left:755px;width:70px;">◆ HAUNT HUM.</div>
+            <div class="seam" style="left:825px;"></div>
+            <div class="clip-block t2" style="left:830px;width:120px;">PLASMA CLIMB</div>
+            <div class="event-pin" style="left:224px;top:2px;"></div>
+            <div class="event-pin" style="left:497px;top:2px;"></div>
+          </div>
+        </div>
+        <!-- A1 Music track -->
+        <div class="tl-track" style="height:32px;">
+          <div class="tl-track-label" style="color:#2a3a80;">A1 MUSIC</div>
+          <div class="tl-track-content" style="position:relative;">
+            <div class="music-wave" style="left:0;right:0;position:absolute;top:4px;height:22px;">
+              <!-- Waveform bars -->
+              <script>
+                // This won't run in static HTML, just use CSS
+              </script>
+            </div>
+            <div style="position:absolute;inset:4px 0;background:linear-gradient(90deg,rgba(26,62,154,0.3),rgba(74,124,220,0.4),rgba(26,62,154,0.3));border:1px solid #1a3e9a44;display:flex;align-items:center;padding:0 8px;gap:2px;">
+              <!-- mini waveform -->
+              <div style="display:flex;gap:1px;align-items:center;height:16px;flex:1;">
+                <div style="flex:1;height:30%;background:#4a7cdc55;"></div><div style="flex:1;height:60%;background:#4a7cdc55;"></div><div style="flex:1;height:80%;background:#4a7cdc55;"></div><div style="flex:1;height:45%;background:#4a7cdc55;"></div><div style="flex:1;height:95%;background:#4a7cdc55;"></div><div style="flex:1;height:70%;background:#4a7cdc55;"></div><div style="flex:1;height:40%;background:#4a7cdc55;"></div><div style="flex:1;height:85%;background:#4a7cdc55;"></div><div style="flex:1;height:55%;background:#4a7cdc55;"></div><div style="flex:1;height:100%;background:#4a7cdc55;"></div><div style="flex:1;height:75%;background:#4a7cdc55;"></div><div style="flex:1;height:50%;background:#4a7cdc55;"></div><div style="flex:1;height:65%;background:#4a7cdc55;"></div><div style="flex:1;height:90%;background:#4a7cdc55;"></div><div style="flex:1;height:35%;background:#4a7cdc55;"></div><div style="flex:1;height:80%;background:#4a7cdc55;"></div><div style="flex:1;height:60%;background:#4a7cdc55;"></div><div style="flex:1;height:45%;background:#4a7cdc55;"></div><div style="flex:1;height:70%;background:#4a7cdc55;"></div><div style="flex:1;height:95%;background:#4a7cdc55;"></div><div style="flex:1;height:55%;background:#4a7cdc55;"></div><div style="flex:1;height:85%;background:#4a7cdc55;"></div><div style="flex:1;height:40%;background:#4a7cdc55;"></div><div style="flex:1;height:75%;background:#4a7cdc55;"></div><div style="flex:1;height:65%;background:#4a7cdc55;"></div><div style="flex:1;height:50%;background:#4a7cdc55;"></div><div style="flex:1;height:90%;background:#4a7cdc55;"></div><div style="flex:1;height:30%;background:#4a7cdc55;"></div><div style="flex:1;height:80%;background:#4a7cdc55;"></div><div style="flex:1;height:55%;background:#4a7cdc55;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Downbeats -->
+        <div class="downbeat-track" style="position:relative;">
+          <div class="db-label">DOWNBEATS</div>
+          <div style="flex:1;position:relative;height:100%;">
+            <div class="db-tick" style="left:90px;"></div>
+            <div class="db-tick" style="left:155px;background:#e8b92388;"></div>
+            <div class="db-tick" style="left:220px;"></div>
+            <div class="db-tick" style="left:285px;"></div>
+            <div class="db-tick" style="left:350px;background:#e8b92388;"></div>
+            <div class="db-tick" style="left:415px;"></div>
+            <div class="db-tick" style="left:480px;"></div>
+            <div class="db-tick" style="left:545px;background:#e8b92388;"></div>
+            <div class="db-tick" style="left:610px;"></div>
+            <div class="db-tick" style="left:675px;"></div>
+            <div class="db-tick" style="left:740px;background:#e8b92388;"></div>
+            <div class="db-tick" style="left:805px;"></div>
+            <div class="db-tick" style="left:870px;"></div>
+            <div class="db-tick" style="left:935px;background:#e8b92388;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="status-bar">
+    <span class="status-item ok">● ENGINE OK</span>
+    <span class="status-item gold">PREVIEW · 60 FPS · 1080P</span>
+    <span class="status-item">RAM 4.2/16 GB</span>
+    <span class="status-item">GPU 34%</span>
+    <span style="margin-left:auto;" class="status-item">PROXY · READY · CTRL+R TO RENDER MASTER</span>
+  </div>
+</div>
+
+</body>
+</html>

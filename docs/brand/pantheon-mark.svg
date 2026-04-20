@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" width="120" height="120">
+  <!-- bg -->
+  <rect width="120" height="120" fill="#040610"/>
+
+  <!-- pediment / roof -->
+  <polygon points="12,46 60,8 108,46" fill="none" stroke="#e8b923" stroke-width="2.5" stroke-linejoin="round"/>
+
+  <!-- horizontal entablature -->
+  <line x1="8" y1="46" x2="112" y2="46" stroke="#e8b923" stroke-width="2"/>
+
+  <!-- columns (5) -->
+  <line x1="22" y1="48" x2="22" y2="90" stroke="#e8b923" stroke-width="2"/>
+  <line x1="37" y1="48" x2="37" y2="90" stroke="#e8b923" stroke-width="2"/>
+  <line x1="60" y1="48" x2="60" y2="90" stroke="#e8b923" stroke-width="2"/>
+  <line x1="83" y1="48" x2="83" y2="90" stroke="#e8b923" stroke-width="2"/>
+  <line x1="98" y1="48" x2="98" y2="90" stroke="#e8b923" stroke-width="2"/>
+
+  <!-- stylobate (steps) -->
+  <line x1="10" y1="90" x2="110" y2="90" stroke="#e8b923" stroke-width="2"/>
+  <line x1="6"  y1="96" x2="114" y2="96" stroke="#e8b923" stroke-width="1.5" opacity="0.6"/>
+  <line x1="4"  y1="102" x2="116" y2="102" stroke="#e8b923" stroke-width="1" opacity="0.35"/>
+
+  <!-- oculus (coffered dome circle) -->
+  <circle cx="60" cy="26" r="7" fill="none" stroke="#e8b923" stroke-width="1.5" opacity="0.7"/>
+  <circle cx="60" cy="26" r="3" fill="#e8b923" opacity="0.5"/>
+</svg>
