@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from pathlib import Path
 from typing import Any, Optional
 
@@ -91,8 +92,12 @@ def _parse_clip_line(raw: str, idx: int) -> dict[str, Any]:
 # ── endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/status")
-def status() -> dict[str, str]:
-    return {"status": "ok", "version": "studio/v1"}
+def status() -> dict[str, Any]:
+    return {
+        "status": "ok",
+        "version": "studio/v1",
+        "mlt_available": shutil.which("melt") is not None,
+    }
 
 
 @router.get("/parts")
