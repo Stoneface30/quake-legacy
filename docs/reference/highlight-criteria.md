@@ -1,8 +1,9 @@
 # Highlight Criteria Reference
 
-**Source:** `docs/specs/highlight-criteria-v1.md` (v2 locked per CLAUDE.md FT-2)
 **Gate:** P3-0 user session to confirm before 6,465-demo batch run.
 **Scope:** CA (Clan Arena), QL `.dm_73` demos.
+
+> **Source:** `docs/specs/highlight-criteria-v1.md` (base). FT-2 locked overrides from `CLAUDE.md` applied inline (marked [FT-2]). v2 spec not yet authored — see open-items.md.
 
 ---
 
@@ -87,8 +88,17 @@ first and last kill for the cluster bonus. Multi-kill window definition per CLAU
 
 ## LG Accuracy Bands
 
-Per CLAUDE.md FT-2: LG frags are accuracy-banded at thresholds 40% / 50% / 56%.
-Score accordingly within the base 28-point LG allocation.
+Per CLAUDE.md FT-2 [FT-2]: LG frags are accuracy-banded at thresholds 40% / 50% / 56%.
+LG base weight = 1.5 (from weapon weights table). Bands applied as multipliers on the base score of 28.
+
+| Accuracy threshold | Multiplier | Final LG score |
+|--------------------|-----------|----------------|
+| >= 40% (low band)  | 0.7×      | 1.05           |
+| >= 50% (mid band)  | 1.0×      | 1.50           |
+| >= 56% (high band) | 1.3×      | 1.95           |
+
+Note: multipliers apply to the FT-2 weight (1.5), not to the raw base score of 28.
+The base score of 28 is used for sorting/tier; the weighted score drives flow-cut priority.
 
 ---
 
