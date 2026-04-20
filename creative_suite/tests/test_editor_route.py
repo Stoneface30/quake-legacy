@@ -32,6 +32,8 @@ def test_editor_route_serves_html(
         # Source-missing banner (hidden by default)
         assert 'id="source-banner"' in body
         assert 'id="source-banner-prepare"' in body
+        # Versions list (render history)
+        assert 'id="versions-list"' in body
 
 
 def test_editor_static_js_served(

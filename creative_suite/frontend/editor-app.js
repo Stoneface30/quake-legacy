@@ -39,6 +39,7 @@ const els = {
   srcBanner:  document.getElementById("source-banner"),
   srcBannerText: document.getElementById("source-banner-text"),
   srcBannerBtn:  document.getElementById("source-banner-prepare"),
+  versionsList: document.getElementById("versions-list"),
 };
 
 function setStatus(text, state) {
@@ -121,6 +122,64 @@ async function loadPart(n) {
   // Check source-chunk availability (missing = run preview render to populate)
   checkChunksAvailability(n).catch((e) =>
     logLine(`chunks check: ${e.message}`, "#ef4444"));
+  // Refresh versions history for this part
+  refreshVersions(n).catch((e) =>
+    logLine(`versions: ${e.message}`, "#ef4444"));
+}
+
+async function refreshVersions(n) {
+  if (!els.versionsList) return;
+  let rows;
+  try {
+    rows = await editorApi.listVersions(n);
+  } catch (e) {
+    rows = [];
+  }
+  els.versionsList.replaceChildren();
+  if (!rows || rows.length === 0) {
+    const li = document.createElement("li");
+    li.className = "hint";
+    li.textContent = "No renders yet for this part.";
+    els.versionsList.append(li);
+    return;
+  }
+  for (const r of rows) {
+    const li = document.createElement("li");
+    const tag = document.createElement("div");
+    tag.className = "v-tag";
+    tag.textContent = `${r.tag}  ·  ${r.mode}`;
+    const meta = document.createElement("div");
+    meta.className = "v-meta";
+    const when = document.createElement("span");
+    when.textContent = String(r.created_at ?? "").slice(0, 19);
+    meta.append(when);
+    if (r.body_dur_s != null) {
+      const d = document.createElement("span");
+      d.textContent = `body ${Number(r.body_dur_s).toFixed(1)}s`;
+      meta.append(d);
+    }
+    if (r.level_pass != null) {
+      const g = document.createElement("span");
+      g.className = r.level_pass ? "v-gate-ok" : "v-gate-fail";
+      g.textContent = r.level_pass ? "level ✓" : "level ✗";
+      meta.append(g);
+    }
+    if (r.max_drift_ms != null) {
+      const d = document.createElement("span");
+      const ok = Math.abs(Number(r.max_drift_ms)) <= 40;
+      d.className = ok ? "v-gate-ok" : "v-gate-fail";
+      d.textContent = `drift ${Number(r.max_drift_ms).toFixed(0)}ms`;
+      meta.append(d);
+    }
+    if (r.render_time_s != null) {
+      const t = document.createElement("span");
+      t.textContent = `${Number(r.render_time_s).toFixed(0)}s`;
+      meta.append(t);
+    }
+    li.append(tag, meta);
+    if (r.notes) li.title = r.notes;
+    els.versionsList.append(li);
+  }
 }
 
 async function checkChunksAvailability(n) {
@@ -252,6 +311,7 @@ async function doRender(mode) {
         // After a successful render, chunks exist. Re-check.
         if (ev.phase === "done" && S.part != null) {
           checkChunksAvailability(S.part).catch(() => {});
+          refreshVersions(S.part).catch(() => {});
         }
       }
     }, (err) => {

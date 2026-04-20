@@ -46,6 +46,9 @@ export const editorApi = {
   otioUrl(part) {
     return `${BASE}/otio/${part}`;
   },
+  async listVersions(part) {
+    return j(await fetch(`/api/phase1/parts/${part}/versions`));
+  },
   async render(part, mode, tag) {
     const url = new URL(`${BASE}/render/${part}`, location.origin);
     url.searchParams.set("mode", mode);

@@ -24,6 +24,48 @@ body {
   flex-direction: column;
 }
 
+/* ── Versions list ─────────────────────────── */
+.versions-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.versions-list li {
+  padding: 6px 8px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 11px;
+  line-height: 1.3;
+  cursor: default;
+}
+.versions-list li.hint {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-style: italic;
+  cursor: default;
+}
+.versions-list .v-tag {
+  color: var(--accent);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.versions-list .v-meta {
+  color: var(--muted);
+  margin-top: 2px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.versions-list .v-gate-ok { color: var(--ok); }
+.versions-list .v-gate-fail { color: var(--danger); }
+
 /* ── Source-missing banner ─────────────────── */
 .src-banner {
   display: flex;
