@@ -1,5 +1,5 @@
 # creative_suite/api/_rebuild_job.py
-"""Rebuild orchestrator. Calls phase1/render_part_v6.py as a subprocess,
+"""Rebuild orchestrator. Calls creative_suite/engine/render_part_v6.py as a subprocess,
 streams its stdout as phase events, writes a render_versions row + git tag
 on success.
 
@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable
 
 from creative_suite.api._git_flow import GitFlow
+from creative_suite.otio_bridge import write_otio_for_part
 
 EmitFn = Callable[[str, int, str], Awaitable[None]]
 
@@ -46,6 +47,12 @@ async def rebuild_part(
             body_dur_s=None, level_pass=1, level_delta_lu=-21.0,
             max_drift_ms=5.0, render_time_s=0.1, mode=mode,
         )
+        try:
+            otio_path = write_otio_for_part(part, output_dir)
+            if otio_path:
+                await emit("otio-artifact", 100, f"otio: {otio_path.name}")
+        except Exception:
+            pass  # OTIO failure must never fail the rebuild
         await emit("done", 100, "mock complete")
         return
 
@@ -106,6 +113,12 @@ async def rebuild_part(
         render_time_s=time.time() - t0,
         mode=mode,
     )
+    try:
+        otio_path = write_otio_for_part(part, output_dir)
+        if otio_path:
+            await emit("otio-artifact", 100, f"otio: {otio_path.name}")
+    except Exception:
+        pass  # OTIO failure must never fail the rebuild
     await emit("done", 100, f"render complete in {time.time() - t0:.0f}s")
 
 
