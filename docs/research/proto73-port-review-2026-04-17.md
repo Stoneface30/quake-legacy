@@ -1,6 +1,6 @@
 # Proto-73 Port Review — 2026-04-17
 
-> Source: deep code-reviewer agent over `game-dissection/engines/_diffs/` + `docs/reference/dm73-format-deep-dive.md`.
+> Source: deep code-reviewer agent over `engine/engines/_diffs/` + `docs/reference/dm73-format-deep-dive.md`.
 > Goal: blueprint for FT-1 / Phase 3.5 Track A — port wolfcamql's `.dm_73` playback into q3mme so we can retire wolfcam and get max-quality captures through q3mme's renderer.
 
 ---

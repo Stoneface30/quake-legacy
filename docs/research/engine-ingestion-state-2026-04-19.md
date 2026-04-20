@@ -156,7 +156,7 @@ None reached. T1 (engine fork builds clean) is the first unlock and requires the
 2. **Phase 2/parser source sync.** `phase2/dm73parser/src/*` is absent on this branch but the binary+tests are built. Needs explicit merge from `creative-suite-v2-step2` or equivalent before the manifesto's Track A sprint 3 (validation harness) can land on this branch.
 3. **`creative_suite` source sync.** `config.py` on this branch points at `tools/game-assets/FULL_CATALOG.json` and pak catalogs that live on sibling branches only. The inventory ingest layer (Steam-pak reader) is not in this branch's working tree.
 4. **q3mme upstream age.** Last commit 2022-10-03. Fork base is not actively maintained — any divergence we introduce is on us to carry forward. Manifesto acknowledges this implicitly but the fork-forward policy isn't written down.
-5. **Ghidra track (FT-4).** `game-dissection/ghidra/projects/` is empty. Seven wolfcam binaries are staged in `game-dissection/ghidra/binaries/` (wolfcamql-11.1.exe, -11.3.exe + five DLLs) but no `.gpr` project exists. See the companion Ghidra-state research agent report for deeper detail. FT-4 commits "Ghidra every executable" but work hasn't begun on any binary.
+5. **Ghidra track (FT-4).** `engine/ghidra/projects/` is empty. Seven wolfcam binaries are staged in `engine/ghidra/binaries/` (wolfcamql-11.1.exe, -11.3.exe + five DLLs) but no `.gpr` project exists. See the companion Ghidra-state research agent report for deeper detail. FT-4 commits "Ghidra every executable" but work hasn't begun on any binary.
 6. **Spec rename overdue.** Manifesto §6 promises to rename the two prior specs with `-merged-into-tr4sh-quake-manifesto` suffix "next commit" (dated 2026-04-17). Two days later the rename hasn't happened — low risk but a readability debt.
 7. **Golden baseline coverage thin.** Parser's `tests/golden_baseline.json` tests obituary counts on 5 demos only, no field-level diff vs UDT. FT-1 spec demands field-agreement before trust; `mean_field_agreement_pct: null` signals that's unmet.
 
@@ -204,8 +204,8 @@ Absolute paths (tracked OR present on disk, current branch unless noted):
 - `G:/QUAKE_LEGACY/tools/quake-source/REPOS.md` (186-line rationale per fork)
 
 **Ghidra (cross-ref only — see companion agent report)**
-- `G:/QUAKE_LEGACY/game-dissection/ghidra/binaries/wolfcamql-11.{1,3}.exe` + DLLs (staged, no project yet)
-- `G:/QUAKE_LEGACY/game-dissection/ghidra/projects/` (empty)
+- `G:/QUAKE_LEGACY/engine/ghidra/binaries/wolfcamql-11.{1,3}.exe` + DLLs (staged, no project yet)
+- `G:/QUAKE_LEGACY/engine/ghidra/projects/` (empty)
 
 ---
 

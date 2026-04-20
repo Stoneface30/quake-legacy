@@ -79,15 +79,15 @@ Merged 18 Quake-family engine forks into one canonical deduped tree.
 |---|---|
 | Trees ingested | 18 |
 | Files before / after | 13,932 → **11,480 unique** |
-| Canonical tree size | 549 MB at `game-dissection/engines/_canonical/` |
-| Near-dup diff files | **513** at `game-dissection/engines/_diffs/` (C/H/CPP/PY) |
-| Per-engine docs | **63** at `game-dissection/engines/_docs/` |
+| Canonical tree size | 549 MB at `engine/engines/_canonical/` |
+| Near-dup diff files | **513** at `engine/engines/_diffs/` (C/H/CPP/PY) |
+| Per-engine docs | **63** at `engine/engines/_docs/` |
 | Bytes freed from duplicate trees | **141 MB** |
 | Authority order | wolfcamql-src > quake3e > q3mme > ioquake3 > quake3-source > others |
 | Public-repo safe | `.gitignore` keeps `_canonical/` out; only `_manifest/` + `_diffs/` + `_docs/` + `SYNTHESIS.md` are tracked |
 | Commits | A0 inventory → A1 canonical+diffs → A1 delete → A2 SYNTHESIS+docs |
 
-**Big win:** `game-dissection/engines/_diffs/code/qcommon/msg.c.diff.md` + `huffman.c.diff.md` + `common.c.diff.md` are now isolated as readable markdown deltas — **these ARE the proto-73 patches** that make wolfcamql play `.dm_73`. FT-4 / Phase 3.5 Track A (port to q3mme) now has a clean blueprint.
+**Big win:** `engine/engines/_diffs/code/qcommon/msg.c.diff.md` + `huffman.c.diff.md` + `common.c.diff.md` are now isolated as readable markdown deltas — **these ARE the proto-73 patches** that make wolfcamql play `.dm_73`. FT-4 / Phase 3.5 Track A (port to q3mme) now has a clean blueprint.
 
 ### 1.4 Part 4 v5 full render — title card + all rule overhauls  *(branch `render/part04-v5-titlecard-2026-04-17`, commit `22a05e32`)*
 
@@ -234,8 +234,8 @@ https://github.com/Stoneface30/quake-legacy/pull/1
 
 ```
 Checklist:
-  [ ] game-dissection/engines/_docs/SYNTHESIS.md reads sensibly
-  [ ] game-dissection/engines/_diffs/code/qcommon/msg.c.diff.md is readable
+  [ ] engine/engines/_docs/SYNTHESIS.md reads sensibly
+  [ ] engine/engines/_diffs/code/qcommon/msg.c.diff.md is readable
   [ ] .gitignore correctly excludes _canonical/
   [ ] tools/quake-source/REPOS.md forwards to new location
 ```
@@ -274,9 +274,9 @@ G:/QUAKE_LEGACY/docs/superpowers/plans/2026-04-17-creative-suite-v2-plan.md
 http://localhost:8765/annotate                        # the UI
 
 # Engine consolidation
-G:/QUAKE_LEGACY/game-dissection/engines/_canonical/   # .gitignored, 549 MB
-G:/QUAKE_LEGACY/game-dissection/engines/_docs/SYNTHESIS.md
-G:/QUAKE_LEGACY/game-dissection/engines/_diffs/       # 513 proto-73 deltas
+G:/QUAKE_LEGACY/engine/engines/_canonical/   # .gitignored, 549 MB
+G:/QUAKE_LEGACY/engine/engines/_docs/SYNTHESIS.md
+G:/QUAKE_LEGACY/engine/engines/_diffs/       # 513 proto-73 deltas
 https://github.com/Stoneface30/quake-legacy/pull/1
 
 # Rules + learnings
@@ -284,7 +284,7 @@ G:/QUAKE_LEGACY/CLAUDE.md                             # project hard rules
 C:/Users/Stoneface/.claude/Vault/learnings.md         # global L-rules (L96-L99 new)
 
 # Background task outputs (landing overnight)
-G:/QUAKE_LEGACY/game-dissection/graphify-out/_canonical-2026-04-17/
+G:/QUAKE_LEGACY/engine/graphify-out/_canonical-2026-04-17/
 G:/QUAKE_LEGACY/docs/research/proto73-port-review-2026-04-17.md
 ```
 

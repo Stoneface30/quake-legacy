@@ -23,7 +23,7 @@ Local tree at `G:/QUAKE_LEGACY/tools/quake-source/quake3-source/`:
 - **Conclusion:** our local copy is current with upstream tip. No re-clone needed. Upstream will almost certainly never receive a commit again — treat as frozen snapshot.
 
 ### 1.3 Canonical tree vs vanilla Q3A
-`G:/QUAKE_LEGACY/game-dissection/engines/_canonical/` is NOT a vanilla Q3A mirror — it is **wolfcamql-src with ioquake3 stubs grafted in** (SDL2, libcurl, libogg, AL, jpeg-8c side-by-side with the wolfcam-rewritten game/qcommon). Byte-identical to `tools/quake-source/wolfcamql-src/` for the core files I spot-checked (`bg_public.h`, `msg.c`).
+`G:/QUAKE_LEGACY/engine/engines/_canonical/` is NOT a vanilla Q3A mirror — it is **wolfcamql-src with ioquake3 stubs grafted in** (SDL2, libcurl, libogg, AL, jpeg-8c side-by-side with the wolfcam-rewritten game/qcommon). Byte-identical to `tools/quake-source/wolfcamql-src/` for the core files I spot-checked (`bg_public.h`, `msg.c`).
 
 🚩 **Finding:** the file names `TECHNICAL_NOTES.md` and `CUSTOM_PARSING.md` at the root of `_canonical/` are **UDT (uberdemotools) docs**, not ioquake3/wolfcam docs. They describe UDT's huffman decoder and its custom parsing API. This is easy to misread — they belong intellectually with `uberdemotools/` not with the engine tree.
 
@@ -225,7 +225,7 @@ Field tables (QL dm_73):  entityStateFieldsQldm73[] (msg.c:1081) — 58 fields
 
 > Vanilla Q3 equivalents (for cross-reference): `msg_hData[]` at `quake3-source/qcommon/msg.c:1537-1794`, `MSG_initHuffman` at `:1709`. The 256-entry frequency table bytes are byte-identical between vanilla Q3 and wolfcamql — the huffman seed survived unchanged into protocol 73.
 
-### 8.2 `game-dissection/engines/SYNTHESIS.md`
+### 8.2 `engine/engines/SYNTHESIS.md`
 
 **Patch E — after line 71 "ioquake3" row**, add:
 
@@ -235,7 +235,7 @@ Field tables (QL dm_73):  entityStateFieldsQldm73[] (msg.c:1081) — 58 fields
 
 > **Protocol-73 playerstate has no dedicated field table.** Wolfcam/canonical msg.c falls back to `playerStateFieldsQ3dm48` for proto=73 (`_canonical/qcommon/msg.c:2470-2492`). When porting to q3mme, do NOT invent a `playerStateFieldsQldm73[]` — match the fallback semantics.
 
-### 8.3 `game-dissection/engines/_canonical/TECHNICAL_NOTES.md` and `CUSTOM_PARSING.md`
+### 8.3 `engine/engines/_canonical/TECHNICAL_NOTES.md` and `CUSTOM_PARSING.md`
 
 **Patch G — prepend a header note (do not rewrite body):**
 
@@ -243,7 +243,7 @@ Field tables (QL dm_73):  entityStateFieldsQldm73[] (msg.c:1081) — 58 fields
 > **Provenance note (added 2026-04-19):** These files are the UDT (uberdemotools)
 > technical docs, copied into the canonical tree for convenience. They describe
 > UDT's parser, NOT our ioquake3/wolfcamql engine. For engine-level docs see
-> `docs/reference/dm73-format-deep-dive.md` and `game-dissection/engines/SYNTHESIS.md`.
+> `docs/reference/dm73-format-deep-dive.md` and `engine/engines/SYNTHESIS.md`.
 > Source: https://github.com/mightycow/uberdemotools
 ```
 

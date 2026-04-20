@@ -323,7 +323,7 @@ Currently on importmap+CDN — `wavesurfer.js` v7 (BSD-3, ~60KB, zero deps) queu
 
 ## FT-4 Ghidra Blockers (user actions needed)
 
-Ghidra FT-4 sandbox committed (`game-dissection/ghidra/`) with preliminary inventory. **Full dissection blocked on:**
+Ghidra FT-4 sandbox committed (`engine/ghidra/`) with preliminary inventory. **Full dissection blocked on:**
 1. Install Ghidra 11.3 + JDK 21 (user machine)
 2. Extract `G:\QUAKE_LEGACY\WOLF WHISPERER\Wolf Whisperer.rar` (contains main binary)
 3. Decision: build or drop UDT_json / q3mme as RE targets (scope call)
@@ -441,7 +441,7 @@ These were informal before — now they are hard commitments. Any plan that igno
 ### FT-4: Ghidra every executable
 - `WolfWhisperer.exe` is the anchor but ALL executables in the project get reverse-engineered for full command/IPC mapping
 - Targets: `tools/wolfcamql/wolfcamql.exe`, `tools/uberdemotools/UDT_json.exe`, any other shipped binaries
-- Outputs land in `game-dissection/ghidra/` with per-binary markdown reports
+- Outputs land in `engine/ghidra/` with per-binary markdown reports
 - No WolfcamQL automation ships in Phase 2 until this completes
 
 ### FT-5: Nickname dictionary + notable-player regex

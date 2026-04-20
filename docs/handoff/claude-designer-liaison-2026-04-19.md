@@ -10,7 +10,7 @@
 
 **Branch:** `creative-suite-v2-step2` (pushed to `origin` after this doc)
 **Base:** `main` (last user-approved)
-**Clean?** Cinema Suite implementation + Ghidra sandbox are committed. Unrelated `CLAUDE.md` + `game-dissection/engines/_diffs/` changes are outside this ship and will be handled in a separate commit.
+**Clean?** Cinema Suite implementation + Ghidra sandbox are committed. Unrelated `CLAUDE.md` + `engine/engines/_diffs/` changes are outside this ship and will be handled in a separate commit.
 
 **Commit chain (read bottom-up):**
 ```
@@ -154,7 +154,7 @@ Secondary corpus (`G:\QUAKE_LEGACY\WOLF WHISPERER\WolfcamQL\wolfcam-ql\demos\`, 
 
 ## 8. Ghidra FT-4 findings so far (background agent, 2026-04-19)
 
-Committed in `bdf96d29` under `game-dissection/ghidra/`:
+Committed in `bdf96d29` under `engine/ghidra/`:
 - ✅ Binary inventory (`reports/_binary-inventory.md`) — 7 targets identified
 - ✅ Preliminary PE probe (`scripts/pe_probe.py` — runs today, no Ghidra required)
 - ✅ `qagamex86.dll` has DWARF + STABS debug info — **not stripped**, symbol-rich

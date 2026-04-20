@@ -40,7 +40,7 @@ QUAKE_LEGACY/                        ← git root
 │   ├── pk3_build/                   ← pk3 assembler
 │   └── ollama/                      ← local LLM (vision prompts)
 │
-├── engine/                          ← ★ formerly game-dissection/ + WOLF WHISPERER
+├── engine/                          ← ★ formerly engine/ + WOLF WHISPERER
 │   ├── wolfcam/                     ← WolfcamQL fully ingested (binary + source)
 │   ├── engines/                     ← all source trees (ioquake3, q3mme, wolfcamql, etc.)
 │   ├── parser/                      ← ★ dm73 parser (formerly phase2/dm73parser)
@@ -73,7 +73,7 @@ QUAKE_LEGACY/                        ← git root
 | MOVE | `scripts/` → `creative_suite/scripts/` |
 | MOVE | `storage/` → `creative_suite/storage/` |
 | MOVE | `tests/` → `creative_suite/tests/` |
-| MOVE | `game-dissection/` → `engine/` (rename) |
+| MOVE | `engine/` → `engine/` (rename) |
 | MOVE | `WOLF WHISPERER/WolfcamQL/` → `engine/wolfcam/` |
 | CREATE | `engine/parser/` — dm73 parser C++17 project scaffold (phase2/dm73parser never existed on disk; start fresh here) |
 | MOVE | `phase5/01_png/` → `creative_suite/comfy/assets/phase5_png/` |

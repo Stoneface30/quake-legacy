@@ -208,7 +208,7 @@ Before wolfcamql source is removed from the repo, extract:
 - Every fragmovie-relevant quirk documented in source comments
 - IPC command set exposed to WolfWhisperer.exe
 
-Destination: `game-dissection/wolfcam-knowledge-ingest/` with a structured
+Destination: `engine/wolfcam-knowledge-ingest/` with a structured
 markdown report per subsystem. Then wolfcam can be retired.
 
 **Spawned as separate task.**

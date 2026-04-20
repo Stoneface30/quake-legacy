@@ -379,9 +379,9 @@ EOF
 - Create: `engine/graphify-out/combined.html`
 - Create: `docs/reference/engine-assimilation.md`
 
-The existing `game-dissection/graphify-out/` has individual engine graphs. This task produces a single combined graph of all engine trees, revealing overlaps and best-of-breed candidates for the unified `quake_legacy_engine`.
+The existing `engine/graphify-out/` has individual engine graphs. This task produces a single combined graph of all engine trees, revealing overlaps and best-of-breed candidates for the unified `quake_legacy_engine`.
 
-**Prerequisite:** Plan 1 Task 5 (game-dissection/ renamed to engine/) must be complete.
+**Prerequisite:** Plan 1 Task 5 (engine/ renamed to engine/) must be complete.
 
 - [ ] **Step 1: Verify engine directory exists and has source trees**
 
@@ -484,7 +484,7 @@ EOF
 - Move: `WOLF WHISPERER/WolfcamQL/` → `engine/wolfcam/`
 - Delete: `WOLF WHISPERER/Backup/`, `WOLF WHISPERER/*.rar`, `WOLF WHISPERER/_extracted/`
 
-**Prerequisite:** Plan 1 Task 5 (game-dissection/ renamed to engine/) complete.
+**Prerequisite:** Plan 1 Task 5 (engine/ renamed to engine/) complete.
 
 - [ ] **Step 1: Verify source and destination**
 
@@ -506,7 +506,7 @@ Expected result: `engine/wolfcam/WolfcamQL/` with all demo-staging content intac
 
 - [ ] **Step 3: Move the existing wolfcam-knowledge docs**
 
-The game-dissection/engines/wolfcam-knowledge/ docs (already curated, 7 files) should be at engine/wolfcam-knowledge/ after Plan 1 runs. Verify:
+The engine/engines/wolfcam-knowledge/ docs (already curated, 7 files) should be at engine/wolfcam-knowledge/ after Plan 1 runs. Verify:
 
 ```bash
 ls "G:/QUAKE_LEGACY/engine/wolfcam-knowledge/"

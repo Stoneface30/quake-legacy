@@ -1,0 +1,200 @@
+# PE probe: wolfcamql-11.3_SDL.dll
+- size: 324,096 bytes
+- machine: x86 (I386)
+- pe32+: False
+- image_base: 0x68100000
+- timestamp: 1255804220 (unix epoch)
+- characteristics: 0x230e
+- debug_dir: rva=0x0 size=0 (0 = no debug info / stripped)
+- import_dir: rva=0x57000 size=5732
+
+## Sections
+  .text      vaddr=0x00001000 vsize=0x0003fbd4 rsize=0x0003fc00 flags=[CODE|INITIALIZED_DATA|EXECUTE|READ]
+  .data      vaddr=0x00041000 vsize=0x00001a20 rsize=0x00001c00 flags=[INITIALIZED_DATA|READ|WRITE]
+  .rdata     vaddr=0x00043000 vsize=0x000080c0 rsize=0x00008200 flags=[INITIALIZED_DATA|READ]
+  .bss       vaddr=0x0004c000 vsize=0x00008e80 rsize=0x00000000 flags=[UNINITIALIZED_DATA|READ|WRITE]
+  .edata     vaddr=0x00055000 vsize=0x00001465 rsize=0x00001600 flags=[INITIALIZED_DATA|READ]
+  .idata     vaddr=0x00057000 vsize=0x00001664 rsize=0x00001800 flags=[INITIALIZED_DATA|READ|WRITE]
+  .rsrc      vaddr=0x00059000 vsize=0x00000310 rsize=0x00000400 flags=[INITIALIZED_DATA|READ|WRITE]
+  .reloc     vaddr=0x0005a000 vsize=0x000020f4 rsize=0x00002200 flags=[INITIALIZED_DATA|READ]
+
+## Imports (DLL -> first 50 symbols)
+  ADVAPI32.DLL
+    RegCloseKey
+    RegOpenKeyExA
+    RegQueryValueExA
+  GDI32.dll
+    BitBlt
+    ChoosePixelFormat
+    CreateCompatibleBitmap
+    CreateCompatibleDC
+    CreateDIBSection
+    CreatePalette
+    DeleteDC
+    DeleteObject
+    DescribePixelFormat
+    GetDIBits
+    GetDeviceCaps
+    GetDeviceGammaRamp
+    GetSystemPaletteEntries
+    GetSystemPaletteUse
+    RealizePalette
+    SelectObject
+    SelectPalette
+    SetDIBColorTable
+    SetDeviceGammaRamp
+    SetPaletteEntries
+    SetPixelFormat
+    SetSystemPaletteUse
+    SwapBuffers
+    UnrealizeObject
+  KERNEL32.dll
+    AddAtomA
+    CloseHandle
+    CreateEventA
+    CreateFileA
+    CreateFileW
+    CreateMutexA
+    CreateSemaphoreA
+    FindAtomA
+    FormatMessageA
+    FreeLibrary
+    GetACP
+    GetAtomNameA
+    GetCurrentThread
+    GetCurrentThreadId
+    GetDriveTypeA
+    GetEnvironmentVariableA
+    GetLastError
+    GetLocaleInfoA
+    GetModuleHandleA
+    GetProcAddress
+    GetVersionExA
+    InterlockedDecrement
+    InterlockedIncrement
+    LoadLibraryA
+    MultiByteToWideChar
+    QueryPerformanceCounter
+    ReadFile
+    ReleaseMutex
+    ReleaseSemaphore
+    SetEnvironmentVariableA
+    SetErrorMode
+    SetFilePointer
+    SetThreadPriority
+    Sleep
+    TerminateThread
+    WaitForSingleObject
+    WideCharToMultiByte
+    WriteFile
+  msvcrt.dll
+    _strdup
+  msvcrt.dll
+    __dllonexit
+    __mb_cur_max
+    _assert
+    _beginthreadex
+    _endthreadex
+    _errno
+    _iob
+    _isctype
+    _pctype
+    _stricmp
+    _vsnprintf
+    abort
+    atof
+    atoi
+    fclose
+    fflush
+    fprintf
+    fread
+    free
+    fseek
+    ftell
+    fwrite
+    log
+    malloc
+    memcpy
+    memmove
+    memset
+    pow
+    qsort
+    raise
+    realloc
+    signal
+    sscanf
+    strchr
+    strlen
+    strstr
+  USER32.dll
+    AdjustWindowRect
+    AdjustWindowRectEx
+    BeginPaint
+    CallWindowProcA
+    ChangeDisplaySettingsA
+    ClientToScreen
+    ClipCursor
+    CreateCursor
+    CreateIconFromResourceEx
+    CreateWindowExA
+    DefWindowProcA
+    DestroyCursor
+    DestroyIcon
+    DestroyWindow
+    DispatchMessageA
+    EndPaint
+    EnumDisplaySettingsA
+    GetClassInfoA
+    GetClientRect
+    GetCursor
+    GetCursorPos
+    GetDC
+    GetDesktopWindow
+    GetForegroundWindow
+    GetKeyState
+    GetKeyboardLayout
+    GetKeyboardLayoutNameA
+    GetKeyboardState
+    GetMenu
+    GetMessageA
+    GetParent
+    GetSystemMetrics
+    GetWindowLongA
+    GetWindowRect
+    InvalidateRect
+    IsZoomed
+    KillTimer
+    LoadImageA
+    LoadKeyboardLayoutA
+    MapVirtualKeyA
+    MapVirtualKeyExA
+    MapWindowPoints
+    MsgWaitForMultipleObjects
+    PeekMessageA
+    PostMessageA
+    PostQuitMessage
+    PtInRect
+    RegisterClassA
+    ReleaseCapture
+    ReleaseDC
+    ... (17 more)
+  WINMM.DLL
+    joyGetDevCapsA
+    joyGetNumDevs
+    joyGetPosEx
+    mciGetErrorStringA
+    mciSendCommandA
+    timeBeginPeriod
+    timeEndPeriod
+    timeGetTime
+    timeKillEvent
+    timeSetEvent
+    waveOutClose
+    waveOutGetErrorTextA
+    waveOutOpen
+    waveOutPrepareHeader
+    waveOutUnprepareHeader
+    waveOutWrite
+
+## Strings  (ASCII + UTF-16LE, min_len=6, total=1,086)
+  ... (1086 more strings truncated)

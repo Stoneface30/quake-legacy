@@ -9,7 +9,7 @@
 Left alone entirely because other agents are in flight or they are user-owned:
 
 - `tools/quake-source/**` (engine-unification agent)
-- `game-dissection/**` (engine-unification agent)
+- `engine/**` (engine-unification agent)
 - `docs/reference/**` (Q3A-ingestion agent)
 - `phase2/dm73parser/**` (engine-unification agent)
 - `.claude/worktrees/engine-fork/**` (active ENG-1 engine fork work)
@@ -253,7 +253,7 @@ Current (2026-04-19, post-merge per `feedback_design_to_main_merge.md`). **Keep.
 
 ### 2.14 · Stray `.graphify_*.json` outside `graphify-out/`
 
-The task brief noted "game-dissection/ had several" — but `game-dissection/` is hard-constrained (do not touch). Also `.gitignore:65` already covers `game-dissection/.graphify_*.json`. **Skip.**
+The task brief noted "engine/ had several" — but `engine/` is hard-constrained (do not touch). Also `.gitignore:65` already covers `engine/.graphify_*.json`. **Skip.**
 
 ---
 
@@ -454,7 +454,7 @@ PY
 | Path | Why left alone |
 |---|---|
 | `tools/quake-source/**` | Hard-constraint (engine-unification agent) |
-| `game-dissection/**` | Hard-constraint (engine-unification agent) |
+| `engine/**` | Hard-constraint (engine-unification agent) |
 | `docs/reference/**` | Hard-constraint (Q3A-ingestion agent) |
 | `phase2/dm73parser/**` | Hard-constraint (engine-unification agent) |
 | `.claude/worktrees/engine-fork/**` | Hard-constraint (active ENG-1 fork) |

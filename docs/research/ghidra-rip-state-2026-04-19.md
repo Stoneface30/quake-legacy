@@ -2,7 +2,7 @@
 
 ## Executive Summary
 
-FT-4 ("Ghidra every executable") is **blocked on two user actions**: (1) install Ghidra 11.3 + JDK 21, (2) extract `WOLF WHISPERER/Wolf Whisperer.rar`. The sandbox scaffold is **fully committed** on branch `creative-suite-v2-step2` (commit `bdf96d29`, "feat(ghidra): FT-4 sandbox scaffold + preliminary binary inventory") under `game-dissection/ghidra/` with 7 wolfcamql PE binaries staged, PE-probe static analysis run on all of them, and 4 markdown reports + 3 IPC-map seed files written. The current branch `design/phase1-pantheon-system` is missing the scaffold — only the gitignored `binaries/` + `projects/` directories exist. **One unblocking action:** install Ghidra 11.3 + JDK 21 per `game-dissection/ghidra/README.md` §Install; everything downstream is waiting on that.
+FT-4 ("Ghidra every executable") is **blocked on two user actions**: (1) install Ghidra 11.3 + JDK 21, (2) extract `WOLF WHISPERER/Wolf Whisperer.rar`. The sandbox scaffold is **fully committed** on branch `creative-suite-v2-step2` (commit `bdf96d29`, "feat(ghidra): FT-4 sandbox scaffold + preliminary binary inventory") under `engine/ghidra/` with 7 wolfcamql PE binaries staged, PE-probe static analysis run on all of them, and 4 markdown reports + 3 IPC-map seed files written. The current branch `design/phase1-pantheon-system` is missing the scaffold — only the gitignored `binaries/` + `projects/` directories exist. **One unblocking action:** install Ghidra 11.3 + JDK 21 per `engine/ghidra/README.md` §Install; everything downstream is waiting on that.
 
 ## Ghidra Install Status
 
@@ -16,7 +16,7 @@ Verified absent at all expected locations:
 
 No installer zip, no `.gpr` project files, no `analyzeHeadless.bat` artifacts anywhere on `G:\`.
 
-**Install procedure** is documented in the worktree README (`.claude/worktrees/creative-suite-v2/game-dissection/ghidra/README.md` lines 44–67): install OpenJDK 21, download `ghidra_11.3_PUBLIC_*.zip` from https://github.com/NationalSecurityAgency/ghidra/releases, extract to `G:\QUAKE_LEGACY\tools\ghidra\ghidra_11.3_PUBLIC\`, set `GHIDRA_INSTALL_DIR`, smoke-test `ghidraRun.bat`, then drive analysis via `analyzeHeadless.bat`.
+**Install procedure** is documented in the worktree README (`.claude/worktrees/creative-suite-v2/engine/ghidra/README.md` lines 44–67): install OpenJDK 21, download `ghidra_11.3_PUBLIC_*.zip` from https://github.com/NationalSecurityAgency/ghidra/releases, extract to `G:\QUAKE_LEGACY\tools\ghidra\ghidra_11.3_PUBLIC\`, set `GHIDRA_INSTALL_DIR`, smoke-test `ghidraRun.bat`, then drive analysis via `analyzeHeadless.bat`.
 
 ## Wolf Whisperer .rar Blocker
 
@@ -31,8 +31,8 @@ Inventory of all `.exe` / DLL RE candidates per FT-4, verified against disk 2026
 
 | Binary | Path | Size | Probe done? | Report? | Ghidra project? |
 |---|---|---:|---|---|---|
-| wolfcamql-11.3.exe | `game-dissection/ghidra/binaries/wolfcamql-11.3.exe` | 10.8 MB | yes | `reports/wolfcamql.md` (plan) | NO |
-| wolfcamql-11.1.exe | `game-dissection/ghidra/binaries/wolfcamql-11.1.exe` | 10.8 MB | yes | (diff target) | NO |
+| wolfcamql-11.3.exe | `engine/ghidra/binaries/wolfcamql-11.3.exe` | 10.8 MB | yes | `reports/wolfcamql.md` (plan) | NO |
+| wolfcamql-11.1.exe | `engine/ghidra/binaries/wolfcamql-11.1.exe` | 10.8 MB | yes | (diff target) | NO |
 | wolfcamql-11.3_cgamex86.dll | same dir | 6.3 MB | yes | `reports/wolfcamql_qvm.md` (plan) | NO |
 | wolfcamql-11.3_qagamex86.dll | same dir | 2.2 MB | yes | `reports/qagamex86_preliminary.md` | NO |
 | wolfcamql-11.3_uix86.dll | same dir | 1.2 MB | yes | `reports/wolfcamql_qvm.md` (plan) | NO |
@@ -47,7 +47,7 @@ Deferred (scope call): ffmpeg.exe (101 MB), ffprobe.exe (202 MB), VirtualDub*.ex
 
 ## Outputs / Reports On Disk
 
-All outputs live in the `creative-suite-v2-step2` branch at `game-dissection/ghidra/`:
+All outputs live in the `creative-suite-v2-step2` branch at `engine/ghidra/`:
 
 **Reports** (`reports/`):
 - `_binary-inventory.md` — SHA-256 + provenance for all 7 staged binaries, plus "expected but missing" table
@@ -80,7 +80,7 @@ Destination per handoff matrix: `ipc-maps/wolfcam_protocol73.md` (to be written)
 
 ## Blockers For User
 
-1. **Install Ghidra 11.3 + OpenJDK 21** at `G:\QUAKE_LEGACY\tools\ghidra\ghidra_11.3_PUBLIC\`. Set `GHIDRA_INSTALL_DIR`. Smoke-test `ghidraRun.bat`. See `game-dissection/ghidra/README.md` §44–67 (on branch `creative-suite-v2-step2`). **Blocker for all 8 analyses on the roadmap.**
+1. **Install Ghidra 11.3 + OpenJDK 21** at `G:\QUAKE_LEGACY\tools\ghidra\ghidra_11.3_PUBLIC\`. Set `GHIDRA_INSTALL_DIR`. Smoke-test `ghidraRun.bat`. See `engine/ghidra/README.md` §44–67 (on branch `creative-suite-v2-step2`). **Blocker for all 8 analyses on the roadmap.**
 2. **Extract `WOLF WHISPERER/Wolf Whisperer.rar`** (1.83 GB). Needs WinRAR or 7-Zip. If it contains `WolfWhisperer.exe`, stage it into the sandbox as binary #8 and update `_binary-inventory.md` with SHA-256 + provenance. If the rar is obsolete, confirm that so the anchor-binary line in CLAUDE.md can be deleted.
 3. **Scope call**: is `UDT_json.exe` worth building from source (`tools/quake-source/uberdemotools/`) for RE? Current roadmap substitutes `qagamex86.dll` as the calibration target. Confirm `UDT_json` can be deprioritized.
 4. **Branch merge**: the Ghidra scaffold lives on `creative-suite-v2-step2` (commit `bdf96d29`). It is NOT on `main` and NOT on the current working branch `design/phase1-pantheon-system`. Decide whether to merge/rebase the scaffold to a shared base so FT-4 work can proceed independently of the Cinema Suite branch.
@@ -89,21 +89,21 @@ Destination per handoff matrix: `ipc-maps/wolfcam_protocol73.md` (to be written)
 
 Absolute paths. All Ghidra scaffold files currently live in the `creative-suite-v2` worktree because the scaffold commit is not on the current branch:
 
-- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\game-dissection\ghidra\README.md`
-- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\game-dissection\ghidra\reports\_binary-inventory.md`
-- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\game-dissection\ghidra\reports\_analysis-roadmap.md`
-- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\game-dissection\ghidra\reports\qagamex86_preliminary.md`
-- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\game-dissection\ghidra\reports\wolfcamql.md`
-- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\game-dissection\ghidra\reports\wolfcamql_qvm.md`
-- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\game-dissection\ghidra\ipc-maps\qagame_MOD_enum.seed.txt`
-- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\game-dissection\ghidra\ipc-maps\qagame_EV_enum.seed.txt`
-- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\game-dissection\ghidra\ipc-maps\wolfcamql-11.3_capture_cvars.seed.txt`
-- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\game-dissection\ghidra\scripts\pe_probe.py`
-- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\game-dissection\ghidra\symbols\wolfcamql-11.3.exe.probe.txt` (and 6 siblings)
+- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\engine\ghidra\README.md`
+- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\engine\ghidra\reports\_binary-inventory.md`
+- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\engine\ghidra\reports\_analysis-roadmap.md`
+- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\engine\ghidra\reports\qagamex86_preliminary.md`
+- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\engine\ghidra\reports\wolfcamql.md`
+- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\engine\ghidra\reports\wolfcamql_qvm.md`
+- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\engine\ghidra\ipc-maps\qagame_MOD_enum.seed.txt`
+- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\engine\ghidra\ipc-maps\qagame_EV_enum.seed.txt`
+- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\engine\ghidra\ipc-maps\wolfcamql-11.3_capture_cvars.seed.txt`
+- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\engine\ghidra\scripts\pe_probe.py`
+- `G:\QUAKE_LEGACY\.claude\worktrees\creative-suite-v2\engine\ghidra\symbols\wolfcamql-11.3.exe.probe.txt` (and 6 siblings)
 
-Binaries (gitignored — present in both branches' `game-dissection/ghidra/binaries/` since that dir is shared outside git):
-- `G:\QUAKE_LEGACY\game-dissection\ghidra\binaries\wolfcamql-11.3.exe`
-- `G:\QUAKE_LEGACY\game-dissection\ghidra\binaries\wolfcamql-11.1.exe` + 5 DLLs
+Binaries (gitignored — present in both branches' `engine/ghidra/binaries/` since that dir is shared outside git):
+- `G:\QUAKE_LEGACY\engine\ghidra\binaries\wolfcamql-11.3.exe`
+- `G:\QUAKE_LEGACY\engine\ghidra\binaries\wolfcamql-11.1.exe` + 5 DLLs
 
 Blocker artifact:
 - `G:\QUAKE_LEGACY\WOLF WHISPERER\Wolf Whisperer.rar` (1.83 GB, 2019-05-15, unextracted)

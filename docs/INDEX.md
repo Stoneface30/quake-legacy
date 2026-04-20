@@ -180,17 +180,17 @@ Both models auto-downloaded: `4x-UltraSharp.pth` + `control_v11f1e_sd15_tile.pth
 
 | Corpus | Nodes | Edges | Communities | HTML |
 |--------|-------|-------|-------------|------|
-| wolfcam/cgame | 1,691 | 3,112 | 70 | `game-dissection/graphify-out/graph.html` |
+| wolfcam/cgame | 1,691 | 3,112 | 70 | `engine/graphify-out/graph.html` |
 | wolfcam/game | 1,075 | 2,046 | 27 | `tools/quake-source/wolfcamql-local-src/code/game/graphify-out/graph.html` |
-| q3mme/cgame | Done | 28 communities | 28 | `game-dissection/q3mme-cgame/graphify-out/graph.html` |
-| q3mme/game | 1,204 | 2,274 | 29 | `game-dissection/q3mme-game/graphify-out/graph.html` |
-| ioquake3/client | 647 | 1,184 | 18 | `game-dissection/ioquake3-client/graphify-out/graph.html` |
-| q3a/game | 1,187 | 2,250 | 27 | `game-dissection/q3a-game/graphify-out/graph.html` |
-| q3a/engine-core | 1,536 | 2,738 | 49 | `game-dissection/q3a-engine-core/graphify-out/graph.html` |
-| qldemo-python | 145 | 208 | 12 | `game-dissection/qldemo-python/graphify-out/graph.html` |
-| WolfWhisperer scripts | 10 | 5 | 5 | `game-dissection/wolfwhisperer-scripts/graphify-out/graph.html` |
-| uberdemotools | 1,997 | 4,218 | 33 | `game-dissection/uberdemotools/graphify-out/graph.html` |
-| **canonical engine tree** (2026-04-17) | 43,423 | 81,362 | 332 | `game-dissection/graphify-out/_canonical-2026-04-17/graphify-out/graph_top500_hubs.html` — 9,895 source files / 520 MB deduped by SHA-256 across 18 repos. Top hub: `HandleCommand()` in `radiant/mainframe.cpp` (deg 280). Full GraphRAG JSON (47 MB) at `graph.json`; interactive HTML is top-400-hub + 1-hop subgraph (graphify blocks HTML >5k nodes). |
+| q3mme/cgame | Done | 28 communities | 28 | `engine/q3mme-cgame/graphify-out/graph.html` |
+| q3mme/game | 1,204 | 2,274 | 29 | `engine/q3mme-game/graphify-out/graph.html` |
+| ioquake3/client | 647 | 1,184 | 18 | `engine/ioquake3-client/graphify-out/graph.html` |
+| q3a/game | 1,187 | 2,250 | 27 | `engine/q3a-game/graphify-out/graph.html` |
+| q3a/engine-core | 1,536 | 2,738 | 49 | `engine/q3a-engine-core/graphify-out/graph.html` |
+| qldemo-python | 145 | 208 | 12 | `engine/qldemo-python/graphify-out/graph.html` |
+| WolfWhisperer scripts | 10 | 5 | 5 | `engine/wolfwhisperer-scripts/graphify-out/graph.html` |
+| uberdemotools | 1,997 | 4,218 | 33 | `engine/uberdemotools/graphify-out/graph.html` |
+| **canonical engine tree** (2026-04-17) | 43,423 | 81,362 | 332 | `engine/graphify-out/_canonical-2026-04-17/graphify-out/graph_top500_hubs.html` — 9,895 source files / 520 MB deduped by SHA-256 across 18 repos. Top hub: `HandleCommand()` in `radiant/mainframe.cpp` (deg 280). Full GraphRAG JSON (47 MB) at `graph.json`; interactive HTML is top-400-hub + 1-hop subgraph (graphify blocks HTML >5k nodes). |
 
 **Querying:** Open any `graphify-out/graph.html` in browser → search nodes → click to explore communities.
 
@@ -226,7 +226,7 @@ C:\Users\Stoneface\.claude\Vault\sessions\2026-04-16-quake-legacy-phase1-fixes.m
 
 Graphify GRAPH_REPORT files (per-corpus analysis):
 ```
-game-dissection/graphify-out/GRAPH_REPORT.md        ← wolfcam/cgame
+engine/graphify-out/GRAPH_REPORT.md        ← wolfcam/cgame
 tools/quake-source/.../game/graphify-out/GRAPH_REPORT.md  ← wolfcam/game
 ```
 
