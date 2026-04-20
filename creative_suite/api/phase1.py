@@ -176,6 +176,9 @@ def put_overrides(n: int, body: OverrideBody, request: Request) -> dict[str, Any
         chunk = e.get("chunk")
         if not chunk or not isinstance(chunk, str):
             continue
+        # Normalize to basename so the render-side filter (phase1/clip_filter.py)
+        # can match by Path.name regardless of whether the UI passed a full path.
+        chunk = Path(chunk.replace("\\", "/")).name
         entries.append(ClipOverride(
             chunk=chunk,
             slow=e.get("slow"),
@@ -183,6 +186,7 @@ def put_overrides(n: int, body: OverrideBody, request: Request) -> dict[str, Any
             head_trim=e.get("head_trim"),
             tail_trim=e.get("tail_trim"),
             section_role=e.get("section_role"),
+            removed=bool(e.get("removed", False)),
         ))
     write_overrides(p, entries)
     return {"saved": True, "count": len(entries)}
