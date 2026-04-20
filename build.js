@@ -41,6 +41,11 @@ const copies = [
     src: "node_modules/@theatre/browser-bundles/dist/core-and-studio.js",
     dst: "theatre-core-studio.js",
   },
+  // litegraph.js (MIT) — node-based visual graph editor
+  {
+    src: "node_modules/litegraph.js/build/litegraph.min.js",
+    dst: "litegraph.js",
+  },
 ];
 
 let ok = 0, fail = 0;
