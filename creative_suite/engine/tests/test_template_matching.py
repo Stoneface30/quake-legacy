@@ -7,10 +7,10 @@ from pathlib import Path
 
 import pytest
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[2]  # G:/QUAKE_LEGACY/creative_suite
 FFMPEG = ROOT / "tools" / "ffmpeg" / "ffmpeg.exe"
-MANIFEST = ROOT / "phase1" / "sound_templates" / "manifest.json"
-TEMPLATES_RAW = ROOT / "phase1" / "sound_templates" / "raw"
+MANIFEST = ROOT / "engine" / "sound_templates" / "manifest.json"
+TEMPLATES_RAW = ROOT / "engine" / "sound_templates" / "raw"
 
 
 def _have_templates() -> bool:
@@ -42,7 +42,7 @@ def _pad_wav(src: Path, dst: Path, lead_s: float = 0.3, tail_s: float = 0.3) -> 
 
 @pytest.mark.skipif(not _have_templates(), reason="QL templates not available")
 def test_rail_fire_recognized(tmp_wav_dir: Path) -> None:
-    from phase1 import audio_onsets
+    from creative_suite.engine import audio_onsets
 
     src = _tpl_wav("sound/weapons/railgun/railgf1a.wav")
     if not src.exists():
@@ -63,7 +63,7 @@ def test_rail_fire_recognized(tmp_wav_dir: Path) -> None:
 
 @pytest.mark.skipif(not _have_templates(), reason="QL templates not available")
 def test_rocket_impact_recognized(tmp_wav_dir: Path) -> None:
-    from phase1 import audio_onsets
+    from creative_suite.engine import audio_onsets
 
     src = _tpl_wav("sound/weapons/rocket/rocklx1a.wav")
     if not src.exists():
@@ -81,7 +81,7 @@ def test_rocket_impact_recognized(tmp_wav_dir: Path) -> None:
 
 @pytest.mark.skipif(not _have_templates(), reason="QL templates not available")
 def test_player_death_recognized(tmp_wav_dir: Path) -> None:
-    from phase1 import audio_onsets
+    from creative_suite.engine import audio_onsets
 
     src = _tpl_wav("sound/player/sarge/death1.wav")
     if not src.exists():
@@ -99,7 +99,7 @@ def test_player_death_recognized(tmp_wav_dir: Path) -> None:
 
 def test_find_action_peak_v2_returns_tuple():
     """v2 API contract: returns (float|None, tag_str) even with bogus input."""
-    from phase1 import audio_onsets
+    from creative_suite.engine import audio_onsets
 
     # Non-existent file → graceful fallback to (None, 'NONE').
     peak, tag = audio_onsets.find_action_peak_v2("does_not_exist.wav")
@@ -109,6 +109,6 @@ def test_find_action_peak_v2_returns_tuple():
 
 def test_v1_api_preserved():
     """Legacy find_action_peak/find_action_peaks_per_clip remain callable."""
-    from phase1 import audio_onsets
+    from creative_suite.engine import audio_onsets
     assert callable(audio_onsets.find_action_peak)
     assert callable(audio_onsets.find_action_peaks_per_clip)

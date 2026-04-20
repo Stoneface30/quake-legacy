@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from phase1.music_stitcher import plan_stitch, resolve_main_pool
+from creative_suite.engine.music_stitcher import plan_stitch, resolve_main_pool
 
 
 def test_resolve_main_pool_part4_has_multi_track():

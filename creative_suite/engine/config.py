@@ -2,8 +2,10 @@
 from pathlib import Path
 from typing import Optional, List
 
-# Project root is one level up from phase1/
+# CS root: creative_suite/engine/config.py → parent → G:/QUAKE_LEGACY/creative_suite
 ROOT = Path(__file__).parent.parent
+# Repo root: G:/QUAKE_LEGACY (asset roots — clips, video, music — stay at repo root)
+REPO_ROOT = ROOT.parent
 
 
 class Config:
@@ -11,8 +13,8 @@ class Config:
 
     def __init__(self):
         # ── Binaries ──────────────────────────────────────────
-        self.ffmpeg_bin:    Path = ROOT / "tools" / "ffmpeg" / "ffmpeg.exe"
-        self.ffprobe_bin:   Path = ROOT / "tools" / "ffmpeg" / "ffprobe.exe"
+        self.ffmpeg_bin:    Path = ROOT / "tools" / "ffmpeg" / "ffmpeg.exe"   # creative_suite/tools/
+        self.ffprobe_bin:   Path = ROOT / "tools" / "ffmpeg" / "ffprobe.exe"  # creative_suite/tools/
 
         # ── Source clips — three-tier structure ───────────────────
         # HARD RULE: ALL clips for a Part come from T1+T2+T3 combined.
@@ -20,22 +22,22 @@ class Config:
         # T3 multi-angle subdirs = priority intro/outro candidates.
         # T2 multi-angle subdirs = secondary intro/outro candidates.
         # T1 clips = backbone of every Part.
-        self.clips_root:    Path = ROOT / "QUAKE VIDEO"   # parent of T1/T2/T3
+        self.clips_root:    Path = REPO_ROOT / "QUAKE VIDEO"   # parent of T1/T2/T3
         self.tier_roots: dict = {
-            1: ROOT / "QUAKE VIDEO" / "T1",
-            2: ROOT / "QUAKE VIDEO" / "T2",
-            3: ROOT / "QUAKE VIDEO" / "T3",
+            1: REPO_ROOT / "QUAKE VIDEO" / "T1",
+            2: REPO_ROOT / "QUAKE VIDEO" / "T2",
+            3: REPO_ROOT / "QUAKE VIDEO" / "T3",
         }
-        self.intro_source:  Path = ROOT / "FRAGMOVIE VIDEOS" / "IntroPart2.mp4"
+        self.intro_source:  Path = REPO_ROOT / "FRAGMOVIE VIDEOS" / "IntroPart2.mp4"
         # PANTHEON intro: 25.77s, grey/silver logo → in-game CA Tribute billboard.
         # Prepended to EVERY Part automatically. Never skip.
 
         # ── Clip lists ────────────────────────────────────────
-        self.clip_lists_dir: Path = ROOT / "phase1" / "clip_lists"
+        self.clip_lists_dir: Path = ROOT / "engine" / "clip_lists"
 
         # ── Output ────────────────────────────────────────────
-        self.output_dir:    Path = ROOT / "output"
-        self.preview_dir:   Path = ROOT / "output" / "previews"
+        self.output_dir:    Path = REPO_ROOT / "output"
+        self.preview_dir:   Path = REPO_ROOT / "output" / "previews"
 
         # ── Encoding ──────────────────────────────────────────
         self.target_fps:    int  = 60
@@ -120,7 +122,7 @@ class Config:
         self.game_audio_volume:  float = 1.0   # game sound full volume — foreground
         # Rule P1-G v4 (Part 6 v8 draft review 2026-04-18): third complaint in a row.
         # Dropping 0.30 → 0.20 AND adding an objective ebur128 2-channel gate
-        # (phase1/audio_levels.py) that BLOCKS render ship if music integrated
+        # (creative_suite/engine/audio_levels.py) that BLOCKS render ship if music integrated
         # loudness is < 12 LU below game peak. Subjective mixing is over — numbers
         # decide from here. User: "please use 2 channel and check level".
         # Rule P1-G v5+fix (Part 4 v11 gate honesty pass 2026-04-19): once the
@@ -294,11 +296,11 @@ class Config:
         # Subtitle always Bebas Neue; hero word ("QUAKE TRIBUTE") uses
         # the per-Part display face below.
         self.hero_font_by_part: dict = {
-            4: ROOT / "phase1" / "assets" / "fonts" / "BlackOpsOne-Regular.ttf",
-            5: ROOT / "phase1" / "assets" / "fonts" / "RussoOne-Regular.ttf",
-            6: ROOT / "phase1" / "assets" / "fonts" / "BungeeInline-Regular.ttf",
+            4: ROOT / "engine" / "assets" / "fonts" / "BlackOpsOne-Regular.ttf",
+            5: ROOT / "engine" / "assets" / "fonts" / "RussoOne-Regular.ttf",
+            6: ROOT / "engine" / "assets" / "fonts" / "BungeeInline-Regular.ttf",
         }
-        self.subtitle_font: Path = ROOT / "phase1" / "assets" / "fonts" / "BebasNeue-Regular.ttf"
+        self.subtitle_font: Path = ROOT / "engine" / "assets" / "fonts" / "BebasNeue-Regular.ttf"
 
         # ── Parts ─────────────────────────────────────────────
         self.parts: List[int] = list(range(4, 13))  # instance attribute, not class-level
@@ -333,7 +335,7 @@ class Config:
 
     def music_path(self, part: int) -> Optional[Path]:
         """Auto-detect MAIN music file for this Part. Returns None if not found."""
-        music_dir = ROOT / "phase1" / "music"
+        music_dir = ROOT / "engine" / "music"
         for ext in [".mp3", ".ogg", ".wav", ".flac"]:
             candidate = music_dir / f"part{part:02d}_music{ext}"
             if candidate.exists():
@@ -342,7 +344,7 @@ class Config:
 
     def intro_music_path(self, part: int) -> Optional[Path]:
         """Rule P1-R: intro music — per-Part override, fallback to pantheon_intro_music."""
-        music_dir = ROOT / "phase1" / "music"
+        music_dir = ROOT / "engine" / "music"
         for stem in (f"part{part:02d}_intro_music", "pantheon_intro_music"):
             for ext in (".mp3", ".ogg", ".wav", ".flac"):
                 candidate = music_dir / f"{stem}{ext}"
@@ -352,7 +354,7 @@ class Config:
 
     def outro_music_path(self, part: int) -> Optional[Path]:
         """Rule P1-R: outro music — per-Part override, fallback to pantheon_outro_music."""
-        music_dir = ROOT / "phase1" / "music"
+        music_dir = ROOT / "engine" / "music"
         for stem in (f"part{part:02d}_outro_music", "pantheon_outro_music"):
             for ext in (".mp3", ".ogg", ".wav", ".flac"):
                 candidate = music_dir / f"{stem}{ext}"

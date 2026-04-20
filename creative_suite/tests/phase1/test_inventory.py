@@ -1,5 +1,5 @@
 import pytest
-from phase1.inventory import scan_part, ClipInfo, scan_all_parts
+from creative_suite.engine.inventory import scan_part, ClipInfo, scan_all_parts
 
 def test_scan_part_returns_clip_list(cfg):
     clips = scan_part(4, cfg)
@@ -28,7 +28,7 @@ def test_scan_all_parts_returns_dict(cfg):
         assert isinstance(result[part], list)
 
 def test_inventory_report_prints(cfg, capsys):
-    from phase1.inventory import print_inventory_report
+    from creative_suite.engine.inventory import print_inventory_report
     print_inventory_report(cfg)
     captured = capsys.readouterr()
     assert "Part4" in captured.out

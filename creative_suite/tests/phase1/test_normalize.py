@@ -1,5 +1,5 @@
 import pytest
-from phase1.normalize import normalize_clip
+from creative_suite.engine.normalize import normalize_clip
 from pathlib import Path
 
 def test_normalize_produces_mp4(tmp_clip, cfg, tmp_path):

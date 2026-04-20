@@ -21,10 +21,10 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 PAK = Path(r"C:/Program Files (x86)/Steam/steamapps/common/Quake Live/baseq3/pak00.pk3")
-ROOT = Path(r"G:/QUAKE_LEGACY/phase1/sound_templates")
+ROOT = Path(r"G:/QUAKE_LEGACY/creative_suite/engine/sound_templates")
 RAW = ROOT / "raw"
-FFMPEG = Path(r"G:/QUAKE_LEGACY/tools/ffmpeg/ffmpeg.exe")
-FFPROBE = Path(r"G:/QUAKE_LEGACY/tools/ffmpeg/ffprobe.exe")
+FFMPEG = Path(r"G:/QUAKE_LEGACY/creative_suite/tools/ffmpeg/ffmpeg.exe")
+FFPROBE = Path(r"G:/QUAKE_LEGACY/creative_suite/tools/ffmpeg/ffprobe.exe")
 
 INVENTORY_TXT = ROOT / "pak00_sound_inventory.txt"
 MANIFEST_JSON = ROOT / "manifest.json"

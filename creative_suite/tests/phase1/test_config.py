@@ -1,4 +1,4 @@
-from phase1.config import Config
+from creative_suite.engine.config import Config
 from pathlib import Path
 
 def test_config_paths_exist():

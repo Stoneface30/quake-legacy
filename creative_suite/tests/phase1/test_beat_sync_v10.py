@@ -1,7 +1,7 @@
 """Unit tests for phase1.beat_sync v10 API."""
 from __future__ import annotations
 
-from phase1.beat_sync import plan_beat_cuts, ANTICIPATION_OFFSET
+from creative_suite.engine.beat_sync import plan_beat_cuts, ANTICIPATION_OFFSET
 
 
 def _structure_fixture():

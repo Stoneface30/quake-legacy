@@ -7,8 +7,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from phase1.audio_onsets import find_action_peak, find_action_peaks_per_clip
-from phase1.config import Config
+from creative_suite.engine.audio_onsets import find_action_peak, find_action_peaks_per_clip
+from creative_suite.engine.config import Config
 
 
 def _synth_click_wav(tmp: Path, click_time_s: float, duration: float = 3.0, sr: int = 48000) -> Path:

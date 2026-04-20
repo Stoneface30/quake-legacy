@@ -33,8 +33,8 @@ from typing import Any
 import numpy as np
 
 
-ROOT = Path(__file__).resolve().parent.parent
-MUSIC_DIR = ROOT / "phase1" / "music"
+ROOT = Path(__file__).resolve().parent.parent  # G:/QUAKE_LEGACY/creative_suite
+MUSIC_DIR = ROOT / "engine" / "music"
 STITCH_DIR = MUSIC_DIR / "_stitched"
 FFPROBE = ROOT / "tools" / "ffmpeg" / "ffprobe.exe"
 FFMPEG = ROOT / "tools" / "ffmpeg" / "ffmpeg.exe"
@@ -160,7 +160,7 @@ def _bpm_for_track(path: Path) -> float:
 def _phrase_boundaries_for_track(path: Path) -> list[float]:
     """Return phrase-level boundaries (seconds) — tries msaf then librosa."""
     try:
-        from phase1 import music_structure as _ms
+        from creative_suite.engine import music_structure as _ms
         structure = _ms.analyze_music(path)
         sections = structure.get("sections") or []
         return sorted({float(s["start"]) for s in sections} |

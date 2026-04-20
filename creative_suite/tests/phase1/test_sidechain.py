@@ -1,5 +1,5 @@
 """Unit tests for phase1.sidechain."""
-from phase1.sidechain import build_sidechain_filter_chain, _parse_integrated_lufs
+from creative_suite.engine.sidechain import build_sidechain_filter_chain, _parse_integrated_lufs
 
 
 def test_build_sidechain_filter_chain_structure():
@@ -28,7 +28,7 @@ def test_parse_integrated_lufs():
       I:   -14.3 LUFS
       Threshold: -24.3 LUFS
     """
-    from phase1.sidechain import _parse_integrated_lufs  # re-import for coverage
+    from creative_suite.engine.sidechain import _parse_integrated_lufs  # re-import for coverage
     assert _parse_integrated_lufs(stderr) == -14.3
 
 

@@ -1,6 +1,6 @@
 import pytest
 from pathlib import Path
-from phase1.clip_list import load_clip_list, generate_default_list, save_clip_list
+from creative_suite.engine.clip_list import load_clip_list, generate_default_list, save_clip_list
 
 def test_clip_list_loads_from_file(tmp_path, cfg):
     # Write a test clip list
@@ -26,7 +26,7 @@ def test_generate_default_list_creates_alphabetical(cfg, tmp_path):
 def test_clip_list_validate_warns_missing(cfg, tmp_path, capsys):
     f = tmp_path / "list.txt"
     f.write_text("NonExistent_Demo.avi\n")
-    from phase1.clip_list import validate_clip_list
+    from creative_suite.engine.clip_list import validate_clip_list
     missing = validate_clip_list(4, load_clip_list(f), cfg)
     assert len(missing) == 1
 

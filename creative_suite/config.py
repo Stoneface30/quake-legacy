@@ -5,6 +5,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+# creative_suite/ sub-dirs (moved here from repo root in Plan 1 Task 4)
+CS_ROOT = Path(__file__).resolve().parent
+TOOLS_ROOT = CS_ROOT / "tools"
+DATABASE_ROOT = CS_ROOT / "database"
 
 
 @dataclass(frozen=True)
@@ -17,7 +21,7 @@ class Config:
 
     @property
     def storage_root(self) -> Path:
-        return Path(os.environ.get("CS_STORAGE_ROOT", str(REPO_ROOT / "storage")))
+        return Path(os.environ.get("CS_STORAGE_ROOT", str(CS_ROOT / "storage")))
 
     @property
     def db_path(self) -> Path:
@@ -56,11 +60,11 @@ class Config:
 
     @property
     def full_catalog_json(self) -> Path:
-        return REPO_ROOT / "tools" / "game-assets" / "FULL_CATALOG.json"
+        return TOOLS_ROOT / "game-assets" / "FULL_CATALOG.json"
 
     @property
     def wolfcam_baseq3(self) -> Path:
-        return REPO_ROOT / "tools" / "wolfcamql" / "baseq3"
+        return TOOLS_ROOT / "wolfcamql" / "baseq3"
 
     def ensure_dirs(self) -> None:
         for p in (
