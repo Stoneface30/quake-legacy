@@ -13,6 +13,7 @@ export function renderFlow({ gridEl, flowPlan, onReorder, onClipOverride, onSeam
   flowPlan.clips.forEach((clip, idx) => {
     const card = document.createElement("div");
     card.className = "clip-card";
+    if (clip.override?.removed) card.dataset.removed = "1";
     card.draggable = true;
     card.dataset.idx = String(idx);
 
@@ -32,7 +33,27 @@ export function renderFlow({ gridEl, flowPlan, onReorder, onClipOverride, onSeam
     dur.className = "clip-dur";
     dur.textContent = `${(clip.duration ?? 0).toFixed(2)}s`;
 
-    card.append(pos, tier, name, dur);
+    // Tier 1: REMOVE / KEEP toggle. Stored as clip.override.removed.
+    // Wired through onClipOverride(clip, "removed", bool) → PUT /overrides.
+    const removeBtn = document.createElement("button");
+    removeBtn.type = "button";
+    removeBtn.className = "clip-remove-btn";
+    const syncRemoveLabel = () => {
+      const r = !!clip.override?.removed;
+      removeBtn.textContent = r ? "↻ KEEP" : "× REMOVE";
+      removeBtn.title = r ? "Restore this clip to the render" : "Drop from render";
+      card.dataset.removed = r ? "1" : "0";
+    };
+    removeBtn.addEventListener("click", (ev) => {
+      ev.stopPropagation();
+      const next = !clip.override?.removed;
+      clip.override = { ...(clip.override ?? {}), removed: next };
+      syncRemoveLabel();
+      onClipOverride?.(clip, "removed", next);
+    });
+    syncRemoveLabel();
+
+    card.append(pos, tier, name, dur, removeBtn);
 
     // Clip-reorder drag
     card.addEventListener("dragstart", (ev) => {

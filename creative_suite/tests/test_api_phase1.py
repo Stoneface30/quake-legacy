@@ -200,6 +200,50 @@ def test_put_then_get_overrides_roundtrips(
         assert rows[0]["slow"] == 0.5
 
 
+def test_put_overrides_accepts_removed_flag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Tier 1: UI sends {chunk, removed:true}; API persists it round-trippable."""
+    out = tmp_path / "output"
+    out.mkdir()
+    monkeypatch.setenv("CS_STORAGE_ROOT", str(tmp_path / "storage"))
+    monkeypatch.setenv("CS_PHASE1_OUTPUT_DIR", str(out))
+    with TestClient(create_app()) as c:
+        body = {"entries": [
+            {"chunk": "chunk_0014.mp4", "removed": True},
+            {"chunk": "chunk_0015.mp4", "removed": False, "slow": 0.5},
+        ]}
+        r = c.put("/api/phase1/parts/4/overrides", json=body)
+        assert r.status_code == 200
+        rows = c.get("/api/phase1/parts/4/overrides").json()
+        by_chunk = {row["chunk"]: row for row in rows}
+        assert by_chunk["chunk_0014.mp4"]["removed"] is True
+        assert by_chunk["chunk_0015.mp4"]["removed"] is False
+        assert by_chunk["chunk_0015.mp4"]["slow"] == 0.5
+
+
+def test_put_overrides_normalizes_chunk_to_basename(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Flow plan holds full paths; overrides file must store basename so the
+    render-side filter (phase1/clip_filter.py) can match by .name."""
+    out = tmp_path / "output"
+    out.mkdir()
+    monkeypatch.setenv("CS_STORAGE_ROOT", str(tmp_path / "storage"))
+    monkeypatch.setenv("CS_PHASE1_OUTPUT_DIR", str(out))
+    with TestClient(create_app()) as c:
+        body = {"entries": [
+            {"chunk": r"G:\QUAKE_LEGACY\output\_part05_v6_body_chunks\chunk_0014.mp4",
+             "removed": True},
+            {"chunk": "/abs/path/chunk_0015.mp4", "removed": True},
+        ]}
+        r = c.put("/api/phase1/parts/5/overrides", json=body)
+        assert r.status_code == 200
+        rows = c.get("/api/phase1/parts/5/overrides").json()
+        chunks = sorted(row["chunk"] for row in rows)
+        assert chunks == ["chunk_0014.mp4", "chunk_0015.mp4"]
+
+
 def test_preview_tier_a_enqueues_job(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -109,4 +109,57 @@ def _parse_silent_spans(stderr: str) -> List[Tuple[float, float]]:
     return spans
 
 
-__all__ = ["SilenceReport", "analyze_silence"]
+def measure_rms_profile(
+    clip_path: Path,
+    ffmpeg_bin: Path,
+    threshold_db: float = -14.0,
+    window_s: float = 0.5,
+) -> Tuple[float, float]:
+    """Audio-energy profile for Rule P1-V v2 loud-chaos auto-slowmo.
+
+    Returns (mean_rms_db, frac_loud), where frac_loud is the fraction of
+    windowed frames whose RMS exceeds `threshold_db`. Uses ffmpeg's
+    `astats` filter with `metadata=1` + a `ametadata=mode=print` trailer
+    so every window emits `lavfi.astats.Overall.RMS_level` to stderr.
+
+    Zero-raise: on any failure returns (mean=-99.0, frac=0.0) — caller
+    treats that as "no evidence of loud chaos, don't flip slow".
+    """
+    try:
+        cmd = [
+            str(ffmpeg_bin),
+            "-nostats", "-hide_banner",
+            "-i", str(clip_path),
+            "-af",
+            (f"asetnsamples=n={int(48000*window_s)}:p=0,"
+             f"astats=metadata=1:reset=1,"
+             f"ametadata=mode=print:key=lavfi.astats.Overall.RMS_level"),
+            "-f", "null", "-",
+        ]
+        result = subprocess.run(
+            cmd, capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
+        )
+    except Exception:
+        return -99.0, 0.0
+    stderr = result.stderr or ""
+    rms_vals: List[float] = []
+    for m in re.finditer(
+        r"lavfi\.astats\.Overall\.RMS_level=(-?\d+(?:\.\d+)?|-?inf)", stderr
+    ):
+        raw = m.group(1)
+        if raw in ("-inf", "inf"):
+            continue
+        try:
+            rms_vals.append(float(raw))
+        except ValueError:
+            continue
+    if not rms_vals:
+        return -99.0, 0.0
+    mean_db = sum(rms_vals) / len(rms_vals)
+    loud = sum(1 for v in rms_vals if v >= threshold_db)
+    frac_loud = loud / len(rms_vals)
+    return mean_db, frac_loud
+
+
+__all__ = ["SilenceReport", "analyze_silence", "measure_rms_profile"]
