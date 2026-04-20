@@ -63,12 +63,16 @@ def test_status_ok(client: TestClient) -> None:
 
 # ── test: /api/studio/parts ───────────────────────────────────────────────────
 
-def test_parts_returns_list_when_no_clip_lists(client: TestClient) -> None:
-    """With no real clip lists reachable from tmp_path, result is a list (may be non-empty
-    if the real clip_lists dir is reachable — we only assert type, not emptiness)."""
-    r = client.get("/api/studio/parts")
+def test_parts_returns_list_when_no_clip_lists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Patching clip_lists to a nonexistent dir guarantees an empty result."""
+    monkeypatch.setenv("CS_STORAGE_ROOT", str(tmp_path / "storage"))
+    monkeypatch.setattr(Config, "phase1_clip_lists", property(lambda _: tmp_path / "empty"))
+    c = TestClient(create_app())
+    r = c.get("/api/studio/parts")
     assert r.status_code == 200
-    assert isinstance(r.json(), list)
+    assert r.json() == []
 
 
 def test_parts_seeded_returns_correct_part(seeded_client: TestClient) -> None:

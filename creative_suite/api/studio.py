@@ -16,18 +16,11 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 
-from creative_suite.config import REPO_ROOT, CS_ROOT
-
 router = APIRouter(prefix="/api/studio", tags=["studio"])
 
 # ── helpers ──────────────────────────────────────────────────────────────────
 
 _PART_RE = re.compile(r"^part(\d{2})\.txt$")
-
-# Music lives in creative_suite/engine/music/ (confirmed from directory scan)
-_MUSIC_ROOT = CS_ROOT / "engine" / "music"
-_CLIP_LISTS_ROOT = CS_ROOT / "engine" / "clip_lists"
-_OUTPUT_ROOT = REPO_ROOT / "output"
 
 
 def _clip_lists_dir(request: Request) -> Path:
@@ -50,12 +43,12 @@ def _count_clips(path: Path) -> int:
     return count
 
 
-def _has_music(part: int) -> bool:
+def _has_music(part: int, music_root: Path) -> bool:
     """True if any partNN_music.* file exists in the music directory."""
-    nn = f"{part:02d}"
-    if not _MUSIC_ROOT.exists():
+    if not music_root.exists():
         return False
-    return any(_MUSIC_ROOT.glob(f"part{nn}_music*"))
+    nn = f"{part:02d}"
+    return any(music_root.glob(f"part{nn}_music*"))
 
 
 def _parse_tier(path: str) -> str:
@@ -68,9 +61,14 @@ def _parse_tier(path: str) -> str:
 
 
 def _is_fl(path: str) -> bool:
-    """True if path contains /FL/ or _FL (case-insensitive)."""
+    """True if path contains /FL/ directory or _FL suffix/segment (case-insensitive)."""
     upper = path.upper()
-    return "/FL/" in upper or "_FL" in upper
+    return (
+        "/FL/" in upper
+        or "_FL." in upper        # filename like frag_FL.avi
+        or "_FL_" in upper        # like frag_FL_001.avi
+        or upper.endswith("_FL")  # like frag_FL (no extension)
+    )
 
 
 def _parse_clip_line(raw: str, idx: int) -> dict[str, Any]:
@@ -97,6 +95,7 @@ def status() -> dict[str, str]:
 
 @router.get("/parts")
 def list_parts(request: Request) -> list[dict[str, Any]]:
+    cfg = request.app.state.cfg
     clip_lists = _clip_lists_dir(request)
     out = _output_dir(request)
 
@@ -124,7 +123,7 @@ def list_parts(request: Request) -> list[dict[str, Any]]:
             "part": part,
             "clip_count": _count_clips(f),
             "has_flow_plan": has_flow_plan,
-            "has_music": _has_music(part),
+            "has_music": _has_music(part, cfg.phase1_music_dir),
             "render_exists": render_exists,
         })
 
@@ -152,7 +151,7 @@ def get_clips(part_num: int, request: Request) -> dict[str, Any]:
 
 
 @router.get("/part/{part_num}/flow")
-def get_flow(part_num: int, request: Request) -> Any:
+def get_flow(part_num: int, request: Request) -> dict[str, Any]:
     out = _output_dir(request)
     nn = f"{part_num:02d}"
 

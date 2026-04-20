@@ -52,6 +52,10 @@ class Config:
         return REPO_ROOT / "creative_suite" / "engine" / "clip_lists"
 
     @property
+    def phase1_music_dir(self) -> Path:
+        return CS_ROOT / "engine" / "music"
+
+    @property
     def phase1_output_dir(self) -> Path:
         override = os.getenv("CS_PHASE1_OUTPUT_DIR")
         if override:
