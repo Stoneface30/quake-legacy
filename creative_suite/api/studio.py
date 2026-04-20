@@ -2,17 +2,19 @@
 """Studio router — /api/studio
 
 Serves metadata for the /studio editor UI:
-  GET /api/studio/status            health check
-  GET /api/studio/parts             list available parts with metadata
-  GET /api/studio/part/{n}/clips    clip list for a specific part
-  GET /api/studio/part/{n}/flow     flow_plan.json for a specific part
+  GET /api/studio/status                  health check
+  GET /api/studio/parts                   list available parts with metadata
+  GET /api/studio/part/{n}/clips          clip list for a specific part
+  GET /api/studio/part/{n}/flow           flow_plan.json for a specific part
+  GET /api/studio/part/{n}/music          music tracks + match % for a part
+  GET /api/studio/music/library           all music tracks across all parts
 """
 from __future__ import annotations
 
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -152,6 +154,117 @@ def get_clips(part_num: int, request: Request) -> dict[str, Any]:
 
 _VALID_PARTS = range(4, 13)  # parts 4-12 inclusive
 
+# ── music helpers ─────────────────────────────────────────────────────────────
+
+_MUSIC_EXTS = {".mp3", ".wav", ".ogg", ".flac", ".m4a"}
+
+# Matches: part04_music.mp3  part04_intro_music.wav  part04_outro_music.ogg
+# Also matches multi-numbered names like part04_music_01.mp3
+_MUSIC_FILE_RE = re.compile(
+    r"^part(\d{2})_(intro_music|outro_music|music)(?:_.+)?$",
+    re.IGNORECASE,
+)
+
+
+def _assign_role(stem: str) -> str:
+    """Return 'main', 'intro', or 'outro' for a music filename stem."""
+    lower = stem.lower()
+    if "intro_music" in lower:
+        return "intro"
+    if "outro_music" in lower:
+        return "outro"
+    return "main"
+
+
+def _get_track_duration(path: Path) -> Optional[float]:
+    """Return audio duration in seconds via mutagen, or None if unavailable."""
+    try:
+        from mutagen import File as MutagenFile  # type: ignore[import-untyped]
+
+        audio = MutagenFile(str(path))
+        if audio is not None and audio.info is not None:
+            return float(audio.info.length)
+    except Exception:
+        pass
+    return None
+
+
+def _get_body_duration(part: int, output_dir: Path) -> Optional[float]:
+    """Read body_duration from flow_plan.json if available."""
+    nn = f"{part:02d}"
+    candidates = [
+        output_dir / f"part{nn}_flow_plan.json",
+        output_dir / f"part{nn}" / "flow_plan.json",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            try:
+                data = json.loads(candidate.read_text(encoding="utf-8"))
+                val = data.get("body_duration")
+                if val is not None:
+                    return float(val)
+            except (OSError, ValueError, TypeError):
+                pass
+    return None
+
+
+def _build_track_entry(
+    f: Path,
+    part: int,
+    music_root: Path,
+    body_duration: Optional[float],
+) -> dict[str, Any]:
+    """Build a single track dict from a music file path."""
+    duration = _get_track_duration(f)
+
+    match_pct: Optional[float] = None
+    full_length_pct: Optional[float] = None
+    needs_truncation: Optional[bool] = None
+
+    if duration is not None and body_duration is not None and body_duration > 0:
+        from creative_suite.music_match import compute_match
+
+        m = compute_match(duration, body_duration)
+        match_pct = m["match_pct"]
+        full_length_pct = m["full_length_pct"]
+        needs_truncation = m["needs_truncation"]
+
+    rel = f.relative_to(music_root.parent.parent)  # relative to CS_ROOT parent
+
+    return {
+        "filename": f.name,
+        "role": _assign_role(f.stem),
+        "path": str(rel).replace("\\", "/"),
+        "duration_s": round(duration, 3) if duration is not None else None,
+        "match_pct": match_pct,
+        "full_length_pct": full_length_pct,
+        "needs_truncation": needs_truncation,
+    }
+
+
+def _scan_music_for_part(
+    part: int, music_root: Path, output_dir: Path
+) -> list[dict[str, Any]]:
+    """Return a list of track dicts for the given part number."""
+    if not music_root.exists():
+        return []
+
+    nn = f"{part:02d}"
+    body_duration = _get_body_duration(part, output_dir)
+    tracks: list[dict[str, Any]] = []
+
+    for f in sorted(music_root.iterdir()):
+        if f.suffix.lower() not in _MUSIC_EXTS:
+            continue
+        m = _MUSIC_FILE_RE.match(f.stem)
+        if not m:
+            continue
+        if int(m.group(1)) != part:
+            continue
+        tracks.append(_build_track_entry(f, part, music_root, body_duration))
+
+    return tracks
+
 
 @router.get("/part/{part_num}/beats")
 def get_beats(part_num: int, request: Request) -> dict[str, Any]:
@@ -212,3 +325,39 @@ def get_flow(part_num: int, request: Request) -> dict[str, Any]:
                 raise HTTPException(status_code=500, detail=f"Malformed flow plan: {exc}") from exc
 
     raise HTTPException(status_code=404, detail=f"No flow plan for part {part_num}")
+
+
+@router.get("/part/{part_num}/music")
+def get_music(part_num: int, request: Request) -> dict[str, Any]:
+    """Return music tracks and match % for a specific part.
+
+    Returns 404 for part numbers outside 4-12.
+    Returns 200 with empty tracks list if no music files are found.
+    """
+    if part_num not in _VALID_PARTS:
+        raise HTTPException(status_code=404, detail=f"Part {part_num} is not in range 4-12")
+
+    cfg = request.app.state.cfg
+    music_root: Path = cfg.phase1_music_dir
+    output_dir: Path = _output_dir(request)
+
+    tracks = _scan_music_for_part(part_num, music_root, output_dir)
+    return {"part": part_num, "tracks": tracks}
+
+
+@router.get("/music/library")
+def get_music_library(request: Request) -> list[dict[str, Any]]:
+    """Return all music tracks across all parts (flat list).
+
+    Each entry includes a `part` field.
+    """
+    cfg = request.app.state.cfg
+    music_root: Path = cfg.phase1_music_dir
+    output_dir: Path = _output_dir(request)
+
+    results: list[dict[str, Any]] = []
+    for part in _VALID_PARTS:
+        for track in _scan_music_for_part(part, music_root, output_dir):
+            track["part"] = part
+            results.append(track)
+    return results

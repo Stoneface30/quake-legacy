@@ -214,3 +214,116 @@ def test_flow_subdir_layout(
         r = c.get("/api/studio/part/8/flow")
     assert r.status_code == 200
     assert r.json()["notes"] == "subdir"
+
+
+# ── test: /api/studio/part/{n}/music ─────────────────────────────────────────
+
+def test_music_endpoint_valid_part(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Valid part with no music files returns 200 with empty tracks list."""
+    music_dir = tmp_path / "music"
+    music_dir.mkdir()
+    out_dir = tmp_path / "output"
+    out_dir.mkdir()
+
+    monkeypatch.setenv("CS_STORAGE_ROOT", str(tmp_path / "storage"))
+    monkeypatch.setattr(Config, "phase1_music_dir", property(lambda _: music_dir))
+    monkeypatch.setattr(Config, "phase1_output_dir", property(lambda _: out_dir))
+
+    c = TestClient(create_app())
+    r = c.get("/api/studio/part/4/music")
+    assert r.status_code == 200
+    data = r.json()
+    assert "tracks" in data
+    assert isinstance(data["tracks"], list)
+    assert data["part"] == 4
+
+
+def test_music_endpoint_valid_part_with_files(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Part with a real stub mp3 returns it in the tracks list with correct role."""
+    music_dir = tmp_path / "music"
+    music_dir.mkdir()
+    out_dir = tmp_path / "output"
+    out_dir.mkdir()
+
+    # Write a zero-byte placeholder — mutagen will fail gracefully (duration_s=None)
+    (music_dir / "part05_music_01.mp3").write_bytes(b"")
+    (music_dir / "part05_intro_music.mp3").write_bytes(b"")
+
+    monkeypatch.setenv("CS_STORAGE_ROOT", str(tmp_path / "storage"))
+    monkeypatch.setattr(Config, "phase1_music_dir", property(lambda _: music_dir))
+    monkeypatch.setattr(Config, "phase1_output_dir", property(lambda _: out_dir))
+
+    c = TestClient(create_app())
+    r = c.get("/api/studio/part/5/music")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["part"] == 5
+    assert len(data["tracks"]) == 2
+
+    roles = {t["filename"]: t["role"] for t in data["tracks"]}
+    assert roles["part05_music_01.mp3"] == "main"
+    assert roles["part05_intro_music.mp3"] == "intro"
+
+
+def test_music_endpoint_out_of_range(client: TestClient) -> None:
+    """Part number outside 4-12 returns 404."""
+    r = client.get("/api/studio/part/99/music")
+    assert r.status_code == 404
+
+    r = client.get("/api/studio/part/3/music")
+    assert r.status_code == 404
+
+
+# ── test: /api/studio/music/library ──────────────────────────────────────────
+
+def test_music_library_endpoint(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Library endpoint returns a flat list (possibly empty) with 200."""
+    music_dir = tmp_path / "music"
+    music_dir.mkdir()
+    out_dir = tmp_path / "output"
+    out_dir.mkdir()
+
+    monkeypatch.setenv("CS_STORAGE_ROOT", str(tmp_path / "storage"))
+    monkeypatch.setattr(Config, "phase1_music_dir", property(lambda _: music_dir))
+    monkeypatch.setattr(Config, "phase1_output_dir", property(lambda _: out_dir))
+
+    c = TestClient(create_app())
+    r = c.get("/api/studio/music/library")
+    assert r.status_code == 200
+    assert isinstance(r.json(), list)
+
+
+def test_music_library_includes_part_field(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each track in the library response includes a part field."""
+    music_dir = tmp_path / "music"
+    music_dir.mkdir()
+    out_dir = tmp_path / "output"
+    out_dir.mkdir()
+
+    # Write stubs for two parts
+    (music_dir / "part06_music_01.mp3").write_bytes(b"")
+    (music_dir / "part07_music_01.mp3").write_bytes(b"")
+
+    monkeypatch.setenv("CS_STORAGE_ROOT", str(tmp_path / "storage"))
+    monkeypatch.setattr(Config, "phase1_music_dir", property(lambda _: music_dir))
+    monkeypatch.setattr(Config, "phase1_output_dir", property(lambda _: out_dir))
+
+    c = TestClient(create_app())
+    r = c.get("/api/studio/music/library")
+    assert r.status_code == 200
+    data = r.json()
+    assert len(data) == 2
+    parts_seen = {t["part"] for t in data}
+    assert parts_seen == {6, 7}
+    for track in data:
+        assert "part" in track
+        assert "filename" in track
+        assert "role" in track
