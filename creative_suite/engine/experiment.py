@@ -30,8 +30,8 @@ from typing import List, Optional, Dict, Tuple
 if hasattr(sys.stdout, "reconfigure"):
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
-from phase1.config import Config
-from phase1.inventory import get_clip_info
+from creative_suite.engine.config import Config
+from creative_suite.engine.inventory import get_clip_info
 
 
 # ─── Clip scanning (handles all three tiers + root .avi AND subdir multi-angle) ─
@@ -448,7 +448,7 @@ def _emit_beat_plan(
     Returns the plan JSON path or None if no music / no beat grid available.
     """
     import json
-    from phase1.beat_sync import load_beat_grid, plan_beat_cuts
+    from creative_suite.engine.beat_sync import load_beat_grid, plan_beat_cuts
     music_path = cfg.music_path(part)
     if not music_path:
         return None
@@ -510,10 +510,10 @@ def render_experiment_preview(
     If beat_sync=True, also emits a beat-alignment plan JSON alongside the render
     (artifact only — does not trim clips; Rule P1-I Golden Rule scaffolding).
     """
-    from phase1.clip_list import parse_clip_entry, ClipEntry
-    from phase1.normalize import normalize_clip, slow_path
-    from phase1.pipeline import assemble_part, GradePreset, prepend_intro
-    from phase1.inventory import get_clip_info
+    from creative_suite.engine.clip_list import parse_clip_entry, ClipEntry
+    from creative_suite.engine.normalize import normalize_clip, slow_path
+    from creative_suite.engine.pipeline import assemble_part, GradePreset, prepend_intro
+    from creative_suite.engine.inventory import get_clip_info
 
     # Rule P1-C: always prepend PANTHEON intro. body_output = temp, output = final.
     body_output = cfg.preview_dir / f"Part{part}_style{style}_body.mp4"

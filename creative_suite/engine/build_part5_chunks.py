@@ -7,8 +7,8 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from phase1.config import Config
-from phase1.render_part_v6 import normalize_and_expand, build_body_chunks
+from creative_suite.engine.config import Config
+from creative_suite.engine.render_part_v6 import normalize_and_expand, build_body_chunks
 
 ROOT = Path("G:/QUAKE_LEGACY")
 

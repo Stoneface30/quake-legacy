@@ -22,7 +22,7 @@ import subprocess
 from pathlib import Path
 from typing import Iterable
 
-from phase1.config import Config
+from creative_suite.engine.config import Config
 
 
 LUFS_RE = re.compile(r"I:\s*(-?\d+(?:\.\d+)?)\s*LUFS")

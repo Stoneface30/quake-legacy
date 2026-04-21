@@ -237,7 +237,13 @@ def _build_track_entry(
 
     rel = f.relative_to(music_root.parent.parent)  # relative to CS_ROOT parent
 
+    title = f.stem.replace("_", " ").replace("-", " ").title()
+
     return {
+        "id": f.stem,
+        "title": title,
+        "bpm": None,
+        "duration_ms": round(duration * 1000) if duration is not None else None,
         "filename": f.name,
         "role": _assign_role(f.stem),
         "path": str(rel).replace("\\", "/"),

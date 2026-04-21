@@ -9,11 +9,14 @@ Funded tracks: FT-3 (3D intro lab), FT-1 (dm73 parser), P3-A/P3-B
 """
 from __future__ import annotations
 
+import asyncio
 import datetime
+import json
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from creative_suite.config import REPO_ROOT
@@ -116,6 +119,27 @@ def post_intro(req: IntroRequest) -> dict[str, Any]:
         "style": req.style,
         "duration_s": req.duration_s,
     }
+
+
+@router.get("/job/{job_id}/events")
+async def get_job_events(job_id: str) -> StreamingResponse:
+    """SSE stream for FORGE job progress. Stub: emits queued→running→complete."""
+    async def _stream():
+        stages = [
+            {"type": "queued",   "job_id": job_id, "progress": 0,   "message": "Job queued"},
+            {"type": "running",  "job_id": job_id, "progress": 10,  "message": "Initialising engine"},
+            {"type": "running",  "job_id": job_id, "progress": 50,  "message": "Processing (stub)"},
+            {"type": "complete", "job_id": job_id, "progress": 100, "message": "Done (stub — FORGE not yet implemented)"},
+        ]
+        for evt in stages:
+            yield f"data: {json.dumps(evt)}\n\n"
+            await asyncio.sleep(0.05)
+
+    return StreamingResponse(
+        _stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.post("/demo/extract")

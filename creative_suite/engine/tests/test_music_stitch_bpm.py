@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from phase1 import music_stitcher as ms
+from creative_suite.engine import music_stitcher as ms
 
 
 def test_classify_seam_overlap_8bar_when_bpm_close():

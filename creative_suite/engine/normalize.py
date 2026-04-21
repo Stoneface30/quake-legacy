@@ -18,7 +18,7 @@ from typing import List
 import os
 import subprocess
 from tqdm import tqdm
-from phase1.config import Config
+from creative_suite.engine.config import Config
 
 
 def _ffprobe_valid(p: Path, ffprobe_bin: Path) -> bool:

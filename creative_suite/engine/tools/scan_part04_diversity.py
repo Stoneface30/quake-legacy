@@ -14,7 +14,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from phase1.audio_onsets import (  # noqa: E402
+from creative_suite.engine.audio_onsets import (  # noqa: E402
     DEFAULT_CONF_THRESHOLD,
     EVENT_WEIGHTS,
     SoundLibrary,

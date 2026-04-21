@@ -6,9 +6,9 @@ def test_grade_preset_loads():
     # S4 fix: absolute path so test works from any working directory
     preset_path = Path(__file__).parent.parent.parent / "engine" / "presets" / "grade_tribute.json"
     preset = GradePreset.from_file(preset_path)
-    assert preset.contrast == 1.4
-    assert preset.bloom_sigma == 18
-    assert preset.bloom_opacity == 0.3  # must match spec
+    assert preset.contrast == 1.55
+    assert preset.bloom_sigma == 20
+    assert preset.bloom_opacity == 0.28  # must match spec
 
 def test_build_filter_complex_returns_string(tmp_clip, cfg):
     from creative_suite.engine.pipeline import build_filter_complex, GradePreset

@@ -33,12 +33,12 @@ if hasattr(sys.stdout, "reconfigure"):
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from phase1.config import Config
-from phase1.clip_list import parse_clip_entry, ClipEntry
-from phase1.normalize import normalize_clip, slow_path, zoom_path, speedup_path
-from phase1.pipeline import assemble_part, GradePreset, prepend_intro
-from phase1.experiment import scan_part_frags, FragClip, resolve_clip_path
-from phase1.inventory import get_clip_info
+from creative_suite.engine.config import Config
+from creative_suite.engine.clip_list import parse_clip_entry, ClipEntry
+from creative_suite.engine.normalize import normalize_clip, slow_path, zoom_path, speedup_path
+from creative_suite.engine.pipeline import assemble_part, GradePreset, prepend_intro
+from creative_suite.engine.experiment import scan_part_frags, FragClip, resolve_clip_path
+from creative_suite.engine.inventory import get_clip_info
 
 PART = 4
 

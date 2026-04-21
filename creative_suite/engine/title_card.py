@@ -25,15 +25,15 @@ from pathlib import Path
 from typing import Optional, Sequence
 import random
 
-from phase1.config import Config, ROOT
+from creative_suite.engine.config import Config, ROOT
 
 
 # ---------------------------------------------------------------------------
 # Font helpers
 # ---------------------------------------------------------------------------
 
-_DEFAULT_HERO_FONT = ROOT / "phase1" / "assets" / "fonts" / "BlackOpsOne-Regular.ttf"
-_SUBTITLE_FONT_DEFAULT = ROOT / "phase1" / "assets" / "fonts" / "BebasNeue-Regular.ttf"
+_DEFAULT_HERO_FONT = ROOT / "creative_suite" / "engine" / "assets" / "fonts" / "BlackOpsOne-Regular.ttf"
+_SUBTITLE_FONT_DEFAULT = ROOT / "creative_suite" / "engine" / "assets" / "fonts" / "BebasNeue-Regular.ttf"
 
 
 def _ffmpeg_escape_path(p: Path) -> str:
@@ -522,7 +522,7 @@ def _main() -> int:
 
     cfg = Config()
     out = args.out or (
-        ROOT / "phase1" / "assets"
+        ROOT / "creative_suite" / "engine" / "assets"
         / f"title_card_part{args.part:02d}_quake_smoke.mp4"
     )
     out.parent.mkdir(parents=True, exist_ok=True)

@@ -2,7 +2,7 @@
 from pathlib import Path
 from typing import Optional
 import subprocess
-from phase1.config import Config
+from creative_suite.engine.config import Config
 
 
 def prepend_intro(part_mp4: Path, cfg: Config, output_path: Optional[Path] = None) -> Path:
