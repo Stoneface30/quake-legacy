@@ -58,6 +58,7 @@
   }
 
   function mount(slot) {
+    _ollamaAvail = true;
     _slot = slot;
     var wrap = document.createElement('div'); wrap.className = 'list-panel';
     var bar = document.createElement('div'); bar.className = 'list-toolbar';
@@ -69,6 +70,7 @@
     fetch('/api/phase1/parts', { signal: AbortSignal.timeout(5000) })
       .then(function (r) { return r.ok ? r.json() : { parts: [] }; })
       .then(function (d) {
+        if (!_slot) return;
         var parts = d.parts || [];
         var clips = [];
         parts.forEach(function (p) {
@@ -86,6 +88,7 @@
         clips.forEach(function (clip) { scroll.appendChild(_buildRow(clip)); });
       })
       .catch(function () {
+        if (!_slot) return;
         var err = document.createElement('div');
         err.style.cssText = 'padding:20px 14px;color:#555;font-size:11px';
         err.textContent = 'Could not load parts \u2014 run extraction first.';

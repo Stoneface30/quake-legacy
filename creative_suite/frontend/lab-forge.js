@@ -9,6 +9,7 @@
     line.style.color = kind === 'err' ? '#ff6666' : kind === 'ok' ? '#9beab1' : '#888';
     line.style.fontSize = '11px';
     _logEl.appendChild(line);
+    while (_logEl.childNodes.length > 200) { _logEl.removeChild(_logEl.firstChild); }
     _logEl.scrollTop = _logEl.scrollHeight;
   }
 

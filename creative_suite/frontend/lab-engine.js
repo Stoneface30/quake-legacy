@@ -1,9 +1,7 @@
 (function (global) {
   'use strict';
-  var _slot = null;
 
   function mount(slot) {
-    _slot = slot;
     var wrap = document.createElement('div'); wrap.className = 'panel-iframe-wrap';
     var bar = document.createElement('div'); bar.className = 'panel-iframe-toolbar';
     var title = document.createElement('span'); title.className = 'panel-iframe-title'; title.textContent = 'ENGINE GRAPH';
@@ -22,7 +20,7 @@
     slot.replaceChildren(wrap);
   }
 
-  function unmount() { _slot = null; }
+  function unmount() {}
 
   global.LabEngine = { mount: mount, unmount: unmount };
 }(window));

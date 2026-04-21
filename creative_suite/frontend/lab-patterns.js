@@ -1,6 +1,6 @@
 (function (global) {
   'use strict';
-  var _list = null;
+  var _list = null, _unsub = null;
 
   function _renderList(patterns) {
     if (!_list) return;
@@ -74,9 +74,15 @@
     wrap.appendChild(bar); wrap.appendChild(scroll);
     slot.replaceChildren(wrap);
     _fetch();
+    if (global.StudioStore) {
+      _unsub = global.StudioStore.subscribe(function () { _fetch(); });
+    }
   }
 
-  function unmount() { _list = null; }
+  function unmount() {
+    if (_unsub) { _unsub(); _unsub = null; }
+    _list = null;
+  }
 
   global.LabPatterns = { mount: mount, unmount: unmount };
 }(window));
