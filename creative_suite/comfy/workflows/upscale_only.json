@@ -1,0 +1,27 @@
+{
+  "_template_version": "1",
+  "_description": "4x-UltraSharp upscale only — no diffusion, pure CNN upscaler",
+  "_placeholders": ["{{input_image}}"],
+  "1": {
+    "class_type": "LoadImage",
+    "inputs": { "image": "{{input_image}}" }
+  },
+  "2": {
+    "class_type": "UpscaleModelLoader",
+    "inputs": { "model_name": "4x-UltraSharp.pth" }
+  },
+  "3": {
+    "class_type": "ImageUpscaleWithModel",
+    "inputs": {
+      "upscale_model": ["2", 0],
+      "image": ["1", 0]
+    }
+  },
+  "4": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["3", 0],
+      "filename_prefix": "creative_suite/upscale"
+    }
+  }
+}

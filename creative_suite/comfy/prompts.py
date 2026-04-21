@@ -6,13 +6,15 @@ textarea (readonly) render the same string. Change here -> change everywhere.
 from __future__ import annotations
 
 PHOTOREAL_SEED_PROMPT = (
-    "photorealistic PBR material, 8k, physically based rendering, "
-    "tactile surface detail, no stylization,"
+    "photorealistic PBR material, 8k ultra detailed, physically based rendering, "
+    "real-world surface texture, subsurface scattering, micro detail, "
+    "sharp focus, high dynamic range, professional product photography"
 )
 
 PHOTOREAL_NEGATIVE_PROMPT = (
     "stylized, cartoon, anime, flat shading, low poly, low-resolution, "
-    "blurry, jpeg artifacts, text, watermark, signature"
+    "blurry, jpeg artifacts, text, watermark, signature, "
+    "painting, illustration, drawing, render, CGI, 3D render, video game"
 )
 
 

@@ -55,9 +55,10 @@ def substitute_placeholders(
         return node
 
     graph = copy.deepcopy(dict(workflow))
-    # Strip template-only keys before send
-    for meta in ("_template_version", "_placeholders"):
-        graph.pop(meta, None)
+    # Strip all template-only keys (anything starting with _) before send
+    for key in list(graph.keys()):
+        if key.startswith("_"):
+            graph.pop(key)
     return walk(graph)  # type: ignore[no-any-return]
 
 
@@ -135,19 +136,23 @@ class ComfyClient:
         seed: int,
         denoise: float = 0.35,
         negative_prompt: str = DEFAULT_NEGATIVE,
+        extra: Mapping[str, Any] | None = None,
     ) -> str:
-        """Upload image, substitute placeholders, queue prompt. Returns job_id."""
+        """Upload image, substitute placeholders, queue prompt. Returns job_id.
+
+        Pass `extra` for workflow-specific tokens such as lora_name / lora_strength.
+        """
         uploaded_name = self.upload_image(input_image_path)
-        graph = substitute_placeholders(
-            workflow,
-            {
-                "input_image": uploaded_name,
-                "prompt": prompt,
-                "negative_prompt": negative_prompt,
-                "seed": _coerce("seed", str(seed)),
-                "denoise": _coerce("denoise", str(denoise)),
-            },
-        )
+        placeholders: dict[str, Any] = {
+            "input_image": uploaded_name,
+            "prompt": prompt,
+            "negative_prompt": negative_prompt,
+            "seed": _coerce("seed", str(seed)),
+            "denoise": _coerce("denoise", str(denoise)),
+        }
+        if extra:
+            placeholders.update(extra)
+        graph = substitute_placeholders(workflow, placeholders)
         return self.queue_prompt(graph)
 
     def output_filenames(self, prompt_id: str) -> list[dict[str, str]]:

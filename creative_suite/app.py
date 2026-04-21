@@ -109,6 +109,15 @@ def create_app() -> FastAPI:
     def studio_page() -> FileResponse:  # pyright: ignore[reportUnusedFunction]
         return FileResponse(FRONTEND_ROOT / "studio.html")
 
+    PHOTOREAL_DIR = Path(__file__).parent / "comfy" / "photoreal"
+
+    @app.get("/gallery")
+    def gallery_page() -> FileResponse:  # pyright: ignore[reportUnusedFunction]
+        return FileResponse(PHOTOREAL_DIR / "gallery.html")
+
+    if PHOTOREAL_DIR.exists():
+        app.mount("/photoreal", StaticFiles(directory=str(PHOTOREAL_DIR)), name="photoreal")
+
     if WEB_ROOT.exists():
         app.mount("/web", StaticFiles(directory=str(WEB_ROOT)), name="web")
     if cfg.phase1_output_dir.exists():

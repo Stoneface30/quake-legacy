@@ -136,6 +136,21 @@ def queue_variant(req: QueueRequest, request: Request) -> QueueResponse:
     )
 
 
+@router.get("/status")
+def get_queue_status(request: Request) -> dict[str, Any]:
+    """Return current ComfyUI queue depth — used by the Textures panel status dot."""
+    comfy = _get_comfy_client(request.app.state)
+    try:
+        r = comfy._http.get("/queue", timeout=3.0)
+        r.raise_for_status()
+        data = r.json()
+        running = len(data.get("queue_running", []))
+        pending = len(data.get("queue_pending", []))
+        return {"queue_remaining": running + pending, "running": running, "pending": pending}
+    except Exception as exc:
+        raise HTTPException(503, f"ComfyUI unreachable: {exc}") from exc
+
+
 @router.get("/status/{variant_id}")
 def get_status(variant_id: int, request: Request) -> dict[str, Any]:
     cfg = request.app.state.cfg

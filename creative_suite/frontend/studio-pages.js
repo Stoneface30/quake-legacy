@@ -28,6 +28,7 @@
     audio:     function () { return global.StudioAudio;     },
     effects:   function () { return global.StudioEffects;   },
     inspector: function () { return global.StudioInspector; },
+    textures:  function () { return global.StudioTextures;  },
   };
 
   // ── Private state ────────────────────────────────────────────────────────────

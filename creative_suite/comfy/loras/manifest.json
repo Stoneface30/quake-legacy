@@ -1,0 +1,105 @@
+{
+  "_doc": "QUAKE LEGACY LoRA manifest. All SDXL. All HuggingFace — no auth required.",
+  "_workflow": "creative_suite/comfy/workflows/tile_sdxl_lora.json",
+  "_base_model": "juggernautXL_ragnarokBy.safetensors",
+  "_denoise_sweet_spot": "0.35–0.50 (ControlNet keeps structure, LoRA bends style)",
+
+  "styles": {
+    "photoreal_boost": {
+      "status": "DOWNLOADED",
+      "filename": "sdxl_photorealistic_slider_v1-0.safetensors",
+      "hf_repo": "ostris/photorealistic-slider-sdxl-lora",
+      "trigger": "",
+      "strength": 0.7,
+      "prompt_prefix": "photorealistic, ultra detailed, physically based rendering, 8k,",
+      "description": "Pushes SDXL output toward photorealism. Subtle at 0.5, strong at 0.8.",
+      "best_for": ["players", "weapons2", "textures"]
+    },
+
+    "extremely_detailed": {
+      "status": "DOWNLOAD_NEEDED",
+      "filename": "extremely detailed.safetensors",
+      "hf_repo": "ntc-ai/SDXL-LoRA-slider.extremely-detailed",
+      "trigger": "extremely detailed,",
+      "strength": 1.5,
+      "prompt_prefix": "extremely detailed, sharp focus, micro detail, fine texture,",
+      "description": "Detail slider — face pores, skin texture, surface micro-detail. Strength -3 to +3.",
+      "best_for": ["players"],
+      "notes": "Use at 1.0–2.0 for face textures. Stack with photoreal_boost for maximum skin realism."
+    },
+
+    "cel_shade": {
+      "status": "DOWNLOADED",
+      "filename": "NeonifyV2-4Extreme.safetensors",
+      "hf_repo": "cocktailpeanut/neonify",
+      "trigger": "neon cel shading, cel shaded, neon realism,",
+      "strength": 0.65,
+      "prompt_prefix": "cel shading, neon realism, bold outlines, vibrant colors, game art,",
+      "negative_suffix": "photorealistic, hyperrealistic,",
+      "description": "Neonify SDXL v2.3 — cel shading + neon realism. Great for mapobjects and player models.",
+      "best_for": ["players", "weapons2", "mapobjects"],
+      "notes": "Start at strength=0.5, go to 0.8 for strong cartoon. 3.6GB — loaded on demand."
+    },
+
+    "retro_quake": {
+      "status": "TRAIN_NEEDED",
+      "filename": "quake_retro_style_sdxl.safetensors",
+      "hf_repo": null,
+      "trigger": "quake retro, id software style, 90s fps,",
+      "strength": 0.7,
+      "prompt_prefix": "quake retro aesthetic, id software, 90s fps game, grungy metal, dark industrial,",
+      "description": "Custom LoRA — needs training on pak00 corpus. ~2000 image pairs on pak00 originals.",
+      "best_for": ["textures", "mapobjects", "players"]
+    },
+
+    "painterly": {
+      "status": "DOWNLOAD_NEEDED",
+      "filename": "painterly_style_sdxl.safetensors",
+      "hf_repo": "search:huggingface.co painterly oil painting SDXL LoRA",
+      "trigger": "oil painting, painterly,",
+      "strength": 0.6,
+      "prompt_prefix": "oil painting, brush strokes, painterly, textured canvas,",
+      "description": "Painterly / oil painting style. Good for mapobjects and wall textures.",
+      "best_for": ["textures", "mapobjects"]
+    },
+
+    "anime": {
+      "status": "DOWNLOAD_NEEDED",
+      "filename": "anime_style_sdxl.safetensors",
+      "hf_repo": "search:huggingface.co anime cel SDXL LoRA",
+      "trigger": "anime, manga style,",
+      "strength": 0.75,
+      "prompt_prefix": "anime style, manga, clean line art, vibrant, flat cel shading,",
+      "description": "Anime/manga conversion. Fun for player skins.",
+      "best_for": ["players", "weapons2"]
+    }
+  },
+
+  "download_instructions": {
+    "method": "All downloads from HuggingFace — no auth required",
+    "script": "python -u creative_suite/comfy/download_loras.py",
+    "manual": "Download .safetensors files to E:\\PersonalAI\\ComfyUI\\models\\loras\\",
+    "restart_required": "Restart ComfyUI after adding new LoRA files"
+  },
+
+  "pipeline_combos": {
+    "players_photoreal": {
+      "workflow": "tile_sdxl_lora.json",
+      "lora": "extremely_detailed",
+      "denoise": 0.35,
+      "categories": ["players"]
+    },
+    "players_cel_shade": {
+      "workflow": "tile_sdxl_lora.json",
+      "lora": "cel_shade",
+      "denoise": 0.45,
+      "categories": ["players", "weapons2"]
+    },
+    "textures_painterly": {
+      "workflow": "tile_sdxl_lora.json",
+      "lora": "painterly",
+      "denoise": 0.50,
+      "categories": ["textures", "mapobjects"]
+    }
+  }
+}
