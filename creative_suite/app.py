@@ -20,6 +20,8 @@ _ENGINE_GRAPH_DIR = Path(__file__).parent.parent / "engine" / "graphify-out"
 def create_app() -> FastAPI:
     cfg = Config()
     migrate(cfg)
+    from creative_suite.database.nle_db import init_db as _nle_init
+    _nle_init(cfg.nle_db_path)
     app = FastAPI(title="Creative Suite v2", version=VERSION)
     app.state.cfg = cfg
 

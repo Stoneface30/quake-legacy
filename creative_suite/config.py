@@ -32,6 +32,10 @@ class Config:
         return self.storage_root / "creative_suite.db"
 
     @property
+    def nle_db_path(self) -> Path:
+        return DATABASE_ROOT / "studio_nle.db"
+
+    @property
     def annotations_dir(self) -> Path:
         return self.storage_root / "annotations"
 
