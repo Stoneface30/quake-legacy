@@ -443,6 +443,74 @@ Once the system works for this project, it becomes a public CLI:
 Document EVERYTHING as we go. All RE findings, all binary format work, all camera math.
 The community will build on this. The Q3 engine is open source — this is the gift back.
 
+## ComfyUI Photoreal Pipeline (Phase 5)
+
+### HARD RULES — never violate these
+
+#### Rule PH5-1: Correct pipeline is Upscale + ControlNet-Tile (NOT plain img2img)
+- **WRONG**: plain SDXL img2img (destroys UV texture layout at any denoise > 0.10)
+- **CORRECT**: `4x-UltraSharp` upscale → `dreamshaper_8` SD1.5 + `control_v11f1e_sd15_tile` ControlNet-Tile
+- Workflow files: `creative_suite/comfy/workflows/upscale_only.json` + `tile_controlnet_sd15.json`
+- `RealVisXL_V5.0_fp16.safetensors` is SDXL — **incompatible with SD1.5 Tile ControlNet**. Do NOT pair them.
+
+#### Rule PH5-2: Models on disk (verified 2026-04-21)
+| Model | Path | Purpose |
+|---|---|---|
+| `RealVisXL_V5.0_fp16.safetensors` | `quake_legacy checkpoints/` | SDXL plain img2img only |
+| `dreamshaper_8.safetensors` | `ComfyUI/models/checkpoints/` | SD1.5 — pairs with Tile ControlNet |
+| `control_v11f1e_sd15_tile.pth` | `ComfyUI/models/controlnet/` | SD1.5 Tile ControlNet |
+| `4x-UltraSharp.pth` | `ComfyUI/models/upscale_models/` | CNN upscaler (no diffusion) |
+
+#### Rule PH5-3: Scope is 107 weapon/HUD textures, NOT all pak00
+- Phase 5 target: `creative_suite/comfy/photoreal/assets/phase5_png/` (107 files)
+- Full pak00 (6,190 files) is for archival extraction only — NOT for bulk img2img
+- UV body sheets, icons, sprites, gfx tiles: do NOT run diffusion on these (content destroyed)
+- Face textures (`*_h.png`), mapobjects, wall textures, weapon surfaces: diffusion-viable
+
+#### Rule PH5-4: E2E test before ANY batch run
+- Script: `creative_suite/comfy/photoreal_e2e_test.py`
+- Output: `creative_suite/comfy/photoreal/e2e/index.html`
+- Must show before/after for all 11 categories. User approves per-category pipeline before batch starts.
+
+#### Rule PH5-5: ComfyUI launch requires WorkingDirectory
+- `Start-Process "E:\PersonalAI\run_comfyui_api.bat" -WorkingDirectory "E:\PersonalAI"`
+- Without `-WorkingDirectory`, `cd ComfyUI` in the bat fails silently and ComfyUI never starts.
+
+#### Rule PH5-6: Batch script is resumable — log must work
+- Use `python -u script.py > run.log 2>&1` (CMD direct redirect, NOT PowerShell Tee-Object)
+- `Tee-Object` piped from a bat child process produces empty log files
+- Launcher: `creative_suite/comfy/photoreal/launch.bat`
+
+#### Rule PH5-7: E2E-validated category routing (2026-04-21)
+- **SURFACE** (upscale_only + all tile_d* pipelines): `players`, `weapons2`, `textures`, `phase5`
+- **FX / shape-critical** (upscale_only ONLY — diffusion destroys these): `weaphits`, `gfx`, `icons`, `ui`, `wolfcam_hud`, `powerups`, `mapobjects`, `sprites`
+- Auto-detect unknown: black-pixel ratio >70% → FX, else SURFACE
+- UV sheets: tile_d35 max — d50+ destroys UV layout
+- Face textures (`*_h.png`): tile_d35 sweet spot, d50 acceptable
+- Wall textures: upscale_only wins (CNN alone is photorealistic on Quake geometry)
+
+#### Rule PH5-8: Multi-pipeline output structure
+- All outputs live in `photoreal/pipelines/{pipeline_name}/{rel_path}.png`
+- All renders logged in `photoreal/assets.db` (SQLite, tables: assets + renders)
+- Pipeline names: `upscale_only`, `tile_d35`, `tile_d50`, `tile_d60`, `tile_d70`, `tile_d80`
+- d60/d70/d80 are experimental — FX artifacts expected, kept for UI experimentation
+- CLI: `python -u creative_suite/comfy/full_overnight.py --categories players --pipelines tile_d35 tile_d50`
+
+#### Rule PH5-9: Style LoRA suite
+- Base model: `juggernautXL_ragnarokBy.safetensors` (SDXL)
+- Workflow: `creative_suite/comfy/workflows/tile_sdxl_lora.json` (LoraLoader between checkpoint and KSampler)
+- Manifest: `creative_suite/comfy/loras/manifest.json` — 6 styles documented
+- Downloaded: `NeonifyV2-4Extreme.safetensors` (cel shade, 1.8GB), `sdxl_photorealistic_slider_v1-0.safetensors` (24MB)
+- Needs API token: `Photov3-000008.safetensors` (PhotorealTouch v3, 223MB) — `python download_loras.py --token YOUR_KEY`
+- LoRA strength sweet spot: 0.5–0.8 with tile ControlNet at denoise=0.35–0.45
+- Retro Quake LoRA: needs custom training on pak00 corpus (TRAIN_NEEDED in manifest)
+
+#### Rule PH5-10: ComfyUI node prerequisites
+- `TTPlanet_TileGF_Preprocessor` is MANDATORY for tile workflows — without it ControlNet hallucinates at any denoise > 0.30
+- Source: ComfyUI-TTPLanet_Tile_Preprocessor (git clone into ComfyUI/custom_nodes/)
+- Verification script: `creative_suite/comfy/verify_comfyui.py` — run before any batch; checks nodes + models + workflows + scripts
+- After adding new LoRA files: ComfyUI must be restarted to scan models directory
+
 ## Cross-Domain Learning Store
 
 All work writes learnings to: `G:\QUAKE_LEGACY\creative_suite\database\knowledge.db`

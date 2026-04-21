@@ -55,9 +55,10 @@ def substitute_placeholders(
         return node
 
     graph = copy.deepcopy(dict(workflow))
-    # Strip template-only keys before send
-    for meta in ("_template_version", "_placeholders"):
-        graph.pop(meta, None)
+    # Strip all template-only keys (anything starting with _) before send
+    for key in list(graph.keys()):
+        if key.startswith("_"):
+            graph.pop(key)
     return walk(graph)  # type: ignore[no-any-return]
 
 

@@ -1,0 +1,123 @@
+{
+  "_doc": "QUAKE LEGACY LoRA manifest. All SDXL. Download to E:\\PersonalAI\\ComfyUI\\models\\loras\\",
+  "_workflow": "creative_suite/comfy/workflows/tile_sdxl_lora.json",
+  "_base_model": "juggernautXL_ragnarokBy.safetensors",
+  "_denoise_sweet_spot": "0.35–0.50 (ControlNet keeps structure, LoRA adds style)",
+
+  "styles": {
+    "photoreal_boost": {
+      "status": "DOWNLOAD_NEEDED",
+      "filename": "photorealistic_slider_sdxl.safetensors",
+      "trigger": "",
+      "strength": 0.7,
+      "prompt_prefix": "photorealistic, ultra detailed, physically based rendering, 8k,",
+      "description": "Pushes SDXL output toward photorealism. Stack on top of tile_d35.",
+      "source": "https://civitai.com/models/117060",
+      "civitai_model_id": 117060,
+      "notes": "Subtle at 0.5, strong at 0.8. Combine with tile_d35 for clean PBR upgrade."
+    },
+
+    "cel_shade": {
+      "status": "DOWNLOAD_NEEDED",
+      "filename": "neonify_sdxl_v23.safetensors",
+      "trigger": "neon cel shading, cel shaded, neon realism,",
+      "strength": 0.65,
+      "prompt_prefix": "cel shading, neon realism, bold outlines, vibrant colors, game art,",
+      "negative_suffix": "photorealistic, hyperrealistic,",
+      "description": "Neonify SDXL — cel shading + neon realism. 5 LoRA levels, v2.3 extreme.",
+      "source": "https://civitai.com/models/124201",
+      "civitai_model_id": 124201,
+      "notes": "Start at strength=0.5 (vanilla neon), go to 0.9 for max cartoon. Great for mapobjects and player models."
+    },
+
+    "cartoon": {
+      "status": "DOWNLOAD_NEEDED",
+      "filename": "cel_shading_style_sdxl.safetensors",
+      "trigger": "cel shading,",
+      "strength": 0.85,
+      "prompt_prefix": "cel shading, cartoon, flat shading, bold outline, stylized game art,",
+      "negative_suffix": "realistic, photographic, noisy,",
+      "description": "CGI anime / cartoon cel shading. Strong at 0.85. Trigger: 'cel shading'.",
+      "source": "https://civitai.com/models/909778",
+      "civitai_model_id": 909778,
+      "notes": "Works well for players and weapons. Icons and sprites may over-stylize — use upscale_only for those."
+    },
+
+    "photoreal_touch": {
+      "status": "DOWNLOAD_NEEDED",
+      "filename": "photorealktouch_sdxl_v3.safetensors",
+      "trigger": "",
+      "strength": 0.7,
+      "prompt_prefix": "photorealistic, skin detail, pore detail, subsurface scattering,",
+      "description": "PhotorealTouch v3 — face/skin specialist. Best for player head textures.",
+      "source": "https://tensor.art/models/859370668192443725",
+      "notes": "Ideal for player_face category at d=0.35. Combine with tile_sdxl_lora.json."
+    },
+
+    "retro_quake": {
+      "status": "TRAIN_NEEDED",
+      "filename": "quake_retro_style_sdxl.safetensors",
+      "trigger": "quake retro, id software style, 90s fps,",
+      "strength": 0.7,
+      "prompt_prefix": "quake retro aesthetic, id software, 90s fps game, grungy metal, dark industrial,",
+      "description": "Custom LoRA — needs training on Quake/DOOM asset corpus. Not yet available.",
+      "source": null,
+      "notes": "Train on pak00 originals + reference Q3A screenshots. ~2000 image pairs. Future work."
+    },
+
+    "painterly": {
+      "status": "DOWNLOAD_NEEDED",
+      "filename": "painterly_style_sdxl.safetensors",
+      "trigger": "oil painting, painterly,",
+      "strength": 0.6,
+      "prompt_prefix": "oil painting, brush strokes, painterly, textured canvas, artstation,",
+      "description": "Painterly / oil painting style. Good for mapobjects and wall textures.",
+      "source": "Search civitai.com for 'painterly SDXL LoRA' — multiple options",
+      "notes": "Try at denoise=0.50 with tile ControlNet for texture-detail maps."
+    },
+
+    "anime": {
+      "status": "DOWNLOAD_NEEDED",
+      "filename": "anime_style_sdxl.safetensors",
+      "trigger": "anime, manga style,",
+      "strength": 0.75,
+      "prompt_prefix": "anime style, manga, clean line art, vibrant, flat cel shading,",
+      "description": "Anime/manga conversion. Fun experiment for player skins.",
+      "source": "Search civitai.com for 'anime SDXL LoRA' — many options (Pastel Anime, etc.)",
+      "notes": "Use at d=0.40–0.50 with tile ControlNet for anime player skins."
+    }
+  },
+
+  "download_instructions": {
+    "civitai": "Browse to civitai_model_id URL, click Download, save .safetensors to E:\\PersonalAI\\ComfyUI\\models\\loras\\",
+    "huggingface": "Use download_controlnet.py as template, change URL and DEST path.",
+    "restart_required": "Restart ComfyUI after adding new LoRA files for them to appear in LoraLoader dropdown."
+  },
+
+  "pipeline_combos": {
+    "players_photoreal": {
+      "workflow": "tile_sdxl_lora.json",
+      "lora": "photoreal_touch",
+      "denoise": 0.35,
+      "categories": ["players"]
+    },
+    "players_cel_shade": {
+      "workflow": "tile_sdxl_lora.json",
+      "lora": "cel_shade",
+      "denoise": 0.45,
+      "categories": ["players", "weapons2"]
+    },
+    "textures_painterly": {
+      "workflow": "tile_sdxl_lora.json",
+      "lora": "painterly",
+      "denoise": 0.50,
+      "categories": ["textures", "mapobjects"]
+    },
+    "everything_anime": {
+      "workflow": "tile_sdxl_lora.json",
+      "lora": "anime",
+      "denoise": 0.45,
+      "categories": ["players", "weapons2", "textures"]
+    }
+  }
+}
