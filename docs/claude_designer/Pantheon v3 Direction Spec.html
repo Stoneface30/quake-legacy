@@ -1,0 +1,1032 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>PANTHEON v3 — Direction Spec</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* ── Pantheon v3 canonical tokens ────────────────────── */
+    --p-gold:       #e8b923;  /* THE hybrid gold — one true accent */
+    --p-gold-hi:    #ffd340;
+    --p-gold-dim:   #b58d15;
+    --p-gold-glo:   rgba(232,185,35,.14);
+    --p-gold-glo2:  rgba(232,185,35,.06);
+
+    --p-blue:       #1a3e9a;
+    --p-blue-hi:    #2a5acc;
+    --p-blue-deep:  #081540;
+    --p-blue-dim:   #0d2060;
+
+    --p-amber:      #e68a00;  /* NEW warning tier */
+    --p-red:        #c41515;
+    --p-green:      #1e8449;  /* NEW LED-ok */
+
+    --p-bg:         #040610;
+    --p-surface:    #0a0e1e;
+    --p-surface2:   #0f1430;
+    --p-border:     #1a2245;
+    --p-border-hi:  #243063;
+
+    --p-text:       #e8eef8;
+    --p-text-dim:   #8090b8;
+    --p-text-mute:  #5a6890;  /* raised for AA compliance */
+
+    --font-data:    'IBM Plex Mono', ui-monospace, monospace;
+    --font-display: 'Bebas Neue', sans-serif;
+  }
+
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--p-bg);color:var(--p-text);font-family:var(--font-data);font-size:13px;line-height:1.55}
+  body{
+    background:
+      radial-gradient(ellipse 60% 40% at 0% 0%, rgba(232,185,35,.05), transparent 55%),
+      radial-gradient(ellipse 50% 60% at 100% 100%, rgba(13,32,96,.5), transparent 70%),
+      var(--p-bg);
+    min-height:100vh;padding:0 0 120px;
+  }
+  body::after{
+    content:'';position:fixed;inset:0;pointer-events:none;z-index:200;
+    background:repeating-linear-gradient(to bottom,transparent 0,transparent 2px,rgba(0,0,0,.05) 2px,rgba(0,0,0,.05) 3px);
+  }
+
+  /* ── header ── */
+  header.top{position:sticky;top:0;z-index:50;background:#030612;border-bottom:1px solid var(--p-gold);box-shadow:0 2px 0 var(--p-gold-glo),0 6px 30px rgba(0,0,0,.6)}
+  .top-inner{max-width:1240px;margin:0 auto;padding:14px 28px;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap}
+  .top h1{font-family:var(--font-display);font-weight:400;font-size:32px;letter-spacing:.24em;color:var(--p-gold);text-shadow:0 0 18px var(--p-gold-glo)}
+  .top .div{color:var(--p-blue-hi);opacity:.7}
+  .top .sub{font-size:10px;letter-spacing:.28em;color:var(--p-text-dim);text-transform:uppercase}
+  .top .meta{margin-left:auto;font-size:10px;color:var(--p-text-mute);letter-spacing:.16em}
+
+  main{max-width:1240px;margin:0 auto;padding:48px 28px 0;display:grid;grid-template-columns:220px 1fr;gap:48px}
+  @media(max-width:900px){main{grid-template-columns:1fr;gap:24px;padding-top:24px}}
+
+  nav.toc{position:sticky;top:88px;align-self:start;font-size:11px;letter-spacing:.12em}
+  nav.toc h4{font-size:9px;letter-spacing:.3em;color:var(--p-text-mute);margin-bottom:10px;text-transform:uppercase}
+  nav.toc ol{list-style:none;counter-reset:tocc;display:flex;flex-direction:column;gap:4px}
+  nav.toc li{counter-increment:tocc}
+  nav.toc a{display:block;padding:5px 0 5px 26px;position:relative;color:var(--p-text-dim);text-decoration:none;border-left:1px solid var(--p-border);transition:color .12s,border-color .12s}
+  nav.toc a::before{content:counter(tocc,decimal-leading-zero);position:absolute;left:6px;top:5px;font-size:9px;color:var(--p-text-mute)}
+  nav.toc a:hover{color:var(--p-gold);border-left-color:var(--p-gold)}
+
+  article{min-width:0}
+
+  section{margin-bottom:64px;scroll-margin-top:88px}
+  .hdr-row{display:flex;align-items:flex-end;gap:14px;border-bottom:1px solid var(--p-border);padding-bottom:10px;margin-bottom:22px}
+  .hdr-num{font-family:var(--font-display);font-size:44px;letter-spacing:.08em;color:var(--p-gold);line-height:.9}
+  .hdr-title{font-family:var(--font-display);font-size:26px;letter-spacing:.14em;color:var(--p-text);line-height:1}
+  .hdr-tag{margin-left:auto;font-size:9px;letter-spacing:.22em;color:var(--p-text-mute)}
+
+  .lead{color:var(--p-text-dim);margin-bottom:22px;max-width:65ch}
+
+  h3.sub{font-family:var(--font-display);font-size:18px;letter-spacing:.14em;color:var(--p-text);margin:28px 0 12px;padding-bottom:6px;border-bottom:1px dashed var(--p-border)}
+  h4.mini{font-size:10px;letter-spacing:.22em;color:var(--p-gold-dim);margin:18px 0 8px;text-transform:uppercase}
+
+  p + p{margin-top:10px}
+  p{color:var(--p-text-dim);max-width:70ch}
+  p em{color:var(--p-text);font-style:normal;background:rgba(232,185,35,.07);padding:0 3px}
+  code{background:var(--p-surface2);color:var(--p-gold-dim);padding:1px 6px;border:1px solid var(--p-border);font-size:11px}
+
+  /* code block */
+  pre.code{background:#02040c;border:1px solid var(--p-border);border-left:2px solid var(--p-gold);padding:14px 16px;margin:12px 0;overflow-x:auto;font-size:11px;line-height:1.65;color:var(--p-text)}
+  pre.code .c{color:var(--p-text-mute)}
+  pre.code .k{color:var(--p-gold)}
+  pre.code .v{color:#a8b8e8}
+  pre.code .s{color:#8090b8}
+
+  /* callout */
+  .callout{background:linear-gradient(180deg,rgba(13,32,96,.25),rgba(13,32,96,0));border:1px solid var(--p-border);border-left:3px solid var(--p-gold);padding:16px 20px;margin:14px 0}
+  .callout h5{font-family:var(--font-display);font-size:14px;letter-spacing:.12em;color:var(--p-gold);margin-bottom:6px}
+  .callout.warn{border-left-color:var(--p-amber)}
+  .callout.warn h5{color:var(--p-amber)}
+
+  /* swatches */
+  .swatch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin:14px 0}
+  .sw{display:flex;flex-direction:column;gap:0;border:1px solid var(--p-border);overflow:hidden}
+  .sw .chip{height:64px}
+  .sw .meta{padding:6px 8px;font-size:10px;color:var(--p-text-dim);letter-spacing:.06em;display:flex;justify-content:space-between;background:var(--p-surface)}
+  .sw .meta b{color:var(--p-text);font-weight:500}
+
+  /* logo cards */
+  .logo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px;margin:18px 0}
+  .logo-card{background:var(--p-surface);border:1px solid var(--p-border);display:flex;flex-direction:column}
+  .logo-art{aspect-ratio:4/3;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,#0a1028 0%,#040610 80%);border-bottom:1px solid var(--p-border);position:relative;overflow:hidden}
+  .logo-label{padding:12px 14px;font-size:11px}
+  .logo-label b{display:block;font-family:var(--font-display);font-size:16px;letter-spacing:.16em;color:var(--p-gold);margin-bottom:4px}
+  .logo-label span{color:var(--p-text-dim)}
+
+  /* tables */
+  table.grid{width:100%;border-collapse:collapse;margin:14px 0;font-size:11px}
+  table.grid th,table.grid td{padding:9px 10px;border:1px solid var(--p-border);text-align:left;vertical-align:top}
+  table.grid th{background:var(--p-surface2);color:var(--p-gold);font-weight:500;letter-spacing:.16em;font-size:9px;text-transform:uppercase}
+  table.grid td{color:var(--p-text-dim)}
+  table.grid td.good{color:var(--p-gold-dim)}
+  table.grid td b{color:var(--p-text);font-weight:500}
+
+  /* components demo */
+  .demo-row{display:flex;gap:14px;flex-wrap:wrap;padding:18px;background:var(--p-surface);border:1px solid var(--p-border);margin:12px 0;align-items:center}
+  .demo-row.dense{padding:10px 14px;gap:8px}
+
+  .p-btn{background:transparent;border:1px solid var(--p-border-hi);color:var(--p-text-dim);font-family:var(--font-data);font-size:11px;font-weight:500;letter-spacing:.12em;padding:6px 14px;cursor:pointer;transition:all .12s;text-transform:uppercase}
+  .p-btn:hover{border-color:var(--p-gold);color:var(--p-gold);background:var(--p-gold-glo2)}
+  .p-btn:focus-visible{outline:1px dashed var(--p-gold);outline-offset:2px}
+  .p-btn--primary{background:var(--p-gold);border-color:var(--p-gold-hi);color:var(--p-blue-deep);font-weight:700}
+  .p-btn--primary:hover{background:var(--p-gold-hi);box-shadow:0 0 18px var(--p-gold-glo)}
+  .p-btn--danger{border-color:var(--p-red);color:var(--p-red)}
+  .p-btn--danger:hover{background:rgba(196,21,21,.08);color:#ff3a3a;border-color:#ff3a3a}
+
+  .p-badge{display:inline-flex;align-items:center;padding:2px 8px;font-size:9px;letter-spacing:.14em;border:1px solid var(--p-border-hi);color:var(--p-text-dim);background:var(--p-surface2);text-transform:uppercase}
+  .p-badge--t1{border-color:var(--p-gold);color:var(--p-gold)}
+  .p-badge--t2{border-color:var(--p-blue-hi);color:var(--p-blue-hi)}
+  .p-badge--t3{border-color:var(--p-text-mute);color:var(--p-text-dim)}
+  .p-badge--ok{border-color:var(--p-green);color:var(--p-green)}
+  .p-badge--warn{border-color:var(--p-amber);color:var(--p-amber)}
+  .p-badge--err{border-color:var(--p-red);color:var(--p-red)}
+
+  .p-led{display:inline-flex;align-items:center;gap:8px;font-size:10px;letter-spacing:.14em;color:var(--p-text-dim);text-transform:uppercase}
+  .p-led::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--p-text-mute)}
+  .p-led--ok::before{background:var(--p-green);box-shadow:0 0 6px var(--p-green);animation:blink 2.5s infinite}
+  .p-led--warn::before{background:var(--p-amber);box-shadow:0 0 6px var(--p-amber)}
+  .p-led--err::before{background:var(--p-red);box-shadow:0 0 6px var(--p-red)}
+  .p-led--busy::before{background:var(--p-gold);animation:blink 0.9s infinite}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+  .p-progress{flex:1;min-width:200px;height:12px;background:var(--p-surface2);border:1px solid var(--p-border);position:relative}
+  .p-progress-fill{height:100%;background:var(--p-gold);width:var(--pct,64%);box-shadow:0 0 10px var(--p-gold-glo)}
+  .p-progress-label{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:9px;letter-spacing:.14em;color:var(--p-text);mix-blend-mode:difference}
+
+  .p-input{background:var(--p-bg);border:1px solid var(--p-border-hi);color:var(--p-text);font-family:var(--font-data);font-size:11px;padding:6px 10px;letter-spacing:.06em;outline:none;transition:border-color .12s;min-width:160px}
+  .p-input:focus-visible{border-color:var(--p-gold);outline:1px solid var(--p-gold-glo)}
+  .p-input::placeholder{color:var(--p-text-mute)}
+
+  /* mini mockups */
+  .mockup{background:var(--p-bg);border:1px solid var(--p-border);margin:12px 0;overflow:hidden}
+  .mockup-header{display:flex;align-items:center;gap:12px;padding:10px 14px;background:#030612;border-bottom:1px solid var(--p-gold)}
+  .mockup-header .logo-mark{display:flex;align-items:center;gap:8px;color:var(--p-gold);font-family:var(--font-display);font-size:16px;letter-spacing:.22em}
+  .mockup-nav{display:flex;gap:1px;margin-left:auto}
+  .mockup-nav button{background:transparent;border:1px solid var(--p-border-hi);color:var(--p-text-dim);font-family:var(--font-data);font-size:10px;letter-spacing:.12em;padding:4px 12px;cursor:pointer;text-transform:uppercase}
+  .mockup-nav button.active{background:var(--p-gold);border-color:var(--p-gold-hi);color:var(--p-blue-deep);font-weight:700}
+  .mockup-body{padding:16px;color:var(--p-text-dim);font-size:11px;min-height:80px}
+
+  footer.sig{max-width:1240px;margin:40px auto 0;padding:24px 28px;border-top:1px solid var(--p-border);display:flex;justify-content:space-between;font-size:9px;letter-spacing:.2em;color:var(--p-text-mute)}
+</style>
+</head>
+<body data-screen-label="Pantheon v3 Spec">
+
+<header class="top">
+  <div class="top-inner">
+    <h1>PANTHEON v3</h1>
+    <span class="div">//</span>
+    <span class="sub">Direction Spec · for Claude Code</span>
+    <span class="meta">2026.04.20 · unifies 4 surfaces · 16 findings resolved</span>
+  </div>
+</header>
+
+<main>
+  <nav class="toc">
+    <h4>Contents</h4>
+    <ol>
+      <li><a href="#brief">Brief</a></li>
+      <li><a href="#tokens">Design tokens</a></li>
+      <li><a href="#type">Typography</a></li>
+      <li><a href="#logos">Logo explorations</a></li>
+      <li><a href="#components">Components</a></li>
+      <li><a href="#patterns">Patterns</a></li>
+      <li><a href="#migration">Migration plan</a></li>
+      <li><a href="#files">File-by-file changes</a></li>
+      <li><a href="#checklist">Final checklist</a></li>
+    </ol>
+  </nav>
+
+  <article>
+
+    <!-- ══════════ BRIEF ══════════ -->
+    <section id="brief">
+      <div class="hdr-row">
+        <div class="hdr-num">00</div>
+        <div class="hdr-title">Brief</div>
+        <div class="hdr-tag">Context</div>
+      </div>
+
+      <div class="callout">
+        <h5>Mission</h5>
+        <p style="color:var(--p-text)">
+          Unify four divergent design systems (style.css, pantheon.css, editor.css, cinema.css) into a single
+          <em>Pantheon v3</em> system. Apply all 16 findings from the inspection report. Re-brand with a
+          Roman Pantheon motif rooted in meaning (sanctuary for all gods, oculus, pediment, columns) while
+          keeping the Nauru-flag color canon (blue + gold).
+        </p>
+      </div>
+
+      <h4 class="mini">Non-negotiables</h4>
+      <ul style="list-style:none;padding:0;color:var(--p-text-dim);font-size:12px">
+        <li>▸ Strict blue + gold palette (Nauru flag canon). Red = error only. Amber = warning.</li>
+        <li>▸ Single gold: <code>#e8b923</code> (hybrid — balances Nauru stripe authenticity with on-screen punch).</li>
+        <li>▸ Bebas Neue for display, IBM Plex Mono for data/body. <em>Drop Inter. Drop Black Ops One.</em></li>
+        <li>▸ CRT scanlines off by default, opt-in toggle.</li>
+        <li>▸ All custom buttons must have <code>:focus-visible</code> outlines.</li>
+        <li>▸ No hidden aliases. Token <code>--orange</code> is deleted. Use <code>--p-gold</code> or semantic names.</li>
+      </ul>
+
+      <h4 class="mini">Token naming convention</h4>
+      <p>
+        All tokens prefixed <code>--p-</code> for "pantheon." This prevents collision with any third-party
+        CSS and makes the system self-documenting. Old names (<code>--orange</code>, <code>--accent</code>,
+        <code>--bg-0</code>) are removed entirely — no compat shims.
+      </p>
+    </section>
+
+    <!-- ══════════ TOKENS ══════════ -->
+    <section id="tokens">
+      <div class="hdr-row">
+        <div class="hdr-num">01</div>
+        <div class="hdr-title">Design tokens</div>
+        <div class="hdr-tag">Canonical</div>
+      </div>
+
+      <p class="lead">
+        These are <em>the</em> tokens. Every stylesheet in the project imports this set via
+        <code>@import url('tokens.css')</code> or inlines the <code>:root</code> block. No local overrides.
+      </p>
+
+      <h3 class="sub">Gold — the primary accent</h3>
+      <div class="swatch-grid">
+        <div class="sw"><div class="chip" style="background:#ffd340"></div><div class="meta"><b>--p-gold-hi</b>#ffd340</div></div>
+        <div class="sw"><div class="chip" style="background:#e8b923"></div><div class="meta"><b>--p-gold</b>#e8b923</div></div>
+        <div class="sw"><div class="chip" style="background:#b58d15"></div><div class="meta"><b>--p-gold-dim</b>#b58d15</div></div>
+      </div>
+      <p>
+        <code>#e8b923</code> wins because it sits between Nauru canonical <code>#FFC61E</code> and the
+        ember <code>#f5a623</code> — keeps the flag association while having enough amber warmth to read
+        as "ancient gold / bronze" on dark backgrounds. Flag-canon <code>#FFC61E</code> reserved for
+        the one piece of literal flag iconography in the logo system.
+      </p>
+
+      <h3 class="sub">Blue — the structural backbone</h3>
+      <div class="swatch-grid">
+        <div class="sw"><div class="chip" style="background:#2a5acc"></div><div class="meta"><b>--p-blue-hi</b>#2a5acc</div></div>
+        <div class="sw"><div class="chip" style="background:#1a3e9a"></div><div class="meta"><b>--p-blue</b>#1a3e9a</div></div>
+        <div class="sw"><div class="chip" style="background:#0d2060"></div><div class="meta"><b>--p-blue-dim</b>#0d2060</div></div>
+        <div class="sw"><div class="chip" style="background:#081540"></div><div class="meta"><b>--p-blue-deep</b>#081540</div></div>
+      </div>
+
+      <h3 class="sub">Semantic states (ONLY)</h3>
+      <div class="swatch-grid">
+        <div class="sw"><div class="chip" style="background:#1e8449"></div><div class="meta"><b>--p-green</b>ok</div></div>
+        <div class="sw"><div class="chip" style="background:#e68a00"></div><div class="meta"><b>--p-amber</b>warn</div></div>
+        <div class="sw"><div class="chip" style="background:#c41515"></div><div class="meta"><b>--p-red</b>error</div></div>
+      </div>
+      <div class="callout warn">
+        <h5>Critical semantic rule</h5>
+        <p style="color:var(--p-text)">
+          Gold is <em>brand + primary action only</em>. Not OK-state, not tier-1, not "drop section."
+          Those need their own signal. T1 can <em>reference</em> gold via border-color, but the solid
+          fill is reserved for brand/primary. This is the single most important fix in v3.
+        </p>
+      </div>
+
+      <h3 class="sub">Surfaces</h3>
+      <div class="swatch-grid">
+        <div class="sw"><div class="chip" style="background:#040610"></div><div class="meta"><b>--p-bg</b>#040610</div></div>
+        <div class="sw"><div class="chip" style="background:#0a0e1e"></div><div class="meta"><b>--p-surface</b>#0a0e1e</div></div>
+        <div class="sw"><div class="chip" style="background:#0f1430"></div><div class="meta"><b>--p-surface2</b>#0f1430</div></div>
+        <div class="sw"><div class="chip" style="background:#1a2245"></div><div class="meta"><b>--p-border</b>#1a2245</div></div>
+        <div class="sw"><div class="chip" style="background:#243063"></div><div class="meta"><b>--p-border-hi</b>#243063</div></div>
+      </div>
+
+      <h3 class="sub">Text hierarchy — all AA-compliant on --p-bg</h3>
+      <table class="grid">
+        <thead><tr><th>Token</th><th>Hex</th><th>Contrast vs bg</th><th>Use</th></tr></thead>
+        <tbody>
+          <tr><td><b>--p-text</b></td><td>#e8eef8</td><td class="good">16.4:1 AAA</td><td>Primary body</td></tr>
+          <tr><td><b>--p-text-dim</b></td><td>#8090b8</td><td class="good">6.8:1 AA</td><td>Secondary, labels</td></tr>
+          <tr><td><b>--p-text-mute</b></td><td>#5a6890</td><td class="good">3.9:1 AA large</td><td>Captions, placeholders (<em>raised from #3a4478</em>)</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="sub">Canonical tokens.css</h3>
+      <p>Place this file at <code>creative_suite/frontend/tokens.css</code>. Every other stylesheet imports it first.</p>
+      <pre class="code"><span class="c">/* tokens.css — Pantheon v3 canonical tokens. Do not override. */</span>
+<span class="k">:root</span> {
+  <span class="c">/* gold (brand + primary action only) */</span>
+  <span class="k">--p-gold</span>:       <span class="v">#e8b923</span>;
+  <span class="k">--p-gold-hi</span>:    <span class="v">#ffd340</span>;
+  <span class="k">--p-gold-dim</span>:   <span class="v">#b58d15</span>;
+  <span class="k">--p-gold-glo</span>:   <span class="v">rgba(232,185,35,.14)</span>;
+  <span class="k">--p-gold-glo2</span>:  <span class="v">rgba(232,185,35,.06)</span>;
+
+  <span class="c">/* blue (structural, cool) */</span>
+  <span class="k">--p-blue</span>:       <span class="v">#1a3e9a</span>;
+  <span class="k">--p-blue-hi</span>:    <span class="v">#2a5acc</span>;
+  <span class="k">--p-blue-deep</span>:  <span class="v">#081540</span>;
+  <span class="k">--p-blue-dim</span>:   <span class="v">#0d2060</span>;
+
+  <span class="c">/* semantic states (never use for anything else) */</span>
+  <span class="k">--p-green</span>:      <span class="v">#1e8449</span>;  <span class="c">/* LED ok, success */</span>
+  <span class="k">--p-amber</span>:      <span class="v">#e68a00</span>;  <span class="c">/* warning, degraded */</span>
+  <span class="k">--p-red</span>:        <span class="v">#c41515</span>;  <span class="c">/* error, destructive */</span>
+
+  <span class="c">/* surfaces */</span>
+  <span class="k">--p-bg</span>:         <span class="v">#040610</span>;
+  <span class="k">--p-surface</span>:    <span class="v">#0a0e1e</span>;
+  <span class="k">--p-surface2</span>:   <span class="v">#0f1430</span>;
+  <span class="k">--p-border</span>:     <span class="v">#1a2245</span>;
+  <span class="k">--p-border-hi</span>:  <span class="v">#243063</span>;
+
+  <span class="c">/* text — all AA compliant on --p-bg */</span>
+  <span class="k">--p-text</span>:       <span class="v">#e8eef8</span>;
+  <span class="k">--p-text-dim</span>:   <span class="v">#8090b8</span>;
+  <span class="k">--p-text-mute</span>:  <span class="v">#5a6890</span>;
+
+  <span class="c">/* tiers — desaturated gold-to-blue gradient */</span>
+  <span class="k">--p-t1</span>: <span class="v">var(--p-gold)</span>;
+  <span class="k">--p-t2</span>: <span class="v">var(--p-blue-hi)</span>;
+  <span class="k">--p-t3</span>: <span class="v">#3a4478</span>;  <span class="c">/* readable, not near-invisible */</span>
+
+  <span class="c">/* section roles */</span>
+  <span class="k">--p-drop</span>:  <span class="v">var(--p-gold)</span>;
+  <span class="k">--p-build</span>: <span class="v">var(--p-blue-hi)</span>;
+  <span class="k">--p-break</span>: <span class="v">#2a3464</span>;
+  <span class="k">--p-intro</span>: <span class="v">var(--p-blue)</span>;
+  <span class="k">--p-outro</span>: <span class="v">#14306a</span>;
+
+  <span class="c">/* type */</span>
+  <span class="k">--p-font-display</span>: <span class="v">'Bebas Neue', sans-serif</span>;
+  <span class="k">--p-font-data</span>:    <span class="v">'IBM Plex Mono', ui-monospace, monospace</span>;
+
+  <span class="c">/* spacing scale (4px base) */</span>
+  <span class="k">--p-s1</span>: <span class="v">4px</span>;  <span class="k">--p-s2</span>: <span class="v">8px</span>;   <span class="k">--p-s3</span>: <span class="v">12px</span>;
+  <span class="k">--p-s4</span>: <span class="v">16px</span>; <span class="k">--p-s5</span>: <span class="v">24px</span>;  <span class="k">--p-s6</span>: <span class="v">32px</span>;
+
+  <span class="c">/* chrome heights */</span>
+  <span class="k">--p-hdr-h</span>: <span class="v">56px</span>;
+  <span class="k">--p-bar-h</span>: <span class="v">28px</span>;
+
+  <span class="c">/* NO border-radius. Pantheon is 90-degree brutalist. */</span>
+}
+
+<span class="c">/* CRT scanlines — opt-in via body.crt class */</span>
+<span class="k">body.crt::after</span> {
+  content: <span class="s">''</span>;
+  position: fixed; inset: 0;
+  pointer-events: none; z-index: 9999;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0, transparent 2px,
+    rgba(0,0,0,.05) 2px, rgba(0,0,0,.05) 3px
+  );
+}</pre>
+    </section>
+
+    <!-- ══════════ TYPOGRAPHY ══════════ -->
+    <section id="type">
+      <div class="hdr-row">
+        <div class="hdr-num">02</div>
+        <div class="hdr-title">Typography</div>
+        <div class="hdr-tag">2 faces · 5 sizes</div>
+      </div>
+
+      <p class="lead">
+        <em>Bebas Neue</em> for display (logos, part-nav, panel titles). <em>IBM Plex Mono</em> for everything
+        else. Black Ops One and Inter are removed entirely. Don't load three display faces — they fight.
+      </p>
+
+      <h3 class="sub">Type scale</h3>
+      <table class="grid">
+        <thead><tr><th>Role</th><th>Face</th><th>Size</th><th>Weight</th><th>Tracking</th><th>Example</th></tr></thead>
+        <tbody>
+          <tr><td><b>Display-xl</b></td><td>Bebas</td><td>32px</td><td>400</td><td>.24em</td><td style="font-family:'Bebas Neue';font-size:24px;letter-spacing:.24em;color:var(--p-gold)">PANTHEON</td></tr>
+          <tr><td><b>Display-l</b></td><td>Bebas</td><td>22px</td><td>400</td><td>.18em</td><td style="font-family:'Bebas Neue';font-size:18px;letter-spacing:.18em;color:var(--p-text)">RENDER COMPARE</td></tr>
+          <tr><td><b>Label-hi</b></td><td>Plex Mono</td><td>11px</td><td>500</td><td>.12em</td><td style="font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.12em;font-weight:500;text-transform:uppercase;color:var(--p-gold)">FLOW JSON</td></tr>
+          <tr><td><b>Body</b></td><td>Plex Mono</td><td>13px</td><td>400</td><td>0</td><td style="font-family:'IBM Plex Mono';font-size:13px;color:var(--p-text)">Clip 014 · asylum · rail 2</td></tr>
+          <tr><td><b>Label-lo</b></td><td>Plex Mono</td><td>10px</td><td>400</td><td>.10em</td><td style="font-family:'IBM Plex Mono';font-size:10px;letter-spacing:.10em;color:var(--p-text-dim)">TIER · DURATION</td></tr>
+          <tr><td><b>Data-tick</b></td><td>Plex Mono</td><td>9px</td><td>400</td><td>.04em</td><td style="font-family:'IBM Plex Mono';font-size:9px;letter-spacing:.04em;color:var(--p-text-mute)">00:12.4</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout warn">
+        <h5>Density rule</h5>
+        <p style="color:var(--p-text)">
+          <em>No text below 9px carries semantic meaning.</em> 7–8px sizes from v2 are eliminated.
+          If a label is worth putting on screen, it's worth 10px minimum. Ruler/tick labels on data
+          visualizations can be 9px because context carries meaning.
+        </p>
+      </div>
+
+      <h3 class="sub">Tracking rule</h3>
+      <p>
+        Letter-spacing scales <em>inversely</em> with string length. Short caps pills: <code>.22em</code>.
+        5–10 chars: <code>.14em</code>. 10+ chars: <code>.08em</code>. Never exceed .24em on strings
+        longer than 4 characters.
+      </p>
+    </section>
+
+    <!-- ══════════ LOGOS ══════════ -->
+    <section id="logos">
+      <div class="hdr-row">
+        <div class="hdr-num">03</div>
+        <div class="hdr-title">Logo explorations</div>
+        <div class="hdr-tag">6 directions · pick 1–2</div>
+      </div>
+
+      <p class="lead">
+        All rooted in the Roman Pantheon: <em>sanctuary for all gods</em>, the oculus that lets the sky in,
+        the pediment, the columns, the coffered dome. Each mark holds at 16px favicon size and at full
+        header scale. Gold on blue-deep or flat — never gradient. Flag canonical #FFC61E reserved for
+        direction 04.
+      </p>
+
+      <div class="logo-grid">
+
+        <!-- 01 OCULUS -->
+        <div class="logo-card">
+          <div class="logo-art">
+            <svg viewBox="0 0 200 150" width="200" height="150">
+              <defs>
+                <radialGradient id="oc-sky" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#e8b923" stop-opacity=".8"/>
+                  <stop offset="60%" stop-color="#e8b923" stop-opacity=".1"/>
+                  <stop offset="100%" stop-color="#e8b923" stop-opacity="0"/>
+                </radialGradient>
+              </defs>
+              <!-- coffered ring -->
+              <circle cx="100" cy="75" r="50" fill="none" stroke="#e8b923" stroke-width="2"/>
+              <circle cx="100" cy="75" r="38" fill="none" stroke="#e8b923" stroke-width="1" opacity=".5"/>
+              <!-- coffers: 12 radial divisions -->
+              <g stroke="#e8b923" stroke-width="1" opacity=".5">
+                <line x1="100" y1="37" x2="100" y2="50"/>
+                <line x1="100" y1="100" x2="100" y2="113"/>
+                <line x1="62" y1="75" x2="75" y2="75"/>
+                <line x1="125" y1="75" x2="138" y2="75"/>
+                <line x1="73" y1="48" x2="82" y2="57"/>
+                <line x1="118" y1="93" x2="127" y2="102"/>
+                <line x1="127" y1="48" x2="118" y2="57"/>
+                <line x1="82" y1="93" x2="73" y2="102"/>
+              </g>
+              <!-- oculus center -->
+              <circle cx="100" cy="75" r="16" fill="url(#oc-sky)"/>
+              <circle cx="100" cy="75" r="10" fill="#e8b923"/>
+              <!-- wordmark -->
+              <text x="100" y="145" font-family="Bebas Neue" font-size="14" letter-spacing="4" fill="#e8eef8" text-anchor="middle">PANTHEON</text>
+            </svg>
+          </div>
+          <div class="logo-label"><b>01 · Oculus</b><span>The open eye of the dome. Radial coffers, glowing center. Literal Pantheon architecture at its most iconic moment.</span></div>
+        </div>
+
+        <!-- 02 PEDIMENT -->
+        <div class="logo-card">
+          <div class="logo-art">
+            <svg viewBox="0 0 200 150" width="200" height="150">
+              <!-- triangular pediment -->
+              <polygon points="40,70 100,25 160,70" fill="none" stroke="#e8b923" stroke-width="2"/>
+              <!-- pediment base line -->
+              <line x1="32" y1="70" x2="168" y2="70" stroke="#e8b923" stroke-width="2"/>
+              <!-- columns (4) -->
+              <g stroke="#e8b923" stroke-width="2" fill="none">
+                <line x1="52" y1="72" x2="52" y2="108"/>
+                <line x1="80" y1="72" x2="80" y2="108"/>
+                <line x1="120" y1="72" x2="120" y2="108"/>
+                <line x1="148" y1="72" x2="148" y2="108"/>
+              </g>
+              <!-- column capitals/bases -->
+              <line x1="44" y1="108" x2="156" y2="108" stroke="#e8b923" stroke-width="2"/>
+              <!-- PTN mark inside pediment -->
+              <text x="100" y="60" font-family="Bebas Neue" font-size="16" letter-spacing="2" fill="#e8b923" text-anchor="middle">pTn</text>
+              <!-- wordmark -->
+              <text x="100" y="140" font-family="Bebas Neue" font-size="12" letter-spacing="4" fill="#e8eef8" text-anchor="middle">PANTHEON</text>
+            </svg>
+          </div>
+          <div class="logo-label"><b>02 · Pediment</b><span>Temple facade — triangle over columns. Clan mark carved into the tympanum. Reads as stability, authority, permanence.</span></div>
+        </div>
+
+        <!-- 03 COFFER GRID -->
+        <div class="logo-card">
+          <div class="logo-art">
+            <svg viewBox="0 0 200 150" width="200" height="150">
+              <!-- dome hemisphere with coffered grid -->
+              <defs>
+                <clipPath id="dome-clip"><path d="M 40 100 A 60 60 0 0 1 160 100 Z"/></clipPath>
+              </defs>
+              <g clip-path="url(#dome-clip)" stroke="#e8b923" stroke-width="1" fill="none">
+                <path d="M 40 100 A 60 60 0 0 1 160 100"/>
+                <!-- concentric -->
+                <path d="M 55 100 A 45 45 0 0 1 145 100" opacity=".7"/>
+                <path d="M 70 100 A 30 30 0 0 1 130 100" opacity=".5"/>
+                <path d="M 85 100 A 15 15 0 0 1 115 100" opacity=".3"/>
+                <!-- radial -->
+                <line x1="100" y1="40" x2="100" y2="100"/>
+                <line x1="48" y1="65" x2="100" y2="100" opacity=".6"/>
+                <line x1="152" y1="65" x2="100" y2="100" opacity=".6"/>
+                <line x1="65" y1="48" x2="100" y2="100" opacity=".4"/>
+                <line x1="135" y1="48" x2="100" y2="100" opacity=".4"/>
+              </g>
+              <!-- base line -->
+              <line x1="30" y1="100" x2="170" y2="100" stroke="#e8b923" stroke-width="2"/>
+              <!-- wordmark -->
+              <text x="100" y="125" font-family="Bebas Neue" font-size="16" letter-spacing="6" fill="#e8b923" text-anchor="middle">PANTHEON</text>
+              <text x="100" y="140" font-family="IBM Plex Mono" font-size="7" letter-spacing="4" fill="#8090b8" text-anchor="middle">// pTn</text>
+            </svg>
+          </div>
+          <div class="logo-label"><b>03 · Coffer Dome</b><span>Half-dome with the coffered interior geometry. Wordmark sits on the dome base. Works as a full lockup.</span></div>
+        </div>
+
+        <!-- 04 FLAG + OCULUS -->
+        <div class="logo-card">
+          <div class="logo-art">
+            <svg viewBox="0 0 200 150" width="200" height="150">
+              <!-- blue field -->
+              <rect x="30" y="35" width="140" height="80" fill="#002B7F"/>
+              <!-- gold stripe -->
+              <rect x="30" y="70" width="140" height="6" fill="#FFC61E"/>
+              <!-- 12-point star (Nauru) -->
+              <g transform="translate(60 92)" fill="#FFFFFF">
+                <polygon points="0,-10 2,-3 9,-3 3.5,1 5.5,8 0,4 -5.5,8 -3.5,1 -9,-3 -2,-3"/>
+              </g>
+              <!-- oculus inset over blue field, upper area -->
+              <circle cx="130" cy="55" r="14" fill="none" stroke="#e8b923" stroke-width="1.5"/>
+              <circle cx="130" cy="55" r="5" fill="#e8b923"/>
+              <!-- wordmark below -->
+              <text x="100" y="135" font-family="Bebas Neue" font-size="14" letter-spacing="5" fill="#e8eef8" text-anchor="middle">PANTHEON</text>
+            </svg>
+          </div>
+          <div class="logo-label"><b>04 · Flag + Oculus</b><span>Nauru flag cropped as the banner field, oculus punched through the blue as the clan's "sky." Literal, canonical, unambiguous.</span></div>
+        </div>
+
+        <!-- 05 MONOGRAM PTN -->
+        <div class="logo-card">
+          <div class="logo-art">
+            <svg viewBox="0 0 200 150" width="200" height="150">
+              <!-- P T N monogram with architectural weight -->
+              <g transform="translate(100 75)" fill="#e8b923">
+                <!-- P stem -->
+                <rect x="-38" y="-28" width="8" height="56"/>
+                <!-- P bowl -->
+                <path d="M -30 -28 L -8 -28 L -8 -2 L -30 -2 Z" fill="none" stroke="#e8b923" stroke-width="8"/>
+                <!-- T crossbar + stem -->
+                <rect x="-4" y="-28" width="28" height="8"/>
+                <rect x="6" y="-20" width="8" height="48"/>
+                <!-- small n -->
+                <rect x="18" y="14" width="4" height="14"/>
+                <rect x="18" y="14" width="14" height="4"/>
+                <rect x="28" y="14" width="4" height="14"/>
+              </g>
+              <!-- underline stripe -->
+              <rect x="50" y="116" width="100" height="2" fill="#e8b923"/>
+              <!-- wordmark -->
+              <text x="100" y="138" font-family="Bebas Neue" font-size="11" letter-spacing="4" fill="#8090b8" text-anchor="middle">PANTHEON · EST. 2011</text>
+            </svg>
+          </div>
+          <div class="logo-label"><b>05 · pTn Monogram</b><span>The clan handle as architectural letterforms — big P, big T, lowercase n as a "pillar counterpart." Unique ligature.</span></div>
+        </div>
+
+        <!-- 06 ALL GODS RING -->
+        <div class="logo-card">
+          <div class="logo-art">
+            <svg viewBox="0 0 200 150" width="200" height="150">
+              <!-- outer ring -->
+              <circle cx="100" cy="70" r="44" fill="none" stroke="#e8b923" stroke-width="1.5"/>
+              <circle cx="100" cy="70" r="38" fill="none" stroke="#e8b923" stroke-width="0.5" opacity=".6"/>
+              <!-- 7 niches represented as radial markers (Pantheon has 7 main alcoves) -->
+              <g fill="#e8b923">
+                <circle cx="100" cy="29" r="2.5"/>
+                <circle cx="135" cy="41" r="2.5"/>
+                <circle cx="142" cy="85" r="2.5"/>
+                <circle cx="115" cy="107" r="2.5"/>
+                <circle cx="85" cy="107" r="2.5"/>
+                <circle cx="58" cy="85" r="2.5"/>
+                <circle cx="65" cy="41" r="2.5"/>
+              </g>
+              <!-- center oculus -->
+              <circle cx="100" cy="70" r="8" fill="#e8b923"/>
+              <!-- wordmark -->
+              <text x="100" y="135" font-family="Bebas Neue" font-size="12" letter-spacing="4" fill="#e8eef8" text-anchor="middle">PANTHEON</text>
+              <text x="100" y="147" font-family="IBM Plex Mono" font-size="6" letter-spacing="3" fill="#8090b8" text-anchor="middle">SANCTUARY · ALL · GODS</text>
+            </svg>
+          </div>
+          <div class="logo-label"><b>06 · All-Gods Ring</b><span>7 niches (the real Pantheon has seven alcoves) around a central oculus. Literal floorplan abstraction. Most conceptual of the six.</span></div>
+        </div>
+
+      </div>
+
+      <div class="callout">
+        <h5>Recommendation</h5>
+        <p style="color:var(--p-text)">
+          <em>Primary: 02 Pediment</em> for full lockup in headers — most recognizable architectural reference,
+          scales well, holds the pTn mark. <em>Secondary: 01 Oculus</em> as favicon/mark-only — works at
+          16px, unique silhouette. Skip 04 unless a Nauru-flag moment is specifically wanted (it competes
+          with the other marks for identity).
+        </p>
+      </div>
+
+      <h3 class="sub">Logo usage rules</h3>
+      <table class="grid">
+        <thead><tr><th>Context</th><th>Mark</th><th>Min size</th></tr></thead>
+        <tbody>
+          <tr><td>Header lockup</td><td>02 Pediment horizontal + wordmark</td><td>160px wide</td></tr>
+          <tr><td>Favicon</td><td>01 Oculus (simplified — just ring + center dot)</td><td>16px</td></tr>
+          <tr><td>Loader / splash</td><td>01 Oculus animated (radial pulse)</td><td>120px</td></tr>
+          <tr><td>Status stamp</td><td>pTn monogram (05) only</td><td>24px</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ══════════ COMPONENTS ══════════ -->
+    <section id="components">
+      <div class="hdr-row">
+        <div class="hdr-num">04</div>
+        <div class="hdr-title">Components</div>
+        <div class="hdr-tag">Copy-paste ready</div>
+      </div>
+
+      <h3 class="sub">Buttons</h3>
+      <div class="demo-row">
+        <button class="p-btn">SECONDARY</button>
+        <button class="p-btn p-btn--primary">PRIMARY ACTION</button>
+        <button class="p-btn p-btn--danger">DESTRUCTIVE</button>
+        <button class="p-btn" disabled style="opacity:.4">DISABLED</button>
+      </div>
+      <pre class="code"><span class="c">/* secondary — transparent, gold-on-hover */</span>
+<span class="k">.p-btn</span> {
+  background: transparent;
+  border: 1px solid <span class="v">var(--p-border-hi)</span>;
+  color: <span class="v">var(--p-text-dim)</span>;
+  font: 500 11px/1 <span class="v">var(--p-font-data)</span>;
+  letter-spacing: .12em;
+  padding: 6px 14px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all .12s;
+}
+<span class="k">.p-btn:hover</span> { border-color: <span class="v">var(--p-gold)</span>; color: <span class="v">var(--p-gold)</span>; background: <span class="v">var(--p-gold-glo2)</span>; }
+<span class="k">.p-btn:focus-visible</span> { outline: 1px dashed <span class="v">var(--p-gold)</span>; outline-offset: 2px; }
+
+<span class="c">/* primary — gold fill, blue-deep text */</span>
+<span class="k">.p-btn--primary</span> {
+  background: <span class="v">var(--p-gold)</span>; border-color: <span class="v">var(--p-gold-hi)</span>;
+  color: <span class="v">var(--p-blue-deep)</span>; font-weight: 700;
+}
+<span class="k">.p-btn--primary:hover</span> { background: <span class="v">var(--p-gold-hi)</span>; box-shadow: 0 0 18px <span class="v">var(--p-gold-glo)</span>; }
+
+<span class="c">/* destructive — red outline */</span>
+<span class="k">.p-btn--danger</span> { border-color: <span class="v">var(--p-red)</span>; color: <span class="v">var(--p-red)</span>; }</pre>
+
+      <h3 class="sub">Badges</h3>
+      <div class="demo-row dense">
+        <span class="p-badge">DEFAULT</span>
+        <span class="p-badge p-badge--t1">T1</span>
+        <span class="p-badge p-badge--t2">T2</span>
+        <span class="p-badge p-badge--t3">T3</span>
+        <span class="p-badge p-badge--ok">APPROVED</span>
+        <span class="p-badge p-badge--warn">DEGRADED</span>
+        <span class="p-badge p-badge--err">FAILED</span>
+      </div>
+
+      <h3 class="sub">Status LEDs</h3>
+      <div class="demo-row">
+        <span class="p-led">IDLE</span>
+        <span class="p-led p-led--ok">READY</span>
+        <span class="p-led p-led--busy">RENDERING</span>
+        <span class="p-led p-led--warn">DEGRADED</span>
+        <span class="p-led p-led--err">FAILED</span>
+      </div>
+
+      <h3 class="sub">Progress bar (finding #11 fix)</h3>
+      <div class="demo-row">
+        <span style="font-size:10px;letter-spacing:.14em;color:var(--p-text-dim)">RENDER</span>
+        <div class="p-progress">
+          <div class="p-progress-fill"></div>
+          <span class="p-progress-label">CHUNK 27/42 · ETA 4:12</span>
+        </div>
+      </div>
+
+      <h3 class="sub">Inputs</h3>
+      <div class="demo-row">
+        <input class="p-input" placeholder="v10.5-opener" value=""/>
+        <input class="p-input" value="v10.3-drop-polish"/>
+      </div>
+
+      <h3 class="sub">Panel header pattern</h3>
+      <pre class="code"><span class="k">.panel-bar</span> {
+  height: <span class="v">var(--p-bar-h)</span>;
+  background: <span class="v">var(--p-blue-dim)</span>;       <span class="c">/* was gold in v2 — too loud */</span>
+  border-bottom: 1px solid <span class="v">var(--p-gold)</span>;
+  padding: 0 <span class="v">var(--p-s3)</span>;
+  display: flex; align-items: center; justify-content: space-between;
+}
+<span class="k">.panel-title</span> {
+  font-family: <span class="v">var(--p-font-display)</span>;
+  font-size: 14px;              <span class="c">/* was 10px — too small for display face */</span>
+  letter-spacing: .18em;
+  color: <span class="v">var(--p-gold)</span>;
+  text-shadow: 0 0 10px <span class="v">var(--p-gold-glo)</span>;
+}</pre>
+
+      <h3 class="sub">Global nav strip (finding #4 fix)</h3>
+      <p>Persistent across all surfaces. Reuses <code>.p-btn</code> pattern.</p>
+      <div class="mockup">
+        <div class="mockup-header">
+          <div class="logo-mark">
+            <svg viewBox="0 0 40 30" width="28" height="21">
+              <polygon points="6,14 20,4 34,14" fill="none" stroke="#e8b923" stroke-width="2"/>
+              <line x1="4" y1="14" x2="36" y2="14" stroke="#e8b923" stroke-width="2"/>
+              <line x1="10" y1="16" x2="10" y2="26" stroke="#e8b923" stroke-width="1.5"/>
+              <line x1="16" y1="16" x2="16" y2="26" stroke="#e8b923" stroke-width="1.5"/>
+              <line x1="24" y1="16" x2="24" y2="26" stroke="#e8b923" stroke-width="1.5"/>
+              <line x1="30" y1="16" x2="30" y2="26" stroke="#e8b923" stroke-width="1.5"/>
+            </svg>
+            <span>PANTHEON</span>
+          </div>
+          <div class="mockup-nav">
+            <button class="active">REVIEW</button>
+            <button>CINEMA</button>
+            <button>EDITOR</button>
+          </div>
+          <span class="p-led p-led--ok" style="margin-left:12px">PART 04</span>
+        </div>
+        <div class="mockup-body">Current surface renders below. Nav carries across all four HTML files.</div>
+      </div>
+    </section>
+
+    <!-- ══════════ PATTERNS ══════════ -->
+    <section id="patterns">
+      <div class="hdr-row">
+        <div class="hdr-num">05</div>
+        <div class="hdr-title">Patterns</div>
+        <div class="hdr-tag">Findings 5–11</div>
+      </div>
+
+      <h3 class="sub">Empty states (finding #8)</h3>
+      <p>
+        Every panel that can be empty needs an empty state. Reuse the Compare drop-zone pattern.
+        Dashed border, icon, prompt text, optional JSON-schema hint underneath.
+      </p>
+      <pre class="code"><span class="k">&lt;div class=<span class="v">"p-empty"</span>&gt;</span>
+  <span class="k">&lt;div class=<span class="v">"p-empty-icon"</span>&gt;</span>⊞<span class="k">&lt;/div&gt;</span>
+  <span class="k">&lt;p class=<span class="v">"p-empty-title"</span>&gt;</span>NO FLOW PLAN LOADED<span class="k">&lt;/p&gt;</span>
+  <span class="k">&lt;p class=<span class="v">"p-empty-hint"</span>&gt;</span>drop flow_plan.json or serve from repo root<span class="k">&lt;/p&gt;</span>
+  <span class="k">&lt;input type=<span class="v">"file"</span> accept=<span class="v">".json"</span> class=<span class="v">"p-empty-drop"</span> /&gt;</span>
+<span class="k">&lt;/div&gt;</span></pre>
+
+      <h3 class="sub">Keyboard scrubbing (finding #7)</h3>
+      <p>
+        Replace the div-based scrubber with a styled native range input. Bind shortcuts:
+      </p>
+      <table class="grid">
+        <thead><tr><th>Key</th><th>Action</th></tr></thead>
+        <tbody>
+          <tr><td><code>Space</code></td><td>Play / pause</td></tr>
+          <tr><td><code>J</code> / <code>L</code></td><td>Rewind / fast-forward (hold for 2x/4x/8x)</td></tr>
+          <tr><td><code>K</code></td><td>Pause (NLE convention)</td></tr>
+          <tr><td><code>←</code> / <code>→</code></td><td>Step 1 frame</td></tr>
+          <tr><td><code>Shift+←/→</code></td><td>Step 1 second</td></tr>
+          <tr><td><code>I</code> / <code>O</code></td><td>Mark in / out</td></tr>
+          <tr><td><code>1–9</code></td><td>Jump to 10%–90%</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="sub">CRT toggle (finding #12)</h3>
+      <p>Off by default. Toggle lives in a settings popover off the status area. Persisted to <code>localStorage.pantheon.crt</code>.</p>
+      <pre class="code"><span class="c">// boot</span>
+<span class="k">if</span> (localStorage.getItem(<span class="v">'pantheon.crt'</span>) === <span class="v">'1'</span>) document.body.classList.add(<span class="v">'crt'</span>);
+
+<span class="c">// toggle</span>
+<span class="k">function</span> toggleCRT() {
+  document.body.classList.toggle(<span class="v">'crt'</span>);
+  localStorage.setItem(<span class="v">'pantheon.crt'</span>, document.body.classList.contains(<span class="v">'crt'</span>) ? <span class="v">'1'</span> : <span class="v">'0'</span>);
+}</pre>
+
+      <h3 class="sub">Resizable panels (finding #5)</h3>
+      <p>
+        Replace hard-coded <code>grid-template-columns: 38% 1fr 24%</code> with CSS grid named areas
+        and JS-driven drag handles that write into a CSS custom property
+        <code>--panels-split</code>. Persist splits to <code>localStorage.pantheon.layout</code>.
+        Min-widths: 280px compare, 400px flow, 200px events.
+      </p>
+    </section>
+
+    <!-- ══════════ MIGRATION ══════════ -->
+    <section id="migration">
+      <div class="hdr-row">
+        <div class="hdr-num">06</div>
+        <div class="hdr-title">Migration plan</div>
+        <div class="hdr-tag">3 waves</div>
+      </div>
+
+      <h3 class="sub">Wave 1 — Foundations (same day)</h3>
+      <ol style="padding-left:20px;color:var(--p-text-dim);line-height:1.9">
+        <li>Create <code>creative_suite/frontend/tokens.css</code> from the canonical block in §01.</li>
+        <li>Import <code>tokens.css</code> as the <em>first</em> &lt;link&gt; on all 4 HTML files.</li>
+        <li>Global find-replace in style.css + pantheon.css + editor.css:
+          <ul style="padding-left:18px;margin-top:4px">
+            <li><code>--orange</code> → <code>--p-gold</code> (all variants)</li>
+            <li><code>--accent</code> → <code>--p-gold</code></li>
+            <li><code>--bg-0..3</code> → <code>--p-bg / --p-surface / --p-surface2</code></li>
+            <li><code>#f5a623</code> / <code>#f5c518</code> / <code>#fbbf24</code> → <code>var(--p-gold)</code></li>
+            <li><code>#0a0a0a</code> / <code>#0a0a0c</code> / <code>#040610</code> → <code>var(--p-bg)</code></li>
+          </ul>
+        </li>
+        <li>Delete the <code>--orange: var(--gold)</code> shim at pantheon.css:75–77.</li>
+        <li>Raise <code>--text-mute</code> from <code>#2a3060</code> / <code>#333</code> to <code>#5a6890</code>.</li>
+        <li>Add <code>font-family: var(--p-font-data)</code> to <code>body</code> in editor.css (drop Inter).</li>
+        <li>Remove all <code>@import</code> for Black Ops One. Keep only Bebas Neue + IBM Plex Mono.</li>
+      </ol>
+
+      <h3 class="sub">Wave 2 — Structure (next day)</h3>
+      <ol style="padding-left:20px;color:var(--p-text-dim);line-height:1.9" start="8">
+        <li>Build the global nav strip component (see §04 mockup). Add to all 4 HTML files as the first child of <code>&lt;body&gt;</code>.</li>
+        <li>Add <code>:focus-visible</code> rules to all button classes. Rule: 1px dashed <code>var(--p-gold)</code>, 2px offset.</li>
+        <li>Add <code>aria-label</code> to icon-only buttons (▶ PLAY, ⇌ SYNC, +/− ZOOM).</li>
+        <li>Replace div-based scrubber with <code>&lt;input type="range"&gt;</code>. Wire keyboard shortcuts (§05).</li>
+        <li>Add empty-state pattern (<code>.p-empty</code>) to Flow and Events panels.</li>
+        <li>Move CRT scanlines behind <code>body.crt</code> class. Default off. Add toggle in status area.</li>
+        <li>Split gold's semantic usage: LED ok → <code>--p-green</code>. Seam markers → white. Warning → <code>--p-amber</code>.</li>
+      </ol>
+
+      <h3 class="sub">Wave 3 — Polish (day 3)</h3>
+      <ol style="padding-left:20px;color:var(--p-text-dim);line-height:1.9" start="15">
+        <li>Replace panel-bar gold-fill with blue-dim + gold-border (see §04 pattern). Less shouty.</li>
+        <li>Drop one display face — keep Bebas, delete Black Ops One usages.</li>
+        <li>Reduce letter-spacing per the §02 tracking rule.</li>
+        <li>Integrate chosen logo (recommended: Pediment full lockup + Oculus favicon).</li>
+        <li>Add resizable panel dividers (§05).</li>
+        <li>Add inline progress bar for long-running operations (replace LED-only feedback).</li>
+        <li>Hide JSON-loader buttons behind dev-mode detection. Show single banner in dev mode.</li>
+        <li>Remove "v2" from logo-sub. Move version to status area tooltip.</li>
+      </ol>
+    </section>
+
+    <!-- ══════════ FILES ══════════ -->
+    <section id="files">
+      <div class="hdr-row">
+        <div class="hdr-num">07</div>
+        <div class="hdr-title">File-by-file changes</div>
+        <div class="hdr-tag">Exact edits</div>
+      </div>
+
+      <h3 class="sub">New files</h3>
+      <table class="grid">
+        <thead><tr><th>Path</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><b>frontend/tokens.css</b></td><td>Canonical Pantheon v3 tokens. Imported first everywhere.</td></tr>
+          <tr><td><b>frontend/components.css</b></td><td>.p-btn, .p-badge, .p-led, .p-progress, .p-input, .p-empty, .p-nav</td></tr>
+          <tr><td><b>frontend/nav.js</b></td><td>Global nav strip injector — auto-inserts on all HTML surfaces.</td></tr>
+          <tr><td><b>frontend/assets/pantheon-pediment.svg</b></td><td>Primary logo lockup (direction 02)</td></tr>
+          <tr><td><b>frontend/assets/pantheon-oculus.svg</b></td><td>Favicon + loader mark (direction 01)</td></tr>
+          <tr><td><b>frontend/assets/favicon.ico</b></td><td>16/32/48px oculus-derived ICO</td></tr>
+        </tbody>
+      </table>
+
+      <h3 class="sub">Files to edit</h3>
+      <table class="grid">
+        <thead><tr><th>File</th><th>Changes</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>index.html</b></td>
+            <td>
+              + Link tokens.css first, then components.css, then style.css, then pantheon.css<br>
+              + Replace logo block with &lt;img src="assets/pantheon-pediment.svg"&gt; + wordmark<br>
+              + Remove "v2" from logo-sub<br>
+              + Global nav strip (call from nav.js)<br>
+              + Replace div scrubber with &lt;input type="range" id="scrub"&gt;<br>
+              + Move JSON-load buttons behind dev-mode dev-banner<br>
+              + Add aria-label to ▶/⇌/+/− buttons<br>
+              + Add Flow &amp; Events empty-states<br>
+              + Preload only Bebas + Plex Mono (strip Black Ops)
+            </td>
+          </tr>
+          <tr>
+            <td><b>style.css</b></td>
+            <td>
+              Delete :root entirely (moved to tokens.css)<br>
+              + Global s/--orange/--p-gold/, s/--text/--p-text/, s/--bg/--p-bg/, s/--surface/--p-surface/<br>
+              + s/--orange-dim/--p-gold-glo/, s/--orange-glo/--p-gold-glo2/<br>
+              + s/#f5a623/var(--p-gold)/g<br>
+              + .panel-bar background: var(--p-blue-dim), border-bottom: 1px solid var(--p-gold)<br>
+              + .panel-title: font-family: var(--p-font-display), font-size: 14px, color: var(--p-gold)<br>
+              + .status-led.ok background → var(--p-green)<br>
+              + .ab-tag font-size 8 → 10, letter-spacing .18 → .14<br>
+              + Raise .axis-tick color from #333 to var(--p-text-mute)<br>
+              + Delete the body::after scanline rule (moved to body.crt in tokens.css)<br>
+              + Add :focus-visible to .part-btn, .hdr-btn, .pnl-btn
+            </td>
+          </tr>
+          <tr>
+            <td><b>pantheon.css</b></td>
+            <td>
+              Delete the --orange compat shim (lines 75–77)<br>
+              Delete :root entirely<br>
+              Delete @import Bebas + Black Ops — move to HTML head instead<br>
+              + Rename all tokens: --gold/--blue/--star → --p-gold/--p-blue/--p-text<br>
+              + Remove all Black Ops One font-family references; sub Bebas<br>
+              + Raise --t3 (<code>#0d1228</code> → <code>#3a4478</code>) so T3 clips are visible<br>
+              + Reduce body::before blue vignette opacity to .4<br>
+              + Move enhanced scanline rule behind body.crt selector<br>
+              + .seam-marker background gold → white (frees gold for primary)<br>
+              + All .pth-* utility classes: rename to .p-* to match new convention<br>
+              + Drop the .proto-shell / .proto-bar / .ruler-* / .thumb-* scaffolding into components.css
+            </td>
+          </tr>
+          <tr>
+            <td><b>editor.html</b></td>
+            <td>
+              + Link tokens.css + components.css + new editor.css<br>
+              + Global nav strip (call from nav.js)<br>
+              + Add Pantheon pediment mark to &lt;h1&gt;<br>
+              + Switch from &lt;button class="btn btn-primary"&gt; to &lt;button class="p-btn p-btn--primary"&gt;<br>
+              + Add aria-label to all icon buttons
+            </td>
+          </tr>
+          <tr>
+            <td><b>editor.css</b></td>
+            <td>
+              DELETE :root entirely (tokens.css is source of truth)<br>
+              + Global s/--bg-0/--p-bg/g, s/--bg-1/--p-surface/g, s/--bg-2/--p-surface2/g<br>
+              + s/--accent/--p-gold/g, s/--accent-alt/--p-blue-hi/g<br>
+              + s/--danger/--p-red/g, s/--ok/--p-green/g<br>
+              + body font-family → var(--p-font-data)<br>
+              + Remove all border-radius (currently 3px) — Pantheon is 90°<br>
+              + .btn.btn-primary → delete, use .p-btn.p-btn--primary from components.css
+            </td>
+          </tr>
+          <tr>
+            <td><b>cinema.html + cinema.css</b></td>
+            <td>
+              Same treatment as editor: link tokens.css + components.css first, delete local :root,<br>
+              replace colors/fonts with var(--p-*), switch buttons to .p-btn.<br>
+              + Add global nav strip, Pantheon mark
+            </td>
+          </tr>
+          <tr>
+            <td><b>prototypes/panel7/index.html</b><br><b>prototypes/panel8/*</b><br><b>prototypes/review/*</b></td>
+            <td>
+              Link tokens.css + components.css first. Remove any local color overrides.<br>
+              Swap .proto-* classes for shared components.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- ══════════ CHECKLIST ══════════ -->
+    <section id="checklist">
+      <div class="hdr-row">
+        <div class="hdr-num">08</div>
+        <div class="hdr-title">Final checklist</div>
+        <div class="hdr-tag">16 findings</div>
+      </div>
+
+      <p class="lead">Every row maps to a finding in the original inspection. Mark complete as Claude Code ships each one.</p>
+
+      <table class="grid">
+        <thead><tr><th style="width:4%">#</th><th style="width:8%">Sev</th><th>Finding</th><th style="width:20%">Resolution</th></tr></thead>
+        <tbody>
+          <tr><td>1</td><td><b style="color:var(--p-red)">CRIT</b></td><td>3 distinct "gold" values</td><td>All → <code>#e8b923</code></td></tr>
+          <tr><td>2</td><td><b style="color:var(--p-red)">CRIT</b></td><td>--orange → --gold shim landmine</td><td>Rename to --p-gold, delete shim</td></tr>
+          <tr><td>3</td><td><b style="color:var(--p-gold)">HIGH</b></td><td>editor.css ignores Pantheon brand</td><td>Import tokens.css, use .p-* classes</td></tr>
+          <tr><td>4</td><td><b style="color:var(--p-gold)">HIGH</b></td><td>No global nav between surfaces</td><td>Shared nav.js strip</td></tr>
+          <tr><td>5</td><td><b style="color:var(--p-blue-hi)">MED</b></td><td>Rigid 38%/1fr/24% panel split</td><td>Resizable dividers, persisted</td></tr>
+          <tr><td>6</td><td><b style="color:var(--p-blue-hi)">MED</b></td><td>Panel narrative is flat</td><td>Heavier bar for Compare (primary)</td></tr>
+          <tr><td>7</td><td><b style="color:var(--p-gold)">HIGH</b></td><td>7–8px semantic text</td><td>10px floor; see §02 scale</td></tr>
+          <tr><td>8</td><td><b style="color:var(--p-blue-hi)">MED</b></td><td>3 display fonts competing</td><td>Bebas only; drop Black Ops + Inter</td></tr>
+          <tr><td>9</td><td><b style="color:var(--p-text-dim)">LOW</b></td><td>Aggressive letter-spacing</td><td>§02 tracking rule</td></tr>
+          <tr><td>10</td><td><b style="color:var(--p-gold)">HIGH</b></td><td>Gold overloaded</td><td>Gold = brand+action only; see §01 callout</td></tr>
+          <tr><td>11</td><td><b style="color:var(--p-blue-hi)">MED</b></td><td>No warning tier</td><td>Add --p-amber #e68a00</td></tr>
+          <tr><td>12</td><td><b style="color:var(--p-blue-hi)">MED</b></td><td>T3 near-invisible</td><td>Raise to #3a4478</td></tr>
+          <tr><td>13</td><td><b style="color:var(--p-gold)">HIGH</b></td><td>Manual JSON buttons in header</td><td>Dev-mode banner, auto-detect</td></tr>
+          <tr><td>14</td><td><b style="color:var(--p-gold)">HIGH</b></td><td>No keyboard scrubbing</td><td>Range input + J/K/L + arrow keys</td></tr>
+          <tr><td>15</td><td><b style="color:var(--p-blue-hi)">MED</b></td><td>No empty states for Flow/Events</td><td>.p-empty pattern (§05)</td></tr>
+          <tr><td>16</td><td><b style="color:var(--p-blue-hi)">MED</b></td><td>LED-only progress</td><td>Inline .p-progress bar</td></tr>
+          <tr><td>17</td><td><b style="color:var(--p-text-dim)">LOW</b></td><td>Hover-brightness universal</td><td>Outline on hover, brightness on press</td></tr>
+          <tr><td>18</td><td><b style="color:var(--p-gold)">HIGH</b></td><td>AA contrast fails</td><td>--text-mute raised to #5a6890</td></tr>
+          <tr><td>19</td><td><b style="color:var(--p-blue-hi)">MED</b></td><td>Buttons lack :focus-visible</td><td>Global gold dashed 2px offset</td></tr>
+          <tr><td>20</td><td><b style="color:var(--p-text-dim)">LOW</b></td><td>Icon-only buttons no aria</td><td>aria-label pass on all glyph buttons</td></tr>
+          <tr><td>21</td><td><b style="color:var(--p-blue-hi)">MED</b></td><td>Brand asserted in CSS only</td><td>Integrate chosen logo (pediment + oculus)</td></tr>
+          <tr><td>22</td><td><b style="color:var(--p-text-dim)">LOW</b></td><td>"v2" baked into logo</td><td>Move version to status tooltip</td></tr>
+          <tr><td>23</td><td><b style="color:var(--p-blue-hi)">MED</b></td><td>CRT always-on</td><td>body.crt opt-in; localStorage persisted</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout" style="margin-top:24px">
+        <h5>Ship criteria</h5>
+        <p style="color:var(--p-text)">
+          Pantheon v3 ships when: (a) all 4 HTML surfaces import the same <code>tokens.css</code>,
+          (b) no hardcoded hex colors remain outside tokens.css, (c) keyboard tab-through works end-to-end
+          with visible focus on every interactive element, (d) Lighthouse contrast audit passes on all 4 surfaces,
+          (e) the chosen logo appears in the nav strip across all surfaces.
+        </p>
+      </div>
+    </section>
+
+  </article>
+</main>
+
+<footer class="sig">
+  <span>PANTHEON v3 // DIRECTION SPEC</span>
+  <span>TOKENS · LOGOS · COMPONENTS · MIGRATION · 2026.04.20</span>
+</footer>
+
+</body>
+</html>

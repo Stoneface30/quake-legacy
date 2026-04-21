@@ -1,0 +1,729 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Pantheon Cockpit — UI Inspection</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:       #060814;
+    --surface:  #0a0e1e;
+    --surface2: #0f1430;
+    --border:   #1a2245;
+    --border-2: #243063;
+    --gold:     #f5c518;
+    --gold-dim: #c99a10;
+    --gold-glo: rgba(245,197,24,.14);
+    --blue:     #2a5acc;
+    --blue-dim: #0d2060;
+    --star:     #e8eef8;
+    --star-dim: #8090b8;
+    --star-mute:#3a4478;
+    --red:      #c41515;
+    --font-mono:'IBM Plex Mono', ui-monospace, monospace;
+    --font-hero:'Bebas Neue', sans-serif;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  html,body{background:var(--bg);color:var(--star);font-family:var(--font-mono);font-size:13px;line-height:1.55}
+  body{
+    background:
+      radial-gradient(ellipse 60% 40% at 0% 0%, rgba(245,197,24,.04), transparent 55%),
+      radial-gradient(ellipse 50% 60% at 100% 100%, rgba(13,32,96,.5), transparent 70%),
+      var(--bg);
+    min-height:100vh;
+    padding:0 0 120px;
+  }
+  body::after{
+    content:'';position:fixed;inset:0;pointer-events:none;z-index:200;
+    background:repeating-linear-gradient(to bottom,transparent 0,transparent 2px,rgba(0,0,0,.06) 2px,rgba(0,0,0,.06) 3px);
+  }
+
+  /* ─── header ─────────────────────────────────────────── */
+  header.top{
+    position:sticky;top:0;z-index:50;
+    background:#050815;border-bottom:1px solid var(--gold);
+    box-shadow:0 2px 0 var(--gold-glo),0 6px 30px rgba(0,0,0,.6);
+  }
+  .top-inner{
+    max-width:1200px;margin:0 auto;padding:12px 28px;
+    display:flex;align-items:baseline;gap:18px;flex-wrap:wrap;
+  }
+  .top h1{
+    font-family:var(--font-hero);font-weight:400;
+    font-size:28px;letter-spacing:.24em;color:var(--gold);
+    text-shadow:0 0 18px var(--gold-glo);
+  }
+  .top .div{color:var(--blue);opacity:.7}
+  .top .sub{font-size:10px;letter-spacing:.28em;color:var(--star-dim);text-transform:uppercase}
+  .top .meta{margin-left:auto;font-size:10px;color:var(--star-mute);letter-spacing:.16em}
+
+  /* ─── layout ─────────────────────────────────────────── */
+  main{max-width:1200px;margin:0 auto;padding:48px 28px 0;display:grid;grid-template-columns:220px 1fr;gap:48px}
+  @media(max-width:900px){main{grid-template-columns:1fr;gap:24px;padding-top:24px}}
+
+  nav.toc{position:sticky;top:80px;align-self:start;font-size:11px;letter-spacing:.12em}
+  nav.toc h4{font-size:9px;letter-spacing:.3em;color:var(--star-mute);margin-bottom:10px;text-transform:uppercase}
+  nav.toc ol{list-style:none;counter-reset:tocc;display:flex;flex-direction:column;gap:4px}
+  nav.toc li{counter-increment:tocc}
+  nav.toc a{
+    display:block;padding:5px 0 5px 24px;position:relative;
+    color:var(--star-dim);text-decoration:none;border-left:1px solid var(--border);
+    transition:color .12s,border-color .12s,background .12s;
+  }
+  nav.toc a::before{
+    content:counter(tocc,decimal-leading-zero);
+    position:absolute;left:8px;top:5px;font-size:9px;color:var(--star-mute);
+  }
+  nav.toc a:hover{color:var(--gold);border-left-color:var(--gold)}
+
+  article{min-width:0}
+
+  /* ─── section blocks ─────────────────────────────────── */
+  section{margin-bottom:56px;scroll-margin-top:80px}
+
+  .hdr-row{display:flex;align-items:flex-end;gap:14px;border-bottom:1px solid var(--border);padding-bottom:10px;margin-bottom:20px}
+  .hdr-num{font-family:var(--font-hero);font-size:44px;letter-spacing:.08em;color:var(--gold);line-height:.9}
+  .hdr-title{font-family:var(--font-hero);font-size:26px;letter-spacing:.14em;color:var(--star);line-height:1}
+  .hdr-tag{margin-left:auto;font-size:9px;letter-spacing:.22em;color:var(--star-mute)}
+
+  .lead{color:var(--star-dim);font-size:13px;margin-bottom:22px;max-width:65ch}
+
+  /* finding card */
+  .find{
+    display:grid;grid-template-columns:80px 1fr;gap:20px;
+    padding:16px 0;border-top:1px dashed var(--border);
+  }
+  .find:first-of-type{border-top:none;padding-top:8px}
+
+  .sev{
+    font-size:9px;letter-spacing:.22em;padding:2px 8px;
+    border:1px solid var(--border-2);color:var(--star-dim);text-align:center;
+    align-self:start;width:fit-content;
+  }
+  .sev.crit{border-color:var(--red);color:var(--red)}
+  .sev.high{border-color:var(--gold);color:var(--gold)}
+  .sev.med {border-color:var(--blue);color:var(--blue)}
+  .sev.low {border-color:var(--star-mute);color:var(--star-dim)}
+
+  .find h3{
+    font-family:var(--font-mono);font-size:14px;font-weight:500;
+    color:var(--star);margin-bottom:6px;letter-spacing:.02em;
+  }
+  .find p{color:var(--star-dim);max-width:62ch}
+  .find p + p{margin-top:8px}
+  .find .locus{
+    font-size:10px;color:var(--star-mute);margin-top:8px;
+    letter-spacing:.06em;
+  }
+  .find .locus code{background:var(--surface2);color:var(--gold-dim);padding:1px 6px;border:1px solid var(--border)}
+  .find em{color:var(--star);font-style:normal;background:rgba(245,197,24,.07);padding:0 3px}
+
+  /* swatches */
+  .swatch-row{display:flex;gap:10px;margin-top:12px;flex-wrap:wrap}
+  .sw{display:flex;flex-direction:column;gap:4px;font-size:9px;letter-spacing:.08em;color:var(--star-dim);min-width:76px}
+  .sw .chip{height:28px;border:1px solid var(--border)}
+
+  /* tables */
+  table.sys{
+    width:100%;border-collapse:collapse;margin-top:14px;
+    font-size:11px;
+  }
+  table.sys th,table.sys td{
+    padding:8px 10px;border:1px solid var(--border);
+    text-align:left;vertical-align:top;
+  }
+  table.sys th{
+    background:var(--surface2);color:var(--gold);
+    font-weight:500;letter-spacing:.16em;font-size:9px;text-transform:uppercase;
+  }
+  table.sys td{color:var(--star-dim)}
+  table.sys td.good{color:var(--gold-dim)}
+  table.sys td.bad{color:var(--red)}
+
+  /* summary card */
+  .sum{
+    background:linear-gradient(180deg, rgba(13,32,96,.25), rgba(13,32,96,0));
+    border:1px solid var(--border);border-left:3px solid var(--gold);
+    padding:18px 22px;margin-bottom:32px;
+  }
+  .sum h2{font-family:var(--font-hero);font-size:20px;letter-spacing:.12em;color:var(--gold);margin-bottom:10px}
+  .sum p{color:var(--star);font-size:12px;max-width:70ch}
+  .sum p + p{margin-top:8px;color:var(--star-dim)}
+
+  .kv{display:grid;grid-template-columns:max-content 1fr;gap:4px 18px;margin-top:14px;font-size:11px}
+  .kv dt{color:var(--star-mute);letter-spacing:.12em;text-transform:uppercase;font-size:9px}
+  .kv dd{color:var(--star)}
+
+  /* footer */
+  footer.sig{
+    max-width:1200px;margin:40px auto 0;padding:24px 28px;
+    border-top:1px solid var(--border);
+    display:flex;justify-content:space-between;font-size:9px;letter-spacing:.2em;color:var(--star-mute);
+  }
+</style>
+</head>
+<body data-screen-label="UI Analysis">
+
+<header class="top">
+  <div class="top-inner">
+    <h1>PANTHEON</h1>
+    <span class="div">//</span>
+    <span class="sub">Cockpit UI · Inspection Report</span>
+    <span class="meta">2026.04.20 · v2 build · 4 surfaces audited</span>
+  </div>
+</header>
+
+<main>
+
+  <nav class="toc">
+    <h4>Contents</h4>
+    <ol>
+      <li><a href="#tldr">Summary</a></li>
+      <li><a href="#systems">System fragmentation</a></li>
+      <li><a href="#ia">Information architecture</a></li>
+      <li><a href="#density">Density &amp; type scale</a></li>
+      <li><a href="#color">Color &amp; semantics</a></li>
+      <li><a href="#interactions">Interaction gaps</a></li>
+      <li><a href="#a11y">Accessibility</a></li>
+      <li><a href="#brand">Brand cohesion</a></li>
+      <li><a href="#priorities">Fix priorities</a></li>
+    </ol>
+  </nav>
+
+  <article>
+
+    <!-- ───────── SUMMARY ───────── -->
+    <section id="tldr">
+      <div class="hdr-row">
+        <div class="hdr-num">00</div>
+        <div class="hdr-title">Summary</div>
+        <div class="hdr-tag">TL;DR</div>
+      </div>
+
+      <div class="sum">
+        <h2>Strong vocabulary, four dialects</h2>
+        <p>
+          The cockpit has a <em>confident aesthetic point of view</em> — brutalist Quake-console, flag-inspired
+          Pantheon/pTn palette, ticks-and-LEDs vibe. On the Review Console surface it delivers. The problem is
+          that four separate design systems are running in the same application, and the other surfaces
+          (Editor, Cinema, prototypes) don't speak the same language.
+        </p>
+        <p>
+          Nothing here is broken; the work-to-unify payoff is large and the changes are mostly mechanical:
+          consolidate tokens, pick one type pairing per density tier, and remove the <em>--orange → --gold</em>
+          shim so overrides stop fighting each other.
+        </p>
+        <dl class="kv">
+          <dt>Surfaces audited</dt><dd>index.html, editor.html, cinema.html, prototypes/*</dd>
+          <dt>Stylesheets</dt>   <dd>style.css · pantheon.css · editor.css · cinema.css</dd>
+          <dt>Severity mix</dt>  <dd>2 critical · 5 high · 6 medium · 3 low</dd>
+          <dt>Tone</dt>          <dd>Keep the brutalist direction. Unify, don't redesign.</dd>
+        </dl>
+      </div>
+
+      <p class="lead">
+        The rest of this doc walks each dimension with specific file:line loci so findings are actionable.
+        Severity tags on the left of each finding. Nothing flagged here is a matter of taste — each item is
+        either a system contradiction, a measurable usability cost, or a build-time footgun.
+      </p>
+    </section>
+
+    <!-- ───────── 1. SYSTEMS ───────── -->
+    <section id="systems">
+      <div class="hdr-row">
+        <div class="hdr-num">01</div>
+        <div class="hdr-title">System fragmentation</div>
+        <div class="hdr-tag">Critical</div>
+      </div>
+      <p class="lead">
+        Four stylesheets define four overlapping but non-identical systems. They disagree on color values,
+        type, border radius, and semantic meaning of the same variable names.
+      </p>
+
+      <table class="sys">
+        <thead>
+          <tr><th>Surface</th><th>Gold</th><th>Blue</th><th>Type</th><th>Radius</th><th>Bg base</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>style.css</td>      <td>#f5a623</td><td>#2980b9</td><td>IBM Plex Mono</td>          <td>0</td><td>#0a0a0a</td></tr>
+          <tr><td>pantheon.css</td>   <td>#f5c518</td><td>#2a5acc</td><td>Bebas + Black Ops + Plex</td><td>0</td><td>#040610</td></tr>
+          <tr><td>editor.css</td>     <td>#fbbf24</td><td>#60a5fa</td><td>Inter</td>                  <td>3px</td><td>#0a0a0c</td></tr>
+          <tr><td>cinema.css (inf.)</td><td>—</td>    <td>—</td>      <td>—</td>                       <td>—</td><td>—</td></tr>
+        </tbody>
+      </table>
+
+      <div class="find">
+        <span class="sev crit">Critical</span>
+        <div>
+          <h3>Three distinct "gold" values in circulation</h3>
+          <p>
+            <em>#f5a623</em> (ember-orange, closer to amber),
+            <em>#f5c518</em> (Nauru stripe, truer yellow-gold),
+            <em>#fbbf24</em> (Tailwind amber-400). These are visually distinguishable side-by-side.
+            A user moving from Review Console → Editor will perceive the accent color shifting
+            — reads as a different product.
+          </p>
+          <div class="swatch-row">
+            <div class="sw"><div class="chip" style="background:#f5a623"></div>style.css<br>#f5a623</div>
+            <div class="sw"><div class="chip" style="background:#f5c518"></div>pantheon.css<br>#f5c518</div>
+            <div class="sw"><div class="chip" style="background:#fbbf24"></div>editor.css<br>#fbbf24</div>
+          </div>
+          <p class="locus">loci: <code>style.css:7</code>, <code>pantheon.css:59</code>, <code>editor.css:11</code></p>
+        </div>
+      </div>
+
+      <div class="find">
+        <span class="sev crit">Critical</span>
+        <div>
+          <h3>The <code>--orange → --gold</code> shim is a landmine</h3>
+          <p>
+            pantheon.css aliases <code>--orange: var(--gold)</code> so that any style.css rule consuming
+            <em>--orange</em> picks up gold. It works until someone writes a new rule referencing --orange
+            without knowing the shim exists — they'll get gold on Review Console but orange (or nothing)
+            on any surface that doesn't load pantheon.css. The alias also prevents you from using true
+            orange <em>anywhere</em> deliberately, because the token name lies about what it holds.
+          </p>
+          <p>
+            Rename the token (<code>--accent</code>) once, remove the compatibility shim, sweep the codebase.
+            This is a 20-minute job that eliminates a whole class of future bugs.
+          </p>
+          <p class="locus">locus: <code>pantheon.css:75–77</code></p>
+        </div>
+      </div>
+
+      <div class="find">
+        <span class="sev high">High</span>
+        <div>
+          <h3>editor.css ignores the Pantheon brand entirely</h3>
+          <p>
+            Body font is Inter; the design system tokens are named <code>--bg-0…--bg-3</code>,
+            <code>--accent</code>, <code>--accent-alt</code>. Border-radius is 3px. None of this is wrong
+            in isolation — but it shares no vocabulary with the cockpit. A product with a strong
+            brutalist identity on one route and a generic dark Tailwind feel on another reads as two
+            products glued together.
+          </p>
+          <p class="locus">locus: <code>editor.css:1–15, 19</code> (font), <code>editor.css:41</code> (3px radius)</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── 2. IA ───────── -->
+    <section id="ia">
+      <div class="hdr-row">
+        <div class="hdr-num">02</div>
+        <div class="hdr-title">Information architecture</div>
+        <div class="hdr-tag">Navigation</div>
+      </div>
+
+      <div class="find">
+        <span class="sev high">High</span>
+        <div>
+          <h3>No global navigation between the four surfaces</h3>
+          <p>
+            Review Console (index.html) has no link to Editor or Cinema. Editor has a single
+            <em>← Cinema Suite</em> back-link. Cinema has none. The user either memorizes URLs or
+            clicks around. There is no breadcrumb indicating <em>where in the pipeline</em> they are.
+          </p>
+          <p>
+            Suggest: a persistent top-strip with Review · Cinema · Editor as segmented control, current
+            part ID, and render status LED carried across surfaces. Reuse the existing <em>.part-nav</em>
+            component vocabulary.
+          </p>
+          <p class="locus">loci: <code>index.html:37–41</code>, <code>editor.html:21</code>, <code>cinema.html:11–18</code></p>
+        </div>
+      </div>
+
+      <div class="find">
+        <span class="sev med">Medium</span>
+        <div>
+          <h3>Three-panel grid is rigid at 38% / 1fr / 24%</h3>
+          <p>
+            <em>style.css:195</em> hard-codes the panel split. Below 1100px the layout stacks vertically
+            (pantheon.css:714) but between 1100–1400px the Flow panel gets squeezed and the Event panel
+            still keeps 24%. Users on laptops get a cramped middle panel that's where the densest
+            information lives.
+          </p>
+          <p>
+            Suggest: resizable dividers (drag handles), or widen flow to 1.4fr with min-width guards on
+            the outer panels.
+          </p>
+          <p class="locus">locus: <code>style.css:195</code></p>
+        </div>
+      </div>
+
+      <div class="find">
+        <span class="sev med">Medium</span>
+        <div>
+          <h3>The three panels lack a task narrative</h3>
+          <p>
+            Compare · Flow · Events are spatially peers but they are <em>not</em> conceptually peers
+            — Compare is the primary decision surface, Flow is the artifact being decided on,
+            Events is evidence. Giving all three equal panel-bar treatment flattens the hierarchy.
+          </p>
+          <p>
+            Suggest: keep Compare visually dominant (full-width or larger), and treat Flow + Events as
+            supporting rails underneath. Or at minimum, visually differentiate the primary panel with a
+            heavier bar, larger title, or accent color.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── 3. DENSITY ───────── -->
+    <section id="density">
+      <div class="hdr-row">
+        <div class="hdr-num">03</div>
+        <div class="hdr-title">Density &amp; type scale</div>
+        <div class="hdr-tag">Typography</div>
+      </div>
+      <p class="lead">
+        The cockpit pushes density hard, which fits the genre. But several type sizes cross into
+        "not comfortably readable" territory.
+      </p>
+
+      <div class="find">
+        <span class="sev high">High</span>
+        <div>
+          <h3>7px and 8px text is used for meaningful labels</h3>
+          <p>
+            Legend entries (<em>.leg, .ab-tag</em>), LED status labels, thumbnail seam labels, hotkey
+            indicators — all 7–8px. At a typical 96dpi display that's roughly 5.25–6px rendered height
+            after the letter-spacing eats into tracking. This is below WCAG comfortable-read thresholds
+            and below the game-console-chrome convention it's emulating (which was 10–12px at arm's length
+            on a 27" CRT).
+          </p>
+          <p>
+            Suggest: set a 10px floor for any text carrying semantic meaning. Keep 7–8px only for decorative
+            tick labels where meaning is carried elsewhere.
+          </p>
+          <p class="locus">loci: <code>style.css:269 (.ab-tag)</code>, <code>pantheon.css:205 (logo-sub 8px)</code>, <code>pantheon.css:541 (ruler-label 7px)</code></p>
+        </div>
+      </div>
+
+      <div class="find">
+        <span class="sev med">Medium</span>
+        <div>
+          <h3>Three display fonts fighting for attention</h3>
+          <p>
+            Bebas Neue (hero), Black Ops One (heads), IBM Plex Mono (body), plus Inter on Editor.
+            Bebas + Black Ops are both <em>condensed stencil-ish display faces</em> — they don't harmonize,
+            they compete. Black Ops One in particular has a pronounced military-stencil personality
+            that reads louder than Bebas and drags the tone toward "military game HUD" rather than
+            "competitive esports console."
+          </p>
+          <p>
+            Suggest: pick one display face (Bebas Neue is the cleaner pick for pTn's clan identity) +
+            IBM Plex Mono for data. Drop Black Ops One. Drop Inter from Editor; use Plex Mono there too.
+          </p>
+          <p class="locus">locus: <code>pantheon.css:26, 85–86</code></p>
+        </div>
+      </div>
+
+      <div class="find">
+        <span class="sev low">Low</span>
+        <div>
+          <h3>Letter-spacing is aggressive across the board</h3>
+          <p>
+            Values of <em>.22em–.32em</em> are common on caps titles. On a mono face this is fine for
+            4–6 character pills but gets visually loose on longer strings like
+            <em>"REVIEW CONSOLE v2"</em>. Consider stepping down to .14–.18em above 10 characters.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── 4. COLOR ───────── -->
+    <section id="color">
+      <div class="hdr-row">
+        <div class="hdr-num">04</div>
+        <div class="hdr-title">Color &amp; semantics</div>
+        <div class="hdr-tag">Tokens</div>
+      </div>
+
+      <div class="find">
+        <span class="sev high">High</span>
+        <div>
+          <h3>Gold is overloaded — it means too many things</h3>
+          <p>
+            In pantheon.css, gold is simultaneously: the brand accent, the primary action color, the
+            T1 tier marker, the "drop" section marker, the OK LED, the scrub fill, and the seam marker.
+            When the same color means <em>primary</em>, <em>elite</em>, <em>climax</em>, <em>approved</em>,
+            and <em>structural seam</em> at once, none of those signals are legible as signals.
+          </p>
+          <p>
+            Suggest: keep gold as brand accent only. Move the semantic meanings to:
+            LED OK → green; Tier → desaturated gold gradient across tiers; Drop section → gold
+            (the one exception); Seam → white or blue. This is more work but it's the right work.
+          </p>
+          <p class="locus">loci: <code>pantheon.css:96, 98, 100, 102, 227, 235, 545</code></p>
+        </div>
+      </div>
+
+      <div class="find">
+        <span class="sev med">Medium</span>
+        <div>
+          <h3>Red is the only error signal but the palette has no warning tier</h3>
+          <p>
+            <em>--led-err #c41515</em> exists. <em>--led-warn</em> is mapped to <em>#c99a10</em> (dim gold) —
+            which is indistinguishable from regular gold in peripheral vision. For a pipeline tool where
+            "render degraded but shipped" and "render failed" are different states, they need
+            different colors.
+          </p>
+          <p>
+            Suggest: introduce a true amber (<em>#e68a00</em> or similar) between gold and red, distinct from both.
+          </p>
+          <p class="locus">locus: <code>pantheon.css:113</code></p>
+        </div>
+      </div>
+
+      <div class="find">
+        <span class="sev med">Medium</span>
+        <div>
+          <h3>T3 tier is "near-invisible" on purpose — that's a bug, not a feature</h3>
+          <p>
+            <em>--t3: #0d1228</em> sits ~2% luminance off the surface background. Clips in tier 3
+            effectively disappear on the flow timeline. If T3 isn't worth showing, don't show it; if it
+            is, give it enough contrast to read. "Near-invisible" is a design decision that hides
+            information.
+          </p>
+          <p class="locus">locus: <code>pantheon.css:104</code></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── 5. INTERACTIONS ───────── -->
+    <section id="interactions">
+      <div class="hdr-row">
+        <div class="hdr-num">05</div>
+        <div class="hdr-title">Interaction gaps</div>
+        <div class="hdr-tag">UX</div>
+      </div>
+
+      <div class="find">
+        <span class="sev high">High</span>
+        <div>
+          <h3>"DROP JSON" and "LOAD JSON" buttons are workflow smells</h3>
+          <p>
+            The comment in <em>index.html:7–14</em> says JSON auto-loads when served from repo root,
+            otherwise the user must manually drag-drop. Manual JSON loading is not a feature in a
+            shipping tool — it's a dev-mode fallback. Surfacing it in the header chrome normalizes a
+            broken state.
+          </p>
+          <p>
+            Suggest: detect the serve path at startup. If auto-load works, hide the buttons entirely.
+            If it doesn't, show a single banner strip ("Dev mode — drop JSON to proceed") instead of
+            putting two file-picker buttons in the persistent header.
+          </p>
+          <p class="locus">locus: <code>index.html:42–46</code></p>
+        </div>
+      </div>
+
+      <div class="find">
+        <span class="sev high">High</span>
+        <div>
+          <h3>A/B compare has no keyboard scrubbing</h3>
+          <p>
+            The scrubber is mouse-only (div with click handlers, not an &lt;input type=range&gt;).
+            Power users reviewing dozens of renders will want J/K/L, arrow keys, frame-by-frame stepping,
+            and a mark-in/mark-out pair. None of that is present in the markup.
+          </p>
+          <p>
+            Suggest: replace <em>.scrub-track</em> with a styled native range input, bind arrow keys and
+            J/K/L globally when Compare panel is focused. Add a hotkey legend — the prototype panels
+            already have a <em>.hotkey-legend</em> component you can reuse.
+          </p>
+          <p class="locus">loci: <code>index.html:96–102</code>, pattern already exists at <code>pantheon.css:588</code></p>
+        </div>
+      </div>
+
+      <div class="find">
+        <span class="sev med">Medium</span>
+        <div>
+          <h3>No empty states for the Flow or Events panels</h3>
+          <p>
+            Compare has a dashed drop-zone when empty. Flow and Events have <em>nothing</em> — the
+            panel bar renders and below it is void. First-time users seeing a blank middle panel won't
+            know whether the app is loading, broken, or waiting for input.
+          </p>
+          <p>
+            Suggest: reuse the drop-zone pattern. For Flow: "no flow plan loaded · drop flow_plan.json".
+            For Events: "no event data · drop event_diversity.json". Include the small-format JSON-schema
+            hint underneath.
+          </p>
+        </div>
+      </div>
+
+      <div class="find">
+        <span class="sev med">Medium</span>
+        <div>
+          <h3>Status LED is the only feedback channel for long operations</h3>
+          <p>
+            A 6px colored dot with a text label is fine for idle/ok/busy states. It is <em>not</em> fine
+            for communicating "rendering chunk 7 of 42, ETA 4:12" which is exactly what the Editor and
+            Cinema surfaces need during a ship.
+          </p>
+          <p>
+            Suggest: when status is <em>busy</em> with known progress, expand the LED region into a
+            horizontal progress bar inline in the header. Keep the LED for discrete states only.
+          </p>
+          <p class="locus">locus: <code>style.css:175–181</code></p>
+        </div>
+      </div>
+
+      <div class="find">
+        <span class="sev low">Low</span>
+        <div>
+          <h3>Hover-brightness is the universal hover treatment — it doesn't always work</h3>
+          <p>
+            <em>.clip-block:hover { filter: brightness(1.4) }</em> on already-bright gold pushes
+            into near-white territory; on near-invisible T3 it does nothing perceptible. Hover needs
+            to be a different channel from luminance in a palette this contrast-heavy.
+          </p>
+          <p>
+            Suggest: hover → add a 1px gold outline + preserve fill. Brightness filter for press states only.
+          </p>
+          <p class="locus">locus: <code>style.css:451</code></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── 6. A11Y ───────── -->
+    <section id="a11y">
+      <div class="hdr-row">
+        <div class="hdr-num">06</div>
+        <div class="hdr-title">Accessibility</div>
+        <div class="hdr-tag">WCAG</div>
+      </div>
+
+      <div class="find">
+        <span class="sev high">High</span>
+        <div>
+          <h3>Scanlines and low-contrast dim text fail WCAG AA in several spots</h3>
+          <p>
+            <em>--text-mute #3a4478</em> on <em>--bg #040610</em> is ~2.1:1 contrast — below AA for any
+            text. The 3px scanline overlay at 7% opacity further lowers effective contrast across the
+            whole surface. For a long-session tool this compounds into eye strain.
+          </p>
+          <p>
+            Suggest: two-pass fix. First, raise --text-mute to at least #5a6890 (~3.8:1) so it clears AA
+            for large text. Second, gate the scanline overlay behind a "CRT mode" toggle in a settings
+            panel rather than making it always-on.
+          </p>
+          <p class="locus">loci: <code>pantheon.css:69</code>, <code>pantheon.css:135–144</code></p>
+        </div>
+      </div>
+
+      <div class="find">
+        <span class="sev med">Medium</span>
+        <div>
+          <h3>Custom buttons lack focus styles</h3>
+          <p>
+            <em>.part-btn, .hdr-btn, .pnl-btn</em> define hover but no <em>:focus-visible</em>. Keyboard
+            users lose all indication of where focus is. In a tool that's ostensibly keyboard-friendly
+            (it advertises hotkeys), this is a real gap.
+          </p>
+          <p>
+            Suggest: add a global <em>:focus-visible</em> outline (gold 1px dashed + 2px offset) and
+            remove any <em>outline:none</em> declarations.
+          </p>
+        </div>
+      </div>
+
+      <div class="find">
+        <span class="sev low">Low</span>
+        <div>
+          <h3>Icon-only buttons have no accessible name</h3>
+          <p>
+            <em>⊞ FLOW JSON</em> pairs the glyph with a word so it's fine. But <em>▶ PLAY</em>,
+            <em>⇌ SYNC</em>, <em>− ZOOM / + ZOOM</em> rely on glyph + short label — screen readers will
+            read "dash zoom, plus zoom" which is borderline. Not a blocker, easy fix with
+            <em>aria-label</em>.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── 7. BRAND ───────── -->
+    <section id="brand">
+      <div class="hdr-row">
+        <div class="hdr-num">07</div>
+        <div class="hdr-title">Brand cohesion</div>
+        <div class="hdr-tag">Identity</div>
+      </div>
+
+      <div class="find">
+        <span class="sev med">Medium</span>
+        <div>
+          <h3>The Pantheon/pTn identity is asserted in CSS comments but not in UI</h3>
+          <p>
+            The 20-line ASCII flag in pantheon.css is a lovely artifact. But the UI itself shows
+            <em>⊕ PANTHEON // REVIEW CONSOLE v2</em> — no star, no flag stripe, no clan mark. The
+            brand story exists in the comments, not on screen.
+          </p>
+          <p>
+            Suggest: consider a 1px gold horizontal stripe somewhere persistent (below header, above
+            status bar) as a literal flag reference. Or a small 12-pt star glyph replacing the ⊕ cross.
+            Small, quiet, gives the identity a visual home.
+          </p>
+        </div>
+      </div>
+
+      <div class="find">
+        <span class="sev low">Low</span>
+        <div>
+          <h3>"v2" in the logo-sub is a trap</h3>
+          <p>
+            Versioning in the persistent logo area means every major redesign needs the logo updated,
+            or "v2" becomes a lie. Move the version indicator to the status area or a tooltip on the logo.
+          </p>
+          <p class="locus">locus: <code>index.html:33</code></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────── 8. PRIORITIES ───────── -->
+    <section id="priorities">
+      <div class="hdr-row">
+        <div class="hdr-num">08</div>
+        <div class="hdr-title">Fix priorities</div>
+        <div class="hdr-tag">Roadmap</div>
+      </div>
+
+      <p class="lead">
+        Grouped by effort. If you do only the week-1 work, the product feels 80% more coherent.
+      </p>
+
+      <table class="sys">
+        <thead><tr><th style="width:14%">When</th><th style="width:38%">Fix</th><th style="width:18%">Effort</th><th>Why</th></tr></thead>
+        <tbody>
+          <tr><td>Week 1</td><td class="good">Consolidate gold/blue values across all 4 stylesheets</td><td>S</td><td>Eliminates 3 distinct "gold"s</td></tr>
+          <tr><td>Week 1</td><td class="good">Rename --orange → --accent, kill the shim</td><td>S</td><td>Removes hidden-alias footgun</td></tr>
+          <tr><td>Week 1</td><td class="good">Add global nav strip across Review · Cinema · Editor</td><td>M</td><td>Users stop getting lost between surfaces</td></tr>
+          <tr><td>Week 1</td><td class="good">Raise --text-mute to AA-compliant luminance</td><td>XS</td><td>Fixes worst contrast failures in one change</td></tr>
+          <tr><td>Week 2</td><td>Adopt Plex Mono on Editor, drop Inter</td><td>S</td><td>One type system across surfaces</td></tr>
+          <tr><td>Week 2</td><td>Drop Black Ops One, keep Bebas as only display face</td><td>S</td><td>Display faces stop competing</td></tr>
+          <tr><td>Week 2</td><td>Keyboard scrubbing + J/K/L on Compare panel</td><td>M</td><td>Power-user parity with NLE conventions</td></tr>
+          <tr><td>Week 2</td><td>Empty states for Flow + Events panels</td><td>S</td><td>First-run UX stops being confusing</td></tr>
+          <tr><td>Week 3</td><td>Split gold's semantic meanings (LED, tier, section, accent)</td><td>L</td><td>Signals become legible as signals again</td></tr>
+          <tr><td>Week 3</td><td>Introduce amber warning tier distinct from gold &amp; red</td><td>S</td><td>Warning state becomes representable</td></tr>
+          <tr><td>Week 3</td><td>Progress bar for long-running operations</td><td>M</td><td>LED-only status fails on multi-minute renders</td></tr>
+          <tr><td>Later</td><td>CRT scanline as opt-in toggle, not always-on</td><td>S</td><td>Accessibility + session fatigue</td></tr>
+          <tr><td>Later</td><td>Resizable panel dividers</td><td>M</td><td>Laptop-screen usability</td></tr>
+          <tr><td>Later</td><td>Quiet pTn brand mark (star or flag stripe) on screen</td><td>S</td><td>Gives identity a visible home</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+  </article>
+</main>
+
+<footer class="sig">
+  <span>PANTHEON // REVIEW CONSOLE · UI INSPECTION</span>
+  <span>16 FINDINGS · 4 SURFACES · 2026.04.20</span>
+</footer>
+
+</body>
+</html>

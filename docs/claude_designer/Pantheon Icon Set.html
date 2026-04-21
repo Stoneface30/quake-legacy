@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>PANTHEON × CLAN ARENA — Icon Set</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --p-gold:#e8b923;--p-gold-hi:#ffd340;--p-gold-dim:#b58d15;
+  --p-gold-glo:rgba(232,185,35,.14);
+  --p-blue:#1a3e9a;--p-blue-hi:#2a5acc;--p-blue-deep:#081540;--p-blue-dim:#0d2060;
+  --p-amber:#e68a00;--p-red:#c41515;--p-green:#1e8449;
+  --p-bg:#040610;--p-surface:#0a0e1e;--p-surface2:#0f1430;
+  --p-border:#1a2245;--p-border-hi:#243063;
+  --p-text:#e8eef8;--p-text-dim:#8090b8;--p-text-mute:#5a6890;
+  --font-display:'Bebas Neue',sans-serif;
+  --font-data:'IBM Plex Mono',ui-monospace,monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--p-bg);color:var(--p-text);font-family:var(--font-data);font-size:13px;line-height:1.55}
+body{
+  background:
+    radial-gradient(ellipse 60% 40% at 0% 0%,rgba(232,185,35,.05),transparent 55%),
+    radial-gradient(ellipse 50% 60% at 100% 100%,rgba(13,32,96,.5),transparent 70%),
+    var(--p-bg);
+  min-height:100vh;padding:0 0 120px;
+}
+header.top{position:sticky;top:0;z-index:50;background:#030612;border-bottom:1px solid var(--p-gold);box-shadow:0 2px 0 var(--p-gold-glo),0 6px 30px rgba(0,0,0,.6)}
+.top-inner{max-width:1240px;margin:0 auto;padding:14px 28px;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap}
+.top h1{font-family:var(--font-display);font-size:32px;letter-spacing:.24em;color:var(--p-gold);text-shadow:0 0 18px var(--p-gold-glo)}
+.top .div{color:var(--p-blue-hi);opacity:.7}
+.top .sub{font-size:10px;letter-spacing:.28em;color:var(--p-text-dim);text-transform:uppercase}
+.top .meta{margin-left:auto;font-size:10px;color:var(--p-text-mute);letter-spacing:.16em}
+
+main{max-width:1240px;margin:0 auto;padding:48px 28px 0}
+.lead{color:var(--p-text-dim);max-width:70ch;margin-bottom:30px}
+.lead em{color:var(--p-text);font-style:normal;background:rgba(232,185,35,.07);padding:0 3px}
+
+/* group header */
+.group{margin-bottom:56px}
+.group-hdr{display:flex;align-items:flex-end;gap:14px;border-bottom:1px solid var(--p-border);padding-bottom:10px;margin-bottom:20px}
+.group-num{font-family:var(--font-display);font-size:40px;letter-spacing:.08em;color:var(--p-gold);line-height:.9}
+.group-title{font-family:var(--font-display);font-size:22px;letter-spacing:.16em;color:var(--p-text);line-height:1}
+.group-tag{margin-left:auto;font-size:9px;letter-spacing:.22em;color:var(--p-text-mute)}
+
+.icon-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:2px;background:var(--p-border)}
+.icon-cell{background:var(--p-surface);display:flex;flex-direction:column;align-items:center;padding:20px 10px 12px;gap:10px;transition:background .12s}
+.icon-cell:hover{background:var(--p-surface2)}
+.icon-cell svg{width:48px;height:48px;display:block}
+.icon-cell svg .stk{stroke:var(--p-gold);stroke-width:1.5;fill:none;stroke-linecap:square;stroke-linejoin:miter}
+.icon-cell svg .fl{fill:var(--p-gold);stroke:none}
+.icon-cell svg .dim{stroke:var(--p-gold-dim);stroke-width:1.25;fill:none}
+.icon-cell .num{font-size:8px;letter-spacing:.2em;color:var(--p-text-mute)}
+.icon-cell .lbl{font-size:10px;letter-spacing:.08em;color:var(--p-text);text-align:center;font-weight:500;text-transform:uppercase}
+.icon-cell .id{font-size:8px;color:var(--p-text-dim);letter-spacing:.06em}
+
+/* usage patterns */
+.usage{background:var(--p-surface);border:1px solid var(--p-border);padding:20px;margin-top:14px}
+.usage-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px dashed var(--p-border)}
+.usage-row:last-child{border-bottom:none}
+.usage-row svg{width:18px;height:18px;flex-shrink:0}
+.usage-row .role{font-size:10px;letter-spacing:.16em;color:var(--p-gold);width:140px;text-transform:uppercase}
+.usage-row .desc{font-size:11px;color:var(--p-text-dim);flex:1}
+
+.panel-hdr{display:flex;align-items:center;gap:8px;height:28px;background:var(--p-blue-dim);border-bottom:1px solid var(--p-gold);padding:0 12px;margin-top:12px}
+.panel-hdr svg{width:16px;height:16px}
+.panel-hdr .t{font-family:var(--font-display);font-size:14px;letter-spacing:.18em;color:var(--p-gold)}
+.panel-hdr .acts{margin-left:auto;display:flex;gap:6px}
+.panel-hdr .acts button{background:transparent;border:1px solid var(--p-border-hi);color:var(--p-text-dim);padding:3px 8px;cursor:pointer;display:flex;align-items:center;gap:4px;font-family:var(--font-data);font-size:9px;letter-spacing:.1em}
+.panel-hdr .acts button svg{width:12px;height:12px}
+.panel-hdr .acts button:hover{border-color:var(--p-gold);color:var(--p-gold)}
+
+.clip{background:var(--p-surface2);border:1px solid var(--p-border);padding:8px 12px;margin-top:10px;display:grid;grid-template-columns:32px 1fr auto auto auto;gap:12px;align-items:center;font-size:11px}
+.clip svg{width:20px;height:20px}
+.clip .name{color:var(--p-text)}
+.clip .t{color:var(--p-text-dim);font-size:10px}
+
+footer.sig{max-width:1240px;margin:40px auto 0;padding:24px 28px;border-top:1px solid var(--p-border);display:flex;justify-content:space-between;font-size:9px;letter-spacing:.2em;color:var(--p-text-mute)}
+</style>
+</head>
+<body data-screen-label="Icon Set">
+
+<header class="top">
+  <div class="top-inner">
+    <h1>PANTHEON × CLAN ARENA</h1>
+    <span class="div">//</span>
+    <span class="sub">Icon Set · 39 glyphs</span>
+    <span class="meta">24×24 grid · 1.5px stroke · gold on dark · SVG source inline</span>
+  </div>
+</header>
+
+<main>
+
+<p class="lead">
+  <em>One visual language</em> across three worlds: Roman Pantheon architecture, Quake 3 arena weapons, and
+  Clan Arena event vocabulary. Every icon is a <em>24×24 stroke-based SVG</em>, 1.5px stroke on a 2px grid,
+  square line-caps, no curves that don't close on grid. Scales cleanly 12px → 48px. Fill color is
+  <em>currentColor</em> via <code style="background:var(--p-surface2);color:var(--p-gold-dim);padding:1px 5px;border:1px solid var(--p-border)">.stk</code>
+  class so tier/state recoloring is a single CSS variable swap.
+</p>
+
+<!-- ════════ 01 PANTHEON ARCHITECTURE (5) ════════ -->
+<section class="group">
+  <div class="group-hdr">
+    <div class="group-num">01</div>
+    <div class="group-title">Pantheon Architecture</div>
+    <div class="group-tag">5 icons · brand primitives</div>
+  </div>
+  <div class="icon-grid">
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><circle class="stk" cx="12" cy="12" r="9"/><circle class="stk dim" cx="12" cy="12" r="6"/><circle class="fl" cx="12" cy="12" r="2.5"/><line class="stk dim" x1="12" y1="3" x2="12" y2="6"/><line class="stk dim" x1="12" y1="18" x2="12" y2="21"/><line class="stk dim" x1="3" y1="12" x2="6" y2="12"/><line class="stk dim" x1="18" y1="12" x2="21" y2="12"/></svg><div class="num">01</div><div class="lbl">Oculus</div><div class="id">oculus</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><polygon class="stk" points="3,11 12,3 21,11"/><line class="stk" x1="2" y1="11" x2="22" y2="11"/><line class="stk" x1="5" y1="12" x2="5" y2="21"/><line class="stk" x1="10" y1="12" x2="10" y2="21"/><line class="stk" x1="14" y1="12" x2="14" y2="21"/><line class="stk" x1="19" y1="12" x2="19" y2="21"/><line class="stk" x1="3" y1="21" x2="21" y2="21"/></svg><div class="num">02</div><div class="lbl">Pediment</div><div class="id">pediment</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><rect class="stk" x="8" y="3" width="8" height="2"/><rect class="stk" x="8" y="19" width="8" height="2"/><line class="stk" x1="9.5" y1="5" x2="9.5" y2="19"/><line class="stk" x1="12" y1="5" x2="12" y2="19"/><line class="stk" x1="14.5" y1="5" x2="14.5" y2="19"/></svg><div class="num">03</div><div class="lbl">Column</div><div class="id">column</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><path class="stk" d="M 3 18 A 9 9 0 0 1 21 18"/><line class="stk" x1="2" y1="18" x2="22" y2="18"/><path class="stk dim" d="M 6 18 A 6 6 0 0 1 18 18"/><path class="stk dim" d="M 9 18 A 3 3 0 0 1 15 18"/><line class="stk dim" x1="12" y1="9" x2="12" y2="18"/><line class="stk dim" x1="6" y1="14.5" x2="18" y2="14.5"/></svg><div class="num">04</div><div class="lbl">Coffered Dome</div><div class="id">dome</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><path class="stk" d="M 4 20 L 4 10 A 8 8 0 0 1 20 10 L 20 20"/><line class="stk" x1="3" y1="20" x2="21" y2="20"/><line class="stk dim" x1="4" y1="10" x2="20" y2="10"/></svg><div class="num">05</div><div class="lbl">Arch</div><div class="id">arch</div></div>
+
+  </div>
+</section>
+
+<!-- ════════ 02 QUAKE 3 WEAPONS (7) ════════ -->
+<section class="group">
+  <div class="group-hdr">
+    <div class="group-num">02</div>
+    <div class="group-title">Arena Weapons</div>
+    <div class="group-tag">7 icons · Q3 CA loadout</div>
+  </div>
+  <div class="icon-grid">
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><path class="stk" d="M 7 4 L 7 13 L 12 18 L 17 13 L 17 4"/><line class="stk" x1="10" y1="7" x2="10" y2="11"/><line class="stk" x1="14" y1="7" x2="14" y2="11"/><line class="stk" x1="12" y1="18" x2="12" y2="21"/></svg><div class="num">06</div><div class="lbl">Gauntlet</div><div class="id">wpn-gauntlet</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><rect class="stk" x="3" y="10" width="14" height="5"/><line class="stk" x1="17" y1="12.5" x2="21" y2="12.5"/><rect class="stk" x="6" y="15" width="3" height="4"/><line class="stk dim" x1="5" y1="12" x2="15" y2="12"/><line class="stk dim" x1="5" y1="13.5" x2="15" y2="13.5"/></svg><div class="num">07</div><div class="lbl">Machinegun</div><div class="id">wpn-mg</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><rect class="stk" x="3" y="9" width="16" height="5"/><circle class="fl" cx="19" cy="11.5" r="1"/><rect class="stk" x="5" y="14" width="4" height="5"/><line class="stk dim" x1="3" y1="11.5" x2="17" y2="11.5"/></svg><div class="num">08</div><div class="lbl">Shotgun</div><div class="id">wpn-sg</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><path class="stk" d="M 3 12 L 15 12 L 19 9 L 21 12 L 19 15 L 15 12"/><circle class="fl" cx="17" cy="12" r="1"/><path class="stk dim" d="M 3 10 L 2 12 L 3 14"/></svg><div class="num">09</div><div class="lbl">Rocket</div><div class="id">wpn-rl</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><path class="stk fl" d="M 13 3 L 6 13 L 11 13 L 9 21 L 18 9 L 13 9 Z"/></svg><div class="num">10</div><div class="lbl">Lightning</div><div class="id">wpn-lg</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><rect class="stk" x="3" y="10" width="17" height="4"/><circle class="stk" cx="20" cy="12" r="2"/><line class="stk" x1="7" y1="14" x2="7" y2="19"/><line class="stk dim" x1="3" y1="12" x2="18" y2="12"/><line class="stk" x1="22" y1="12" x2="23" y2="12"/></svg><div class="num">11</div><div class="lbl">Railgun</div><div class="id">wpn-rg</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><circle class="stk" cx="12" cy="12" r="5"/><circle class="stk dim" cx="12" cy="12" r="8"/><circle class="fl" cx="12" cy="12" r="1.5"/><line class="stk" x1="7" y1="12" x2="4" y2="12"/><line class="stk" x1="17" y1="12" x2="20" y2="12"/></svg><div class="num">12</div><div class="lbl">Plasma</div><div class="id">wpn-pg</div></div>
+
+  </div>
+</section>
+
+<!-- ════════ 03 CLAN ARENA EVENTS (6) ════════ -->
+<section class="group">
+  <div class="group-hdr">
+    <div class="group-num">03</div>
+    <div class="group-title">Arena Events</div>
+    <div class="group-tag">6 icons · CA feed</div>
+  </div>
+  <div class="icon-grid">
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><circle class="stk" cx="12" cy="12" r="8"/><line class="stk" x1="12" y1="4" x2="12" y2="20"/><line class="stk" x1="4" y1="12" x2="20" y2="12"/><circle class="fl" cx="12" cy="12" r="1.5"/></svg><div class="num">13</div><div class="lbl">Frag</div><div class="id">evt-frag</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><circle class="stk" cx="12" cy="12" r="8"/><path class="stk" d="M 6 8 L 12 12 L 18 8"/><path class="stk" d="M 6 16 L 12 12 L 18 16"/><circle class="fl" cx="12" cy="12" r="1"/></svg><div class="num">14</div><div class="lbl">Telefrag</div><div class="id">evt-tele</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><polygon class="stk" points="12,3 14,9 20,9 15,13 17,20 12,16 7,20 9,13 4,9 10,9"/></svg><div class="num">15</div><div class="lbl">Excellent</div><div class="id">evt-exc</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><path class="stk fl" d="M 6 13 L 10 17 L 18 7"/><line class="stk" x1="4" y1="20" x2="20" y2="20"/></svg><div class="num">16</div><div class="lbl">Impressive</div><div class="id">evt-imp</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><circle class="stk" cx="12" cy="9" r="4"/><path class="stk" d="M 5 21 L 5 17 A 7 7 0 0 1 19 17 L 19 21"/><line class="stk" x1="9" y1="9" x2="10" y2="9"/><line class="stk" x1="14" y1="9" x2="15" y2="9"/><path class="stk" d="M 10 11 Q 12 9 14 11"/></svg><div class="num">17</div><div class="lbl">Humiliation</div><div class="id">evt-hum</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><circle class="stk" cx="12" cy="12" r="9"/><line class="stk" x1="5.5" y1="5.5" x2="18.5" y2="18.5"/></svg><div class="num">18</div><div class="lbl">Denied</div><div class="id">evt-deny</div></div>
+
+  </div>
+</section>
+
+<!-- ════════ 04 TIERS & FLOW (5) ════════ -->
+<section class="group">
+  <div class="group-hdr">
+    <div class="group-num">04</div>
+    <div class="group-title">Tiers &amp; Flow</div>
+    <div class="group-tag">5 icons · timeline vocab</div>
+  </div>
+  <div class="icon-grid">
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><path class="stk" d="M 12 4 L 7 10 L 7 20 L 17 20 L 17 10 Z"/><path class="stk dim" d="M 9 12 L 15 12"/><path class="stk dim" d="M 9 15 L 15 15"/><text x="12" y="9" font-family="IBM Plex Mono" font-size="6" font-weight="700" text-anchor="middle" fill="#e8b923">1</text></svg><div class="num">19</div><div class="lbl">Tier 1</div><div class="id">tier-1</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><polygon class="stk" points="5,6 12,11 19,6 19,18 12,13 5,18"/></svg><div class="num">20</div><div class="lbl">Tier 2</div><div class="id">tier-2</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><rect class="stk" x="4" y="8" width="16" height="3"/><rect class="stk" x="4" y="13" width="16" height="3"/></svg><div class="num">21</div><div class="lbl">Tier 3</div><div class="id">tier-3</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><line class="stk" x1="12" y1="3" x2="12" y2="21" stroke-width="2.5"/><line class="stk dim" x1="8" y1="5" x2="8" y2="19"/><line class="stk dim" x1="16" y1="5" x2="16" y2="19"/><polygon class="fl" points="9,3 15,3 12,6"/><polygon class="fl" points="9,21 15,21 12,18"/></svg><div class="num">22</div><div class="lbl">Seam Cut</div><div class="id">seam</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><line class="stk dim" x1="3" y1="18" x2="21" y2="18"/><rect class="fl" x="5" y="12" width="2" height="6"/><rect class="fl" x="11" y="8" width="2" height="10"/><rect class="fl" x="17" y="14" width="2" height="4"/></svg><div class="num">23</div><div class="lbl">Downbeat</div><div class="id">downbeat</div></div>
+
+  </div>
+</section>
+
+<!-- ════════ 05 MEDIA CONTROLS (6) ════════ -->
+<section class="group">
+  <div class="group-hdr">
+    <div class="group-num">05</div>
+    <div class="group-title">Media Controls</div>
+    <div class="group-tag">6 icons · transport</div>
+  </div>
+  <div class="icon-grid">
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><polygon class="fl" points="7,4 7,20 20,12"/></svg><div class="num">24</div><div class="lbl">Play</div><div class="id">play</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><rect class="fl" x="6" y="4" width="4" height="16"/><rect class="fl" x="14" y="4" width="4" height="16"/></svg><div class="num">25</div><div class="lbl">Pause</div><div class="id">pause</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><rect class="fl" x="5" y="5" width="14" height="14"/></svg><div class="num">26</div><div class="lbl">Stop</div><div class="id">stop</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><polygon class="fl" points="4,4 4,20 14,12"/><rect class="fl" x="16" y="4" width="3" height="16"/></svg><div class="num">27</div><div class="lbl">Next</div><div class="id">next</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><rect class="fl" x="5" y="4" width="3" height="16"/><polygon class="fl" points="20,4 20,20 10,12"/></svg><div class="num">28</div><div class="lbl">Prev</div><div class="id">prev</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><line class="stk" x1="3" y1="12" x2="21" y2="12" stroke-width="2"/><circle class="fl" cx="12" cy="12" r="3"/><line class="stk dim" x1="6" y1="9" x2="6" y2="15"/><line class="stk dim" x1="18" y1="9" x2="18" y2="15"/></svg><div class="num">29</div><div class="lbl">Scrub</div><div class="id">scrub</div></div>
+
+  </div>
+</section>
+
+<!-- ════════ 06 EDITOR (5) ════════ -->
+<section class="group">
+  <div class="group-hdr">
+    <div class="group-num">06</div>
+    <div class="group-title">Editor Tools</div>
+    <div class="group-tag">5 icons · NLE</div>
+  </div>
+  <div class="icon-grid">
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><circle class="stk" cx="7" cy="7" r="3"/><circle class="stk" cx="7" cy="17" r="3"/><line class="stk" x1="9.5" y1="8.5" x2="20" y2="18"/><line class="stk" x1="9.5" y1="15.5" x2="20" y2="6"/></svg><div class="num">30</div><div class="lbl">Cut</div><div class="id">cut</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><rect class="stk" x="3" y="9" width="7" height="6"/><rect class="stk" x="14" y="9" width="7" height="6"/><line class="stk" x1="12" y1="4" x2="12" y2="20" stroke-dasharray="2 2"/></svg><div class="num">31</div><div class="lbl">Split</div><div class="id">split</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><circle class="stk" cx="12" cy="12" r="7"/><path class="stk dim" d="M 12 5 L 12 12 L 17 15"/><circle class="fl" cx="12" cy="12" r="1"/><path class="stk" d="M 12 5 L 14 3 L 15 5"/></svg><div class="num">32</div><div class="lbl">Effect</div><div class="id">fx</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><circle class="stk" cx="12" cy="12" r="8"/><path class="stk" d="M 12 6 L 12 12 L 16 14"/><path class="stk dim" d="M 12 4 L 12 6"/><path class="stk dim" d="M 4 12 L 6 12"/><path class="stk dim" d="M 20 12 L 18 12"/></svg><div class="num">33</div><div class="lbl">Slow-mo</div><div class="id">slow</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><circle class="stk" cx="10" cy="10" r="6"/><line class="stk" x1="7" y1="10" x2="13" y2="10"/><line class="stk" x1="10" y1="7" x2="10" y2="13"/><line class="stk" x1="14.5" y1="14.5" x2="20" y2="20" stroke-width="2"/></svg><div class="num">34</div><div class="lbl">Zoom In</div><div class="id">zoom-in</div></div>
+
+  </div>
+</section>
+
+<!-- ════════ 07 STATUS (3) ════════ -->
+<section class="group">
+  <div class="group-hdr">
+    <div class="group-num">07</div>
+    <div class="group-title">Status</div>
+    <div class="group-tag">3 icons · gate states</div>
+  </div>
+  <div class="icon-grid">
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><circle class="stk" cx="12" cy="12" r="9" style="stroke:#1e8449"/><path class="stk" d="M 7 12 L 11 16 L 17 9" style="stroke:#1e8449;stroke-width:2"/></svg><div class="num">35</div><div class="lbl">Approved</div><div class="id">ok</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><polygon class="stk" points="12,3 22,20 2,20" style="stroke:#e68a00"/><line class="stk" x1="12" y1="10" x2="12" y2="15" style="stroke:#e68a00;stroke-width:2"/><circle class="fl" cx="12" cy="17.5" r="1" style="fill:#e68a00"/></svg><div class="num">36</div><div class="lbl">Degraded</div><div class="id">warn</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><circle class="stk" cx="12" cy="12" r="9" style="stroke:#c41515"/><line class="stk" x1="8" y1="8" x2="16" y2="16" style="stroke:#c41515;stroke-width:2"/><line class="stk" x1="16" y1="8" x2="8" y2="16" style="stroke:#c41515;stroke-width:2"/></svg><div class="num">37</div><div class="lbl">Failed</div><div class="id">err</div></div>
+
+  </div>
+</section>
+
+<!-- ════════ 08 SYSTEM (2) ════════ -->
+<section class="group">
+  <div class="group-hdr">
+    <div class="group-num">08</div>
+    <div class="group-title">System</div>
+    <div class="group-tag">2 icons · chrome</div>
+  </div>
+  <div class="icon-grid">
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><circle class="stk" cx="12" cy="12" r="3"/><path class="stk" d="M 12 3 L 12 6 M 12 18 L 12 21 M 3 12 L 6 12 M 18 12 L 21 12 M 5.5 5.5 L 7.5 7.5 M 16.5 16.5 L 18.5 18.5 M 18.5 5.5 L 16.5 7.5 M 7.5 16.5 L 5.5 18.5"/></svg><div class="num">38</div><div class="lbl">Settings</div><div class="id">settings</div></div>
+
+    <div class="icon-cell"><svg viewBox="0 0 24 24"><path class="stk" d="M 2 12 Q 12 4 22 12 Q 12 20 2 12 Z"/><circle class="stk" cx="12" cy="12" r="3"/><circle class="fl" cx="12" cy="12" r="1.25"/><line class="stk dim" x1="4" y1="8" x2="20" y2="8" stroke-dasharray="1 2"/><line class="stk dim" x1="4" y1="16" x2="20" y2="16" stroke-dasharray="1 2"/></svg><div class="num">39</div><div class="lbl">CRT Toggle</div><div class="id">crt</div></div>
+
+  </div>
+</section>
+
+<!-- ════════ USAGE EXAMPLES ════════ -->
+<section class="group">
+  <div class="group-hdr">
+    <div class="group-num">09</div>
+    <div class="group-title">Usage in UI</div>
+    <div class="group-tag">See it in context</div>
+  </div>
+
+  <p class="lead">How these icons flow into the cockpit surfaces.</p>
+
+  <div class="panel-hdr">
+    <svg viewBox="0 0 24 24" style="color:var(--p-gold)"><polygon class="stk" points="3,11 12,3 21,11"/><line class="stk" x1="2" y1="11" x2="22" y2="11"/><line class="stk" x1="5" y1="12" x2="5" y2="21"/><line class="stk" x1="10" y1="12" x2="10" y2="21"/><line class="stk" x1="14" y1="12" x2="14" y2="21"/><line class="stk" x1="19" y1="12" x2="19" y2="21"/><line class="stk" x1="3" y1="21" x2="21" y2="21"/></svg>
+    <span class="t">FLOW PLAN</span>
+    <div class="acts">
+      <button><svg viewBox="0 0 24 24"><polygon class="fl" points="7,4 7,20 20,12"/></svg>PLAY</button>
+      <button><svg viewBox="0 0 24 24"><circle class="stk" cx="10" cy="10" r="6"/><line class="stk" x1="7" y1="10" x2="13" y2="10"/><line class="stk" x1="10" y1="7" x2="10" y2="13"/><line class="stk" x1="14.5" y1="14.5" x2="20" y2="20" stroke-width="2"/></svg>ZOOM</button>
+      <button><svg viewBox="0 0 24 24"><circle class="stk" cx="12" cy="12" r="3"/><path class="stk" d="M 12 3 L 12 6 M 12 18 L 12 21 M 3 12 L 6 12 M 18 12 L 21 12 M 5.5 5.5 L 7.5 7.5 M 16.5 16.5 L 18.5 18.5 M 18.5 5.5 L 16.5 7.5 M 7.5 16.5 L 5.5 18.5"/></svg></button>
+    </div>
+  </div>
+
+  <div class="clip">
+    <svg viewBox="0 0 24 24" style="color:var(--p-gold)"><path class="stk" d="M 12 4 L 7 10 L 7 20 L 17 20 L 17 10 Z"/></svg>
+    <div><div class="name">CA-asylum · rail 4-frag</div><div class="t">00:47.2 → 00:53.8 · T1 · drop</div></div>
+    <svg viewBox="0 0 24 24" style="color:var(--p-gold)"><path class="stk fl" d="M 13 3 L 6 13 L 11 13 L 9 21 L 18 9 L 13 9 Z"/></svg>
+    <svg viewBox="0 0 24 24" style="color:var(--p-gold)"><polygon class="stk" points="12,3 14,9 20,9 15,13 17,20 12,16 7,20 9,13 4,9 10,9"/></svg>
+    <svg viewBox="0 0 24 24" style="color:#1e8449"><circle class="stk" cx="12" cy="12" r="9" style="stroke:#1e8449"/><path class="stk" d="M 7 12 L 11 16 L 17 9" style="stroke:#1e8449;stroke-width:2"/></svg>
+  </div>
+
+  <div class="clip">
+    <svg viewBox="0 0 24 24" style="color:var(--p-gold)"><polygon class="stk" points="5,6 12,11 19,6 19,18 12,13 5,18"/></svg>
+    <div><div class="name">CA-campgrounds · LG chain</div><div class="t">01:12.0 → 01:18.4 · T2 · build</div></div>
+    <svg viewBox="0 0 24 24" style="color:var(--p-gold)"><rect class="stk" x="3" y="10" width="14" height="5"/><line class="stk" x1="17" y1="12.5" x2="21" y2="12.5"/></svg>
+    <svg viewBox="0 0 24 24" style="color:var(--p-gold)"><path class="stk fl" d="M 6 13 L 10 17 L 18 7"/></svg>
+    <svg viewBox="0 0 24 24" style="color:#e68a00"><polygon class="stk" points="12,3 22,20 2,20" style="stroke:#e68a00"/><line class="stk" x1="12" y1="10" x2="12" y2="15" style="stroke:#e68a00;stroke-width:2"/><circle class="fl" cx="12" cy="17.5" r="1" style="fill:#e68a00"/></svg>
+  </div>
+
+  <div class="clip">
+    <svg viewBox="0 0 24 24" style="color:var(--p-gold)"><rect class="stk" x="4" y="8" width="16" height="3"/><rect class="stk" x="4" y="13" width="16" height="3"/></svg>
+    <div><div class="name">CA-overkill · MG spray</div><div class="t">02:03.7 → 02:06.1 · T3 · break</div></div>
+    <svg viewBox="0 0 24 24" style="color:var(--p-gold-dim)"><rect class="stk" x="3" y="10" width="14" height="5"/></svg>
+    <svg viewBox="0 0 24 24" style="color:var(--p-gold-dim)"><circle class="stk" cx="12" cy="12" r="8"/><line class="stk" x1="12" y1="4" x2="12" y2="20"/><line class="stk" x1="4" y1="12" x2="20" y2="12"/></svg>
+    <svg viewBox="0 0 24 24" style="color:var(--p-text-dim)"><circle class="stk" cx="12" cy="12" r="9" style="stroke:currentColor"/></svg>
+  </div>
+
+  <div class="usage">
+    <div class="usage-row"><svg viewBox="0 0 24 24" style="color:var(--p-gold)"><circle class="stk" cx="12" cy="12" r="9"/><circle class="fl" cx="12" cy="12" r="2.5"/></svg><div class="role">Favicon · loader</div><div class="desc">Oculus simplified to ring+dot. Animate radial pulse on loader screen.</div></div>
+    <div class="usage-row"><svg viewBox="0 0 24 24" style="color:var(--p-gold)"><polygon class="stk" points="3,11 12,3 21,11"/><line class="stk" x1="2" y1="11" x2="22" y2="11"/><line class="stk" x1="5" y1="12" x2="5" y2="21"/><line class="stk" x1="10" y1="12" x2="10" y2="21"/><line class="stk" x1="14" y1="12" x2="14" y2="21"/><line class="stk" x1="19" y1="12" x2="19" y2="21"/></svg><div class="role">Primary lockup</div><div class="desc">Pediment + wordmark in nav strip across all 4 surfaces.</div></div>
+    <div class="usage-row"><svg viewBox="0 0 24 24" style="color:var(--p-gold)"><rect class="fl" x="5" y="12" width="2" height="6"/><rect class="fl" x="11" y="8" width="2" height="10"/><rect class="fl" x="17" y="14" width="2" height="4"/></svg><div class="role">Music downbeats</div><div class="desc">Stamp on waveform canvas to show beat grid. Recolor by strength.</div></div>
+    <div class="usage-row"><svg viewBox="0 0 24 24" style="color:var(--p-gold)"><line class="stk" x1="12" y1="3" x2="12" y2="21" stroke-width="2.5"/><polygon class="fl" points="9,3 15,3 12,6"/><polygon class="fl" points="9,21 15,21 12,18"/></svg><div class="role">Seam markers</div><div class="desc">Between clips on timeline. 2px gold vertical; arrow caps point to cut.</div></div>
+    <div class="usage-row"><svg viewBox="0 0 24 24" style="color:var(--p-gold)"><path class="stk fl" d="M 13 3 L 6 13 L 11 13 L 9 21 L 18 9 L 13 9 Z"/></svg><div class="role">Event pins</div><div class="desc">Above timeline at event moments. Weapon+event combo in 18px chip.</div></div>
+    <div class="usage-row"><svg viewBox="0 0 24 24" style="color:var(--p-gold)"><path class="stk" d="M 2 12 Q 12 4 22 12 Q 12 20 2 12 Z"/><circle class="stk" cx="12" cy="12" r="3"/></svg><div class="role">CRT toggle</div><div class="desc">Settings popover; also in-game effect preview in editor fx panel.</div></div>
+  </div>
+</section>
+
+<!-- ════════ SPEC ════════ -->
+<section class="group">
+  <div class="group-hdr">
+    <div class="group-num">10</div>
+    <div class="group-title">Drawing spec</div>
+    <div class="group-tag">Consistency rules</div>
+  </div>
+
+  <div class="usage" style="font-size:12px;line-height:1.8">
+    <div style="color:var(--p-text)"><b style="color:var(--p-gold)">Grid</b> — 24×24 viewBox. All endpoints on 2px grid. No half-pixels.</div>
+    <div style="color:var(--p-text)"><b style="color:var(--p-gold)">Stroke</b> — <code style="background:var(--p-surface2);padding:1px 5px;border:1px solid var(--p-border)">1.5px</code> default, <code style="background:var(--p-surface2);padding:1px 5px;border:1px solid var(--p-border)">1.25px</code> for dim/secondary detail, <code style="background:var(--p-surface2);padding:1px 5px;border:1px solid var(--p-border)">2px</code> for emphasis lines (rail shot, seam axis). <code style="background:var(--p-surface2);padding:1px 5px;border:1px solid var(--p-border)">stroke-linecap: square</code>, <code style="background:var(--p-surface2);padding:1px 5px;border:1px solid var(--p-border)">stroke-linejoin: miter</code>. Brutalist: no rounded ends.</div>
+    <div style="color:var(--p-text)"><b style="color:var(--p-gold)">Fill</b> — Use sparingly. Solid gold fill signals <em>present / active / hit</em>. Hollow stroke signals <em>available / idle</em>.</div>
+    <div style="color:var(--p-text)"><b style="color:var(--p-gold)">Color</b> — Default <code style="background:var(--p-surface2);padding:1px 5px;border:1px solid var(--p-border)">currentColor</code>. Status icons (35–37) lock their color. All others tintable via parent CSS <code style="background:var(--p-surface2);padding:1px 5px;border:1px solid var(--p-border)">color</code>.</div>
+    <div style="color:var(--p-text)"><b style="color:var(--p-gold)">Naming</b> — <code style="background:var(--p-surface2);padding:1px 5px;border:1px solid var(--p-border)">icon-[group]-[id]</code>, e.g. <code style="background:var(--p-surface2);padding:1px 5px;border:1px solid var(--p-border)">icon-wpn-rail</code>, <code style="background:var(--p-surface2);padding:1px 5px;border:1px solid var(--p-border)">icon-evt-exc</code>.</div>
+    <div style="color:var(--p-text)"><b style="color:var(--p-gold)">Delivery</b> — Ship as single sprite (<code style="background:var(--p-surface2);padding:1px 5px;border:1px solid var(--p-border)">icons.svg</code> with <code style="background:var(--p-surface2);padding:1px 5px;border:1px solid var(--p-border)">&lt;symbol&gt;</code>) + individual files. Use <code style="background:var(--p-surface2);padding:1px 5px;border:1px solid var(--p-border)">&lt;svg&gt;&lt;use href="#icon-xxx"/&gt;&lt;/svg&gt;</code>.</div>
+  </div>
+</section>
+
+</main>
+
+<footer class="sig">
+  <span>PANTHEON × CLAN ARENA // ICON SET v1</span>
+  <span>39 GLYPHS · 24×24 · 1.5px STROKE</span>
+</footer>
+
+</body>
+</html>
