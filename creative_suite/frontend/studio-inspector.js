@@ -1,452 +1,451 @@
 /**
  * PANTHEON STUDIO — Inspector Panel
- * studio-inspector.js
+ * studio-inspector.js  (v2 — plain DOM, no Tweakpane)
  *
- * Properties inspector for the currently selected clip.  Renders editable
- * clip metadata + override parameters via Tweakpane 4.x, with an optional
- * Theatre.js Core animation timeline when available.
+ * Displays and edits clip properties for the currently selected clip.
+ * Subscribes to StudioStore.selectedClip and repopulates on every change.
+ *
+ * Sections:
+ *   CLIP INFO   — read-only: filename, tier, is_fl, duration
+ *   OVERRIDES   — editable: head_trim, tail_trim, slow_rate
+ *   EFFECTS     — editable: transition type
+ *
+ * "APPLY" button saves overrides back via PUT /api/studio/part/{n}/clips.
  *
  * Exposed on: window.StudioInspector
- *
- * Depends on:
- *   window.StudioStore        (studio-store.js loaded first)
- *   window.Pane               (vendor/tweakpane.js — ES-module export; may be
- *                              undefined when loaded as a classic <script>)
- *   window.Theatre            (vendor/theatre-core-studio.js)
- *                              The bundle sets window.Theatre = { core, studio }
- *                              We use Theatre.core only (Apache-2.0).
- *
- * Vendor API notes (discovered by reading vendor files):
- *   Tweakpane 4.0.5 — ES-module file, exports { Pane, FolderApi, … } via
- *     `export {}` at EOF.  When loaded as a classic <script> tag the named
- *     exports are NOT placed on window.  Check window.Pane as the canonical
- *     guard; fall back to a placeholder div when unavailable.
- *
- *   Theatre.js — IIFE bundle; sets:
- *     window.Theatre = { core: <@theatre/core API>, studio: <@theatre/studio> }
- *     @theatre/core API: getProject(name) → Project
- *       project.sheet(name)  → Sheet
- *       sheet.object(key, { props }) → SheetObject (animatable)
- *     ONLY core is used here; studio UI is never initialised (AGPL concern).
- *
- * Rule UI-1: DOM built with createElement / textContent only (no raw injection).
- * Rule UI-2: all state from StudioStore — no local drift.
+ * Rule UI-1: DOM via createElement/textContent only.
+ * Rule UI-2: state from StudioStore, no local drift.
  */
 (function (global) {
   'use strict';
 
-  // ── Tweakpane availability guard ────────────────────────────────────────────
-  //
-  // tweakpane.js is a pure ES-module bundle (ends with `export { Pane, … }`).
-  // When included via <script src> in a classic HTML page the export statement
-  // is silently ignored — no global is set.  We therefore check for Pane on
-  // window (some bundlers do assign it) and, if missing, degrade gracefully.
+  // ── Module state ─────────────────────────────────────────────────────────────
 
-  function getTweakpanePane() {
-    // Primary: explicit window.Tweakpane namespace (some CDN builds)
-    if (typeof global.Tweakpane !== 'undefined' && global.Tweakpane.Pane) {
-      return global.Tweakpane.Pane;
-    }
-    // Secondary: Pane placed directly on window (some bundler outputs)
-    if (typeof global.Pane !== 'undefined') {
-      return global.Pane;
-    }
-    return null;
-  }
-
-  // ── Theatre.js Core availability guard ─────────────────────────────────────
-  //
-  // The vendor bundle (theatre-core-studio.js) is an IIFE that ends with:
-  //   window.Theatre = { core: src_exports, studio: src_default }
-  // We only use `core` to avoid AGPL surface of the studio package.
-
-  function getTheatreCore() {
-    if (
-      typeof global.Theatre !== 'undefined' &&
-      global.Theatre !== null &&
-      typeof global.Theatre.core !== 'undefined'
-    ) {
-      return global.Theatre.core;
-    }
-    return null;
-  }
-
-  // ── Module-private state ────────────────────────────────────────────────────
-
-  /** @type {Element|null} Outer container passed to mount(). */
-  var _container = null;
-
-  /** @type {Element|null} Root panel element. */
-  var _panelEl = null;
-
-  /** @type {Element|null} Toolbar clip-name label. */
-  var _clipNameEl = null;
-
-  /** @type {Element|null} Tweakpane wrapper div. */
-  var _paneWrapEl = null;
-
-  /** @type {Element|null} Theatre.js wrapper div. */
-  var _animWrapEl = null;
-
-  /** @type {object|null} Tweakpane Pane instance. */
-  var _pane = null;
-
-  /** @type {object|null} Current clip being inspected. */
+  var _container  = null;
+  var _panelEl    = null;
+  var _bodyEl     = null;
+  var _unsubscribe = null;
   var _currentClip = null;
 
-  /** @type {object} Editable values object (Tweakpane binds to this). */
-  var _values = {
-    path:      '',
-    tier:      '',
-    is_fl:     false,
-    head_trim: 0.0,
-    tail_trim: 0.0,
-    slow_rate: 1.0,
-  };
+  var TRANSITIONS = ['none', 'xfade', 'fade', 'hard_cut'];
 
-  /** @type {function|null} StudioStore unsubscribe handle. */
-  var _unsubscribe = null;
+  var FX_CATALOGUE = [
+    { type: 'slowmo',        label: 'Slow Motion',   params: { rate:      { min: 0.1,  max: 0.9,  step: 0.1,  def: 0.5  }, window_s: { min: 0.5, max: 4.0, step: 0.5, def: 1.6 } } },
+    { type: 'speedup',       label: 'Speed Up',      params: { rate:      { min: 1.2,  max: 4.0,  step: 0.2,  def: 2.0  }, window_s: { min: 0.5, max: 4.0, step: 0.5, def: 1.6 } } },
+    { type: 'zoom',          label: 'Zoom',          params: { scale:     { min: 1.05, max: 2.0,  step: 0.05, def: 1.3  } } },
+    { type: 'vignette',      label: 'Vignette',      params: { strength:  { min: 0.0,  max: 1.0,  step: 0.05, def: 0.5  } } },
+    { type: 'shine_on_kill', label: 'Shine On Kill', params: { intensity: { min: 0.1,  max: 2.0,  step: 0.1,  def: 1.0  } } },
+    { type: 'bass_drop',     label: 'Bass Drop',     params: { depth_db:  { min: 1,    max: 12,   step: 1,    def: 6    } } },
+    { type: 'reverb_tail',   label: 'Reverb Tail',   params: { decay_s:   { min: 0.1,  max: 2.0,  step: 0.1,  def: 0.6  } } },
+  ];
 
-  /** @type {object|null} Theatre.js Project instance. */
-  var _theatreProject = null;
+  // ── DOM helpers ───────────────────────────────────────────────────────────────
 
-  /** @type {object|null} Theatre.js Sheet instance. */
-  var _theatreSheet = null;
-
-  /** @type {object|null} Theatre.js SheetObject for current clip. */
-  var _theatreObj = null;
-
-  // ── Tweakpane helpers ───────────────────────────────────────────────────────
-
-  /**
-   * Destroy the current Tweakpane pane if one exists.
-   */
-  function _destroyPane() {
-    if (_pane) {
-      try { _pane.dispose(); } catch (e) { /* already disposed */ }
-      _pane = null;
-    }
+  function _el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls)  n.className   = cls;
+    if (text !== undefined && text !== null) n.textContent = text;
+    return n;
   }
 
-  /**
-   * Build (or rebuild) the Tweakpane pane inside _paneWrapEl.
-   * Caller is responsible for ensuring _paneWrapEl is non-null.
-   */
-  function _buildPane() {
-    _destroyPane();
-
-    var PaneClass = getTweakpanePane();
-
-    if (!PaneClass) {
-      // Tweakpane not available — show a plain text placeholder
-      var notice = document.createElement('p');
-      notice.textContent = 'Tweakpane not available (vendor not loaded as module)';
-      notice.style.cssText = 'color:#888;font-size:11px;padding:8px;margin:0;';
-      // Clear previous children safely
-      while (_paneWrapEl.firstChild) {
-        _paneWrapEl.removeChild(_paneWrapEl.firstChild);
-      }
-      _paneWrapEl.appendChild(notice);
-      return;
-    }
-
-    // Clear previous children
-    while (_paneWrapEl.firstChild) {
-      _paneWrapEl.removeChild(_paneWrapEl.firstChild);
-    }
-
-    // Create Tweakpane pane bound to our wrapper element
-    _pane = new PaneClass({ container: _paneWrapEl });
-
-    // ── Folder: CLIP INFO (read-only monitors) ──────────────────────────────
-    var infoFolder = _pane.addFolder({ title: 'CLIP INFO', expanded: true });
-
-    infoFolder.addBinding(_values, 'path', {
-      label: 'path',
-      readonly: true,
-    });
-
-    infoFolder.addBinding(_values, 'tier', {
-      label: 'tier',
-      readonly: true,
-    });
-
-    infoFolder.addBinding(_values, 'is_fl', {
-      label: 'is_fl',
-      readonly: true,
-    });
-
-    // ── Folder: OVERRIDES (editable) ────────────────────────────────────────
-    var overrideFolder = _pane.addFolder({ title: 'OVERRIDES', expanded: true });
-
-    overrideFolder.addBinding(_values, 'head_trim', {
-      label: 'head_trim',
-      min: 0,
-      max: 10,
-      step: 0.1,
-    });
-
-    overrideFolder.addBinding(_values, 'tail_trim', {
-      label: 'tail_trim',
-      min: 0,
-      max: 10,
-      step: 0.1,
-    });
-
-    overrideFolder.addBinding(_values, 'slow_rate', {
-      label: 'slow_rate',
-      min: 0.1,
-      max: 2.0,
-      step: 0.1,
-    });
+  function _fmt(val) {
+    return (val === null || val === undefined) ? '—' : String(val);
   }
 
-  // ── Theatre.js helpers ──────────────────────────────────────────────────────
+  function _fmtDur(s) {
+    if (s === null || s === undefined) return '—';
+    var n = Number(s);
+    return isNaN(n) ? '—' : n.toFixed(1) + 's';
+  }
 
-  /**
-   * Initialise a Theatre.js sheet object for the given clip.
-   * No-ops silently when Theatre.core is unavailable.
-   * Uses @theatre/core only — studio UI is never initialised.
-   *
-   * @param {object} clip
-   */
-  function _initTheatreObject(clip) {
-    if (_theatreObj) {
-      try { _theatreObj.detachFromParent && _theatreObj.detachFromParent(); } catch (e) { /* ignore */ }
-      _theatreObj = null;
-    }
+  // ── Section builders ─────────────────────────────────────────────────────────
 
-    var TheatreCore = getTheatreCore();
-    if (!TheatreCore) { return; }
+  function _infoRow(label, value) {
+    var row = _el('div', 'insp-row');
+    row.appendChild(_el('span', 'insp-lbl', label));
+    var v = _el('span', 'insp-val', value);
+    row.appendChild(v);
+    return row;
+  }
 
-    try {
-      if (!_theatreProject) {
-        _theatreProject = TheatreCore.getProject('PantheonStudio');
-      }
-      if (!_theatreSheet) {
-        _theatreSheet = _theatreProject.sheet('ClipInspector');
-      }
+  function _rangeRow(label, min, max, step, initVal, onChange) {
+    var row = _el('div', 'insp-row');
+    row.appendChild(_el('span', 'insp-lbl', label));
 
-      // Create a sheet object whose props mirror the editable overrides.
-      // The key is per-clip so each clip gets its own animation track.
-      var clipKey = 'clip_' + (clip.path || 'unknown').replace(/[^a-zA-Z0-9_]/g, '_');
+    var wrap = _el('div', 'insp-range-wrap');
 
-      _theatreObj = _theatreSheet.object(clipKey, {
-        head_trim: _values.head_trim,
-        tail_trim: _values.tail_trim,
-        slow_rate: _values.slow_rate,
+    var range = document.createElement('input');
+    range.type  = 'range';
+    range.className = 'insp-range';
+    range.min   = String(min);
+    range.max   = String(max);
+    range.step  = String(step);
+    range.value = String(initVal);
+
+    var num = document.createElement('input');
+    num.type  = 'number';
+    num.className = 'insp-number';
+    num.min   = String(min);
+    num.max   = String(max);
+    num.step  = String(step);
+    num.value = String(initVal);
+
+    range.addEventListener('input', function () {
+      num.value = range.value;
+      onChange(parseFloat(range.value));
+    });
+    num.addEventListener('change', function () {
+      var v = Math.max(min, Math.min(max, parseFloat(num.value) || 0));
+      num.value   = String(v);
+      range.value = String(v);
+      onChange(v);
+    });
+
+    wrap.appendChild(range);
+    wrap.appendChild(num);
+    row.appendChild(wrap);
+    return row;
+  }
+
+  function _selectRow(label, options, initVal, onChange) {
+    var row = _el('div', 'insp-row');
+    row.appendChild(_el('span', 'insp-lbl', label));
+    var sel = document.createElement('select');
+    sel.className = 'insp-select';
+    options.forEach(function (opt) {
+      var o = document.createElement('option');
+      o.value = opt;
+      o.textContent = opt;
+      if (opt === initVal) o.selected = true;
+      sel.appendChild(o);
+    });
+    sel.addEventListener('change', function () { onChange(sel.value); });
+    row.appendChild(sel);
+    return row;
+  }
+
+  // ── FX Stack helpers ─────────────────────────────────────────────────────────
+
+  function _buildFxCard(fx, arrangementId, part, onRemove) {
+    var cat   = FX_CATALOGUE.find(function (c) { return c.type === fx.effect_type; });
+    var label = cat ? cat.label : fx.effect_type;
+    var pDef  = cat ? cat.params : {};
+
+    var card = _el('div', 'fx-card' + (fx.enabled ? '' : ' fx-card--disabled'));
+    var hdr  = _el('div', 'fx-card-hdr');
+
+    // Toggle enable
+    var tog = document.createElement('input');
+    tog.type      = 'checkbox';
+    tog.className = 'fx-toggle';
+    tog.checked   = !!fx.enabled;
+    tog.addEventListener('change', function () {
+      card.classList.toggle('fx-card--disabled', !tog.checked);
+      fetch('/api/studio/part/' + part + '/arrangement/' + arrangementId + '/fx/' + fx.id, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: tog.checked ? 1 : 0 }),
+        signal: AbortSignal.timeout(5000),
+      }).catch(function (e) { console.error('[FX] toggle', e); });
+    });
+    hdr.appendChild(tog);
+
+    // Label + collapse toggle
+    var lbl = _el('span', 'fx-card-label', label);
+    hdr.appendChild(lbl);
+
+    var colBtn = _el('button', 'fx-collapse-btn', '▾');
+    hdr.appendChild(colBtn);
+
+    // Remove button
+    var remBtn = _el('button', 'fx-remove-btn', '✕');
+    remBtn.addEventListener('click', function () {
+      fetch('/api/studio/part/' + part + '/arrangement/' + arrangementId + '/fx/' + fx.id, {
+        method: 'DELETE', signal: AbortSignal.timeout(5000),
+      })
+        .then(function (r) { if (r.ok) onRemove(); })
+        .catch(function (e) { console.error('[FX] delete', e); });
+    });
+    hdr.appendChild(remBtn);
+    card.appendChild(hdr);
+
+    // Param sliders (collapsible)
+    var body   = _el('div', 'fx-card-body');
+    var params = Object.assign({}, pDef ? Object.fromEntries(Object.entries(pDef).map(function (kv) { return [kv[0], kv[1].def]; })) : {});
+    try { Object.assign(params, JSON.parse(fx.params || '{}')); } catch (e) {}
+
+    Object.keys(pDef).forEach(function (k) {
+      var spec = pDef[k];
+      body.appendChild(_rangeRow(k, spec.min, spec.max, spec.step, params[k] !== undefined ? params[k] : spec.def, function (v) {
+        params[k] = v;
+        fetch('/api/studio/part/' + part + '/arrangement/' + arrangementId + '/fx/' + fx.id, {
+          method: 'PUT', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ params: params }),
+          signal: AbortSignal.timeout(5000),
+        }).catch(function (e) { console.error('[FX] param', e); });
+      }));
+    });
+
+    card.appendChild(body);
+
+    colBtn.addEventListener('click', function () {
+      var collapsed = body.style.display === 'none';
+      body.style.display = collapsed ? '' : 'none';
+      colBtn.textContent = collapsed ? '▾' : '▸';
+    });
+
+    return card;
+  }
+
+  function _buildAddFxRow(arrangementId, part, fxList, existingFx, onAdded) {
+    var row = _el('div', 'fx-add-row');
+    var sel = document.createElement('select');
+    sel.className = 'fx-add-select';
+
+    var used = (existingFx || []).map(function (f) { return f.effect_type; });
+    FX_CATALOGUE.forEach(function (cat) {
+      if (used.indexOf(cat.type) !== -1) return;
+      var o = document.createElement('option');
+      o.value = cat.type; o.textContent = cat.label;
+      sel.appendChild(o);
+    });
+    row.appendChild(sel);
+
+    var addBtn = _el('button', 'fx-add-btn', '+ ADD');
+    addBtn.addEventListener('click', function () {
+      var type = sel.value;
+      if (!type) return;
+      var cat = FX_CATALOGUE.find(function (c) { return c.type === type; });
+      var defParams = cat ? Object.fromEntries(Object.entries(cat.params).map(function (kv) { return [kv[0], kv[1].def]; })) : {};
+      fetch('/api/studio/part/' + part + '/arrangement/' + arrangementId + '/fx', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ effect_type: type, params: defParams }),
+        signal: AbortSignal.timeout(5000),
+      })
+        .then(function (r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
+        .then(function (d) { if (onAdded) onAdded(d); })
+        .catch(function (e) { console.error('[FX] add', e); });
+    });
+    row.appendChild(addBtn);
+    return row;
+  }
+
+  function _buildFxSection(clip, part) {
+    var sec = _el('div', 'insp-section');
+    sec.appendChild(_el('div', 'insp-section-title', 'FX STACK'));
+    var loading = _el('div', 'insp-fx-loading', 'Loading…');
+    sec.appendChild(loading);
+
+    var clipPath = clip.path || clip.clip_path || '';
+
+    fetch('/api/studio/part/' + part + '/arrangement', { signal: AbortSignal.timeout(6000) })
+      .then(function (r) { return r.ok ? r.json() : { clips: [] }; })
+      .then(function (d) {
+        loading.remove();
+        var arr = (d.clips || []).find(function (a) {
+          return a.clip_path === clipPath ||
+                 (clipPath && a.clip_path && (clipPath.endsWith(a.clip_path) || a.clip_path.endsWith(clipPath)));
+        });
+        if (!arr) {
+          sec.appendChild(_el('div', 'insp-fx-empty', 'Add clip to arrangement first'));
+          return;
+        }
+
+        var fxList = _el('div', 'insp-fx-list');
+
+        function _refresh() {
+          fetch('/api/studio/part/' + part + '/arrangement', { signal: AbortSignal.timeout(5000) })
+            .then(function (r) { return r.ok ? r.json() : { clips: [] }; })
+            .then(function (data) {
+              while (fxList.firstChild) fxList.removeChild(fxList.firstChild);
+              var fresh = (data.clips || []).find(function (a) { return a.id === arr.id; });
+              var effects = fresh ? (fresh.effects || []) : [];
+              arr.effects = effects;
+              effects.forEach(function (fx) {
+                fxList.appendChild(_buildFxCard(fx, arr.id, part, _refresh));
+              });
+              var addRow = sec.querySelector('.fx-add-row');
+              if (addRow) addRow.remove();
+              sec.appendChild(_buildAddFxRow(arr.id, part, fxList, effects, _refresh));
+            })
+            .catch(function (e) { console.error('[FX] refresh', e); });
+        }
+
+        (arr.effects || []).forEach(function (fx) {
+          fxList.appendChild(_buildFxCard(fx, arr.id, part, _refresh));
+        });
+        sec.appendChild(fxList);
+        sec.appendChild(_buildAddFxRow(arr.id, part, fxList, arr.effects || [], _refresh));
+      })
+      .catch(function (e) {
+        loading.textContent = 'FX load error';
+        console.error('[FX] section', e);
       });
 
-      // Show the animation wrapper
-      if (_animWrapEl) {
-        var label = document.createElement('p');
-        label.textContent = 'Theatre.js: ' + clipKey;
-        label.style.cssText = 'color:#C9A84C;font-size:10px;padding:6px 8px;margin:0;';
-        while (_animWrapEl.firstChild) {
-          _animWrapEl.removeChild(_animWrapEl.firstChild);
-        }
-        _animWrapEl.appendChild(label);
-      }
-    } catch (e) {
-      console.warn('[StudioInspector] Theatre.js init error:', e);
+    return sec;
+  }
+
+  // ── Panel population ─────────────────────────────────────────────────────────
+
+  function _clearBody() {
+    if (_bodyEl) {
+      while (_bodyEl.firstChild) _bodyEl.removeChild(_bodyEl.firstChild);
     }
   }
 
-  // ── DOM construction ────────────────────────────────────────────────────────
-
-  /**
-   * Build the inspector panel DOM tree and append to container.
-   * All nodes created with createElement; no raw string injection.
-   */
-  function _buildDom(containerEl) {
-    // Outer panel
-    var panel = document.createElement('div');
-    panel.className = 'inspector-panel';
-
-    // ── Toolbar ──────────────────────────────────────────────────────────────
-    var toolbar = document.createElement('div');
-    toolbar.className = 'inspector-toolbar';
-
-    var labelSpan = document.createElement('span');
-    labelSpan.className = 'inspector-label';
-    labelSpan.textContent = 'INSPECTOR';
-
-    var clipNameSpan = document.createElement('span');
-    clipNameSpan.className = 'inspector-clip-name';
-    clipNameSpan.textContent = 'No clip selected';
-
-    toolbar.appendChild(labelSpan);
-    toolbar.appendChild(clipNameSpan);
-    panel.appendChild(toolbar);
-
-    // ── Pane wrapper ──────────────────────────────────────────────────────────
-    var paneWrap = document.createElement('div');
-    paneWrap.className = 'inspector-pane-wrap';
-    panel.appendChild(paneWrap);
-
-    // ── Animation wrapper ─────────────────────────────────────────────────────
-    var animWrap = document.createElement('div');
-    animWrap.className = 'inspector-anim-wrap';
-    panel.appendChild(animWrap);
-
-    containerEl.appendChild(panel);
-
-    _panelEl    = panel;
-    _clipNameEl = clipNameSpan;
-    _paneWrapEl = paneWrap;
-    _animWrapEl = animWrap;
+  function _showEmpty() {
+    _clearBody();
+    if (!_bodyEl) return;
+    _bodyEl.appendChild(_el('div', 'insp-empty', 'No clip selected'));
   }
 
-  // ── Store subscription ──────────────────────────────────────────────────────
+  function _showClip(clip) {
+    _clearBody();
+    if (!_bodyEl) return;
 
-  /**
-   * Subscribe to StudioStore.  When clips array changes and we have a currently
-   * inspected clip, refresh its display (covers metadata updates from API).
-   */
+    var values = {
+      head_trim:  clip.head_trim  !== undefined ? clip.head_trim  : 0.0,
+      tail_trim:  clip.tail_trim  !== undefined ? clip.tail_trim  : 0.0,
+      slow_rate:  clip.slow_rate  !== undefined ? clip.slow_rate  : 1.0,
+      transition: clip.transition || 'none',
+    };
+
+    // ── CLIP INFO ────────────────────────────────────────────────────────────
+    var infoSec = _el('div', 'insp-section');
+    infoSec.appendChild(_el('div', 'insp-section-title', 'CLIP INFO'));
+
+    var rawName = clip.name || (clip.path ? clip.path.split(/[\\/]/).pop() : '(unnamed)');
+    infoSec.appendChild(_infoRow('file', rawName));
+    infoSec.appendChild(_infoRow('tier', clip.tier || '—'));
+    infoSec.appendChild(_infoRow('fl', clip.is_fl ? 'yes' : 'no'));
+    infoSec.appendChild(_infoRow('duration', _fmtDur(clip.duration_s)));
+    if (clip.weapon)  infoSec.appendChild(_infoRow('weapon', _fmt(clip.weapon)));
+    if (clip.map)     infoSec.appendChild(_infoRow('map',    _fmt(clip.map)));
+    _bodyEl.appendChild(infoSec);
+
+    // ── OVERRIDES ───────────────────────────────────────────────────────────
+    var ovSec = _el('div', 'insp-section');
+    ovSec.appendChild(_el('div', 'insp-section-title', 'OVERRIDES'));
+    ovSec.appendChild(_rangeRow('head trim', 0, 10, 0.1, values.head_trim, function (v) { values.head_trim = v; }));
+    ovSec.appendChild(_rangeRow('tail trim', 0, 10, 0.1, values.tail_trim, function (v) { values.tail_trim = v; }));
+    ovSec.appendChild(_rangeRow('slow rate', 0.1, 2.0, 0.1, values.slow_rate, function (v) { values.slow_rate = v; }));
+    _bodyEl.appendChild(ovSec);
+
+    // ── EFFECTS ─────────────────────────────────────────────────────────────
+    var fxSec = _el('div', 'insp-section');
+    fxSec.appendChild(_el('div', 'insp-section-title', 'EFFECTS'));
+    fxSec.appendChild(_selectRow('transition', TRANSITIONS, values.transition, function (v) { values.transition = v; }));
+    _bodyEl.appendChild(fxSec);
+
+    // ── FX STACK (async — fetches arrangement_id) ────────────────────────────
+    var store2 = global.StudioStore;
+    var part2  = store2 ? store2.getState().activePart : null;
+    if (part2) {
+      _bodyEl.appendChild(_buildFxSection(clip, part2));
+    }
+
+    // ── APPLY ────────────────────────────────────────────────────────────────
+    var applyBtn = _el('button', 'insp-apply-btn', 'APPLY');
+    applyBtn.addEventListener('click', function () {
+      _applyValues(clip, values);
+    });
+    _bodyEl.appendChild(applyBtn);
+  }
+
+  function _applyValues(clip, values) {
+    var store = global.StudioStore;
+    if (!store) return;
+    var state = store.getState();
+    var part  = state.activePart;
+    if (!part) return;
+
+    var updated = state.clips.map(function (c) {
+      if (c.path !== clip.path) return c;
+      return Object.assign({}, c, {
+        head_trim:  values.head_trim,
+        tail_trim:  values.tail_trim,
+        slow_rate:  values.slow_rate,
+        transition: values.transition,
+      });
+    });
+
+    fetch('/api/studio/part/' + part + '/clips', {
+      method:  'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ clips: updated }),
+      signal:  AbortSignal.timeout(6000),
+    })
+      .then(function (r) { return r.ok ? r.json() : Promise.reject('HTTP ' + r.status); })
+      .then(function () {
+        store.dispatch({ type: 'SET_STATUS_MSG', payload: 'Clip overrides saved.' });
+        var btn = _bodyEl && _bodyEl.querySelector('.insp-apply-btn');
+        if (btn) { btn.textContent = 'SAVED ✓'; setTimeout(function () { if (btn) btn.textContent = 'APPLY'; }, 1400); }
+      })
+      .catch(function (e) {
+        store.dispatch({ type: 'SET_STATUS_MSG', payload: 'Save failed: ' + e });
+      });
+  }
+
+  // ── Store subscription ────────────────────────────────────────────────────────
+
   function _subscribeStore() {
-    if (!global.StudioStore) { return; }
+    var store = global.StudioStore;
+    if (!store) return;
 
-    _unsubscribe = global.StudioStore.subscribe(function (state, prev) {
-      if (_currentClip === null) { return; }
-      if (state.clips === prev.clips) { return; }
+    var init = store.getState().selectedClip;
+    if (init) { _currentClip = init; _showClip(init); }
+    else      { _showEmpty(); }
 
-      // Find updated clip by path
-      var updatedClip = null;
-      for (var i = 0; i < state.clips.length; i++) {
-        if (state.clips[i].path === _currentClip.path) {
-          updatedClip = state.clips[i];
-          break;
-        }
-      }
-      if (updatedClip) {
-        StudioInspector.inspectClip(updatedClip);
-      }
+    _unsubscribe = store.subscribe(function (state, prev) {
+      if (state.selectedClip === prev.selectedClip) return;
+      _currentClip = state.selectedClip;
+      if (_currentClip) _showClip(_currentClip);
+      else              _showEmpty();
     });
   }
 
-  // ── Public API ──────────────────────────────────────────────────────────────
+  // ── DOM construction ──────────────────────────────────────────────────────────
+
+  function _buildDom(containerEl) {
+    var panel = _el('div', 'insp-panel');
+
+    _bodyEl = _el('div', 'insp-body');
+    panel.appendChild(_bodyEl);
+
+    containerEl.appendChild(panel);
+    _panelEl = panel;
+  }
+
+  // ── Public API ────────────────────────────────────────────────────────────────
 
   var StudioInspector = {
 
-    /**
-     * Create the inspector panel inside containerEl and initialise Tweakpane.
-     * @param {Element} containerEl
-     */
     mount: function (containerEl) {
-      if (_panelEl) { this.unmount(); }
+      if (_panelEl) this.unmount();
       _container = containerEl;
-
       _buildDom(containerEl);
-      _buildPane();
       _subscribeStore();
     },
 
-    /**
-     * Destroy the pane, remove the panel DOM, and unsubscribe from the store.
-     */
     unmount: function () {
-      _destroyPane();
-
-      if (_unsubscribe) {
-        _unsubscribe();
-        _unsubscribe = null;
-      }
-
-      if (_panelEl && _panelEl.parentNode) {
-        _panelEl.parentNode.removeChild(_panelEl);
-      }
-
+      if (_unsubscribe) { _unsubscribe(); _unsubscribe = null; }
+      if (_panelEl && _panelEl.parentNode) _panelEl.parentNode.removeChild(_panelEl);
       _panelEl    = null;
-      _clipNameEl = null;
-      _paneWrapEl = null;
-      _animWrapEl = null;
+      _bodyEl     = null;
       _container  = null;
       _currentClip = null;
-      if (_theatreObj) {
-        try { _theatreObj.detachFromParent && _theatreObj.detachFromParent(); } catch (e) {}
-        _theatreObj = null;
-      }
     },
 
-    /**
-     * Populate the inspector with properties from the given clip object.
-     * @param {object} clip  — { path, tier, is_fl, … }
-     */
     inspectClip: function (clip) {
-      if (!clip) { return; }
+      if (!clip) { _showEmpty(); return; }
       _currentClip = clip;
-
-      // Update toolbar label
-      if (_clipNameEl) {
-        var name = clip.path ? clip.path.split('/').pop() : 'unnamed';
-        _clipNameEl.textContent = name;
-      }
-
-      // Sync _values from clip
-      _values.path    = clip.path  || '';
-      _values.tier    = clip.tier  || '';
-      _values.is_fl   = clip.is_fl || false;
-
-      // Preserve user-edited override values on re-inspect of same clip;
-      // reset to clip overrides if provided, otherwise keep current values.
-      _values.head_trim = (clip.head_trim !== undefined) ? clip.head_trim : _values.head_trim;
-      _values.tail_trim = (clip.tail_trim !== undefined) ? clip.tail_trim : _values.tail_trim;
-      _values.slow_rate = (clip.slow_rate !== undefined) ? clip.slow_rate : _values.slow_rate;
-
-      // Rebuild pane so monitors reflect new values
-      if (_paneWrapEl) { _buildPane(); }
-
-      // Theatre.js sheet object for animation
-      _initTheatreObject(clip);
+      _showClip(clip);
     },
 
-    /**
-     * Add one Tweakpane folder per effect in the chain.
-     * @param {Array<{name: string, [prop: string]: any}>} effectChain
-     */
-    inspectEffects: function (effectChain) {
-      if (!_pane || !effectChain || !effectChain.length) { return; }
-
-      for (var i = 0; i < effectChain.length; i++) {
-        var effect = effectChain[i];
-        if (!effect || typeof effect !== 'object') { continue; }
-
-        var title = effect.name || ('Effect ' + (i + 1));
-        var folder = _pane.addFolder({ title: title, expanded: false });
-
-        // Add each numeric/boolean/string prop as a binding
-        var effectValues = {};
-        var keys = Object.keys(effect);
-        for (var k = 0; k < keys.length; k++) {
-          var key = keys[k];
-          if (key === 'name') { continue; }
-          effectValues[key] = effect[key];
-          try {
-            folder.addBinding(effectValues, key, { label: key });
-          } catch (e) {
-            // addBinding may reject unsupported types — skip silently
-          }
-        }
-      }
-    },
-
-    /**
-     * Return a plain-object snapshot of the current pane values.
-     * @returns {object}
-     */
     getValues: function () {
-      return {
-        path:      _values.path,
-        tier:      _values.tier,
-        is_fl:     _values.is_fl,
-        head_trim: _values.head_trim,
-        tail_trim: _values.tail_trim,
-        slow_rate: _values.slow_rate,
-      };
+      return _currentClip ? Object.assign({}, _currentClip) : null;
     },
   };
 
-  // Expose globally
   global.StudioInspector = StudioInspector;
 
 }(typeof window !== 'undefined' ? window : this));
