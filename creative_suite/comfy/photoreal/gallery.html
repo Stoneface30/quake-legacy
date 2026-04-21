@@ -15,6 +15,7 @@
     --muted: #666;
     --wild: #7722cc;
     --lora: #22aacc;
+    --style: #cc7722;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { background: var(--bg); color: var(--text); font-family: 'Consolas', monospace; }
@@ -41,6 +42,7 @@
   .dot-after  { background: var(--gold); }
   .dot-wild   { background: var(--wild); }
   .dot-lora   { background: var(--lora); }
+  .dot-style  { background: var(--style); }
 
   .regen-banner {
     background: #1a0a00;
@@ -103,6 +105,8 @@
   .img-cell.wild img:hover { border-color: var(--wild); }
   .img-cell.lora img  { border-color: #0a2a33; }
   .img-cell.lora img:hover { border-color: var(--lora); }
+  .img-cell.style img  { border-color: #331500; }
+  .img-cell.style img:hover { border-color: var(--style); }
 
   .img-label {
     font-size: 10px; color: var(--muted); text-align: center; letter-spacing: 0.5px;
@@ -115,6 +119,7 @@
   .badge-after  { background: #1a1200; color: var(--gold); }
   .badge-wild   { background: #1a0833; color: #bb88ff; }
   .badge-lora   { background: #001a22; color: #66ccee; }
+  .badge-style  { background: #221000; color: #ee9944; }
   .badge-pending { background: #111; color: #444; }
 
   .divider { width: 1px; background: var(--border); margin: 0 8px; align-self: stretch; }
@@ -160,14 +165,15 @@
   <div class="legend-item"><div class="dot dot-before"></div> BEFORE — pak00 original</div>
   <div class="legend-item"><div class="dot dot-after"></div> AFTER — upscale_only / tile_d35 / tile_d50</div>
   <div class="legend-item"><div class="dot dot-wild"></div> WILD — tile_d60 / tile_d70 / tile_d80 (experimental)</div>
-  <div class="legend-item"><div class="dot dot-lora"></div> LORA — cel_shade / photoreal_boost (next run)</div>
+  <div class="legend-item"><div class="dot dot-lora"></div> LORA — cel_shade / photoreal_boost / ultra_det</div>
+  <div class="legend-item"><div class="dot dot-style"></div> STYLE — cel_shade / cartoon / concept_art / ink_etching (dedicated workflows)</div>
 </div>
 
 <div class="regen-banner">
-  ⚡ Regeneration needed with new SDXL+LoRA pipeline (JuggernautXL + TTPLanet + Neonify/extremely-detailed).
-  WILD (d60/d70/d80) and LORA variants not yet generated.
+  ⚡ 4 new style workflows added: cel_shade · cartoon · concept_art · ink_etching.
+  Re-run E2E to generate style samples, then launch batch when ready.
   <code>E:\PersonalAI\venv\Scripts\python.exe -u G:\QUAKE_LEGACY\creative_suite\comfy\photoreal_e2e_test.py</code>
-  <code>python -u creative_suite/comfy/full_overnight.py --pipelines upscale_only tile_d35 tile_d50 tile_d60 tile_d70 tile_d80</code>
+  <code>python -u creative_suite/comfy/full_overnight.py --pipelines cel_shade cartoon concept_art ink_etching</code>
 </div>
 
 <main id="gallery"></main>
@@ -205,9 +211,15 @@ const WILD_PIPES = [
   { key: "tile_d80", label: "WILD d=0.80", note: "chaos mode" },
 ];
 const LORA_PIPES = [
-  { key: "tile_d35_photoreal_boost", label: "LoRA: Photoreal Boost", note: "strength 0.7" },
-  { key: "tile_d35_cel_shade",       label: "LoRA: Cel Shade",       note: "Neonify v2.3" },
-  { key: "tile_d35_extremely_det",   label: "LoRA: Ultra Detail",    note: "ntc-ai 1.5x" },
+  { key: "tile_d35_photoreal", label: "LoRA: Photoreal",   note: "Slider 0.7" },
+  { key: "tile_d35_cel_shade", label: "LoRA: Cel Shade",   note: "Neonify v2.3" },
+  { key: "tile_d35_ultra_det", label: "LoRA: Ultra Detail", note: "ntc-ai 1.5x" },
+];
+const STYLE_PIPES = [
+  { key: "cel_shade",   label: "Cel Shade",    note: "Canny + Union ProMax d=0.65" },
+  { key: "cartoon",     label: "Cartoon",      note: "Tile + euler_a d=0.65" },
+  { key: "concept_art", label: "Concept Art",  note: "RealVisXL pure d=0.75" },
+  { key: "ink_etching", label: "Ink Etching",  note: "Dense Canny cfg=12 d=0.70" },
 ];
 
 // Works both as file:// (relative) and when served via /gallery (absolute)
@@ -226,20 +238,6 @@ function imgCell(cat, pipe, label, note, cls, badge) {
       </div>
       <div class="img-label">
         <div class="badge ${badge}">${label}</div><br>${note}
-      </div>
-    </div>`;
-}
-
-function placeholder(label, note, cls, badge) {
-  return `
-    <div class="img-cell ${cls}">
-      <div class="placeholder">
-        <div class="icon">⚡</div>
-        <div class="badge ${badge}" style="margin-bottom:6px">${label}</div>
-        <div>${note}</div>
-      </div>
-      <div class="img-label">
-        <div class="badge badge-pending">PENDING</div>
       </div>
     </div>`;
 }
@@ -265,13 +263,19 @@ for (const cat of CATEGORIES) {
   html += `<div class="divider"></div>`;
 
   for (const p of WILD_PIPES) {
-    html += placeholder(p.label, p.note, "wild", "badge-wild");
+    html += imgCell(cat.id, p.key, p.label, p.note, "wild", "badge-wild");
   }
 
   html += `<div class="divider"></div>`;
 
   for (const p of LORA_PIPES) {
-    html += placeholder(p.label, p.note, "lora", "badge-lora");
+    html += imgCell(cat.id, p.key, p.label, p.note, "lora", "badge-lora");
+  }
+
+  html += `<div class="divider"></div>`;
+
+  for (const p of STYLE_PIPES) {
+    html += imgCell(cat.id, p.key, p.label, p.note, "style", "badge-style");
   }
 
   html += `</div></div>`;

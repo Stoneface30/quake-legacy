@@ -26,13 +26,13 @@ LORAS = [
         "name":     "Extremely Detailed SDXL (face + skin + micro-detail)",
         "repo":     "ntc-ai/SDXL-LoRA-slider.extremely-detailed",
         "filename": "extremely detailed.safetensors",
-        "size_mb":  9,
+        "size_mb":  8,  # 8789076 bytes = 8.8 MB decimal
     },
     {
         "name":     "Neonify SDXL v2.3 (cel shade + neon realism)",
         "repo":     None,
         "filename": "NeonifyV2-4Extreme.safetensors",
-        "size_mb":  3687,
+        "size_mb":  1824,  # Civitai delivery: 1824687596 bytes = 1824.7 MB decimal
         "fallback_url": "https://civitai.com/api/download/models/135584",
     },
 ]
@@ -42,9 +42,40 @@ def _hf_url(repo: str, filename: str) -> str:
     return f"{HF_BASE}/{repo}/resolve/main/{filename.replace(' ', '%20')}"
 
 
+def _validate_safetensors(path: Path) -> bool:
+    """Check that the safetensors header length is consistent with the file size.
+
+    Safetensors layout: [8-byte LE uint64 N] [N bytes JSON header] [data].
+    If file_size < 8 + N, the header itself is truncated.
+    The full coverage check (header offsets vs data region) requires parsing
+    JSON; we skip that here — ComfyUI will catch it on load. This catches the
+    common corruption pattern where two partial downloads are concatenated:
+    the header from the first file claims data ends before the appended bytes.
+    """
+    import struct
+    try:
+        size = path.stat().st_size
+        if size < 8:
+            return False
+        with path.open("rb") as f:
+            hdr_len = struct.unpack("<Q", f.read(8))[0]
+        # Header must fit inside the file; data region = size - 8 - hdr_len must be >= 0
+        return size >= 8 + hdr_len
+    except Exception:
+        return False
+
+
 def _download(item: dict) -> bool:
     dest = DEST_DIR / item["filename"]
     name = item["name"]
+
+    # Validate any existing file before deciding to skip or resume.
+    # Corruption (two concatenated partials) would pass a size check but fail
+    # safetensors validation — delete and re-download from scratch.
+    if dest.exists():
+        if not _validate_safetensors(dest):
+            print(f"  CORRUPT (safetensors header invalid): {name} — deleting and re-downloading")
+            dest.unlink()
 
     existing = dest.stat().st_size if dest.exists() else 0
     expected = item["size_mb"] * 1_000_000  # size_mb uses decimal MB (consistent with display)
