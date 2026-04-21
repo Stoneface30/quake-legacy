@@ -121,6 +121,7 @@
     }
     _currentPanel = null;
     slot.replaceChildren();
+    slot.className = '';
 
     var cfg = _lookup(mode, page);
     if (!cfg) { _placeholder(slot, page); _currentKey = key; return; }
@@ -204,8 +205,12 @@
     var st = store.getState();
     var q = _readUrl();
     if (q.mode && NAV[q.mode]) store.dispatch({ type: 'SET_ACTIVE_MODE', mode: q.mode });
-    if (q.page && _lookup(q.mode && NAV[q.mode] ? q.mode : st.activeMode, q.page)) {
-      store.dispatch({ type: 'SET_ACTIVE_PAGE', page: q.page });
+    if (q.page) {
+      var current = store.getState();
+      var targetMode = (q.mode && NAV[q.mode]) ? q.mode : current.activeMode;
+      if (_lookup(targetMode, q.page)) {
+        store.dispatch({ type: 'SET_ACTIVE_PAGE', page: q.page });
+      }
     }
 
     _wire();
@@ -224,9 +229,10 @@
       }
     });
 
-    _renderSidebar(st.activeMode, st.activePage);
-    _switch(st.activeMode, st.activePage);
-    _syncUrl(st.activeMode, st.activePage);
+    var initial = store.getState();
+    _renderSidebar(initial.activeMode, initial.activePage);
+    _switch(initial.activeMode, initial.activePage);
+    _syncUrl(initial.activeMode, initial.activePage);
   }
 
   function _syncActive(page) {
