@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from creative_suite.config import Config
@@ -12,6 +12,9 @@ from creative_suite.db.migrate import migrate
 VERSION = "0.1.0"
 WEB_ROOT = Path(__file__).parent / "web"
 FRONTEND_ROOT = Path(__file__).parent / "frontend"
+
+_FRONTEND_DIR = Path(__file__).parent / "frontend"
+_ENGINE_GRAPH_DIR = Path(__file__).parent.parent / "engine" / "graphify-out"
 
 
 def create_app() -> FastAPI:
@@ -72,8 +75,8 @@ def create_app() -> FastAPI:
     )
 
     @app.get("/")
-    def index() -> FileResponse:  # pyright: ignore[reportUnusedFunction]
-        return FileResponse(WEB_ROOT / "annotate.html")
+    def index() -> RedirectResponse:  # pyright: ignore[reportUnusedFunction]
+        return RedirectResponse(url="/studio", status_code=307)
 
     @app.get("/health")
     def health() -> dict[str, object]:  # pyright: ignore[reportUnusedFunction]
@@ -136,4 +139,9 @@ def create_app() -> FastAPI:
             app.mount("/vendor", StaticFiles(directory=str(vendor_dir)), name="vendor")
     if cfg.phase1_output_dir.exists():
         app.mount("/media/phase1", StaticFiles(directory=str(cfg.phase1_output_dir)), name="media-phase1")
+
+    _engine_graph = _ENGINE_GRAPH_DIR
+    if _engine_graph.exists():
+        app.mount("/engine-graph", StaticFiles(directory=str(_engine_graph), html=True), name="engine-graph")
+
     return app

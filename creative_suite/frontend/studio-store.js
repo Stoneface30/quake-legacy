@@ -12,6 +12,9 @@
 
   /** @type {StudioState} */
   var INITIAL_STATE = {
+    activeMode:    'studio',
+    modePage:      { studio: 'preview', lab: 'demos', creative: 'textures' },
+    selectedDemo:  null,
     activePage:    'preview',
     activePart:    null,
     parts:         [],
@@ -21,6 +24,8 @@
     buildStatus:   null,
     statusMessage: 'Ready',
   };
+
+  var _DEFAULTS = { studio: 'preview', lab: 'demos', creative: 'textures' };
 
   // ── Private state ──────────────────────────────────────────────────────────
 
@@ -97,9 +102,26 @@
    * @param {{ type: string, payload?: any }} action
    */
   function dispatch(action) {
+    var newState;
     switch (action.type) {
-      case 'SET_ACTIVE_PAGE':
-        setState({ activePage: action.payload });
+      case 'SET_ACTIVE_MODE':
+        newState = Object.assign({}, _state, {
+          activeMode: action.mode,
+          activePage: _state.modePage[action.mode] || _DEFAULTS[action.mode]
+        });
+        setState(newState);
+        break;
+
+      case 'SET_ACTIVE_PAGE': {
+        var mp = Object.assign({}, _state.modePage);
+        mp[_state.activeMode] = action.page;
+        newState = Object.assign({}, _state, { activePage: action.page, modePage: mp });
+        setState(newState);
+        break;
+      }
+
+      case 'SET_SELECTED_DEMO':
+        setState({ selectedDemo: action.demo });
         break;
 
       case 'SET_ACTIVE_PART':

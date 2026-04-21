@@ -3,26 +3,29 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>PANTHEON STUDIO</title>
+  <title>PANTHEON</title>
   <link rel="stylesheet" href="/static/studio.css">
 </head>
 <body>
   <div id="app-grid">
 
-    <!-- ── Headerbar ───────────────────────────────────────────── -->
     <header id="headerbar">
-      <span id="logo-text">PANTHEON STUDIO</span>
+      <span id="logo-text">PANTHEON</span>
+
+      <div id="mode-switch" role="tablist" aria-label="Cockpit mode">
+        <button class="mode-btn active" data-mode="studio"   role="tab" aria-selected="true">STUDIO</button>
+        <button class="mode-btn"        data-mode="lab"      role="tab" aria-selected="false">LAB</button>
+        <button class="mode-btn"        data-mode="creative" role="tab" aria-selected="false">CREATIVE</button>
+      </div>
 
       <div id="header-center">
-        <select id="part-select" title="Select part">
-          <!-- Populated by studio-app.js -->
-        </select>
+        <select id="part-select" title="Select part"></select>
       </div>
 
       <div id="transport">
-        <button id="btn-rew" title="Rewind">&#9664;&#9664;</button>
-        <button id="btn-play" title="Play">&#9654;</button>
-        <button id="btn-fwd" title="Forward">&#9654;&#9654;</button>
+        <button id="btn-rew" title="Rewind">◀◀</button>
+        <button id="btn-play" title="Play">▶</button>
+        <button id="btn-fwd" title="Forward">▶▶</button>
       </div>
 
       <div id="header-right">
@@ -30,49 +33,22 @@
       </div>
     </header>
 
-    <!-- ── Sidebar ─────────────────────────────────────────────── -->
     <nav id="sidebar">
-      <ul id="nav-list">
-        <li class="nav-item active" data-page="preview">
-          <span class="nav-icon">&#9654;</span>
-          <span class="nav-label">PREVIEW</span>
-        </li>
-        <li class="nav-item" data-page="timeline">
-          <span class="nav-icon">&#8862;</span>
-          <span class="nav-label">TIMELINE</span>
-        </li>
-        <li class="nav-item" data-page="audio">
-          <span class="nav-icon">&#9835;</span>
-          <span class="nav-label">AUDIO</span>
-        </li>
-        <li class="nav-item" data-page="effects">
-          <span class="nav-icon">&#9889;</span>
-          <span class="nav-label">EFFECTS</span>
-        </li>
-        <li class="nav-item" data-page="inspector">
-          <span class="nav-icon">&#8857;</span>
-          <span class="nav-label">INSPECTOR</span>
-        </li>
-        <li class="nav-item" data-page="textures">
-          <span class="nav-icon">&#9638;</span>
-          <span class="nav-label">TEXTURES</span>
-        </li>
-      </ul>
+      <div id="nav-list" data-active-mode="studio"><!-- populated by studio-pages.js --></div>
     </nav>
 
-    <!-- ── Main area ───────────────────────────────────────────── -->
     <main id="main-area">
       <div id="panel-slot" class="panel-placeholder">Select a panel</div>
     </main>
 
-    <!-- ── Statusbar ───────────────────────────────────────────── -->
     <footer id="statusbar">
+      <span id="status-mode-chip" class="status-mode studio">STUDIO</span>
       <span id="status-text">Ready</span>
     </footer>
 
-  </div><!-- /#app-grid -->
+  </div>
 
-  <!-- Vendor libraries (order matters) -->
+  <!-- vendor libs (unchanged order) -->
   <script src="/vendor/wavesurfer.js"></script>
   <script src="/vendor/wavesurfer-multitrack.js"></script>
   <script src="/vendor/animation-timeline.js"></script>
@@ -81,15 +57,37 @@
   <script src="/vendor/mp4box.js"></script>
   <script src="/vendor/theatre-core-studio.js"></script>
 
-  <!-- App scripts -->
+  <!-- App core -->
   <script src="/static/studio-store.js"></script>
   <script src="/static/studio-app.js"></script>
+
+  <!-- STUDIO panels -->
   <script src="/static/studio-preview.js"></script>
   <script src="/static/studio-timeline.js"></script>
   <script src="/static/studio-audio.js"></script>
   <script src="/static/studio-litegraph.js"></script>
   <script src="/static/studio-inspector.js"></script>
-  <script src="/static/studio-textures.js"></script>
+
+  <!-- LAB panels (new) -->
+  <script src="/static/lab-demos.js"></script>
+  <script src="/static/lab-extraction.js"></script>
+  <script src="/static/lab-patterns.js"></script>
+  <script src="/static/lab-annotate.js"></script>
+  <script src="/static/lab-flags.js"></script>
+  <script src="/static/lab-forge.js"></script>
+  <script src="/static/lab-engine.js"></script>
+
+  <!-- CREATIVE panels (new) -->
+  <script src="/static/creative-textures.js"></script>
+  <script src="/static/creative-sprites.js"></script>
+  <script src="/static/creative-skins.js"></script>
+  <script src="/static/creative-maps.js"></script>
+  <script src="/static/creative-md3.js"></script>
+  <script src="/static/creative-prompts.js"></script>
+  <script src="/static/creative-queue.js"></script>
+  <script src="/static/creative-packs.js"></script>
+
+  <!-- Router LAST -->
   <script src="/static/studio-pages.js"></script>
 </body>
 </html>
