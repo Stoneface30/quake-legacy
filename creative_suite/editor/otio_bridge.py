@@ -15,8 +15,14 @@ from __future__ import annotations
 from pathlib import Path
 from typing import cast, Any
 
-import opentimelineio as otio
-from opentimelineio import opentime, schema
+try:
+    import opentimelineio as otio
+    from opentimelineio import opentime, schema
+    _OTIO_AVAILABLE = True
+except ModuleNotFoundError:
+    otio = None  # type: ignore[assignment]
+    opentime = schema = None  # type: ignore[assignment]
+    _OTIO_AVAILABLE = False
 
 from creative_suite.editor.state import EditorClip, EditorState
 
@@ -24,17 +30,26 @@ FPS = 60  # QUAKE fragmovies are 60fps — Rule P1-J
 META_NS = "quake"
 
 
-def _rt(seconds: float) -> opentime.RationalTime:
-    return opentime.RationalTime(round(seconds * FPS), FPS)
+def _require_otio() -> None:
+    if not _OTIO_AVAILABLE:
+        raise RuntimeError(
+            "opentimelineio is not installed. "
+            "Run: pip install opentimelineio"
+        )
 
 
-def state_to_otio(state: EditorState, chunk_dir: Path | None = None) -> schema.Timeline:
+def _rt(seconds: float) -> "opentime.RationalTime":
+    return opentime.RationalTime(round(seconds * FPS), FPS)  # type: ignore[union-attr]
+
+
+def state_to_otio(state: EditorState, chunk_dir: Path | None = None) -> "schema.Timeline":  # type: ignore[name-defined]
     """Convert editor state to an OTIO `Timeline`.
 
     The single video track interleaves Clips and Gaps: removed editor
     clips become Gaps so playhead timing stays aligned with what a
     live-play-with-gaps preview would show.
     """
+    _require_otio()
     timeline = schema.Timeline(name=f"part{state.part:02d}")
     track = schema.Track(name="body", kind=schema.TrackKind.Video)
     timeline.tracks.append(track)

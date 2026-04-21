@@ -25,7 +25,12 @@ from pydantic import BaseModel
 
 from creative_suite.api._render_worker import JobQueue
 from creative_suite.editor import state as editor_state_mod
-from creative_suite.editor.otio_bridge import write_otio
+try:
+    from creative_suite.editor.otio_bridge import write_otio as _write_otio
+    _OTIO_OK = True
+except Exception:
+    _write_otio = None  # type: ignore[assignment]
+    _OTIO_OK = False
 from creative_suite.editor.proxies import ensure_proxy
 from creative_suite.editor.state import (
     EditorState,
@@ -90,11 +95,13 @@ def patch_state(part: int, body: PatchBody, request: Request) -> dict[str, Any]:
 
 @router.get("/otio/{part}")
 def get_otio(part: int, request: Request) -> Response:
+    if not _OTIO_OK or _write_otio is None:
+        raise HTTPException(503, "opentimelineio not installed — run: pip install opentimelineio")
     output_dir = _output_dir(request)
     state = load_state(output_dir, part)
     out_path = output_dir / f"part{part:02d}.otio"
     chunk_dir = _chunks_dir(output_dir, part)
-    write_otio(state, out_path, chunk_dir if chunk_dir.exists() else None)
+    _write_otio(state, out_path, chunk_dir if chunk_dir.exists() else None)
     return FileResponse(
         str(out_path),
         media_type="application/vnd.pixar.opentimelineio+json",
