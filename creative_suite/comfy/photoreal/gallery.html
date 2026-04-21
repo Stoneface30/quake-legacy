@@ -210,7 +210,8 @@ const LORA_PIPES = [
   { key: "tile_d35_extremely_det",   label: "LoRA: Ultra Detail",    note: "ntc-ai 1.5x" },
 ];
 
-const BASE = "e2e";
+// Works both as file:// (relative) and when served via /gallery (absolute)
+const BASE = window.location.protocol === "file:" ? "e2e" : "/photoreal/e2e";
 
 function imgCell(cat, pipe, label, note, cls, badge) {
   const src = `${BASE}/${cat}/${pipe}.png`;
