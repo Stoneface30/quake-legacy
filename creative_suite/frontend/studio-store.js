@@ -102,18 +102,21 @@
    * @param {{ type: string, payload?: any }} action
    */
   function dispatch(action) {
+    var newState;
     switch (action.type) {
       case 'SET_ACTIVE_MODE':
-        setState({
+        newState = Object.assign({}, _state, {
           activeMode: action.mode,
           activePage: _state.modePage[action.mode] || _DEFAULTS[action.mode]
         });
+        setState(newState);
         break;
 
       case 'SET_ACTIVE_PAGE': {
         var mp = Object.assign({}, _state.modePage);
-        mp[_state.activeMode] = action.payload;
-        setState({ activePage: action.payload, modePage: mp });
+        mp[_state.activeMode] = action.page;
+        newState = Object.assign({}, _state, { activePage: action.page, modePage: mp });
+        setState(newState);
         break;
       }
 
