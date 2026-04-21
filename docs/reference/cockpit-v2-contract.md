@@ -91,6 +91,7 @@ Current 2026-04-21 cockpit screenshots:
 - [studio_clips_page.png](/mnt/g/QUAKE_LEGACY/docs/visual-record/2026-04-21/studio_clips_page.png)
 - [studio_edit_page.png](/mnt/g/QUAKE_LEGACY/docs/visual-record/2026-04-21/studio_edit_page.png)
 - [cockpit-v2-lab-mode-stubs.png](/mnt/g/QUAKE_LEGACY/docs/visual-record/2026-04-21/cockpit-v2-lab-mode-stubs.png)
+- [cockpit-v2-creative-mode.png](/mnt/g/QUAKE_LEGACY/docs/visual-record/2026-04-21/cockpit-v2-creative-mode.png)
 
 Archived misleading smoke from the retired shell:
 

@@ -9,7 +9,7 @@ LAB, and CREATIVE modes. Screenshots:
 - `2026-04-21/studio_clips_page.png` — CLIPS panel
 - `2026-04-21/studio_edit_page.png` — EDIT NLE workspace
 - `2026-04-21/cockpit-v2-lab-mode-stubs.png` — LAB mode groups
-- `cockpit-v2-creative-mode.png` — pending server restart (CREATIVE asset panels now use `?kind=` filter)
+- `2026-04-21/cockpit-v2-creative-mode.png` — CREATIVE mode, MAPS panel (`?kind=maps` filter active, sidebar GENERATE/INSPECT/BUILD groups)
 
 ## Current Cockpit Pass
 

@@ -5,10 +5,7 @@
 - [studio_clips_page.png](/mnt/g/QUAKE_LEGACY/docs/visual-record/2026-04-21/studio_clips_page.png): STUDIO `CLIPS` view
 - [studio_edit_page.png](/mnt/g/QUAKE_LEGACY/docs/visual-record/2026-04-21/studio_edit_page.png): STUDIO `EDIT` NLE workspace
 - [cockpit-v2-lab-mode-stubs.png](/mnt/g/QUAKE_LEGACY/docs/visual-record/2026-04-21/cockpit-v2-lab-mode-stubs.png): LAB mode shell groups
-
-> **Note:** `cockpit-v2-creative-mode.png` (CREATIVE mode after asset kind-filter fix)
-> is pending a server restart to load the updated JS. Capture with Playwright after
-> restarting the server.
+- [cockpit-v2-creative-mode.png](/mnt/g/QUAKE_LEGACY/docs/visual-record/2026-04-21/cockpit-v2-creative-mode.png): CREATIVE mode — MAPS panel with `?kind=maps` filter, sidebar shows GENERATE/INSPECT/BUILD groups, status bar `CREATIVE | Ready`
 
 ## Supporting Iteration Captures
 
