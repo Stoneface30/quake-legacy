@@ -1,7 +1,7 @@
 (function (global) {
   'use strict';
-  var CATEGORY = 'surface';
-  var GLOBAL   = 'CreativeMaps';
+  var KIND   = 'maps';
+  var GLOBAL = 'CreativeMaps';
   var TITLE    = 'MAPS';
   var _grid = null;
   var _overlay = null;
@@ -11,7 +11,7 @@
     overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.75);z-index:9999;display:flex;align-items:center;justify-content:center';
     var modal = document.createElement('div');
     modal.style.cssText = 'background:#1a1a1a;border:1px solid #333;padding:20px;width:400px;max-width:90vw;display:flex;flex-direction:column;gap:10px';
-    var heading = document.createElement('div'); heading.style.cssText = 'color:#c9a84c;font-size:13px;font-family:Consolas,monospace'; heading.textContent = asset.name || asset.id;
+    var heading = document.createElement('div'); heading.style.cssText = 'color:#c9a84c;font-size:13px;font-family:Consolas,monospace'; heading.textContent = asset.internal_path || asset.name || asset.id;
     var textarea = document.createElement('textarea'); textarea.rows = 3;
     textarea.style.cssText = 'resize:vertical;background:#111;color:#ddd;border:1px solid #333;padding:6px;font-family:Consolas,monospace;font-size:11px;width:100%;box-sizing:border-box';
     textarea.placeholder = 'Positive prompt suffix...';
@@ -64,9 +64,9 @@
       var img = document.createElement('img');
       img.src = asset.thumbnail_url || '';
       img.style.cssText = 'width:100%;aspect-ratio:1;object-fit:cover;background:#111';
-      img.alt = asset.name || '';
+      img.alt = asset.internal_path || '';
       var label = document.createElement('div');
-      label.textContent = asset.name || asset.id;
+      label.textContent = asset.internal_path || asset.name || asset.id;
       label.style.cssText = 'font-size:10px;color:#888;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:Consolas,monospace';
       cell.appendChild(img); cell.appendChild(label);
       cell.addEventListener('click', function () { _openPrompt(asset); });
@@ -84,7 +84,7 @@
     _grid = grid;
     wrap.appendChild(bar); wrap.appendChild(grid);
     slot.replaceChildren(wrap);
-    fetch('/api/assets?category=' + CATEGORY, { signal: AbortSignal.timeout(8000) })
+    fetch('/api/assets?kind=' + KIND, { signal: AbortSignal.timeout(8000) })
       .then(function (r) { return r.ok ? r.json() : { assets: [] }; })
       .then(function (d) { _renderGrid(d.assets || []); })
       .catch(function () { _renderGrid([]); });

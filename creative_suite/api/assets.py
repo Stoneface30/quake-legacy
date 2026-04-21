@@ -12,7 +12,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, Response
 
 from creative_suite.db.migrate import connect
@@ -20,8 +20,50 @@ from creative_suite.db.migrate import connect
 router = APIRouter(prefix="/api/assets", tags=["assets"])
 
 
+_CATEGORY_ALIASES = {
+    "sprite": "effect",
+    "sprites": "effect",
+    "texture": "surface",
+    "textures": "surface",
+}
+
+# Shell-level "kind" groups map to one or more DB category values.
+# DB categories come from creative_suite/inventory/catalog.py::_classify():
+#   skin    = models/players/*
+#   surface = textures/*
+#   effect  = sprites/*, env/*
+#   weapon  = models/weapons/*, models/ammo/*, models/powerups/*
+#   model   = models/* (other)
+#   gfx     = gfx/*
+#   misc    = everything else
+_KIND_MAP: dict[str, tuple[str, ...]] = {
+    "maps":    ("surface",),
+    "skins":   ("skin",),
+    "sprites": ("effect",),
+}
+
+
+def _serialize_asset_row(row: Any) -> dict[str, Any]:
+    return {
+        "id": row["id"],
+        "category": row["category"],
+        "subcategory": row["subcategory"],
+        "internal_path": row["internal_path"],
+        "thumbnail_url": (
+            f"/api/assets/{row['id']}/thumbnail"
+            if row["thumbnail_path"] else None
+        ),
+        "width": row["width"],
+        "height": row["height"],
+    }
+
+
 @router.get("")
-def list_tree(request: Request) -> dict[str, Any]:
+def list_tree(
+    request: Request,
+    category: str | None = Query(default=None),
+    kind: str | None = Query(default=None),
+) -> dict[str, Any]:
     cfg = request.app.state.cfg
     with connect(cfg) as con:
         rows = con.execute(
@@ -30,20 +72,41 @@ def list_tree(request: Request) -> dict[str, Any]:
             "FROM assets ORDER BY category, subcategory, internal_path"
         ).fetchall()
 
+    # ── kind filter (shell-level grouping) ────────────────────────────────────
+    if kind:
+        wanted = _KIND_MAP.get(kind.lower())
+        if wanted is None:
+            from fastapi import HTTPException
+            raise HTTPException(422, f"Unknown kind {kind!r}. Valid: {sorted(_KIND_MAP)}")
+        flat = [
+            {
+                "id": r["id"],
+                "category": r["category"],
+                "internal_path": r["internal_path"],
+                "thumbnail_url": (
+                    f"/api/assets/{r['id']}/thumbnail" if r["thumbnail_path"] else None
+                ),
+            }
+            for r in rows
+            if r["category"] in wanted
+        ]
+        return {"kind": kind, "assets": flat, "total": len(flat)}
+
+    # ── legacy category filter ─────────────────────────────────────────────────
+    if category:
+        wanted_cat = _CATEGORY_ALIASES.get(category.lower(), category.lower())
+        filtered = [r for r in rows if r["category"] == wanted_cat]
+        return {
+            "category": wanted_cat,
+            "assets": [_serialize_asset_row(r) for r in filtered],
+            "total": len(filtered),
+        }
+
     cats: dict[str, dict[str | None, list[dict[str, Any]]]] = defaultdict(
         lambda: defaultdict(list)
     )
     for r in rows:
-        cats[r["category"]][r["subcategory"]].append({
-            "id": r["id"],
-            "internal_path": r["internal_path"],
-            "thumbnail_url": (
-                f"/api/assets/{r['id']}/thumbnail"
-                if r["thumbnail_path"] else None
-            ),
-            "width": r["width"],
-            "height": r["height"],
-        })
+        cats[r["category"]][r["subcategory"]].append(_serialize_asset_row(r))
 
     return {
         "categories": [
