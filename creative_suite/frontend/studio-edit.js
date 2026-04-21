@@ -314,80 +314,65 @@
     container.appendChild(_inspInner);
   }
 
-  // ── Build: TIMELINE panel (DOM only — sub-modules mounted after DOM insert) ──
+  // ── Build: ACTION BAR (top strip — buttons + meta) ──────────────────────────
 
-  function _buildTimeline(container) {
-    var bar = document.createElement('div');
-    bar.className = 'nle-tl-bar';
-
-    var label = document.createElement('span');
-    label.className = 'nle-tl-label';
-    label.textContent = 'TIMELINE';
-    bar.appendChild(label);
-
+  function _buildActionBar(container) {
     var meta = document.createElement('span');
-    meta.className = 'nle-tl-meta';
+    meta.className = 'nle-action-meta';
     meta.id = 'nle-tl-meta';
-    bar.appendChild(meta);
+    container.appendChild(meta);
 
-    var spacer = document.createElement('span');
-    spacer.style.flex = '1';
-    bar.appendChild(spacer);
+    var sep1 = document.createElement('span');
+    sep1.className = 'nle-action-sep';
+    container.appendChild(sep1);
 
     var zoomLbl = document.createElement('span');
     zoomLbl.className = 'nle-tl-ctl-lbl';
     zoomLbl.textContent = 'ZOOM';
-    bar.appendChild(zoomLbl);
+    container.appendChild(zoomLbl);
 
-    ['\u2212', '+'].forEach(function (sym) {
+    var _zoom = 60;
+    ['\u2212', '+'].forEach(function (sym, i) {
       var b = document.createElement('button');
       b.className = 'nle-tl-ctl-btn';
       b.textContent = sym;
-      bar.appendChild(b);
+      b.addEventListener('click', function () {
+        _zoom = i === 0 ? Math.max(10, _zoom - 10) : Math.min(300, _zoom + 10);
+        var nle = global.StudioTimelineNLE;
+        if (nle && typeof nle.setZoom === 'function') nle.setZoom(_zoom);
+      });
+      container.appendChild(b);
     });
 
-    var snapLbl = document.createElement('span');
-    snapLbl.className = 'nle-tl-ctl-lbl';
-    snapLbl.textContent = 'SNAP';
-    bar.appendChild(snapLbl);
+    var sep2 = document.createElement('span');
+    sep2.className = 'nle-action-sep';
+    container.appendChild(sep2);
 
-    var downLbl = document.createElement('span');
-    downLbl.className = 'nle-tl-ctl-lbl';
-    downLbl.textContent = 'DOWNBEAT';
-    bar.appendChild(downLbl);
+    var spacer = document.createElement('span');
+    spacer.style.flex = '1';
+    container.appendChild(spacer);
 
     var randBtn = document.createElement('button');
     randBtn.className = 'nle-gen-btn nle-randomize-btn';
     randBtn.textContent = '\u2684 RANDOMIZE';
     randBtn.addEventListener('click', _triggerRandomize);
-    bar.appendChild(randBtn);
+    container.appendChild(randBtn);
 
     var musicBtn = document.createElement('button');
     musicBtn.className = 'nle-gen-btn nle-music-btn';
-    musicBtn.textContent = '\u266B GENERATE';
+    musicBtn.textContent = '\u266B MUSIC';
     musicBtn.addEventListener('click', _triggerMusicGenerate);
-    bar.appendChild(musicBtn);
+    container.appendChild(musicBtn);
 
     var genBtn = document.createElement('button');
     genBtn.className = 'nle-gen-btn';
     genBtn.textContent = '\u25B6 RENDER';
     genBtn.addEventListener('click', _triggerGenerate);
-    bar.appendChild(genBtn);
-
-    container.appendChild(bar);
-
-    _tlSlot = document.createElement('div');
-    _tlSlot.className = 'nle-tl-main';
-    container.appendChild(_tlSlot);
-
-    _audioSlot = document.createElement('div');
-    _audioSlot.className = 'nle-tl-audio';
-    container.appendChild(_audioSlot);
-
-    _beatSlot = document.createElement('div');
-    _beatSlot.className = 'nle-tl-beats';
-    container.appendChild(_beatSlot);
+    container.appendChild(genBtn);
   }
+
+  // ── Build: TIMELINE panel (legacy stub — no longer used in v3 layout) ───────
+  function _buildTimeline(_container) { /* slots set in mount() directly */ }
 
   // ── Mount sub-modules (called AFTER slot.replaceChildren so DOM is live) ────
 
@@ -772,39 +757,48 @@
     _audioSlot   = null;
     _beatSlot    = null;
 
-    // Root: two rows (workspace + timeline)
+    // Collapse sidebar — NLE needs every pixel
+    var appGrid = document.getElementById('app-grid');
+    if (appGrid) appGrid.classList.add('nle-active');
+
+    // Root: action-bar / body
     _root = document.createElement('div');
     _root.className = 'nle-root';
 
-    // ── Workspace row ────────────────────────────────────────────────────────
-    var ws = document.createElement('div');
-    ws.className = 'nle-workspace';
+    // ── Action bar ────────────────────────────────────────────────────────────
+    var actionBar = document.createElement('div');
+    actionBar.className = 'nle-action-bar';
+    _buildActionBar(actionBar);
+    _root.appendChild(actionBar);
 
-    // Library (left)
+    // ── Body: library | center(canvas+audio) | inspector ──────────────────────
+    var body = document.createElement('div');
+    body.className = 'nle-body';
+
     var libPanel = document.createElement('div');
     libPanel.className = 'nle-panel nle-library';
     _buildLibrary(libPanel);
-    ws.appendChild(libPanel);
+    body.appendChild(libPanel);
 
-    // Viewer (center) — StudioPreview mounted after DOM insert via _mountSubModules()
-    var viewerPanel = document.createElement('div');
-    viewerPanel.className = 'nle-panel nle-viewer';
-    _viewerSlot = viewerPanel;
-    ws.appendChild(viewerPanel);
+    var centerPanel = document.createElement('div');
+    centerPanel.className = 'nle-panel nle-center';
 
-    // Inspector (right)
+    _tlSlot = document.createElement('div');
+    _tlSlot.className = 'nle-tl-main';
+    centerPanel.appendChild(_tlSlot);
+
+    _audioSlot = document.createElement('div');
+    _audioSlot.className = 'nle-tl-audio';
+    centerPanel.appendChild(_audioSlot);
+
+    body.appendChild(centerPanel);
+
     var inspPanel = document.createElement('div');
     inspPanel.className = 'nle-panel nle-inspector';
     _buildInspector(inspPanel);
-    ws.appendChild(inspPanel);
+    body.appendChild(inspPanel);
 
-    _root.appendChild(ws);
-
-    // ── Timeline row ─────────────────────────────────────────────────────────
-    var tlPanel = document.createElement('div');
-    tlPanel.className = 'nle-panel nle-timeline';
-    _buildTimeline(tlPanel);
-    _root.appendChild(tlPanel);
+    _root.appendChild(body);
 
     slot.replaceChildren(_root);
 
@@ -845,6 +839,9 @@
   // ── Unmount ──────────────────────────────────────────────────────────────────
 
   function unmount() {
+    var appGrid = document.getElementById('app-grid');
+    if (appGrid) appGrid.classList.remove('nle-active');
+
     _closeFxModal();
 
     _activeMods.forEach(function (mod) {

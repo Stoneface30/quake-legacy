@@ -748,37 +748,63 @@ button:hover {
 .sc-log            { flex:1;overflow-y:auto;padding:8px 12px;font-family:Consolas,monospace;min-height:60px;border-top:1px solid #141414; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
-   NLE EDITOR LAYOUT  (studio-edit.js v2)
+   NLE EDITOR LAYOUT  (studio-edit.js v3 — sidebar-off, timeline-hero)
    ══════════════════════════════════════════════════════════════════════════ */
 
 :root {
-  --nle-lib-w:      262px;
-  --nle-insp-w:     288px;
-  --nle-tl-h:       268px;
-  --nle-tl-bar-h:   34px;
-  --nle-tl-main-h:  110px;
-  --nle-tl-audio-h: 68px;
-  /* beats row takes the remaining flex space */
+  --nle-lib-w:       260px;
+  --nle-insp-w:      272px;
+  --nle-action-h:    38px;
+  --nle-audio-h:     88px;
 }
 
-/* ── Root grid: [workspace] / [timeline] ───────────────────────────────── */
+/* ── Hide sidebar when NLE is active ──────────────────────────────────── */
+#app-grid.nle-active {
+  grid-template-columns: 0 1fr;
+}
+#app-grid.nle-active #sidebar {
+  display: none;
+}
+
+/* ── Root: action-bar / body ──────────────────────────────────────────── */
 .nle-root {
-  display: grid;
-  grid-template-rows: 1fr var(--nle-tl-h);
+  display: flex;
+  flex-direction: column;
   height: 100%;
   overflow: hidden;
   background: var(--bg-dark);
 }
 
-/* ── Workspace: library | viewer | inspector ───────────────────────────── */
-.nle-workspace {
+/* ── Action bar (top strip with controls) ────────────────────────────── */
+.nle-action-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: var(--nle-action-h);
+  background: #0f0f0f;
+  border-bottom: 2px solid #1e1e1e;
+  flex-shrink: 0;
+}
+.nle-action-meta {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--text-dim);
+  margin-right: 6px;
+}
+.nle-action-sep { width: 1px; height: 18px; background: #222; margin: 0 4px; }
+
+/* ── Body: library | center-canvas | inspector ───────────────────────── */
+.nle-body {
   display: grid;
   grid-template-columns: var(--nle-lib-w) 1fr var(--nle-insp-w);
+  flex: 1;
   min-height: 0;
   overflow: hidden;
 }
 
-/* ── Generic panel shell ────────────────────────────────────────────────── */
+/* ── Generic panel shell ─────────────────────────────────────────────── */
 .nle-panel {
   overflow: hidden;
   display: flex;
@@ -790,13 +816,15 @@ button:hover {
 
 /* Per-panel backgrounds */
 .nle-library   { background: var(--bg-sidebar); }
-.nle-viewer    { background: #000; }
 .nle-inspector { background: var(--bg-dark); }
-.nle-timeline  {
-  border-top: 2px solid #1e1e1e;
-  background: #090909;
-  border-right: none;
-}
+.nle-center    { background: #090909; display: flex; flex-direction: column; }
+.nle-viewer    { background: #000; }   /* legacy — hidden in v3 */
+.nle-timeline  { display: none; }      /* legacy — replaced by .nle-center */
+
+/* Center sub-areas */
+.nle-tl-main  { flex: 1; min-height: 0; position: relative; overflow: hidden; }
+.nle-tl-audio { flex-shrink: 0; height: var(--nle-audio-h); border-top: 1px solid var(--border); }
+.nle-tl-beats { display: none; }
 
 /* ── Panel header ───────────────────────────────────────────────────────── */
 .nle-panel-hdr {
@@ -902,11 +930,12 @@ button:hover {
   user-select: none;
   transition: background 0.1s;
 }
-.nle-clip-row:hover { background: rgba(255, 255, 255, 0.03); }
+.nle-clip-row:hover { background: rgba(255,255,255,0.05); }
 .nle-clip-row.active {
-  background: rgba(201, 168, 76, 0.08);
-  border-left: 2px solid var(--gold);
-  padding-left: 10px;
+  background: rgba(201,168,76,0.14);
+  border-left: 3px solid var(--gold);
+  padding-left: 9px;
+  box-shadow: inset 0 0 0 1px rgba(201,168,76,0.12);
 }
 .nle-clip-row.dragging { opacity: 0.35; cursor: grabbing; }
 .nle-clip-row.dragover {
