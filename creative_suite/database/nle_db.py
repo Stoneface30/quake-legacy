@@ -62,7 +62,23 @@ def get_arrangement(db_path: Path, part: int) -> list[dict[str, Any]]:
             "SELECT * FROM clip_arrangements WHERE part=? ORDER BY position",
             (part,),
         ).fetchall()
-    return [_row_to_dict(r) for r in rows]
+        clips = [_row_to_dict(r) for r in rows]
+        ids = [c["id"] for c in clips]
+        fx_rows: list[dict] = []
+        if ids:
+            placeholders = ",".join("?" * len(ids))
+            fx_rows = [_row_to_dict(r) for r in con.execute(
+                f"SELECT * FROM clip_effects WHERE arrangement_id IN ({placeholders}) ORDER BY position",
+                ids,
+            ).fetchall()]
+    fx_by_clip: dict[int, list] = {c["id"]: [] for c in clips}
+    for fx in fx_rows:
+        aid = fx["arrangement_id"]
+        if aid in fx_by_clip:
+            fx_by_clip[aid].append(fx)
+    for c in clips:
+        c["effects"] = fx_by_clip[c["id"]]
+    return clips
 
 
 def upsert_arrangement_clip(db_path: Path, part: int, position: int, role: str,
