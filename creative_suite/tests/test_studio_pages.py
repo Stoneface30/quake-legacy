@@ -1,5 +1,5 @@
 # creative_suite/tests/test_studio_pages.py
-"""Contract tests for studio-pages.js — the 5-panel page router."""
+"""Contract tests for studio-pages.js — the multi-mode cockpit router."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -37,34 +37,36 @@ def test_init_method_present() -> None:
     assert "init" in src, "init method not found in studio-pages.js"
 
 
-def test_get_active_page_method_present() -> None:
-    """The getActivePage() method must be exposed on the StudioPages object."""
+def test_nav_declares_current_studio_rows() -> None:
+    """STUDIO must expose the corrected CLIPS/EDIT shell."""
     src = PAGES_JS.read_text(encoding="utf-8")
-    assert "getActivePage" in src, "getActivePage method not found in studio-pages.js"
+    assert "{ page: 'clips'" in src
+    assert "{ page: 'edit'" in src
 
 
-# ── 3. PAGE_MAP / all 5 pages ─────────────────────────────────────────────────
+# ── 4. Panel module references ────────────────────────────────────────────────
 
-def test_page_map_has_all_five_pages() -> None:
-    """PAGE_MAP or equivalent must map all 5 page names."""
-    src = PAGES_JS.read_text(encoding="utf-8")
-    for page in ("preview", "timeline", "audio", "effects", "inspector"):
-        assert page in src, f"Page key {page!r} not found in studio-pages.js"
-
-
-# ── 4. All 5 module references ────────────────────────────────────────────────
-
-def test_all_panel_module_names_referenced() -> None:
-    """All 5 panel globals must appear in the source."""
+def test_mode_panel_module_names_referenced() -> None:
+    """Core STUDIO/LAB/CREATIVE panel globals must appear in the source."""
     src = PAGES_JS.read_text(encoding="utf-8")
     for module in (
-        "StudioPreview",
-        "StudioTimeline",
-        "StudioAudio",
-        "StudioEffects",
-        "StudioInspector",
+        "StudioClips",
+        "StudioEdit",
+        "LabDemos",
+        "LabForge",
+        "CreativeTextures",
+        "CreativePacks",
     ):
         assert module in src, f"Panel module {module!r} not referenced in studio-pages.js"
+
+
+# ── 4b. URL sync ─────────────────────────────────────────────────────────────
+
+def test_pages_source_syncs_url_to_mode_and_page() -> None:
+    """The router must push mode and page into the URL search params."""
+    src = PAGES_JS.read_text(encoding="utf-8")
+    assert "searchParams.set('mode'" in src, "URL mode sync missing from studio-pages.js"
+    assert "searchParams.set('page'" in src, "URL page sync missing from studio-pages.js"
 
 
 # ── 5. No innerHTML, uses replaceChildren ─────────────────────────────────────
@@ -107,15 +109,15 @@ def test_studio_html_loads_studio_pages_js() -> None:
     assert "studio-pages.js" in html, "studio-pages.js script tag missing from studio.html"
 
 
-def test_studio_pages_js_loaded_after_app_js() -> None:
-    """studio-pages.js must be declared after studio-app.js in the HTML."""
+def test_studio_pages_js_loaded_last() -> None:
+    """studio-pages.js must be declared after the panel modules in the HTML."""
     html = STUDIO_HTML.read_text(encoding="utf-8")
-    pos_app   = html.find("studio-app.js")
-    pos_pages = html.find("studio-pages.js")
-    assert pos_app != -1,  "studio-app.js not found in studio.html"
-    assert pos_pages != -1, "studio-pages.js not found in studio.html"
+    pos_app = html.find('<script src="/static/studio-edit.js"></script>')
+    pos_pages = html.find('<script src="/static/studio-pages.js"></script>')
+    assert pos_app != -1,  "studio-edit.js script tag not found in studio.html"
+    assert pos_pages != -1, "studio-pages.js script tag not found in studio.html"
     assert pos_pages > pos_app, (
-        "studio-pages.js must come after studio-app.js in load order"
+        "studio-pages.js must come after the cockpit panel scripts in load order"
     )
 
 
@@ -142,15 +144,16 @@ def test_studio_html_served_with_pages_script(client: TestClient) -> None:
     assert "studio-pages.js" in r.text, "studio-pages.js not in served /studio HTML"
 
 
-def test_studio_html_served_with_all_panel_scripts(client: TestClient) -> None:
-    """GET /studio must include script tags for all 5 panel modules."""
+def test_studio_html_served_with_current_panel_scripts(client: TestClient) -> None:
+    """GET /studio must include the current shell scripts."""
     r = client.get("/studio")
     assert r.status_code == 200
     for script in (
-        "studio-preview.js",
-        "studio-timeline.js",
-        "studio-audio.js",
-        "studio-litegraph.js",
-        "studio-inspector.js",
+        "studio-clips.js",
+        "studio-edit.js",
+        "lab-demos.js",
+        "lab-forge.js",
+        "creative-textures.js",
+        "creative-packs.js",
     ):
         assert script in r.text, f"Panel script {script!r} missing from served /studio HTML"

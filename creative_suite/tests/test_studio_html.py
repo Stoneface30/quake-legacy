@@ -42,12 +42,13 @@ def test_studio_html_contains_headerbar(client: TestClient) -> None:
     assert 'id="btn-rebuild"' in r.text
 
 
-def test_studio_html_contains_sidebar_nav(client: TestClient) -> None:
-    """The sidebar must include all five nav pages."""
+def test_studio_html_contains_mode_switch_and_dynamic_nav(client: TestClient) -> None:
+    """The shell must expose the 3-mode switch and the dynamic nav host."""
     r = client.get("/studio")
     assert r.status_code == 200
-    for page in ("preview", "timeline", "audio", "effects", "inspector"):
-        assert f'data-page="{page}"' in r.text, f"Missing nav item for page: {page!r}"
+    for mode in ("studio", "lab", "creative"):
+        assert f'data-mode="{mode}"' in r.text, f"Missing mode button for {mode!r}"
+    assert 'id="nav-list"' in r.text
 
 
 def test_studio_html_contains_panel_slot(client: TestClient) -> None:
@@ -87,6 +88,10 @@ def test_studio_html_loads_app_scripts(client: TestClient) -> None:
     assert r.status_code == 200
     assert "studio-store.js" in r.text
     assert "studio-app.js" in r.text
+    assert "studio-clips.js" in r.text
+    assert "studio-edit.js" in r.text
+    assert "lab-demos.js" in r.text
+    assert "creative-packs.js" in r.text
 
 
 def test_studio_html_references_css(client: TestClient) -> None:

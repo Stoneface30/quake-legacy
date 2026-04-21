@@ -97,7 +97,9 @@ class TestStudioApp:
         assert "/api/studio/parts" in self._src()
 
     def test_rebuild_fetch_url(self) -> None:
-        assert "/api/phase1/rebuild" in self._src()
+        src = self._src()
+        assert "/api/phase1/parts/" in src
+        assert "/rebuild" in src
 
     def test_dispatches_set_parts(self) -> None:
         assert "SET_PARTS" in self._src()
