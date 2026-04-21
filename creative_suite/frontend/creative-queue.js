@@ -1,9 +1,11 @@
 (function (global) {
   'use strict';
-  var _grid = null, _poll = null;
+  var _grid = null, _poll = null, _inflight = false;
 
   function _fetchPending() {
     if (!_grid) return;
+    if (_inflight) return;
+    _inflight = true;
     fetch('/api/comfy/status', { signal: AbortSignal.timeout(5000) })
       .then(function (r) { return r.ok ? r.json() : { variants: [] }; })
       .then(function (d) {
@@ -53,7 +55,8 @@
           }(v.id, v.status));
         });
       })
-      .catch(function () {});
+      .catch(function () {})
+      .then(function () { _inflight = false; });
   }
 
   function mount(slot) {
@@ -73,6 +76,7 @@
   function unmount() {
     if (_poll !== null) { clearInterval(_poll); _poll = null; }
     _grid = null;
+    _inflight = false;
   }
 
   global.CreativeQueue = { mount: mount, unmount: unmount };

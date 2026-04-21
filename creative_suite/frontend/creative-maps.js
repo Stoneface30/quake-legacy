@@ -4,6 +4,7 @@
   var GLOBAL   = 'CreativeMaps';
   var TITLE    = 'MAPS';
   var _grid = null;
+  var _overlay = null;
 
   function _openPrompt(asset) {
     var overlay = document.createElement('div');
@@ -27,8 +28,9 @@
     btnRow.appendChild(btnCancel); btnRow.appendChild(btnQueue);
     modal.appendChild(heading); modal.appendChild(textarea); modal.appendChild(sliderRow); modal.appendChild(btnRow);
     overlay.appendChild(modal);
+    _overlay = overlay;
     document.body.appendChild(overlay);
-    function close() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); }
+    function close() { if (overlay.parentNode) overlay.parentNode.removeChild(overlay); _overlay = null; }
     btnCancel.addEventListener('click', close);
     overlay.addEventListener('click', function (e) { if (e.target === overlay) close(); });
     btnQueue.addEventListener('click', function () {
@@ -88,7 +90,11 @@
       .catch(function () { _renderGrid([]); });
   }
 
-  function unmount() { _grid = null; }
+  function unmount() {
+    if (_overlay && _overlay.parentNode) { _overlay.parentNode.removeChild(_overlay); }
+    _overlay = null;
+    _grid = null;
+  }
 
   global[GLOBAL] = { mount: mount, unmount: unmount };
 }(window));

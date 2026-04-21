@@ -61,18 +61,20 @@
     wrap.appendChild(bar); wrap.appendChild(_trafficEl); wrap.appendChild(_logEl);
     slot.replaceChildren(wrap);
     _btnBuild.addEventListener('click', function () {
-      _btnBuild.disabled = true;
+      var btn = _btnBuild;
+      if (btn) btn.disabled = true;
       fetch('/api/packs/build', { method: 'POST', signal: AbortSignal.timeout(60000) })
         .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
-        .then(function (d) { _log('BUILD OK \u00b7 ' + (d.pk3_path || '') + ' \u00b7 ' + (d.sha256 || '')); _btnBuild.disabled = false; })
-        .catch(function (e) { _log('BUILD FAILED ' + e); _btnBuild.disabled = false; });
+        .then(function (d) { _log('BUILD OK \u00b7 ' + (d.pk3_path || '') + ' \u00b7 ' + (d.sha256 || '')); if (btn) btn.disabled = false; })
+        .catch(function (e) { _log('BUILD FAILED ' + e); if (btn) btn.disabled = false; });
     });
     _btnInstall.addEventListener('click', function () {
-      _btnInstall.disabled = true;
+      var btn = _btnInstall;
+      if (btn) btn.disabled = true;
       fetch('/api/packs/install', { method: 'POST', signal: AbortSignal.timeout(30000) })
         .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
-        .then(function (d) { _log('INSTALL OK \u00b7 ' + (d.target_path || '')); _btnInstall.disabled = false; })
-        .catch(function (e) { _log('INSTALL FAILED ' + e); _btnInstall.disabled = false; });
+        .then(function (d) { _log('INSTALL OK \u00b7 ' + (d.target_path || '')); if (btn) btn.disabled = false; })
+        .catch(function (e) { _log('INSTALL FAILED ' + e); if (btn) btn.disabled = false; });
     });
     _refresh();
   }
