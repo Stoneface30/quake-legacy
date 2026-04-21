@@ -82,7 +82,8 @@
     if (!container) return;
     container.setAttribute('data-active-mode', mode);
     container.replaceChildren();
-    var groups = NAV[mode].groups;
+    var groups = (NAV[mode] || {}).groups || [];
+    if (!groups.length) return;
     for (var i = 0; i < groups.length; i++) {
       var g = groups[i];
       var gEl = document.createElement('div');
@@ -183,27 +184,32 @@
     });
 
     var sidebar = document.getElementById('sidebar');
-    sidebar.addEventListener('click', function (e) {
-      var item = e.target.closest('.nav-item'); if (!item) return;
-      var page = item.getAttribute('data-page');
-      global.StudioStore.dispatch({ type: 'SET_ACTIVE_PAGE', page: page });
-    });
-    sidebar.addEventListener('keydown', function (e) {
-      if (e.key !== 'Enter' && e.key !== ' ') return;
-      var item = e.target.closest('.nav-item'); if (!item) return;
-      e.preventDefault();
-      var page = item.getAttribute('data-page');
-      global.StudioStore.dispatch({ type: 'SET_ACTIVE_PAGE', page: page });
-    });
+    if (sidebar) {
+      sidebar.addEventListener('click', function (e) {
+        var item = e.target.closest('.nav-item'); if (!item) return;
+        var page = item.getAttribute('data-page');
+        global.StudioStore.dispatch({ type: 'SET_ACTIVE_PAGE', page: page });
+      });
+      sidebar.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter' && e.key !== ' ') return;
+        var item = e.target.closest('.nav-item'); if (!item) return;
+        e.preventDefault();
+        var page = item.getAttribute('data-page');
+        global.StudioStore.dispatch({ type: 'SET_ACTIVE_PAGE', page: page });
+      });
+    }
   }
 
   function init() {
     var store = global.StudioStore;
     if (!store) { console.error('[Pages] no StudioStore'); return; }
 
+    var st = store.getState();
     var q = _readUrl();
-    if (q.mode)  store.dispatch({ type: 'SET_ACTIVE_MODE', mode: q.mode  });
-    if (q.page)  store.dispatch({ type: 'SET_ACTIVE_PAGE', page: q.page  });
+    if (q.mode && NAV[q.mode]) store.dispatch({ type: 'SET_ACTIVE_MODE', mode: q.mode });
+    if (q.page && _lookup(q.mode && NAV[q.mode] ? q.mode : st.activeMode, q.page)) {
+      store.dispatch({ type: 'SET_ACTIVE_PAGE', page: q.page });
+    }
 
     _wire();
 
@@ -221,7 +227,6 @@
       }
     });
 
-    var st = store.getState();
     _renderSidebar(st.activeMode, st.activePage);
     _switch(st.activeMode, st.activePage);
     _syncUrl(st.activeMode, st.activePage);
