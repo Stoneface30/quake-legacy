@@ -75,7 +75,9 @@
     slot.replaceChildren(wrap);
     _fetch();
     if (global.StudioStore) {
-      _unsub = global.StudioStore.subscribe(function () { _fetch(); });
+      _unsub = global.StudioStore.subscribe(function (s, p) {
+        if (s.activePart !== p.activePart) { _fetch(); }
+      });
     }
   }
 

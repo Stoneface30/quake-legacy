@@ -52,3 +52,12 @@ def test_forge_demos_empty_dir(monkeypatch, tmp_path):
     r = client.get("/api/forge/demos")
     assert r.status_code == 200
     assert r.json() == {"demos": []}
+
+
+def test_forge_demos_nonexistent_dir(tmp_path: Path, monkeypatch) -> None:
+    import creative_suite.api.forge as forge_mod
+    monkeypatch.setattr(forge_mod, "_DEMOS_DIR", tmp_path / "does_not_exist")
+    monkeypatch.setenv("CS_STORAGE_ROOT", str(tmp_path / "storage"))
+    r = TestClient(create_app()).get("/api/forge/demos")
+    assert r.status_code == 200
+    assert r.json() == {"demos": []}
