@@ -77,7 +77,7 @@
   "9": {
     "class_type": "ControlNetLoader",
     "inputs": {
-      "control_net_name": "xinsir-union-promax/diffusion_pytorch_model_promax.safetensors"
+      "control_net_name": "controlnet-canny-sdxl-1.0.safetensors"
     }
   },
   "10": {
