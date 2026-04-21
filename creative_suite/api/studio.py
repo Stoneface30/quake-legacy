@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/studio", tags=["studio"])
@@ -501,6 +502,59 @@ def get_music_contract(part_num: int, request: Request) -> dict[str, Any]:
     return {"part": part_num, "contract": contract}
 
 
+@router.get("/music/browse")
+def browse_music_library(request: Request) -> list[dict[str, Any]]:
+    """Scan engine/music/library/ for all downloaded tracks.
+
+    Filename convention: ARTIST__Track_Title.mp3  (double-underscore separator).
+    Returns artist + title parsed from stem, plus duration when mutagen is available.
+    """
+    cfg = request.app.state.cfg
+    library_dir: Path = cfg.phase1_music_dir / "library"
+    if not library_dir.exists():
+        return []
+
+    tracks: list[dict[str, Any]] = []
+    for f in sorted(library_dir.iterdir()):
+        if f.suffix.lower() not in _MUSIC_EXTS:
+            continue
+        stem = f.stem
+        if "__" in stem:
+            raw_artist, raw_title = stem.split("__", 1)
+            artist = raw_artist.replace("_", " ").strip()
+            title  = raw_title.replace("_", " ").replace("-", " ").strip()
+        else:
+            artist = ""
+            title  = stem.replace("_", " ").replace("-", " ").strip()
+
+        duration = _get_track_duration(f)
+        tracks.append({
+            "id":         f.stem,
+            "filename":   f.name,
+            "artist":     artist,
+            "title":      title,
+            "duration_s": round(duration, 3) if duration is not None else None,
+            "path":       "library/" + f.name,
+        })
+    return tracks
+
+
+@router.get("/music/file/{filename}")
+def serve_music_file(filename: str, request: Request) -> FileResponse:
+    """Serve a single music file from engine/music/library/.
+
+    Only files inside the library directory are served (no path traversal).
+    """
+    cfg = request.app.state.cfg
+    library_dir: Path = cfg.phase1_music_dir / "library"
+    # Sanitise: strip any directory components supplied by the caller
+    safe_name = Path(filename).name
+    target = library_dir / safe_name
+    if not target.exists() or not target.is_file():
+        raise HTTPException(status_code=404, detail=f"Track not found: {safe_name}")
+    return FileResponse(str(target), media_type="audio/mpeg")
+
+
 @router.get("/music/library")
 def get_music_library(request: Request) -> list[dict[str, Any]]:
     """Return all music tracks across all parts (flat list).
@@ -517,3 +571,289 @@ def get_music_library(request: Request) -> list[dict[str, Any]]:
             track["part"] = part
             results.append(track)
     return results
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# NLE Studio DB endpoints
+# ═══════════════════════════════════════════════════════════════════════════════
+
+import math as _math
+import random as _random
+
+from creative_suite.database import nle_db as _nle_db_mod
+from creative_suite.engine import music_chain as _music_chain
+
+
+def _nle_db(request: Request):
+    return request.app.state.cfg.nle_db_path
+
+
+# ── Pydantic models ───────────────────────────────────────────────────────────
+
+class _ArrangementClip(BaseModel):
+    clip_path: str
+    role: str = "body"
+    tier: str = "T2"
+    is_fl: bool = False
+    pair_path: Optional[str] = None
+    duration_s: Optional[float] = None
+
+
+class ArrangementBody(BaseModel):
+    clips: list[_ArrangementClip]
+
+
+class _FxParams(BaseModel):
+    effect_type: str
+    params: dict = {}
+    position: int = 0
+
+
+class _FxUpdate(BaseModel):
+    params: dict = {}
+    enabled: bool = True
+
+
+class _MusicAssignment(BaseModel):
+    role: str
+    track_filename: str
+    artist: Optional[str] = None
+    title: Optional[str] = None
+    bpm: Optional[float] = None
+    duration_s: Optional[float] = None
+    position: int = 0
+    transition_out: dict = {}
+
+
+# ── Arrangement ───────────────────────────────────────────────────────────────
+
+@router.get("/part/{part_num}/arrangement")
+def get_arrangement(part_num: int, request: Request) -> dict[str, Any]:
+    db = _nle_db(request)
+    rows = _nle_db_mod.get_arrangement(db, part_num)
+    for row in rows:
+        row["effects"] = _nle_db_mod.get_clip_effects(db, row["id"])
+    return {"part": part_num, "clips": rows}
+
+
+@router.put("/part/{part_num}/arrangement")
+def save_arrangement(part_num: int, body: ArrangementBody,
+                     request: Request) -> dict[str, Any]:
+    db = _nle_db(request)
+    clips = [c.model_dump() for c in body.clips]
+    _nle_db_mod.bulk_replace_arrangement(db, part_num, clips)
+    return {"saved": True, "total": len(clips)}
+
+
+@router.post("/part/{part_num}/arrangement/import")
+def import_from_clip_list(part_num: int, request: Request) -> dict[str, Any]:
+    """Seed clip_arrangements from the existing partNN.txt manifest + T2/T3 dirs."""
+    cfg = request.app.state.cfg
+    db = _nle_db(request)
+
+    clip_lists = _clip_lists_dir(request)
+    clip_file = clip_lists / f"part{part_num:02d}.txt"
+    if not clip_file.exists():
+        raise HTTPException(404, f"No clip list for part {part_num}")
+
+    saved = _load_order_file(clip_lists, part_num)
+    if saved is not None:
+        raw_clips = saved
+    else:
+        raw_clips = []
+        qv_part = cfg.quake_video_dir / "T1" / f"Part{part_num}"
+        for line in clip_file.read_text(encoding="utf-8").splitlines():
+            stripped = line.strip()
+            if not stripped or stripped.startswith("#"):
+                continue
+            c = _parse_clip_line(stripped, len(raw_clips))
+            c["tier"] = "T1"
+            c["is_fl"] = False
+            name = Path(c["path"]).name
+            c["name"] = name
+            if not Path(c["path"]).is_absolute():
+                c["path"] = str(qv_part / name)
+            raw_clips.append(c)
+        raw_clips += _scan_tier_dir(
+            cfg.quake_video_dir / "T2" / f"Part{part_num}", "T2", len(raw_clips))
+        raw_clips += _scan_tier_dir(
+            cfg.quake_video_dir / "T3" / f"Part{part_num}", "T3", len(raw_clips))
+
+    db_clips = [
+        {
+            "clip_path": c.get("path", c.get("name", "")),
+            "role": "body",
+            "tier": c.get("tier", "T2"),
+            "is_fl": c.get("is_fl", False),
+            "pair_path": None,
+            "duration_s": None,
+        }
+        for c in raw_clips
+    ]
+    _nle_db_mod.bulk_replace_arrangement(db, part_num, db_clips)
+    return {"imported": len(db_clips), "part": part_num}
+
+
+# ── Clip FX ───────────────────────────────────────────────────────────────────
+
+@router.post("/part/{part_num}/arrangement/{clip_id}/fx")
+def add_fx(part_num: int, clip_id: int, body: _FxParams,
+           request: Request) -> dict[str, Any]:
+    db = _nle_db(request)
+    arr = _nle_db_mod.get_arrangement(db, part_num)
+    if clip_id not in [r["id"] for r in arr]:
+        raise HTTPException(404, f"Clip {clip_id} not in part {part_num}")
+    fx_id = _nle_db_mod.add_clip_effect(db, clip_id, body.effect_type,
+                                         body.params, body.position)
+    return {"fx_id": fx_id}
+
+
+@router.put("/part/{part_num}/arrangement/{clip_id}/fx/{fx_id}")
+def update_fx(part_num: int, clip_id: int, fx_id: int,
+              body: _FxUpdate, request: Request) -> dict[str, Any]:
+    db = _nle_db(request)
+    _nle_db_mod.update_clip_effect(db, fx_id, body.params, body.enabled)
+    return {"updated": True}
+
+
+@router.delete("/part/{part_num}/arrangement/{clip_id}/fx/{fx_id}")
+def delete_fx(part_num: int, clip_id: int, fx_id: int,
+              request: Request) -> dict[str, Any]:
+    db = _nle_db(request)
+    _nle_db_mod.delete_clip_effect(db, fx_id)
+    return {"deleted": True}
+
+
+# ── Randomizer ────────────────────────────────────────────────────────────────
+
+@router.post("/part/{part_num}/randomize")
+def randomize_body(part_num: int, request: Request) -> dict[str, Any]:
+    """Return a re-ordered body clip list. Does NOT write to DB — UI confirms."""
+    db = _nle_db(request)
+    rows = _nle_db_mod.get_arrangement(db, part_num)
+
+    pinned = [r for r in rows if r["role"] in ("intro", "outro")]
+    body   = [r for r in rows if r["role"] == "body"]
+
+    t1 = [c for c in body if c["tier"] == "T1"]
+    t2 = [c for c in body if c["tier"] == "T2"]
+    t3 = [c for c in body if c["tier"] == "T3"]
+
+    _random.shuffle(t1)
+    _random.shuffle(t2)
+    _random.shuffle(t3)
+
+    total    = len(body)
+    t1_slots = max(1, round(total * 0.25)) if t1 else 0
+    t3_slots = max(1, round(total * 0.15)) if t3 else 0
+    t2_slots = total - t1_slots - t3_slots
+
+    def _fill(pool: list, n: int) -> list:
+        if not pool or n <= 0:
+            return []
+        return (pool * _math.ceil(n / len(pool)))[:n]
+
+    t1_out = _fill(t1, t1_slots)
+    t2_out = _fill(t2, t2_slots)
+    t3_out = _fill(t3, t3_slots)
+
+    interleaved: list = []
+    t3_it = iter(t3_out)
+    t1_it = iter(t1_out)
+    t2_it = iter(t2_out)
+
+    # Cinematic T3 opener if available
+    first = next(t3_it, None) or next(t2_it, None)
+    if first:
+        interleaved.append(first)
+
+    for i in range(total - len(interleaved)):
+        if i % 4 == 3:
+            c = next(t1_it, None) or next(t2_it, None)
+        elif i % 6 == 5:
+            c = next(t3_it, None) or next(t2_it, None)
+        else:
+            c = next(t2_it, None) or next(t1_it, None)
+        if c:
+            interleaved.append(c)
+
+    for rem in list(t1_it) + list(t2_it) + list(t3_it):
+        if len(interleaved) < total:
+            interleaved.append(rem)
+
+    return {"part": part_num, "body_clips": interleaved, "pinned": pinned}
+
+
+# ── Music recommendations ─────────────────────────────────────────────────────
+
+@router.get("/part/{part_num}/music_recommend")
+def music_recommend(part_num: int, request: Request,
+                    prev_role: Optional[str] = None) -> dict[str, Any]:
+    cfg = request.app.state.cfg
+    db  = _nle_db(request)
+
+    library_dir = cfg.phase1_music_dir / "library"
+    tracks = _music_chain.load_library(library_dir)
+
+    rows = _nle_db_mod.get_arrangement(db, part_num)
+    body_dur = sum(r["duration_s"] or 5.0 for r in rows if r["role"] == "body")
+
+    prev_track = None
+    if prev_role:
+        for m in _nle_db_mod.get_music_assignments(db, part_num):
+            if m["role"] == prev_role:
+                prev_track = m
+                break
+
+    ranked = _music_chain.score_tracks(tracks, body_dur,
+                                        video_bpm=None,
+                                        prev_track=prev_track,
+                                        top_n=10)
+    return {"part": part_num, "recommendations": ranked}
+
+
+# ── Music assignment ──────────────────────────────────────────────────────────
+
+@router.put("/part/{part_num}/music_assignment")
+def save_music_assignment(part_num: int, body: _MusicAssignment,
+                          request: Request) -> dict[str, Any]:
+    db = _nle_db(request)
+    _nle_db_mod.upsert_music_assignment(
+        db, part_num, body.role, body.track_filename,
+        body.artist, body.title, body.bpm, body.duration_s,
+        body.position, transition_out=body.transition_out,
+    )
+    return {"saved": True}
+
+
+@router.delete("/part/{part_num}/music_assignment/{role}")
+def clear_music_assignment(part_num: int, role: str,
+                           request: Request) -> dict[str, Any]:
+    db = _nle_db(request)
+    _nle_db_mod.delete_music_assignment(db, part_num, role)
+    return {"deleted": True}
+
+
+# ── Audio FX ──────────────────────────────────────────────────────────────────
+
+@router.get("/audio_fx")
+def list_audio_fx(request: Request, part: int = 4) -> dict[str, Any]:
+    db = _nle_db(request)
+    return {"audio_fx": _nle_db_mod.get_audio_fx(db, part)}
+
+
+@router.put("/audio_fx/{fx_id}")
+def update_audio_fx_preset(fx_id: int, body: _FxUpdate,
+                           request: Request) -> dict[str, Any]:
+    db = _nle_db(request)
+    _nle_db_mod.update_audio_fx(db, fx_id, body.params, body.enabled)
+    return {"updated": True}
+
+
+# ── Manifest generate ─────────────────────────────────────────────────────────
+
+@router.post("/part/{part_num}/generate_manifest")
+def generate_manifest_endpoint(part_num: int, request: Request) -> dict[str, Any]:
+    from creative_suite.engine import manifest_generator as _mg
+    cfg = request.app.state.cfg
+    return _mg.generate_manifest(part_num, cfg)
