@@ -5,12 +5,9 @@
     studio: {
       label: 'Edit',
       groups: [
-        { label: 'Edit flow', items: [
-          { page: 'preview',   label: 'Preview',   icon: 'play',      module: 'StudioPreview'   },
-          { page: 'timeline',  label: 'Timeline',  icon: 'timeline',  module: 'StudioTimeline'  },
-          { page: 'audio',     label: 'Audio',     icon: 'wave',      module: 'StudioAudio'     },
-          { page: 'effects',   label: 'Effects',   icon: 'bolt',      module: 'StudioEffects'   },
-          { page: 'inspector', label: 'Inspector', icon: 'crosshair', module: 'StudioInspector' },
+        { label: 'Studio', items: [
+          { page: 'clips', label: 'Clips', icon: 'reel',     module: 'StudioClips' },
+          { page: 'edit',  label: 'Edit',  icon: 'timeline', module: 'StudioEdit'  },
         ]},
       ],
     },

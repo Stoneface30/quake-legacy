@@ -243,12 +243,21 @@ def list_tracks(request: Request) -> list[dict[str, Any]]:
     music_dir = repo / "creative_suite" / "engine" / "music"
     if not music_dir.exists():
         return []
-    return sorted(
-        [{"name": f.name, "path": str(f)}
-         for f in music_dir.iterdir()
-         if f.suffix.lower() in (".mp3", ".wav", ".m4a", ".ogg")],
-        key=lambda x: x["name"],
-    )
+    tracks = []
+    for f in music_dir.iterdir():
+        if f.suffix.lower() not in (".mp3", ".wav", ".m4a", ".ogg"):
+            continue
+        entry: dict[str, Any] = {"name": f.name, "path": str(f)}
+        beats_file = music_dir / (f.name + ".beats.json")
+        if beats_file.exists():
+            try:
+                bdata = json.loads(beats_file.read_text(encoding="utf-8"))
+                if "tempo" in bdata:
+                    entry["bpm"] = round(float(bdata["tempo"]), 1)
+            except (OSError, ValueError, KeyError):
+                pass
+        tracks.append(entry)
+    return sorted(tracks, key=lambda x: x["name"])
 
 
 class PreviewBody(BaseModel):
