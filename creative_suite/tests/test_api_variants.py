@@ -185,6 +185,58 @@ def test_approve_404_on_missing(app_with_asset) -> None:  # type: ignore[no-unty
     assert client.post("/api/variants/9999/reroll").status_code == 404
 
 
+def test_list_variants_can_filter_by_status_without_asset_id(app_with_asset) -> None:  # type: ignore[no-untyped-def]
+    client, _, asset_id = app_with_asset
+    client.post("/api/comfy/queue", json={"asset_id": asset_id, "seed": 111})
+    approved = client.post(
+        "/api/comfy/queue", json={"asset_id": asset_id, "seed": 222}
+    ).json()["variant_id"]
+    client.post(f"/api/variants/{approved}/approve")
+
+    r = client.get("/api/variants?status=pending&limit=10")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert "variants" in body
+    assert len(body["variants"]) == 1
+    row = body["variants"][0]
+    assert row["status"] == "pending"
+    assert row["asset_id"] == asset_id
+    assert row["category"] == "surface"
+    assert row["png_url"] is not None
+
+
+# ---------------------------------------------------------------------- #
+# Feed endpoint (shell-oriented queue panel)
+# ---------------------------------------------------------------------- #
+
+
+def test_variants_feed_returns_recent_items(app_with_asset) -> None:  # type: ignore[no-untyped-def]
+    """GET /api/variants/feed must return a flat variants list."""
+    client, _, asset_id = app_with_asset
+    # Queue two variants so there is something to return.
+    client.post("/api/comfy/queue", json={"asset_id": asset_id, "seed": 1})
+    client.post("/api/comfy/queue", json={"asset_id": asset_id, "seed": 2})
+
+    r = client.get("/api/variants/feed")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert "variants" in body
+    assert isinstance(body["variants"], list)
+    assert len(body["variants"]) == 2
+    first = body["variants"][0]
+    assert "id" in first
+    assert "status" in first
+    assert "category" in first
+
+
+def test_variants_feed_empty_when_no_variants(app_with_asset) -> None:  # type: ignore[no-untyped-def]
+    """GET /api/variants/feed must return empty list when no variants exist."""
+    client, _, _ = app_with_asset
+    r = client.get("/api/variants/feed")
+    assert r.status_code == 200
+    assert r.json()["variants"] == []
+
+
 # ---------------------------------------------------------------------- #
 # End-to-end spec §7 smoke: 3 variants → approve 1, reject 1, reroll 1
 # ---------------------------------------------------------------------- #

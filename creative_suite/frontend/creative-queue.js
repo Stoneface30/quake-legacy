@@ -6,7 +6,7 @@
     if (!_grid) return;
     if (_inflight) return;
     _inflight = true;
-    fetch('/api/comfy/status', { signal: AbortSignal.timeout(5000) })
+    fetch('/api/variants/feed', { signal: AbortSignal.timeout(5000) })
       .then(function (r) { return r.ok ? r.json() : { variants: [] }; })
       .then(function (d) {
         if (!_grid) return;
@@ -24,7 +24,7 @@
             var cell = document.createElement('div');
             cell.style.cssText = 'display:flex;flex-direction:column;gap:6px;background:#111;padding:8px';
             var img = document.createElement('img');
-            img.src = v.thumbnail_url || '';
+            img.src = v.thumbnail_url || v.png_url || v.asset_thumbnail_url || '';
             img.style.cssText = 'width:100%;aspect-ratio:1;object-fit:cover;background:#0a0a0a';
             img.alt = '';
             var statusDot = document.createElement('span');
@@ -34,23 +34,24 @@
             var btnApprove = document.createElement('button'); btnApprove.className = 'panel-iframe-btn'; btnApprove.textContent = '\u2713';
             var btnReject = document.createElement('button'); btnReject.className = 'panel-iframe-btn'; btnReject.textContent = '\u2717';
             btnApprove.addEventListener('click', function () {
-              fetch('/api/variants/' + vid, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: 'approved' }),
+              fetch('/api/variants/' + vid + '/approve', {
+                method: 'POST',
                 signal: AbortSignal.timeout(5000)
               }).then(function () { _fetchPending(); }).catch(function () {});
             });
             btnReject.addEventListener('click', function () {
-              fetch('/api/variants/' + vid, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ status: 'rejected' }),
+              fetch('/api/variants/' + vid + '/reject', {
+                method: 'POST',
                 signal: AbortSignal.timeout(5000)
               }).then(function () { _fetchPending(); }).catch(function () {});
             });
+            btnApprove.disabled = vstatus === 'approved';
+            btnReject.disabled = vstatus === 'rejected';
+            var label = document.createElement('div');
+            label.style.cssText = 'font-size:10px;color:#888;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:Consolas,monospace';
+            label.textContent = v.internal_path || ('asset #' + vid);
             btnRow.appendChild(statusDot); btnRow.appendChild(btnApprove); btnRow.appendChild(btnReject);
-            cell.appendChild(img); cell.appendChild(btnRow);
+            cell.appendChild(img); cell.appendChild(label); cell.appendChild(btnRow);
             _grid.appendChild(cell);
           }(v.id, v.status));
         });
