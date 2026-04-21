@@ -7,6 +7,10 @@ Pipelines:
   tile_d35_photoreal   — LoRA: Photorealistic Slider (strength 0.7)
   tile_d35_cel_shade   — LoRA: Neonify cel shading (strength 0.65)
   tile_d35_ultra_det   — LoRA: Extremely Detailed ntc-ai (strength 1.5)
+  cel_shade            — Canny edge + Union ProMax ControlNet → anime cel shade
+  cartoon              — Tile ControlNet + euler_ancestral → cartoon style
+  concept_art          — Pure img2img RealVisXL, no ControlNet → painterly
+  ink_etching          — Dense Canny + max-strength Union ProMax → woodblock print
 
 Output: creative_suite/comfy/photoreal/e2e/{category}/{pipeline}.png
         creative_suite/comfy/photoreal/gallery.html  (before/after/wild view)
@@ -37,9 +41,13 @@ PAK00     = ASSETS / "pak00"
 E2E_DIR   = PHOTOREAL / "e2e"
 WF_DIR    = Path(__file__).parent / "workflows"
 
-WF_UPSCALE    = WF_DIR / "upscale_only.json"
-WF_TILE_SDXL  = WF_DIR / "tile_controlnet_sdxl.json"
-WF_TILE_LORA  = WF_DIR / "tile_sdxl_lora.json"
+WF_UPSCALE      = WF_DIR / "upscale_only.json"
+WF_TILE_SDXL    = WF_DIR / "tile_controlnet_sdxl.json"
+WF_TILE_LORA    = WF_DIR / "tile_sdxl_lora.json"
+WF_CEL_SHADE    = WF_DIR / "cel_shade_sdxl.json"
+WF_CARTOON      = WF_DIR / "cartoon_sdxl.json"
+WF_CONCEPT_ART  = WF_DIR / "concept_art_sdxl.json"
+WF_INK_ETCHING  = WF_DIR / "ink_etching_sdxl.json"
 
 SDXL_CONTROLNET = Path(
     r"E:\PersonalAI\ComfyUI\models\controlnet"
@@ -72,6 +80,11 @@ PIPELINES: list[tuple[str, Path, float | None, dict[str, Any]]] = [
         "lora_name":     "extremely detailed.safetensors",
         "lora_strength": 1.5,
     }),
+    # ── Style workflows ─────────────────────────────────────────────────
+    ("cel_shade",   WF_CEL_SHADE,   0.65, {}),
+    ("cartoon",     WF_CARTOON,     0.65, {}),
+    ("concept_art", WF_CONCEPT_ART, 0.75, {}),
+    ("ink_etching", WF_INK_ETCHING, 0.70, {}),
 ]
 
 CATEGORIES = [

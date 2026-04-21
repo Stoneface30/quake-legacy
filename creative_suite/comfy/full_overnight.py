@@ -68,6 +68,10 @@ WF_UPSCALE     = WF_DIR / "upscale_only.json"
 WF_TILE_SDXL   = WF_DIR / "tile_controlnet_sdxl.json"
 WF_REFINE_SDXL = WF_DIR / "tile_refine_sdxl.json"
 WF_TILE_SD15   = WF_DIR / "tile_controlnet_sd15.json"
+WF_CEL_SHADE   = WF_DIR / "cel_shade_sdxl.json"
+WF_CARTOON     = WF_DIR / "cartoon_sdxl.json"
+WF_CONCEPT_ART = WF_DIR / "concept_art_sdxl.json"
+WF_INK_ETCHING = WF_DIR / "ink_etching_sdxl.json"
 
 SDXL_CONTROLNET = Path(
     r"E:\PersonalAI\ComfyUI\models\controlnet"
@@ -85,12 +89,17 @@ FX_BLACK_RATIO = 0.70
 #   scope "surface" → runs only on SURFACE categories
 
 PIPELINE_DEFS: OrderedDict[str, tuple[str, float, str]] = OrderedDict([
-    ("upscale_only", ("upscale",  1.0,  "all")),
-    ("tile_d35",     ("tile",     0.35, "surface")),
-    ("tile_d50",     ("tile",     0.50, "surface")),
-    ("tile_d60",     ("tile",     0.60, "surface")),
-    ("tile_d70",     ("tile",     0.70, "surface")),
-    ("tile_d80",     ("tile",     0.80, "surface")),
+    ("upscale_only", ("upscale",      1.0,  "all")),
+    ("tile_d35",     ("tile",         0.35, "surface")),
+    ("tile_d50",     ("tile",         0.50, "surface")),
+    ("tile_d60",     ("tile",         0.60, "surface")),
+    ("tile_d70",     ("tile",         0.70, "surface")),
+    ("tile_d80",     ("tile",         0.80, "surface")),
+    # ── Style workflows ──────────────────────────────────────────────────
+    ("cel_shade",    ("cel_shade",    0.65, "surface")),
+    ("cartoon",      ("cartoon",      0.65, "surface")),
+    ("concept_art",  ("concept_art",  0.75, "surface")),
+    ("ink_etching",  ("ink_etching",  0.70, "surface")),
 ])
 
 # ── Category routing ───────────────────────────────────────────────────────────
@@ -418,6 +427,10 @@ def _pipe_label(name: str) -> str:
         "tile_d60":     "d=0.60<br>spicy",
         "tile_d70":     "d=0.70<br>wild",
         "tile_d80":     "d=0.80<br>chaos mode",
+        "cel_shade":    "Cel Shade<br>Canny + d=0.65",
+        "cartoon":      "Cartoon<br>Tile + d=0.65",
+        "concept_art":  "Concept Art<br>RealVis + d=0.75",
+        "ink_etching":  "Ink Etching<br>Canny + d=0.70",
     }
     return labels.get(name, name)
 
@@ -500,15 +513,26 @@ def main() -> None:
         sys.exit(1)
 
     using_sdxl = SDXL_CONTROLNET.exists()
-    wf_upscale = load_workflow(WF_UPSCALE)
-    wf_tile    = load_workflow(WF_TILE_SDXL if using_sdxl else WF_TILE_SD15)
-    prompt     = build_final_prompt("")
+    wf_upscale     = load_workflow(WF_UPSCALE)
+    wf_tile        = load_workflow(WF_TILE_SDXL if using_sdxl else WF_TILE_SD15)
+    wf_cel_shade   = load_workflow(WF_CEL_SHADE)
+    wf_cartoon     = load_workflow(WF_CARTOON)
+    wf_concept_art = load_workflow(WF_CONCEPT_ART)
+    wf_ink_etching = load_workflow(WF_INK_ETCHING)
+    prompt         = build_final_prompt("")
 
     model_label = ("JuggernautXL + TTPLanet Tile (SDXL)" if using_sdxl
                    else "dreamshaper_8 + Tile (SD1.5 fallback)")
     print(f"  Model: {model_label}")
 
-    wf_map = {"upscale": wf_upscale, "tile": wf_tile}
+    wf_map = {
+        "upscale":     wf_upscale,
+        "tile":        wf_tile,
+        "cel_shade":   wf_cel_shade,
+        "cartoon":     wf_cartoon,
+        "concept_art": wf_concept_art,
+        "ink_etching": wf_ink_etching,
+    }
 
     # ── 5: Batch ───────────────────────────────────────────────────
     print(f"\n[5/5] Processing {len(all_assets)} assets × {len(active_pipelines)} pipelines...")

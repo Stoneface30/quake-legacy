@@ -1,0 +1,90 @@
+{
+  "_template_version": "1",
+  "_description": "Cartoon style via TTPLanet Tile ControlNet with euler_ancestral sampler. Slightly looser ControlNet (end=0.75) lets shape deform toward cartoon proportions. Higher CFG (9.5) + sgm_uniform scheduler drives saturated, high-contrast cartoon output. Best at denoise=0.55–0.70.",
+  "_placeholders": ["{{input_image}}", "{{prompt}}", "{{seed}}", "{{denoise}}", "{{negative_prompt}}"],
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": { "ckpt_name": "juggernautXL_ragnarokBy.safetensors" }
+  },
+  "2": {
+    "class_type": "LoadImage",
+    "inputs": { "image": "{{input_image}}" }
+  },
+  "3": {
+    "class_type": "UpscaleModelLoader",
+    "inputs": { "model_name": "4x-UltraSharp.pth" }
+  },
+  "4": {
+    "class_type": "ImageUpscaleWithModel",
+    "inputs": { "upscale_model": ["3", 0], "image": ["2", 0] }
+  },
+  "5": {
+    "class_type": "ImageScaleBy",
+    "inputs": { "image": ["4", 0], "upscale_method": "lanczos", "scale_by": 0.5 }
+  },
+  "6": {
+    "_comment": "blur_strength=3.0 (vs 2.0 in production tile) — slightly looser guide lets cartoon shapes breathe",
+    "class_type": "TTPlanet_TileGF_Preprocessor",
+    "inputs": {
+      "image":        ["5", 0],
+      "scale_factor": 1.0,
+      "blur_strength": 3.0,
+      "radius":       7,
+      "eps":          0.01,
+      "resolution":   512
+    }
+  },
+  "7": {
+    "class_type": "VAEEncode",
+    "inputs": { "pixels": ["5", 0], "vae": ["1", 2] }
+  },
+  "8": {
+    "class_type": "ControlNetLoader",
+    "inputs": { "control_net_name": "TTPLANET_Controlnet_Tile_realistic_v2_fp16.safetensors" }
+  },
+  "9": {
+    "class_type": "CLIPTextEncode",
+    "inputs": { "text": "{{prompt}}", "clip": ["1", 1] }
+  },
+  "10": {
+    "class_type": "CLIPTextEncode",
+    "inputs": { "text": "{{negative_prompt}}", "clip": ["1", 1] }
+  },
+  "11": {
+    "_comment": "end_percent=0.75 — release control in last 25% to let cartoon exaggeration emerge",
+    "class_type": "ControlNetApplyAdvanced",
+    "inputs": {
+      "positive":      ["9", 0],
+      "negative":      ["10", 0],
+      "control_net":   ["8", 0],
+      "image":         ["6", 0],
+      "strength":      0.85,
+      "start_percent": 0.0,
+      "end_percent":   0.75
+    }
+  },
+  "12": {
+    "_comment": "euler_ancestral + sgm_uniform is the SDXL-native ancestral pair — more varied, painterly output than dpmpp_2m",
+    "class_type": "KSampler",
+    "inputs": {
+      "model":        ["1", 0],
+      "positive":     ["11", 0],
+      "negative":     ["11", 1],
+      "latent_image": ["7", 0],
+      "seed":         "{{seed}}",
+      "steps":        30,
+      "cfg":          9.5,
+      "sampler_name": "euler_ancestral",
+      "scheduler":    "sgm_uniform",
+      "denoise":      "{{denoise}}"
+    }
+  },
+  "13": {
+    "class_type": "VAEDecode",
+    "inputs": { "samples": ["12", 0], "vae": ["1", 2] }
+  },
+  "14": {
+    "class_type": "SaveImage",
+    "inputs": { "images": ["13", 0], "filename_prefix": "creative_suite/cartoon" }
+  }
+}
