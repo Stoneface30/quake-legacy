@@ -38,7 +38,7 @@
       "negative_suffix": "photorealistic, hyperrealistic,",
       "description": "Neonify SDXL v2.3 — cel shading + neon realism. Great for mapobjects and player models.",
       "best_for": ["players", "weapons2", "mapobjects"],
-      "notes": "Start at strength=0.5, go to 0.8 for strong cartoon. 1.8GB — loaded on demand."
+      "notes": "Start at strength=0.5, go to 0.8 for strong cartoon. 3.6GB — loaded on demand."
     },
 
     "retro_quake": {

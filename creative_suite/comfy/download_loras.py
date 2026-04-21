@@ -26,13 +26,13 @@ LORAS = [
         "name":     "Extremely Detailed SDXL (face + skin + micro-detail)",
         "repo":     "ntc-ai/SDXL-LoRA-slider.extremely-detailed",
         "filename": "extremely detailed.safetensors",
-        "size_mb":  74,
+        "size_mb":  9,
     },
     {
         "name":     "Neonify SDXL v2.3 (cel shade + neon realism)",
-        "repo":     "cocktailpeanut/neonify",
+        "repo":     None,
         "filename": "NeonifyV2-4Extreme.safetensors",
-        "size_mb":  1820,
+        "size_mb":  3687,
         "fallback_url": "https://civitai.com/api/download/models/135584",
     },
 ]
@@ -47,12 +47,13 @@ def _download(item: dict) -> bool:
     name = item["name"]
 
     existing = dest.stat().st_size if dest.exists() else 0
-    expected = item["size_mb"] * 1024 * 1024
+    expected = item["size_mb"] * 1_000_000  # size_mb uses decimal MB (consistent with display)
     if existing >= expected * 0.99:
         print(f"  SKIP (complete): {name}  ({existing / 1e6:.1f} MB)")
         return True
 
-    url = _hf_url(item["repo"], item["filename"])
+    repo = item.get("repo")
+    url = _hf_url(repo, item["filename"]) if repo else item.get("fallback_url", "")
     if existing:
         print(f"  Resuming {name} from {existing / 1e6:.1f} MB...")
     else:
@@ -63,8 +64,8 @@ def _download(item: dict) -> bool:
 
     try:
         with requests.get(url, headers=headers, stream=True, timeout=60) as r:
-            if r.status_code == 404 and "fallback_url" in item:
-                print(f"  Not on HuggingFace, trying fallback...")
+            if r.status_code in (401, 404) and "fallback_url" in item and url != item["fallback_url"]:
+                print(f"  Trying fallback URL...")
                 r.close()
                 with requests.get(item["fallback_url"], headers=headers,
                                    stream=True, timeout=60) as r2:
