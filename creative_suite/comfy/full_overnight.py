@@ -465,6 +465,10 @@ def main() -> None:
         "--force-render", action="store_true",
         help="Re-render even if output file exists",
     )
+    ap.add_argument(
+        "--twopass", action="store_true",
+        help="Use upscale_only CNN output as source instead of raw pak00 PNG",
+    )
     args = ap.parse_args()
 
     active_pipelines: list[str] = args.pipelines or list(PIPELINE_DEFS.keys())
@@ -577,7 +581,13 @@ def main() -> None:
                     continue
 
                 workflow = wf_map[wf_key]
-                ok = _run_one(orig, dst, comfy, workflow, prompt, denoise)
+                # Two-pass: use CNN-upscaled image as source for diffusion pipelines
+                src = orig
+                if args.twopass and pipe_name != "upscale_only":
+                    up = PIPELINES_DIR / "upscale_only" / rel
+                    if up.exists():
+                        src = up
+                ok = _run_one(src, dst, comfy, workflow, prompt, denoise)
 
                 if ok:
                     _log_render(db, asset_id, pipe_name, denoise, dst)
