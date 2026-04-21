@@ -26,13 +26,13 @@ LORAS = [
         "name":     "Extremely Detailed SDXL (face + skin + micro-detail)",
         "repo":     "ntc-ai/SDXL-LoRA-slider.extremely-detailed",
         "filename": "extremely detailed.safetensors",
-        "size_mb":  9,
+        "size_mb":  8,  # 8789076 bytes = 8.8 MB decimal
     },
     {
         "name":     "Neonify SDXL v2.3 (cel shade + neon realism)",
         "repo":     None,
         "filename": "NeonifyV2-4Extreme.safetensors",
-        "size_mb":  1862,  # original clean file; validation catches corruption before resume
+        "size_mb":  1824,  # Civitai delivery: 1824687596 bytes = 1824.7 MB decimal
         "fallback_url": "https://civitai.com/api/download/models/135584",
     },
 ]
