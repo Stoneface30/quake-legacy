@@ -855,5 +855,7 @@ def update_audio_fx_preset(fx_id: int, body: _FxUpdate,
 @router.post("/part/{part_num}/generate_manifest")
 def generate_manifest_endpoint(part_num: int, request: Request) -> dict[str, Any]:
     from creative_suite.engine import manifest_generator as _mg
-    cfg = request.app.state.cfg
-    return _mg.generate_manifest(part_num, cfg)
+    db   = _nle_db(request)
+    clips = _nle_db_mod.get_arrangement(db, part_num)
+    cl_path, ov_path = _mg.generate(part_num, clips)
+    return {"clip_list": str(cl_path), "overrides": str(ov_path), "count": len(clips)}
