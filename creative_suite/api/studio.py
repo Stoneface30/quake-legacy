@@ -2,13 +2,14 @@
 """Studio router — /api/studio
 
 Serves metadata for the /studio editor UI:
-  GET /api/studio/status                         health check
-  GET /api/studio/parts                          list available parts with metadata
-  GET /api/studio/part/{n}/clips                 clip list for a specific part
-  GET /api/studio/part/{n}/flow                  flow_plan.json for a specific part
-  GET /api/studio/part/{n}/music                 music tracks + match % for a part
-  GET /api/studio/part/{n}/music_contract        full-length contract coverage check
-  GET /api/studio/music/library                  all music tracks across all parts
+  GET  /api/studio/status                        health check
+  GET  /api/studio/parts                         list available parts with metadata
+  GET  /api/studio/part/{n}/clips                clips from T1 manifest + T2/T3 dirs
+  PUT  /api/studio/part/{n}/clips                save working clip order
+  GET  /api/studio/part/{n}/flow                 flow_plan.json for a specific part
+  GET  /api/studio/part/{n}/music                music tracks + match % for a part
+  GET  /api/studio/part/{n}/music_contract       full-length contract coverage check
+  GET  /api/studio/music/library                 all music tracks across all parts
 """
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/studio", tags=["studio"])
 
@@ -101,11 +103,42 @@ def status() -> dict[str, Any]:
     }
 
 
+def _scan_tier_dir(tier_dir: Path, tier: str, idx_start: int) -> list[dict[str, Any]]:
+    """Scan a T2/T3 directory and return clip dicts."""
+    if not tier_dir.exists():
+        return []
+    clips = []
+    for f in sorted(tier_dir.iterdir()):
+        if f.suffix.lower() == ".avi":
+            clips.append({
+                "idx": idx_start + len(clips),
+                "name": f.name,
+                "raw": f.name,
+                "path": str(f),
+                "tier": tier,
+                "is_fl": True,   # T2/T3 are always FL (free-look) angles
+                "has_pair": False,
+            })
+    return clips
+
+
+def _load_order_file(clip_lists: Path, part: int) -> list[dict[str, Any]] | None:
+    """Load a saved working-order JSON for a part, or return None."""
+    p = clip_lists / f"part{part:02d}_order.json"
+    if not p.exists():
+        return None
+    try:
+        return json.loads(p.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+
 @router.get("/parts")
 def list_parts(request: Request) -> list[dict[str, Any]]:
     cfg = request.app.state.cfg
     clip_lists = _clip_lists_dir(request)
     out = _output_dir(request)
+    qv = cfg.quake_video_dir
 
     if not clip_lists.exists():
         return []
@@ -118,18 +151,23 @@ def list_parts(request: Request) -> list[dict[str, Any]]:
         part = int(m.group(1))
         nn = f"{part:02d}"
 
-        # has_flow_plan: output/partNN/flow_plan.json OR output/partNN_flow_plan.json
-        # Check both layouts — the phase1 router uses flat files; keep compatible.
         flow_flat = out / f"part{nn}_flow_plan.json"
         flow_subdir = out / f"part{nn}" / "flow_plan.json"
         has_flow_plan = flow_flat.exists() or flow_subdir.exists()
 
-        render_flat = out / f"part{nn}" / f"part{nn}_final.mp4"
-        render_exists = render_flat.exists()
+        render_exists = (out / f"part{nn}" / f"part{nn}_final.mp4").exists()
+
+        # Count clips across all three tiers
+        t1_count = _count_clips(f)
+        t2_count = sum(1 for x in (qv / "T2" / f"Part{part}").glob("*.avi") if qv.exists()) if qv.exists() else 0
+        t3_count = sum(1 for x in (qv / "T3" / f"Part{part}").glob("*.avi") if qv.exists()) if qv.exists() else 0
 
         results.append({
             "part": part,
-            "clip_count": _count_clips(f),
+            "clip_count": t1_count + t2_count + t3_count,
+            "t1_count": t1_count,
+            "t2_count": t2_count,
+            "t3_count": t3_count,
             "has_flow_plan": has_flow_plan,
             "has_music": _has_music(part, cfg.phase1_music_dir),
             "render_exists": render_exists,
@@ -140,25 +178,90 @@ def list_parts(request: Request) -> list[dict[str, Any]]:
 
 @router.get("/part/{part_num}/clips")
 def get_clips(part_num: int, request: Request) -> dict[str, Any]:
+    cfg = request.app.state.cfg
     clip_lists = _clip_lists_dir(request)
     clip_file = clip_lists / f"part{part_num:02d}.txt"
+    qv = cfg.quake_video_dir
 
     if not clip_file.exists():
         raise HTTPException(status_code=404, detail=f"No clip list for part {part_num}")
 
+    # If a saved working order exists, return it directly
+    saved = _load_order_file(clip_lists, part_num)
+    if saved is not None:
+        return {"part": part_num, "clips": saved, "has_saved_order": True}
+
+    # Build default order: T1 (from manifest), then T2 (dir scan), then T3 (dir scan)
     clips: list[dict[str, Any]] = []
-    idx = 0
+    qv_part = qv / "T1" / f"Part{part_num}"
     for line in clip_file.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
-        clips.append(_parse_clip_line(stripped, idx))
-        idx += 1
+        c = _parse_clip_line(stripped, len(clips))
+        # Manifest lines are T1 — force tier and resolve full path
+        c["tier"] = "T1"
+        c["is_fl"] = False
+        name = Path(c["path"]).name
+        c["name"] = name
+        if not Path(c["path"]).is_absolute():
+            c["path"] = str(qv_part / name)
+        clips.append(c)
 
-    return {"part": part_num, "clips": clips}
+    t2_clips = _scan_tier_dir(qv / "T2" / f"Part{part_num}", "T2", len(clips))
+    t3_clips = _scan_tier_dir(qv / "T3" / f"Part{part_num}", "T3", len(clips) + len(t2_clips))
+
+    return {
+        "part": part_num,
+        "clips": clips + t2_clips + t3_clips,
+        "has_saved_order": False,
+    }
 
 
-_VALID_PARTS = range(4, 13)  # parts 4-12 inclusive
+class _ClipItem(BaseModel):
+    name: str
+    tier: str
+    path: str = ""
+    idx: int = 0
+    raw: str = ""
+    is_fl: bool = False
+    has_pair: bool = False
+
+
+class ClipOrderBody(BaseModel):
+    clips: list[_ClipItem]
+
+
+@router.put("/part/{part_num}/clips")
+def save_clip_order(part_num: int, body: ClipOrderBody, request: Request) -> dict[str, Any]:
+    """Persist a user-reordered clip list. Saves a JSON working-order file and
+    also rewrites the T1 .txt manifest to reflect the new T1 order."""
+    clip_lists = _clip_lists_dir(request)
+    clip_file = clip_lists / f"part{part_num:02d}.txt"
+    if not clip_file.exists():
+        raise HTTPException(status_code=404, detail=f"No clip list for part {part_num}")
+
+    # Renumber and save full order as JSON
+    ordered = [c.model_dump() for c in body.clips]
+    for i, c in enumerate(ordered):
+        c["idx"] = i
+    order_path = clip_lists / f"part{part_num:02d}_order.json"
+    order_path.write_text(json.dumps(ordered, indent=2), encoding="utf-8")
+
+    # Rewrite .txt manifest with T1 clips in their new order
+    t1_clips = [c for c in ordered if c.get("tier", "T1") == "T1"]
+    nn = f"{part_num:02d}"
+    lines = [
+        f"# Part {part_num} clip list — saved from STUDIO CLIPS editor",
+        f"# {len(t1_clips)} T1 clips",
+    ]
+    lines += [c["name"] for c in t1_clips]
+    clip_file.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    return {"saved": True, "total": len(ordered), "t1": len(t1_clips)}
+
+
+_VALID_PARTS = range(1, 13)  # parts 1-12 inclusive
 
 # ── music helpers ─────────────────────────────────────────────────────────────
 

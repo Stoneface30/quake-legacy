@@ -52,6 +52,10 @@ class Config:
         return self.storage_root / "wolfcam_capture"
 
     @property
+    def quake_video_dir(self) -> Path:
+        return REPO_ROOT / "QUAKE VIDEO"
+
+    @property
     def phase1_clip_lists(self) -> Path:
         return REPO_ROOT / "creative_suite" / "engine" / "clip_lists"
 
