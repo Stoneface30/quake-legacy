@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from creative_suite.config import Config
@@ -11,6 +11,7 @@ from creative_suite.db.migrate import migrate
 
 VERSION = "0.1.0"
 
+_FRONTEND_DIR = Path(__file__).parent / "frontend"
 _ENGINE_GRAPH_DIR = Path(__file__).parent.parent / "engine" / "graphify-out"
 
 
@@ -24,9 +25,13 @@ def create_app() -> FastAPI:
     def health() -> dict[str, object]:
         return {"ok": True, "version": VERSION}
 
-    @app.get("/")
+    @app.get("/", response_class=RedirectResponse, status_code=307)
     def root():
         return RedirectResponse(url="/studio", status_code=307)
+
+    @app.get("/studio")
+    def studio():
+        return FileResponse(_FRONTEND_DIR / "studio.html")
 
     if _ENGINE_GRAPH_DIR.exists():
         app.mount(
@@ -34,5 +39,11 @@ def create_app() -> FastAPI:
             StaticFiles(directory=str(_ENGINE_GRAPH_DIR), html=True),
             name="engine-graph",
         )
+
+    app.mount(
+        "/static",
+        StaticFiles(directory=str(_FRONTEND_DIR)),
+        name="static",
+    )
 
     return app
