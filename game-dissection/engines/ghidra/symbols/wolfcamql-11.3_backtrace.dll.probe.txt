@@ -1,0 +1,121 @@
+# PE probe: wolfcamql-11.3_backtrace.dll
+- size: 6,206,363 bytes
+- machine: x86 (I386)
+- pe32+: False
+- image_base: 0x64740000
+- timestamp: 1446588691 (unix epoch)
+- characteristics: 0x2106
+- debug_dir: rva=0x0 size=0 (0 = no debug info / stripped)
+- import_dir: rva=0xc6000 size=3380
+
+## Sections
+  .text      vaddr=0x00001000 vsize=0x00091344 rsize=0x00091400 flags=[CODE|INITIALIZED_DATA|EXECUTE|READ]
+  .data      vaddr=0x00093000 vsize=0x0000124c rsize=0x00001400 flags=[INITIALIZED_DATA|READ|WRITE]
+  .rdata     vaddr=0x00095000 vsize=0x00024914 rsize=0x00024a00 flags=[INITIALIZED_DATA|READ]
+  .bss       vaddr=0x000ba000 vsize=0x00004ab4 rsize=0x00000000 flags=[UNINITIALIZED_DATA|READ|WRITE]
+  .edata     vaddr=0x000bf000 vsize=0x00006e9b rsize=0x00007000 flags=[INITIALIZED_DATA|READ]
+  .idata     vaddr=0x000c6000 vsize=0x00000d34 rsize=0x00000e00 flags=[INITIALIZED_DATA|READ|WRITE]
+  .CRT       vaddr=0x000c7000 vsize=0x0000002c rsize=0x00000200 flags=[INITIALIZED_DATA|READ|WRITE]
+  .tls       vaddr=0x000c8000 vsize=0x00000020 rsize=0x00000200 flags=[INITIALIZED_DATA|READ|WRITE]
+  .reloc     vaddr=0x000c9000 vsize=0x000066c4 rsize=0x00006800 flags=[INITIALIZED_DATA|READ]
+  /4         vaddr=0x000d0000 vsize=0x00000d20 rsize=0x00000e00 flags=[INITIALIZED_DATA|READ]
+  /19        vaddr=0x000d1000 vsize=0x004213c9 rsize=0x00421400 flags=[INITIALIZED_DATA|READ]
+  /31        vaddr=0x004f3000 vsize=0x00013697 rsize=0x00013800 flags=[INITIALIZED_DATA|READ]
+  /45        vaddr=0x00507000 vsize=0x0002058b rsize=0x00020600 flags=[INITIALIZED_DATA|READ]
+  /57        vaddr=0x00528000 vsize=0x00011464 rsize=0x00011600 flags=[INITIALIZED_DATA|READ]
+  /70        vaddr=0x0053a000 vsize=0x00003fbf rsize=0x00004000 flags=[INITIALIZED_DATA|READ]
+  /81        vaddr=0x0053e000 vsize=0x00086699 rsize=0x00086800 flags=[INITIALIZED_DATA|READ]
+  /92        vaddr=0x005c5000 vsize=0x0000def0 rsize=0x0000e000 flags=[INITIALIZED_DATA|READ]
+
+## Imports (DLL -> first 50 symbols)
+  IMAGEHLP.DLL
+    StackWalk
+    SymCleanup
+    SymFunctionTableAccess
+    SymGetModuleBase
+    SymGetSymFromAddr
+    SymInitialize
+  KERNEL32.dll
+    DeleteCriticalSection
+    EnterCriticalSection
+    GetCurrentProcess
+    GetCurrentProcessId
+    GetCurrentThread
+    GetCurrentThreadId
+    GetFileAttributesA
+    GetFullPathNameA
+    GetLastError
+    GetModuleFileNameA
+    GetModuleHandleA
+    GetProcAddress
+    GetSystemTimeAsFileTime
+    GetThreadLocale
+    GetTickCount
+    InitializeCriticalSection
+    LeaveCriticalSection
+    LoadLibraryA
+    QueryPerformanceCounter
+    SetUnhandledExceptionFilter
+    Sleep
+    TerminateProcess
+    TlsGetValue
+    UnhandledExceptionFilter
+    VirtualProtect
+    VirtualQuery
+  msvcrt.dll
+    __dllonexit
+    __doserrno
+    __pioinfo
+    _access
+    _amsg_exit
+    _errno
+    _exit
+    _filelengthi64
+    _fileno
+    _findclose
+    _findnext
+    _fstati64
+    _fullpath
+    _initterm
+    _iob
+    _lock
+    _lseeki64
+    _onexit
+    _stati64
+    _vsnprintf
+    time
+    ctime
+    calloc
+    exit
+    fclose
+    feof
+    ferror
+    fflush
+    fgetpos
+    fgets
+    fopen
+    fprintf
+    fputc
+    fputs
+    fread
+    free
+    fsetpos
+    fwrite
+    getenv
+    isalnum
+    isalpha
+    isspace
+    localeconv
+    malloc
+    memchr
+    memcmp
+    memcpy
+    memmove
+    memset
+    printf
+    ... (46 more)
+  USER32.dll
+    CharLowerBuffA
+
+## Strings  (ASCII + UTF-16LE, min_len=6, total=18,597)
+  ... (18597 more strings truncated)

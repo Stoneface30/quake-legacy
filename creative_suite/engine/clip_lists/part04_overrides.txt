@@ -1,0 +1,32 @@
+# Part 4 — v10 per-clip overrides
+# Referenced by part04_styleb.txt. Parsed by render_part_v6.py override loader.
+#
+# Grammar:
+#   <clip_filename>: <key>=<value> [, <key>=<value> ...]
+# Keys:
+#   head_trim=<seconds>   override cfg.clip_head_trim_fp / _fl for this clip
+#   tail_trim=<seconds>   override cfg.clip_tail_trim for this clip
+#   slow=<rate>           playback rate (0.5 = half speed, 0.7 = 70%, 1.0 = normal)
+#   pair_with=<filename>  force adjacency (FL follows its POV)
+#   flag=<tag>            annotation only (WEAK_CONTEXT, FLAG_REORDER, etc.)
+#
+# All overrides below sourced from user Part 4 v9 review 2026-04-18.
+
+# Demo (13) - 48: flagged TWICE as "cut before the end". Recover 0.5s of content.
+Demo (13) - 48.avi: tail_trim=0.5
+
+# Demo (104) - 8: user "cut short", FL removed (FL view mismatch). Recover content.
+Demo (104) - 8.avi: tail_trim=0.5
+
+# Demo (152FL1): "2 last seconds need to be cut" + must play adjacent to POV.
+Demo (152FL1).avi: tail_trim=2.0, pair_with=Demo (152)  - 84.avi
+
+# Demo (578) - 726: "missing context probably missing clips or cut too fast".
+# Reduce head trim so the setup survives.
+Demo (578)  - 726.avi: head_trim=0.5, flag=WEAK_CONTEXT
+
+# Demo (288FL1): user "too slowmo" — dial 0.5× back to 0.7×. POV stays full speed.
+Demo (288FL1).avi: slow=0.7
+
+# Demo (176): user flagged sub-action ordering; no parse tool in v10 — annotate only.
+Demo (176)  -  124.avi: flag=FLAG_REORDER

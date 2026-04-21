@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Creative Suite — Annotate</title>
+  <link rel="stylesheet" href="/web/css/base.css" />
+  <link rel="stylesheet" href="/web/css/annotate.css" />
+</head>
+<body>
+  <header>
+    <h1>Annotate</h1>
+    <nav>
+      <a href="/annotate" class="active">Annotate</a>
+      <a href="/creative">Creative</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="video-col">
+      <label>
+        Part:
+        <select id="part-select"></select>
+      </label>
+      <video id="player" controls preload="metadata"></video>
+      <div id="kbd-help">
+        Space play/pause · ← → 1s · Shift+← → 0.1s · <b>M</b> mark moment
+      </div>
+    </section>
+
+    <aside class="form-col">
+      <h2>Mark moment</h2>
+      <form id="ann-form">
+        <label>mp4_time (s)
+          <input type="number" step="0.01" id="f-time" required />
+        </label>
+        <label>Description
+          <textarea id="f-desc" rows="3" required></textarea>
+        </label>
+        <label>AVI-achievable effect
+          <input type="text" id="f-avi"
+                 placeholder="slowmo / replay-contrast / speed-ramp / none" />
+        </label>
+        <label>Dream effect (demo re-render)
+          <input type="text" id="f-dream"
+                 placeholder="killcam / rocketcam / freecam / chasecam / none" />
+        </label>
+        <label>Tags (comma-separated)
+          <input type="text" id="f-tags"
+                 placeholder="peak, airshot, multikill, clutch, lms..." />
+        </label>
+        <div class="row">
+          <button type="submit">Save</button>
+          <button type="button" id="cancel-btn">Cancel</button>
+        </div>
+      </form>
+    </aside>
+
+    <section class="table-col">
+      <h2>Annotations</h2>
+      <table id="ann-table">
+        <thead>
+          <tr>
+            <th>t</th><th>description</th><th>avi</th><th>dream</th>
+            <th>tags</th><th>clip</th><th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </main>
+
+  <script type="module" src="/web/js/annotate.js"></script>
+</body>
+</html>

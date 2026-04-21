@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>Cinema Suite — Phase 1</title>
+<link rel="stylesheet" href="/cinema-static/cinema.css"/>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160/build/three.module.js" } }
+</script>
+</head>
+<body>
+<header id="top-bar">
+  <h1>CINEMA SUITE</h1>
+  <label>Part
+    <select id="part-select"></select>
+  </label>
+  <span id="status-pill">idle</span>
+</header>
+
+<main id="panels">
+  <section id="panel-flow" class="panel panel-wide">
+    <h2>Flow Plan</h2>
+    <div id="flow-grid"></div>
+    <button id="flow-save" disabled>SAVE ORDER</button>
+    <span id="flow-dirty"></span>
+  </section>
+
+  <section id="panel-music" class="panel panel-wide">
+    <h2>Music Grid</h2>
+    <canvas id="wave-canvas" width="1800" height="200"></canvas>
+    <div id="wave-overlay"></div>
+    <div id="wave-meta"></div>
+    <div id="music-slots"></div>
+  </section>
+
+  <section id="panel-levels" class="panel">
+    <h2>Levels &amp; Drift</h2>
+    <div id="levels-bars"></div>
+    <canvas id="drift-canvas" width="1800" height="140"></canvas>
+    <div id="levels-gate"></div>
+  </section>
+
+  <section id="panel-versions" class="panel">
+    <h2>Versions</h2>
+    <div id="versions-list"></div>
+    <form id="rebuild-form">
+      <input id="rebuild-tag" placeholder="tag (e.g. v10.5-opener)" required pattern="[a-zA-Z0-9._-]+"/>
+      <textarea id="rebuild-notes" placeholder="notes"></textarea>
+      <button type="submit" id="rebuild-btn" disabled>REBUILD (Phase B)</button>
+    </form>
+    <pre id="rebuild-log" aria-live="polite"></pre>
+  </section>
+
+  <section id="panel-preview" class="panel panel-wide">
+    <h2>Live Preview</h2>
+    <div id="preview-controls">
+      <button id="preview-draft" disabled>DRAFT PREVIEW (A)</button>
+      <button id="preview-launch">LAUNCH ENGINE (B)</button>
+      <span id="preview-selection-count">0 clips selected</span>
+    </div>
+    <div id="preview-a-box"></div>
+    <div id="preview-b-box">
+      <img id="engine-frame" alt="engine thumbnail (Tier B)"/>
+      <div id="engine-meta"></div>
+    </div>
+    <pre id="preview-log" aria-live="polite"></pre>
+  </section>
+</main>
+
+<script type="module" src="/cinema-static/app-cinema.js"></script>
+</body>
+</html>

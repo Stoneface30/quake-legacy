@@ -18,7 +18,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["creative_suite*"]
-exclude = ["creative_suite.tests*"]
+exclude = ["creative_suite.tests*", "creative_suite.engine.tests*"]
 
 [tool.pytest.ini_options]
 testpaths = ["creative_suite/tests"]

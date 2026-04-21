@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<!--
+  PANTHEON // PANEL 7 — TIER A PREVIEW
+  UX Prototype: scrub thumbnail strip + seam markers + hotkey legend
+               + playback-rate toggle + jump-to-seam keyboard shortcuts
+
+  Serve from QUAKE_LEGACY root:
+    python -m http.server 8000
+    http://localhost:8000/creative_suite/frontend/prototypes/panel7/
+
+  Depends on:  ../../style.css  (layout skeleton)
+               ../../pantheon.css (brand tokens + proto scaffolding classes)
+  No backend. Simulates data inline.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PANTHEON // PANEL 7 — TIER A PREVIEW</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Bebas+Neue&family=Black+Ops+One&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../pantheon.css">
+  <style>
+    /* ─ Prototype-local overrides ──────────────────────────────── */
+    body { overflow: auto; min-height: 100vh; }
+
+    .preview-shell {
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      max-width: 960px;
+      margin: 20px auto;
+      font-family: var(--font);
+    }
+
+    /* Header bar */
+    .preview-bar {
+      height: 26px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border-hot);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px;
+      flex-shrink: 0;
+    }
+
+    .preview-bar-title {
+      font-family: var(--font-head);
+      font-size: 9px;
+      letter-spacing: .24em;
+      color: var(--silver-bright);
+      flex: 1;
+    }
+
+    /* Thumbnail strip */
+    .thumb-strip {
+      height: 52px;
+      background: #000;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: stretch;
+      overflow: hidden;
+      flex-shrink: 0;
+      position: relative;
+      cursor: pointer;
+    }
+
+    .thumb-frame {
+      flex-shrink: 0;
+      width: 80px;
+      border-right: 1px solid rgba(255,255,255,.05);
+      background: #0a0a14;
+      overflow: hidden;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 7px;
+      color: var(--silver-mute);
+      letter-spacing: .04em;
+      transition: filter .1s;
+    }
+
+    .thumb-frame:hover { filter: brightness(1.5); }
+
+    .thumb-frame .ts {
+      position: absolute;
+      bottom: 3px;
+      left: 4px;
+      font-size: 6px;
+      color: var(--silver-dim);
+      font-family: var(--font);
+    }
+
+    /* Seam indicator on thumbnail */
+    .thumb-frame.seam-here::after {
+      content: '';
+      position: absolute;
+      top: 0; bottom: 0;
+      right: -1px;
+      width: 3px;
+      background: var(--red-hot);
+      box-shadow: 0 0 8px var(--red-glo);
+      z-index: 2;
+    }
+
+    .thumb-frame.seam-here .seam-label {
+      position: absolute;
+      top: 3px;
+      right: 5px;
+      font-size: 6px;
+      color: var(--red-hot);
+      font-family: var(--font);
+      letter-spacing: .04em;
+    }
+
+    /* Currently visible thumb highlight */
+    .thumb-frame.active { border-top: 2px solid var(--silver); }
+
+    /* Video area */
+    .video-area {
+      flex: 1;
+      background: #000;
+      position: relative;
+      min-height: 300px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+
+    /* Seam overlay markers on the video */
+    .video-seam-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+    }
+
+    .video-seam-line {
+      position: absolute;
+      top: 0; bottom: 0;
+      width: 2px;
+      background: var(--red);
+      box-shadow: 0 0 10px var(--red-glo);
+      opacity: .7;
+    }
+
+    .video-seam-line::before {
+      content: attr(data-label);
+      position: absolute;
+      top: 8px;
+      left: 4px;
+      font-family: var(--font);
+      font-size: 8px;
+      color: var(--red-hot);
+      letter-spacing: .06em;
+      white-space: nowrap;
+      text-shadow: 0 1px 4px #000;
+    }
+
+    /* No video placeholder */
+    .video-placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: var(--silver-mute);
+      font-size: 11px;
+      letter-spacing: .1em;
+    }
+
+    .video-placeholder .icon { font-size: 32px; color: var(--border-hot); }
+
+    /* Scrub row */
+    .scrub-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-top: 1px solid var(--border);
+      background: var(--surface2);
+      flex-shrink: 0;
+    }
+
+    .scrub-t {
+      font-size: 9px;
+      color: var(--silver-dim);
+      width: 40px;
+      font-family: var(--font);
+      letter-spacing: .05em;
+      flex-shrink: 0;
+    }
+
+    .scrub-t.right { text-align: right; }
+
+    .scrub-track {
+      flex: 1;
+      height: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border-hot);
+      position: relative;
+      cursor: pointer;
+    }
+
+    .scrub-fill {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      background: var(--silver);
+      width: 30%;
+      pointer-events: none;
+      transition: width .05s linear;
+    }
+
+    .scrub-thumb {
+      position: absolute;
+      top: -4px; left: 30%;
+      width: 2px; height: 16px;
+      background: #fff;
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+
+    /* Seam tick marks on scrub */
+    .scrub-seam {
+      position: absolute;
+      top: -1px; bottom: -1px;
+      width: 2px;
+      background: var(--red-hot);
+      opacity: .8;
+      transform: translateX(-50%);
+      cursor: pointer;
+    }
+
+    .scrub-seam:hover { opacity: 1; box-shadow: 0 0 6px var(--red-glo); }
+
+    /* Rate toggle */
+    .rate-toggle {
+      display: flex;
+      border: 1px solid var(--border-hot);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .rate-btn {
+      background: transparent;
+      border: none;
+      border-right: 1px solid var(--border-hot);
+      color: var(--silver-dim);
+      font-family: var(--font);
+      font-size: 9px;
+      letter-spacing: .05em;
+      padding: 2px 8px;
+      cursor: pointer;
+      transition: background .1s, color .1s;
+    }
+
+    .rate-btn:last-child { border-right: none; }
+    .rate-btn:hover { background: var(--silver-glo); color: var(--silver-bright); }
+    .rate-btn.active { background: var(--red); color: #fff; }
+
+    /* Hotkey legend */
+    .hotkey-legend {
+      display: flex;
+      gap: 14px;
+      padding: 6px 12px;
+      border-top: 1px solid var(--border);
+      background: var(--bg);
+      flex-wrap: wrap;
+      flex-shrink: 0;
+    }
+
+    .hk-pair {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 9px;
+      color: var(--silver-dim);
+      letter-spacing: .05em;
+    }
+
+    .hk-key {
+      background: var(--surface2);
+      border: 1px solid var(--border-hot);
+      color: var(--silver);
+      padding: 1px 6px;
+      font-family: var(--font);
+      font-size: 8px;
+      min-width: 22px;
+      text-align: center;
+    }
+
+    /* Jump-to-seam button in bar */
+    .seam-jump-btn {
+      font-family: var(--font);
+      font-size: 9px;
+      letter-spacing: .06em;
+      background: transparent;
+      border: 1px solid var(--border-hot);
+      color: var(--silver-dim);
+      padding: 2px 8px;
+      cursor: pointer;
+      transition: border-color .1s, color .1s;
+    }
+
+    .seam-jump-btn:hover {
+      border-color: var(--red);
+      color: var(--red-hot);
+    }
+
+    /* Clip info bar */
+    .clip-info-bar {
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      padding: 5px 12px;
+      border-top: 1px solid var(--border);
+      background: var(--surface2);
+      font-size: 9px;
+      flex-shrink: 0;
+    }
+
+    .ci-field { color: var(--silver-dim); letter-spacing: .06em; }
+    .ci-val { color: var(--silver-bright); font-weight: 500; }
+    .ci-badge { border: 1px solid var(--border-hot); color: var(--silver); padding: 0 5px; font-size: 8px; }
+    .ci-badge.t1 { border-color: var(--red); color: var(--red-hot); }
+    .ci-badge.t2 { border-color: var(--silver-mute); color: var(--silver); }
+    .ci-badge.drop { border-color: var(--red); color: var(--red-hot); }
+    .ci-badge.build { border-color: var(--silver-mute); color: var(--silver); }
+
+    /* Section header above prototype */
+    .proto-header {
+      text-align: center;
+      padding: 24px 20px 10px;
+      font-family: var(--font-head);
+      font-size: 11px;
+      letter-spacing: .28em;
+      color: var(--silver-dim);
+      background: var(--bg);
+    }
+
+    .proto-header h1 {
+      font-family: var(--font-hero);
+      font-size: 28px;
+      letter-spacing: .16em;
+      color: var(--silver-bright);
+      margin: 0 0 4px;
+    }
+
+    .proto-header p {
+      font-size: 9px;
+      color: var(--silver-mute);
+      letter-spacing: .1em;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="proto-header">
+    <h1>PANTHEON</h1>
+    <p>// PANEL 7 — TIER A PREVIEW PROTOTYPE · UX MOCKUP · NOT WIRED TO BACKEND</p>
+  </div>
+
+  <div class="preview-shell">
+
+    <!-- Header bar -->
+    <div class="preview-bar">
+      <span class="preview-bar-title">// TIER A PREVIEW — PART 04 · DRAFT v10</span>
+      <div class="rate-toggle" id="rate-toggle">
+        <button class="rate-btn" data-rate="0.25">0.25×</button>
+        <button class="rate-btn" data-rate="0.5">0.5×</button>
+        <button class="rate-btn active" data-rate="1" id="rate-1x">1×</button>
+        <button class="rate-btn" data-rate="2">2×</button>
+      </div>
+      <button class="seam-jump-btn" id="btn-prev-seam">⟵ SEAM</button>
+      <button class="seam-jump-btn" id="btn-next-seam">SEAM ⟶</button>
+      <span id="seam-counter" style="font-size:8px;color:var(--silver-dim);letter-spacing:.08em;">SEAM 1/6</span>
+    </div>
+
+    <!-- Thumbnail strip -->
+    <div class="thumb-strip" id="thumb-strip">
+      <!-- Generated by JS -->
+    </div>
+
+    <!-- Video -->
+    <div class="video-area" id="video-area">
+      <div class="video-placeholder" id="placeholder">
+        <div class="icon">⊞</div>
+        <div>DROP TIER A MP4 OR CLICK TO BROWSE</div>
+        <input type="file" accept="video/mp4,video/*"
+               style="position:absolute;inset:0;opacity:0;cursor:pointer"
+               id="vid-input">
+      </div>
+      <video id="vid" style="display:none" playsinline></video>
+      <div class="video-seam-overlay" id="seam-overlay">
+        <!-- Seam lines positioned proportionally when video has duration -->
+      </div>
+    </div>
+
+    <!-- Clip info strip (active seam context) -->
+    <div class="clip-info-bar" id="clip-info">
+      <span class="ci-field">CLIP</span>
+      <span class="ci-val" id="ci-clip">—</span>
+      <span class="ci-badge t2" id="ci-tier">T2</span>
+      <span class="ci-badge build" id="ci-role">BUILD</span>
+      <span class="ci-field" style="margin-left:10px">SECTION</span>
+      <span class="ci-val" id="ci-section">0 / 0</span>
+      <span class="ci-field" style="margin-left:10px">EVENT</span>
+      <span class="ci-val" id="ci-event">—</span>
+    </div>
+
+    <!-- Scrub row -->
+    <div class="scrub-row">
+      <span class="scrub-t" id="scrub-cur">0:00.0</span>
+      <div class="scrub-track" id="scrub-track">
+        <div class="scrub-fill" id="scrub-fill"></div>
+        <!-- Seam markers populated by JS -->
+        <div class="scrub-thumb" id="scrub-thumb"></div>
+      </div>
+      <span class="scrub-t right" id="scrub-dur">0:00</span>
+    </div>
+
+    <!-- Hotkey legend -->
+    <div class="hotkey-legend">
+      <div class="hk-pair"><span class="hk-key">SPACE</span> play / pause</div>
+      <div class="hk-pair"><span class="hk-key">←</span><span class="hk-key">→</span> ±1 frame</div>
+      <div class="hk-pair"><span class="hk-key">Shift ←</span><span class="hk-key">Shift →</span> ±1s</div>
+      <div class="hk-pair"><span class="hk-key">J</span> prev seam</div>
+      <div class="hk-pair"><span class="hk-key">K</span> next seam</div>
+      <div class="hk-pair"><span class="hk-key">S</span> snap to nearest seam</div>
+      <div class="hk-pair"><span class="hk-key">[</span> start loop</div>
+      <div class="hk-pair"><span class="hk-key">]</span> end loop</div>
+      <div class="hk-pair"><span class="hk-key">L</span> clear loop</div>
+    </div>
+
+  </div><!-- /preview-shell -->
+
+  <script>
+  'use strict';
+  /* ─────────────────────────────────────────────────────────────────
+     PANEL 7 PROTOTYPE — Tier A Preview with seam markers + hotkeys
+     All data is mock inline. No backend required.
+   ──────────────────────────────────────────────────────────────── */
+
+  // Mock seam data (simulates flow_plan.json planned_clips)
+  const MOCK_SEAMS = [
+    { t: 14.2, clip: 'Part04_T2_020_FL',  tier: 'T2', role: 'build',  event: 'lg_hit' },
+    { t: 28.8, clip: 'Part04_T1_003_FP',  tier: 'T1', role: 'drop',   event: 'rail_fire' },
+    { t: 41.5, clip: 'Part04_T2_007_FP',  tier: 'T2', role: 'build',  event: 'rocket_impact' },
+    { t: 55.0, clip: 'Part04_T3_001_FL',  tier: 'T3', role: 'break',  event: null },
+    { t: 68.3, clip: 'Part04_T1_011_FP',  tier: 'T1', role: 'drop',   event: 'player_death' },
+    { t: 82.7, clip: 'Part04_T2_031_FP',  tier: 'T2', role: 'outro',  event: 'rocket_fire' },
+  ];
+
+  const vid = document.getElementById('vid');
+  const placeholder = document.getElementById('placeholder');
+  const scrubTrack = document.getElementById('scrub-track');
+  const scrubFill = document.getElementById('scrub-fill');
+  const scrubThumb = document.getElementById('scrub-thumb');
+  const scrubCur = document.getElementById('scrub-cur');
+  const scrubDur = document.getElementById('scrub-dur');
+  const thumbStrip = document.getElementById('thumb-strip');
+  const seamOverlay = document.getElementById('seam-overlay');
+  const seamCounter = document.getElementById('seam-counter');
+  const rateToggle = document.getElementById('rate-toggle');
+
+  let currentSeam = 0;
+  let loopStart = null;
+  let loopEnd = null;
+  let loopInterval = null;
+
+  // ── Thumbnail strip ──────────────────────────────────────────────
+  function buildThumbStrip(duration) {
+    thumbStrip.textContent = '';
+    const interval = 8; // 1 thumb per 8s
+    const count = Math.ceil(duration / interval);
+    const seamTimes = MOCK_SEAMS.map(s => s.t);
+
+    for (let i = 0; i < count; i++) {
+      const t = i * interval;
+      const frame = document.createElement('div');
+      frame.className = 'thumb-frame';
+      frame.dataset.t = t;
+
+      // Check if a seam falls within this frame's window
+      const seam = MOCK_SEAMS.find(s => s.t >= t && s.t < t + interval);
+      if (seam) {
+        frame.classList.add('seam-here');
+        const lbl = document.createElement('span');
+        lbl.className = 'seam-label';
+        lbl.textContent = 'S' + (MOCK_SEAMS.indexOf(seam) + 1);
+        frame.appendChild(lbl);
+      }
+
+      // Timestamp
+      const ts = document.createElement('span');
+      ts.className = 'ts';
+      ts.textContent = fmtTime(t);
+      frame.appendChild(ts);
+
+      // Simulated "frame" content
+      const canvas = document.createElement('canvas');
+      canvas.width = 80; canvas.height = 52;
+      const ctx = canvas.getContext('2d');
+      // Gradient placeholder
+      const g = ctx.createLinearGradient(0, 0, 80, 0);
+      g.addColorStop(0, '#0d0d1a');
+      g.addColorStop(1, '#1a1a2e');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 80, 52);
+      ctx.fillStyle = 'rgba(138,144,156,.18)';
+      ctx.font = '8px monospace';
+      ctx.fillText(fmtTime(t), 4, 44);
+      frame.appendChild(canvas);
+
+      frame.addEventListener('click', () => {
+        if (vid.readyState >= 1) {
+          vid.currentTime = t;
+        }
+      });
+
+      thumbStrip.appendChild(frame);
+    }
+  }
+
+  // ── Scrub seam ticks ─────────────────────────────────────────────
+  function buildScrubSeams(duration) {
+    // Remove old seam marks
+    scrubTrack.querySelectorAll('.scrub-seam').forEach(el => el.remove());
+    MOCK_SEAMS.forEach((seam, i) => {
+      if (seam.t > duration) return;
+      const pct = (seam.t / duration) * 100;
+      const tick = document.createElement('div');
+      tick.className = 'scrub-seam';
+      tick.style.left = pct + '%';
+      tick.title = 'S' + (i + 1) + ': ' + seam.clip;
+      tick.addEventListener('click', e => {
+        e.stopPropagation();
+        vid.currentTime = seam.t;
+        currentSeam = i;
+        updateSeamCounter();
+      });
+      scrubTrack.appendChild(tick);
+    });
+  }
+
+  // ── Video seam overlay ───────────────────────────────────────────
+  function buildVideoSeams(duration) {
+    seamOverlay.textContent = '';
+    MOCK_SEAMS.forEach((seam, i) => {
+      const pct = (seam.t / duration) * 100;
+      const line = document.createElement('div');
+      line.className = 'video-seam-line';
+      line.style.left = pct + '%';
+      line.dataset.label = 'S' + (i + 1);
+      seamOverlay.appendChild(line);
+    });
+  }
+
+  // ── Clip info update ─────────────────────────────────────────────
+  function updateClipInfo(t, duration) {
+    // Find which segment we're in
+    const seamTimes = [0, ...MOCK_SEAMS.map(s => s.t), duration];
+    let seg = 0;
+    for (let i = 0; i < seamTimes.length - 1; i++) {
+      if (t >= seamTimes[i] && t < seamTimes[i + 1]) { seg = i; break; }
+    }
+    const seam = seg > 0 ? MOCK_SEAMS[seg - 1] : null;
+    const clip = seam ? seam.clip : '(PANTHEON INTRO)';
+    const tier = seam ? seam.tier : '—';
+    const role = seam ? seam.role : '—';
+    const event = seam ? (seam.event || '—') : '—';
+
+    document.getElementById('ci-clip').textContent = clip;
+    document.getElementById('ci-section').textContent = (seg + 1) + ' / ' + (MOCK_SEAMS.length + 1);
+    document.getElementById('ci-tier').textContent = tier;
+    document.getElementById('ci-tier').className = 'ci-badge ' + tier.toLowerCase();
+    document.getElementById('ci-role').textContent = role.toUpperCase();
+    document.getElementById('ci-role').className = 'ci-badge ' + role.toLowerCase();
+    document.getElementById('ci-event').textContent = event.replace('_', ' ');
+  }
+
+  // ── Playback update ──────────────────────────────────────────────
+  function onTimeUpdate() {
+    const t = vid.currentTime;
+    const dur = vid.duration || 1;
+    const pct = (t / dur) * 100;
+    scrubFill.style.width = pct + '%';
+    scrubThumb.style.left = pct + '%';
+    scrubCur.textContent = fmtTimeFine(t);
+
+    // Active thumb highlight
+    thumbStrip.querySelectorAll('.thumb-frame').forEach(el => {
+      const ft = parseFloat(el.dataset.t);
+      el.classList.toggle('active', t >= ft && t < ft + 8);
+    });
+
+    updateClipInfo(t, dur);
+
+    // Loop region
+    if (loopStart !== null && loopEnd !== null && t >= loopEnd) {
+      vid.currentTime = loopStart;
+    }
+  }
+
+  // ── Format helpers ───────────────────────────────────────────────
+  function fmtTime(s) {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60).toString().padStart(2, '0');
+    return m + ':' + sec;
+  }
+
+  function fmtTimeFine(s) {
+    const m = Math.floor(s / 60);
+    const sec = (s % 60).toFixed(1).padStart(4, '0');
+    return m + ':' + sec;
+  }
+
+  // ── Scrub click ──────────────────────────────────────────────────
+  function scrubToPoint(e) {
+    const rect = scrubTrack.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    vid.currentTime = pct * (vid.duration || 0);
+  }
+
+  let scrubbing = false;
+  scrubTrack.addEventListener('mousedown', e => { scrubbing = true; scrubToPoint(e); });
+  window.addEventListener('mousemove', e => { if (scrubbing) scrubToPoint(e); });
+  window.addEventListener('mouseup', () => { scrubbing = false; });
+
+  // ── Rate toggle ──────────────────────────────────────────────────
+  rateToggle.addEventListener('click', e => {
+    const btn = e.target.closest('.rate-btn');
+    if (!btn) return;
+    rateToggle.querySelectorAll('.rate-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    vid.playbackRate = parseFloat(btn.dataset.rate);
+  });
+
+  // ── Seam navigation ─────────────────────────────────────────────
+  function jumpSeam(dir) {
+    currentSeam = Math.max(0, Math.min(MOCK_SEAMS.length - 1, currentSeam + dir));
+    const seam = MOCK_SEAMS[currentSeam];
+    if (vid.readyState >= 1) vid.currentTime = seam.t;
+    updateSeamCounter();
+  }
+
+  function updateSeamCounter() {
+    seamCounter.textContent = 'SEAM ' + (currentSeam + 1) + '/' + MOCK_SEAMS.length;
+  }
+
+  document.getElementById('btn-prev-seam').addEventListener('click', () => jumpSeam(-1));
+  document.getElementById('btn-next-seam').addEventListener('click', () => jumpSeam(1));
+
+  // ── Keyboard shortcuts ───────────────────────────────────────────
+  document.addEventListener('keydown', e => {
+    // Don't capture if focus in input
+    if (e.target.tagName === 'INPUT') return;
+
+    if (e.code === 'Space') {
+      e.preventDefault();
+      vid.paused ? vid.play() : vid.pause();
+    }
+    else if (e.code === 'ArrowLeft' && e.shiftKey) {
+      e.preventDefault();
+      vid.currentTime = Math.max(0, vid.currentTime - 1);
+    }
+    else if (e.code === 'ArrowRight' && e.shiftKey) {
+      e.preventDefault();
+      vid.currentTime = Math.min(vid.duration || 0, vid.currentTime + 1);
+    }
+    else if (e.code === 'ArrowLeft') {
+      e.preventDefault();
+      vid.currentTime = Math.max(0, vid.currentTime - (1/30));
+    }
+    else if (e.code === 'ArrowRight') {
+      e.preventDefault();
+      vid.currentTime = Math.min(vid.duration || 0, vid.currentTime + (1/30));
+    }
+    else if (e.code === 'KeyJ') { jumpSeam(-1); }
+    else if (e.code === 'KeyK') { jumpSeam(1); }
+    else if (e.code === 'KeyS') {
+      // Snap to nearest seam
+      const t = vid.currentTime;
+      const nearest = MOCK_SEAMS.reduce((a, b) =>
+        Math.abs(b.t - t) < Math.abs(a.t - t) ? b : a
+      );
+      const idx = MOCK_SEAMS.indexOf(nearest);
+      vid.currentTime = nearest.t;
+      currentSeam = idx;
+      updateSeamCounter();
+    }
+    else if (e.code === 'BracketLeft') {
+      loopStart = vid.currentTime;
+    }
+    else if (e.code === 'BracketRight') {
+      loopEnd = vid.currentTime;
+    }
+    else if (e.code === 'KeyL') {
+      loopStart = loopEnd = null;
+    }
+  });
+
+  // ── Video load ───────────────────────────────────────────────────
+  document.getElementById('vid-input').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    vid.src = url;
+    vid.style.display = 'block';
+    placeholder.style.display = 'none';
+
+    vid.addEventListener('loadedmetadata', () => {
+      const dur = vid.duration;
+      scrubDur.textContent = fmtTime(dur);
+      buildThumbStrip(dur);
+      buildScrubSeams(dur);
+      buildVideoSeams(dur);
+      updateClipInfo(0, dur);
+    }, { once: true });
+  });
+
+  vid.addEventListener('timeupdate', onTimeUpdate);
+
+  // Init with mock duration for static preview
+  (function initMockPreview() {
+    const mockDur = 95;
+    scrubDur.textContent = fmtTime(mockDur);
+    buildThumbStrip(mockDur);
+    buildScrubSeams(mockDur);
+    updateSeamCounter();
+  })();
+  </script>
+</body>
+</html>

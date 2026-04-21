@@ -1,0 +1,3286 @@
+{
+  "source": "quake_live_pak00.pk3",
+  "extracted_at": "2026-04-18",
+  "root": "",
+  "categories": {
+    "feedback": [
+      {
+        "path": "sound/feedback/hit.wav",
+        "event_type": "hit",
+        "duration_s": 0.192,
+        "rms": 0.2455,
+        "size_bytes": 10474
+      },
+      {
+        "path": "sound/feedback/hit0.wav",
+        "event_type": "hit0",
+        "duration_s": 0.125,
+        "rms": 0.2851,
+        "size_bytes": 12060
+      },
+      {
+        "path": "sound/feedback/hit1.wav",
+        "event_type": "hit1",
+        "duration_s": 0.139,
+        "rms": 0.2884,
+        "size_bytes": 13454
+      },
+      {
+        "path": "sound/feedback/hit2.wav",
+        "event_type": "hit2",
+        "duration_s": 0.157,
+        "rms": 0.2884,
+        "size_bytes": 15126
+      },
+      {
+        "path": "sound/feedback/hit3.wav",
+        "event_type": "hit3",
+        "duration_s": 0.177,
+        "rms": 0.2851,
+        "size_bytes": 17076
+      },
+      {
+        "path": "sound/feedback/hit_teammate.wav",
+        "event_type": "hit_teammate",
+        "duration_s": 0.151,
+        "rms": 0.1549,
+        "size_bytes": 14598
+      },
+      {
+        "path": "sound/feedback/impact1.wav",
+        "event_type": "impact1",
+        "duration_s": 1.305,
+        "rms": 0.1202,
+        "size_bytes": 125398
+      },
+      {
+        "path": "sound/feedback/impact2.wav",
+        "event_type": "impact2",
+        "duration_s": 0.174,
+        "rms": 0.3055,
+        "size_bytes": 16798
+      },
+      {
+        "path": "sound/feedback/impact3.wav",
+        "event_type": "impact3",
+        "duration_s": 3.66,
+        "rms": 0.257,
+        "size_bytes": 351486
+      },
+      {
+        "path": "sound/feedback/impact4.wav",
+        "event_type": "impact4",
+        "duration_s": 1.977,
+        "rms": 0.3273,
+        "size_bytes": 189854
+      },
+      {
+        "path": "sound/feedback/impact5.wav",
+        "event_type": "impact5",
+        "duration_s": 3.612,
+        "rms": 0.0785,
+        "size_bytes": 346868
+      },
+      {
+        "path": "sound/feedback/impact6.wav",
+        "event_type": "impact6",
+        "duration_s": 3.142,
+        "rms": 0.2786,
+        "size_bytes": 301720
+      },
+      {
+        "path": "sound/feedback/survivor_01.wav",
+        "event_type": "survivor_01",
+        "duration_s": 1.505,
+        "rms": 0.1216,
+        "size_bytes": 144570
+      },
+      {
+        "path": "sound/feedback/welcome_02.wav",
+        "event_type": "welcome_02",
+        "duration_s": 2.615,
+        "rms": 0.2851,
+        "size_bytes": 115380
+      }
+    ],
+    "pickup": [
+      {
+        "path": "sound/items/armorregen.wav",
+        "event_type": "pickup_armor",
+        "duration_s": 0.956,
+        "rms": 0.1862,
+        "size_bytes": 91848
+      },
+      {
+        "path": "sound/items/armourfield.wav",
+        "event_type": "armourfield",
+        "duration_s": 0.269,
+        "rms": 0.1122,
+        "size_bytes": 11922
+      },
+      {
+        "path": "sound/items/damage.wav",
+        "event_type": "damage",
+        "duration_s": 2.065,
+        "rms": 0.1365,
+        "size_bytes": 198340
+      },
+      {
+        "path": "sound/items/damage3.wav",
+        "event_type": "damage3",
+        "duration_s": 1.147,
+        "rms": 0.3055,
+        "size_bytes": 110228
+      },
+      {
+        "path": "sound/items/flight.wav",
+        "event_type": "flight",
+        "duration_s": 0.826,
+        "rms": 0.1972,
+        "size_bytes": 36476
+      },
+      {
+        "path": "sound/items/guard.wav",
+        "event_type": "guard",
+        "duration_s": 2.237,
+        "rms": 0.1799,
+        "size_bytes": 98690
+      },
+      {
+        "path": "sound/items/holdable.wav",
+        "event_type": "holdable",
+        "duration_s": 2.019,
+        "rms": 0.2455,
+        "size_bytes": 89100
+      },
+      {
+        "path": "sound/items/invul_activate.wav",
+        "event_type": "invul_activate",
+        "duration_s": 7.476,
+        "rms": 0.2483,
+        "size_bytes": 717816
+      },
+      {
+        "path": "sound/items/invul_impact_01.wav",
+        "event_type": "invul_impact_01",
+        "duration_s": 0.348,
+        "rms": 0.4169,
+        "size_bytes": 33516
+      },
+      {
+        "path": "sound/items/invul_impact_02.wav",
+        "event_type": "invul_impact_02",
+        "duration_s": 0.58,
+        "rms": 0.3055,
+        "size_bytes": 55802
+      },
+      {
+        "path": "sound/items/invul_impact_03.wav",
+        "event_type": "invul_impact_03",
+        "duration_s": 0.313,
+        "rms": 0.3758,
+        "size_bytes": 30172
+      },
+      {
+        "path": "sound/items/kam_explode.wav",
+        "event_type": "kam_explode",
+        "duration_s": 2.572,
+        "rms": 0.5012,
+        "size_bytes": 247002
+      },
+      {
+        "path": "sound/items/kam_explode_far.wav",
+        "event_type": "kam_explode_far",
+        "duration_s": 3.799,
+        "rms": 0.166,
+        "size_bytes": 364748
+      },
+      {
+        "path": "sound/items/kam_implode.wav",
+        "event_type": "kam_implode",
+        "duration_s": 2.781,
+        "rms": 0.5821,
+        "size_bytes": 267072
+      },
+      {
+        "path": "sound/items/kamikazerespawn.wav",
+        "event_type": "kamikazerespawn",
+        "duration_s": 3.954,
+        "rms": 0.1567,
+        "size_bytes": 174644
+      },
+      {
+        "path": "sound/items/key_gold.wav",
+        "event_type": "key_gold",
+        "duration_s": 0.901,
+        "rms": 0.1479,
+        "size_bytes": 39788
+      },
+      {
+        "path": "sound/items/key_silver.wav",
+        "event_type": "key_silver",
+        "duration_s": 0.859,
+        "rms": 0.1396,
+        "size_bytes": 37906
+      },
+      {
+        "path": "sound/items/l_health.wav",
+        "event_type": "pickup_health",
+        "duration_s": 0.868,
+        "rms": 0.4074,
+        "size_bytes": 38324
+      },
+      {
+        "path": "sound/items/m_health.wav",
+        "event_type": "pickup_health",
+        "duration_s": 0.734,
+        "rms": 0.2042,
+        "size_bytes": 32428
+      },
+      {
+        "path": "sound/items/n_health.wav",
+        "event_type": "pickup_health",
+        "duration_s": 0.793,
+        "rms": 0.3388,
+        "size_bytes": 35032
+      },
+      {
+        "path": "sound/items/poweruprespawn.wav",
+        "event_type": "poweruprespawn",
+        "duration_s": 2.714,
+        "rms": 0.1622,
+        "size_bytes": 119724
+      },
+      {
+        "path": "sound/items/protect.wav",
+        "event_type": "protect",
+        "duration_s": 2.019,
+        "rms": 0.2455,
+        "size_bytes": 89100
+      },
+      {
+        "path": "sound/items/protect3.wav",
+        "event_type": "protect3",
+        "duration_s": 2.111,
+        "rms": 0.1531,
+        "size_bytes": 202754
+      },
+      {
+        "path": "sound/items/regen.wav",
+        "event_type": "regen",
+        "duration_s": 0.734,
+        "rms": 0.3981,
+        "size_bytes": 70574
+      },
+      {
+        "path": "sound/items/respawn1.wav",
+        "event_type": "respawn1",
+        "duration_s": 0.197,
+        "rms": 0.2089,
+        "size_bytes": 19026
+      },
+      {
+        "path": "sound/items/s_health.wav",
+        "event_type": "pickup_health",
+        "duration_s": 0.72,
+        "rms": 0.3548,
+        "size_bytes": 31814
+      },
+      {
+        "path": "sound/items/scout.wav",
+        "event_type": "scout",
+        "duration_s": 1.81,
+        "rms": 0.1585,
+        "size_bytes": 173828
+      },
+      {
+        "path": "sound/items/use_medkit.wav",
+        "event_type": "use_medkit",
+        "duration_s": 0.734,
+        "rms": 0.2065,
+        "size_bytes": 70574
+      },
+      {
+        "path": "sound/items/use_nothing.wav",
+        "event_type": "use_nothing",
+        "duration_s": 0.151,
+        "rms": 0.1059,
+        "size_bytes": 14568
+      },
+      {
+        "path": "sound/items/wearoff.wav",
+        "event_type": "wearoff",
+        "duration_s": 1.017,
+        "rms": 0.309,
+        "size_bytes": 97708
+      }
+    ],
+    "player_death": [
+      {
+        "path": "sound/player/anarki/death1.wav",
+        "event_type": "death",
+        "duration_s": 1.722,
+        "rms": 0.3467,
+        "size_bytes": 75994
+      },
+      {
+        "path": "sound/player/anarki/death2.wav",
+        "event_type": "death",
+        "duration_s": 1.384,
+        "rms": 0.3508,
+        "size_bytes": 61060
+      },
+      {
+        "path": "sound/player/anarki/death3.wav",
+        "event_type": "death",
+        "duration_s": 1.43,
+        "rms": 0.3589,
+        "size_bytes": 63128
+      },
+      {
+        "path": "sound/player/anarki/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.378,
+        "rms": 0.2985,
+        "size_bytes": 16692
+      },
+      {
+        "path": "sound/player/anarki/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 3.493,
+        "rms": 0.2018,
+        "size_bytes": 154064
+      },
+      {
+        "path": "sound/player/anarki/gasp.wav",
+        "event_type": "death",
+        "duration_s": 1.219,
+        "rms": 0.2512,
+        "size_bytes": 53806
+      },
+      {
+        "path": "sound/player/biker/death1.wav",
+        "event_type": "death",
+        "duration_s": 1.966,
+        "rms": 0.2661,
+        "size_bytes": 86744
+      },
+      {
+        "path": "sound/player/biker/death2.wav",
+        "event_type": "death",
+        "duration_s": 1.731,
+        "rms": 0.2138,
+        "size_bytes": 76388
+      },
+      {
+        "path": "sound/player/biker/death3.wav",
+        "event_type": "death",
+        "duration_s": 1.738,
+        "rms": 0.2239,
+        "size_bytes": 76692
+      },
+      {
+        "path": "sound/player/biker/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.652,
+        "rms": 0.1514,
+        "size_bytes": 28784
+      },
+      {
+        "path": "sound/player/biker/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 2.521,
+        "rms": 0.1603,
+        "size_bytes": 111204
+      },
+      {
+        "path": "sound/player/biker/gasp.wav",
+        "event_type": "death",
+        "duration_s": 1.003,
+        "rms": 0.3162,
+        "size_bytes": 44282
+      },
+      {
+        "path": "sound/player/bitterman/death1.wav",
+        "event_type": "death",
+        "duration_s": 1.594,
+        "rms": 0.195,
+        "size_bytes": 70356
+      },
+      {
+        "path": "sound/player/bitterman/death2.wav",
+        "event_type": "death",
+        "duration_s": 1.361,
+        "rms": 0.2371,
+        "size_bytes": 60062
+      },
+      {
+        "path": "sound/player/bitterman/death3.wav",
+        "event_type": "death",
+        "duration_s": 1.747,
+        "rms": 0.2317,
+        "size_bytes": 77084
+      },
+      {
+        "path": "sound/player/bitterman/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.731,
+        "rms": 0.1567,
+        "size_bytes": 32274
+      },
+      {
+        "path": "sound/player/bitterman/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 3.919,
+        "rms": 0.1698,
+        "size_bytes": 172852
+      },
+      {
+        "path": "sound/player/bitterman/gasp.wav",
+        "event_type": "death",
+        "duration_s": 1.612,
+        "rms": 0.1496,
+        "size_bytes": 71136
+      },
+      {
+        "path": "sound/player/bones/death1.wav",
+        "event_type": "death",
+        "duration_s": 1.528,
+        "rms": 0.3428,
+        "size_bytes": 67428
+      },
+      {
+        "path": "sound/player/bones/death2.wav",
+        "event_type": "death",
+        "duration_s": 1.477,
+        "rms": 0.389,
+        "size_bytes": 65188
+      },
+      {
+        "path": "sound/player/bones/death3.wav",
+        "event_type": "death",
+        "duration_s": 1.41,
+        "rms": 0.3981,
+        "size_bytes": 62226
+      },
+      {
+        "path": "sound/player/bones/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.726,
+        "rms": 0.1514,
+        "size_bytes": 32080
+      },
+      {
+        "path": "sound/player/bones/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 4.015,
+        "rms": 0.2018,
+        "size_bytes": 177110
+      },
+      {
+        "path": "sound/player/bones/gasp.wav",
+        "event_type": "death",
+        "duration_s": 2.204,
+        "rms": 0.138,
+        "size_bytes": 97246
+      },
+      {
+        "path": "sound/player/crash/death1.wav",
+        "event_type": "death",
+        "duration_s": 1.469,
+        "rms": 0.3428,
+        "size_bytes": 64808
+      },
+      {
+        "path": "sound/player/crash/death2.wav",
+        "event_type": "death",
+        "duration_s": 1.313,
+        "rms": 0.302,
+        "size_bytes": 57968
+      },
+      {
+        "path": "sound/player/crash/death3.wav",
+        "event_type": "death",
+        "duration_s": 1.135,
+        "rms": 0.3311,
+        "size_bytes": 50096
+      },
+      {
+        "path": "sound/player/crash/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.529,
+        "rms": 0.3589,
+        "size_bytes": 23378
+      },
+      {
+        "path": "sound/player/crash/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 3.588,
+        "rms": 0.3162,
+        "size_bytes": 158256
+      },
+      {
+        "path": "sound/player/crash/gasp.wav",
+        "event_type": "death",
+        "duration_s": 1.001,
+        "rms": 0.2399,
+        "size_bytes": 44180
+      },
+      {
+        "path": "sound/player/doom/death1.wav",
+        "event_type": "death",
+        "duration_s": 1.397,
+        "rms": 0.2951,
+        "size_bytes": 61638
+      },
+      {
+        "path": "sound/player/doom/death2.wav",
+        "event_type": "death",
+        "duration_s": 1.352,
+        "rms": 0.3126,
+        "size_bytes": 59654
+      },
+      {
+        "path": "sound/player/doom/death3.wav",
+        "event_type": "death",
+        "duration_s": 1.578,
+        "rms": 0.2884,
+        "size_bytes": 69650
+      },
+      {
+        "path": "sound/player/doom/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.757,
+        "rms": 0.1905,
+        "size_bytes": 33414
+      },
+      {
+        "path": "sound/player/doom/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 2.603,
+        "rms": 0.2344,
+        "size_bytes": 114852
+      },
+      {
+        "path": "sound/player/doom/gasp.wav",
+        "event_type": "death",
+        "duration_s": 2.248,
+        "rms": 0.1799,
+        "size_bytes": 99196
+      },
+      {
+        "path": "sound/player/grunt/death1.wav",
+        "event_type": "death",
+        "duration_s": 1.596,
+        "rms": 0.302,
+        "size_bytes": 70420
+      },
+      {
+        "path": "sound/player/grunt/death2.wav",
+        "event_type": "death",
+        "duration_s": 1.685,
+        "rms": 0.3126,
+        "size_bytes": 74350
+      },
+      {
+        "path": "sound/player/grunt/death3.wav",
+        "event_type": "death",
+        "duration_s": 1.806,
+        "rms": 0.309,
+        "size_bytes": 79710
+      },
+      {
+        "path": "sound/player/grunt/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.964,
+        "rms": 0.3428,
+        "size_bytes": 42536
+      },
+      {
+        "path": "sound/player/grunt/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 4.467,
+        "rms": 0.2317,
+        "size_bytes": 197042
+      },
+      {
+        "path": "sound/player/grunt/gasp.wav",
+        "event_type": "death",
+        "duration_s": 1.001,
+        "rms": 0.335,
+        "size_bytes": 44186
+      },
+      {
+        "path": "sound/player/hunter/death1.wav",
+        "event_type": "death",
+        "duration_s": 1.534,
+        "rms": 0.2951,
+        "size_bytes": 67678
+      },
+      {
+        "path": "sound/player/hunter/death2.wav",
+        "event_type": "death",
+        "duration_s": 2.465,
+        "rms": 0.1738,
+        "size_bytes": 108732
+      },
+      {
+        "path": "sound/player/hunter/death3.wav",
+        "event_type": "death",
+        "duration_s": 2.148,
+        "rms": 0.2427,
+        "size_bytes": 94760
+      },
+      {
+        "path": "sound/player/hunter/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.435,
+        "rms": 0.302,
+        "size_bytes": 19208
+      },
+      {
+        "path": "sound/player/hunter/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 4.379,
+        "rms": 0.26,
+        "size_bytes": 193142
+      },
+      {
+        "path": "sound/player/hunter/gasp.wav",
+        "event_type": "death",
+        "duration_s": 1.0,
+        "rms": 0.2512,
+        "size_bytes": 44136
+      },
+      {
+        "path": "sound/player/james/death1.wav",
+        "event_type": "death",
+        "duration_s": 1.63,
+        "rms": 0.2818,
+        "size_bytes": 71914
+      },
+      {
+        "path": "sound/player/james/death2.wav",
+        "event_type": "death",
+        "duration_s": 1.447,
+        "rms": 0.2723,
+        "size_bytes": 63870
+      },
+      {
+        "path": "sound/player/james/death3.wav",
+        "event_type": "death",
+        "duration_s": 1.476,
+        "rms": 0.2917,
+        "size_bytes": 65128
+      },
+      {
+        "path": "sound/player/james/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.516,
+        "rms": 0.2692,
+        "size_bytes": 22788
+      },
+      {
+        "path": "sound/player/james/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 3.996,
+        "rms": 0.2754,
+        "size_bytes": 176278
+      },
+      {
+        "path": "sound/player/james/gasp.wav",
+        "event_type": "death",
+        "duration_s": 1.59,
+        "rms": 0.257,
+        "size_bytes": 70184
+      },
+      {
+        "path": "sound/player/janet/death1.wav",
+        "event_type": "death",
+        "duration_s": 2.426,
+        "rms": 0.3631,
+        "size_bytes": 107022
+      },
+      {
+        "path": "sound/player/janet/death2.wav",
+        "event_type": "death",
+        "duration_s": 1.462,
+        "rms": 0.2818,
+        "size_bytes": 64502
+      },
+      {
+        "path": "sound/player/janet/death3.wav",
+        "event_type": "death",
+        "duration_s": 1.317,
+        "rms": 0.2113,
+        "size_bytes": 58116
+      },
+      {
+        "path": "sound/player/janet/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.454,
+        "rms": 0.2265,
+        "size_bytes": 20080
+      },
+      {
+        "path": "sound/player/janet/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 3.175,
+        "rms": 0.3273,
+        "size_bytes": 140040
+      },
+      {
+        "path": "sound/player/janet/gasp.wav",
+        "event_type": "death",
+        "duration_s": 1.595,
+        "rms": 0.1972,
+        "size_bytes": 70394
+      },
+      {
+        "path": "sound/player/keel/death1.wav",
+        "event_type": "death",
+        "duration_s": 2.271,
+        "rms": 0.3508,
+        "size_bytes": 100194
+      },
+      {
+        "path": "sound/player/keel/death2.wav",
+        "event_type": "death",
+        "duration_s": 2.32,
+        "rms": 0.3162,
+        "size_bytes": 102344
+      },
+      {
+        "path": "sound/player/keel/death3.wav",
+        "event_type": "death",
+        "duration_s": 2.219,
+        "rms": 0.3273,
+        "size_bytes": 97918
+      },
+      {
+        "path": "sound/player/keel/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.762,
+        "rms": 0.3589,
+        "size_bytes": 33638
+      },
+      {
+        "path": "sound/player/keel/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 3.519,
+        "rms": 0.2188,
+        "size_bytes": 155232
+      },
+      {
+        "path": "sound/player/keel/gasp.wav",
+        "event_type": "death",
+        "duration_s": 1.001,
+        "rms": 0.3548,
+        "size_bytes": 44178
+      },
+      {
+        "path": "sound/player/klesk/death1.wav",
+        "event_type": "death",
+        "duration_s": 3.177,
+        "rms": 0.309,
+        "size_bytes": 140138
+      },
+      {
+        "path": "sound/player/klesk/death2.wav",
+        "event_type": "death",
+        "duration_s": 1.544,
+        "rms": 0.2985,
+        "size_bytes": 68128
+      },
+      {
+        "path": "sound/player/klesk/death3.wav",
+        "event_type": "death",
+        "duration_s": 1.544,
+        "rms": 0.302,
+        "size_bytes": 68128
+      },
+      {
+        "path": "sound/player/klesk/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 1.39,
+        "rms": 0.1479,
+        "size_bytes": 61344
+      },
+      {
+        "path": "sound/player/klesk/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 3.192,
+        "rms": 0.2455,
+        "size_bytes": 140790
+      },
+      {
+        "path": "sound/player/klesk/gasp.wav",
+        "event_type": "death",
+        "duration_s": 1.001,
+        "rms": 0.2344,
+        "size_bytes": 44168
+      },
+      {
+        "path": "sound/player/lucy/death1.wav",
+        "event_type": "death",
+        "duration_s": 1.965,
+        "rms": 0.263,
+        "size_bytes": 86700
+      },
+      {
+        "path": "sound/player/lucy/death2.wav",
+        "event_type": "death",
+        "duration_s": 1.66,
+        "rms": 0.3126,
+        "size_bytes": 73256
+      },
+      {
+        "path": "sound/player/lucy/death3.wav",
+        "event_type": "death",
+        "duration_s": 2.078,
+        "rms": 0.2213,
+        "size_bytes": 91684
+      },
+      {
+        "path": "sound/player/lucy/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.622,
+        "rms": 0.335,
+        "size_bytes": 27454
+      },
+      {
+        "path": "sound/player/lucy/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 4.076,
+        "rms": 0.2018,
+        "size_bytes": 179808
+      },
+      {
+        "path": "sound/player/lucy/gasp.wav",
+        "event_type": "death",
+        "duration_s": 2.802,
+        "rms": 0.1995,
+        "size_bytes": 123634
+      },
+      {
+        "path": "sound/player/major/death1.wav",
+        "event_type": "death",
+        "duration_s": 1.662,
+        "rms": 0.309,
+        "size_bytes": 73340
+      },
+      {
+        "path": "sound/player/major/death2.wav",
+        "event_type": "death",
+        "duration_s": 1.699,
+        "rms": 0.2884,
+        "size_bytes": 74948
+      },
+      {
+        "path": "sound/player/major/death3.wav",
+        "event_type": "death",
+        "duration_s": 1.918,
+        "rms": 0.2692,
+        "size_bytes": 84640
+      },
+      {
+        "path": "sound/player/major/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.824,
+        "rms": 0.2541,
+        "size_bytes": 36402
+      },
+      {
+        "path": "sound/player/major/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 4.41,
+        "rms": 0.1995,
+        "size_bytes": 194532
+      },
+      {
+        "path": "sound/player/major/gasp.wav",
+        "event_type": "death",
+        "duration_s": 0.999,
+        "rms": 0.3236,
+        "size_bytes": 44106
+      },
+      {
+        "path": "sound/player/mynx/death1.wav",
+        "event_type": "death",
+        "duration_s": 2.028,
+        "rms": 0.1862,
+        "size_bytes": 89474
+      },
+      {
+        "path": "sound/player/mynx/death2.wav",
+        "event_type": "death",
+        "duration_s": 1.589,
+        "rms": 0.1778,
+        "size_bytes": 70114
+      },
+      {
+        "path": "sound/player/mynx/death3.wav",
+        "event_type": "death",
+        "duration_s": 1.791,
+        "rms": 0.1778,
+        "size_bytes": 79006
+      },
+      {
+        "path": "sound/player/mynx/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.701,
+        "rms": 0.2455,
+        "size_bytes": 30940
+      },
+      {
+        "path": "sound/player/mynx/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 3.879,
+        "rms": 0.1641,
+        "size_bytes": 171122
+      },
+      {
+        "path": "sound/player/mynx/gasp.wav",
+        "event_type": "death",
+        "duration_s": 2.763,
+        "rms": 0.1567,
+        "size_bytes": 121894
+      },
+      {
+        "path": "sound/player/orbb/death1.wav",
+        "event_type": "death",
+        "duration_s": 1.616,
+        "rms": 0.2692,
+        "size_bytes": 71292
+      },
+      {
+        "path": "sound/player/orbb/death2.wav",
+        "event_type": "death",
+        "duration_s": 2.064,
+        "rms": 0.2512,
+        "size_bytes": 91056
+      },
+      {
+        "path": "sound/player/orbb/death3.wav",
+        "event_type": "death",
+        "duration_s": 2.907,
+        "rms": 0.2265,
+        "size_bytes": 128238
+      },
+      {
+        "path": "sound/player/orbb/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 1.605,
+        "rms": 0.2754,
+        "size_bytes": 70842
+      },
+      {
+        "path": "sound/player/orbb/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 5.165,
+        "rms": 0.1445,
+        "size_bytes": 227840
+      },
+      {
+        "path": "sound/player/orbb/gasp.wav",
+        "event_type": "death",
+        "duration_s": 1.0,
+        "rms": 0.3589,
+        "size_bytes": 44162
+      },
+      {
+        "path": "sound/player/ranger/death1.wav",
+        "event_type": "death",
+        "duration_s": 1.579,
+        "rms": 0.0955,
+        "size_bytes": 69668
+      },
+      {
+        "path": "sound/player/ranger/death2.wav",
+        "event_type": "death",
+        "duration_s": 1.818,
+        "rms": 0.1047,
+        "size_bytes": 80226
+      },
+      {
+        "path": "sound/player/ranger/death3.wav",
+        "event_type": "death",
+        "duration_s": 1.472,
+        "rms": 0.1175,
+        "size_bytes": 64952
+      },
+      {
+        "path": "sound/player/ranger/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.731,
+        "rms": 0.1567,
+        "size_bytes": 32274
+      },
+      {
+        "path": "sound/player/ranger/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 3.919,
+        "rms": 0.1698,
+        "size_bytes": 172852
+      },
+      {
+        "path": "sound/player/ranger/gasp.wav",
+        "event_type": "death",
+        "duration_s": 1.606,
+        "rms": 0.1334,
+        "size_bytes": 70856
+      },
+      {
+        "path": "sound/player/razor/death1.wav",
+        "event_type": "death",
+        "duration_s": 1.555,
+        "rms": 0.2018,
+        "size_bytes": 68640
+      },
+      {
+        "path": "sound/player/razor/death2.wav",
+        "event_type": "death",
+        "duration_s": 1.677,
+        "rms": 0.195,
+        "size_bytes": 74008
+      },
+      {
+        "path": "sound/player/razor/death3.wav",
+        "event_type": "death",
+        "duration_s": 1.544,
+        "rms": 0.2371,
+        "size_bytes": 68152
+      },
+      {
+        "path": "sound/player/razor/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.4,
+        "rms": 0.26,
+        "size_bytes": 17676
+      },
+      {
+        "path": "sound/player/razor/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 3.111,
+        "rms": 0.2213,
+        "size_bytes": 137256
+      },
+      {
+        "path": "sound/player/razor/gasp.wav",
+        "event_type": "death",
+        "duration_s": 1.001,
+        "rms": 0.2317,
+        "size_bytes": 44180
+      },
+      {
+        "path": "sound/player/santa/death1.wav",
+        "event_type": "death",
+        "duration_s": 1.966,
+        "rms": 0.2661,
+        "size_bytes": 86744
+      },
+      {
+        "path": "sound/player/santa/death2.wav",
+        "event_type": "death",
+        "duration_s": 1.731,
+        "rms": 0.2138,
+        "size_bytes": 76388
+      },
+      {
+        "path": "sound/player/santa/death3.wav",
+        "event_type": "death",
+        "duration_s": 1.738,
+        "rms": 0.2239,
+        "size_bytes": 76692
+      },
+      {
+        "path": "sound/player/santa/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.652,
+        "rms": 0.1514,
+        "size_bytes": 28784
+      },
+      {
+        "path": "sound/player/santa/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 2.521,
+        "rms": 0.1603,
+        "size_bytes": 111204
+      },
+      {
+        "path": "sound/player/santa/gasp.wav",
+        "event_type": "death",
+        "duration_s": 1.003,
+        "rms": 0.3162,
+        "size_bytes": 44282
+      },
+      {
+        "path": "sound/player/sarge/death1.wav",
+        "event_type": "death",
+        "duration_s": 2.498,
+        "rms": 0.2985,
+        "size_bytes": 110222
+      },
+      {
+        "path": "sound/player/sarge/death2.wav",
+        "event_type": "death",
+        "duration_s": 2.083,
+        "rms": 0.2399,
+        "size_bytes": 91920
+      },
+      {
+        "path": "sound/player/sarge/death3.wav",
+        "event_type": "death",
+        "duration_s": 1.432,
+        "rms": 0.3162,
+        "size_bytes": 63182
+      },
+      {
+        "path": "sound/player/sarge/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.672,
+        "rms": 0.3311,
+        "size_bytes": 29668
+      },
+      {
+        "path": "sound/player/sarge/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 2.26,
+        "rms": 0.2089,
+        "size_bytes": 99722
+      },
+      {
+        "path": "sound/player/sarge/gasp.wav",
+        "event_type": "death",
+        "duration_s": 1.0,
+        "rms": 0.3236,
+        "size_bytes": 44126
+      },
+      {
+        "path": "sound/player/slash/death1.wav",
+        "event_type": "death",
+        "duration_s": 1.469,
+        "rms": 0.3162,
+        "size_bytes": 64808
+      },
+      {
+        "path": "sound/player/slash/death2.wav",
+        "event_type": "death",
+        "duration_s": 1.314,
+        "rms": 0.2692,
+        "size_bytes": 57970
+      },
+      {
+        "path": "sound/player/slash/death3.wav",
+        "event_type": "death",
+        "duration_s": 1.135,
+        "rms": 0.2818,
+        "size_bytes": 50096
+      },
+      {
+        "path": "sound/player/slash/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.529,
+        "rms": 0.2723,
+        "size_bytes": 23378
+      },
+      {
+        "path": "sound/player/slash/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 3.588,
+        "rms": 0.2455,
+        "size_bytes": 158256
+      },
+      {
+        "path": "sound/player/slash/gasp.wav",
+        "event_type": "death",
+        "duration_s": 1.001,
+        "rms": 0.1972,
+        "size_bytes": 44180
+      },
+      {
+        "path": "sound/player/sorlag/death1.wav",
+        "event_type": "death",
+        "duration_s": 2.35,
+        "rms": 0.2851,
+        "size_bytes": 103668
+      },
+      {
+        "path": "sound/player/sorlag/death2.wav",
+        "event_type": "death",
+        "duration_s": 1.485,
+        "rms": 0.2786,
+        "size_bytes": 65516
+      },
+      {
+        "path": "sound/player/sorlag/death3.wav",
+        "event_type": "death",
+        "duration_s": 1.586,
+        "rms": 0.3388,
+        "size_bytes": 70008
+      },
+      {
+        "path": "sound/player/sorlag/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.548,
+        "rms": 0.4169,
+        "size_bytes": 24214
+      },
+      {
+        "path": "sound/player/sorlag/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 4.589,
+        "rms": 0.257,
+        "size_bytes": 202410
+      },
+      {
+        "path": "sound/player/sorlag/gasp.wav",
+        "event_type": "death",
+        "duration_s": 1.006,
+        "rms": 0.4121,
+        "size_bytes": 44398
+      },
+      {
+        "path": "sound/player/tankjr/death1.wav",
+        "event_type": "death",
+        "duration_s": 3.838,
+        "rms": 0.2884,
+        "size_bytes": 169294
+      },
+      {
+        "path": "sound/player/tankjr/death2.wav",
+        "event_type": "death",
+        "duration_s": 2.471,
+        "rms": 0.3311,
+        "size_bytes": 109006
+      },
+      {
+        "path": "sound/player/tankjr/death3.wav",
+        "event_type": "death",
+        "duration_s": 2.703,
+        "rms": 0.3162,
+        "size_bytes": 119236
+      },
+      {
+        "path": "sound/player/tankjr/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 1.194,
+        "rms": 0.2985,
+        "size_bytes": 52714
+      },
+      {
+        "path": "sound/player/tankjr/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 4.811,
+        "rms": 0.195,
+        "size_bytes": 212214
+      },
+      {
+        "path": "sound/player/tankjr/gasp.wav",
+        "event_type": "death",
+        "duration_s": 1.0,
+        "rms": 0.26,
+        "size_bytes": 44132
+      },
+      {
+        "path": "sound/player/uriel/death1.wav",
+        "event_type": "death",
+        "duration_s": 1.688,
+        "rms": 0.2661,
+        "size_bytes": 74492
+      },
+      {
+        "path": "sound/player/uriel/death2.wav",
+        "event_type": "death",
+        "duration_s": 1.958,
+        "rms": 0.2427,
+        "size_bytes": 86378
+      },
+      {
+        "path": "sound/player/uriel/death3.wav",
+        "event_type": "death",
+        "duration_s": 1.523,
+        "rms": 0.26,
+        "size_bytes": 67224
+      },
+      {
+        "path": "sound/player/uriel/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 2.708,
+        "rms": 0.1738,
+        "size_bytes": 119452
+      },
+      {
+        "path": "sound/player/uriel/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 5.407,
+        "rms": 0.1884,
+        "size_bytes": 238510
+      },
+      {
+        "path": "sound/player/uriel/gasp.wav",
+        "event_type": "death",
+        "duration_s": 1.0,
+        "rms": 0.3162,
+        "size_bytes": 44160
+      },
+      {
+        "path": "sound/player/visor/death1.wav",
+        "event_type": "death",
+        "duration_s": 1.5,
+        "rms": 0.4074,
+        "size_bytes": 66194
+      },
+      {
+        "path": "sound/player/visor/death2.wav",
+        "event_type": "death",
+        "duration_s": 1.5,
+        "rms": 0.3981,
+        "size_bytes": 66194
+      },
+      {
+        "path": "sound/player/visor/death3.wav",
+        "event_type": "death",
+        "duration_s": 1.5,
+        "rms": 0.3802,
+        "size_bytes": 66194
+      },
+      {
+        "path": "sound/player/visor/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.631,
+        "rms": 0.3388,
+        "size_bytes": 27868
+      },
+      {
+        "path": "sound/player/visor/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 2.81,
+        "rms": 0.257,
+        "size_bytes": 123986
+      },
+      {
+        "path": "sound/player/visor/gasp.wav",
+        "event_type": "death",
+        "duration_s": 1.0,
+        "rms": 0.3467,
+        "size_bytes": 44140
+      },
+      {
+        "path": "sound/player/xaero/death1.wav",
+        "event_type": "death",
+        "duration_s": 2.757,
+        "rms": 0.2138,
+        "size_bytes": 121648
+      },
+      {
+        "path": "sound/player/xaero/death2.wav",
+        "event_type": "death",
+        "duration_s": 1.653,
+        "rms": 0.257,
+        "size_bytes": 72928
+      },
+      {
+        "path": "sound/player/xaero/death3.wav",
+        "event_type": "death",
+        "duration_s": 2.014,
+        "rms": 0.2018,
+        "size_bytes": 88880
+      },
+      {
+        "path": "sound/player/xaero/fall1.wav",
+        "event_type": "fall",
+        "duration_s": 0.658,
+        "rms": 0.2317,
+        "size_bytes": 29074
+      },
+      {
+        "path": "sound/player/xaero/falling1.wav",
+        "event_type": "fall",
+        "duration_s": 2.696,
+        "rms": 0.1514,
+        "size_bytes": 118946
+      },
+      {
+        "path": "sound/player/xaero/gasp.wav",
+        "event_type": "death",
+        "duration_s": 0.979,
+        "rms": 0.2018,
+        "size_bytes": 43236
+      }
+    ],
+    "player_move": [
+      {
+        "path": "sound/player/anarki/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.291,
+        "rms": 0.2213,
+        "size_bytes": 12864
+      },
+      {
+        "path": "sound/player/biker/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.867,
+        "rms": 0.1334,
+        "size_bytes": 38300
+      },
+      {
+        "path": "sound/player/bitterman/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.689,
+        "rms": 0.0462,
+        "size_bytes": 30432
+      },
+      {
+        "path": "sound/player/bones/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.52,
+        "rms": 0.2018,
+        "size_bytes": 22988
+      },
+      {
+        "path": "sound/player/crash/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.384,
+        "rms": 0.3311,
+        "size_bytes": 16986
+      },
+      {
+        "path": "sound/player/doom/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.465,
+        "rms": 0.1622,
+        "size_bytes": 20552
+      },
+      {
+        "path": "sound/player/grunt/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.999,
+        "rms": 0.2661,
+        "size_bytes": 44084
+      },
+      {
+        "path": "sound/player/hunter/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.404,
+        "rms": 0.257,
+        "size_bytes": 17862
+      },
+      {
+        "path": "sound/player/james/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.27,
+        "rms": 0.2951,
+        "size_bytes": 11938
+      },
+      {
+        "path": "sound/player/janet/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.527,
+        "rms": 0.1189,
+        "size_bytes": 23264
+      },
+      {
+        "path": "sound/player/keel/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.691,
+        "rms": 0.2042,
+        "size_bytes": 30506
+      },
+      {
+        "path": "sound/player/klesk/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.467,
+        "rms": 0.0603,
+        "size_bytes": 20636
+      },
+      {
+        "path": "sound/player/land1.wav",
+        "event_type": "land",
+        "duration_s": 0.238,
+        "rms": 0.2163,
+        "size_bytes": 22950
+      },
+      {
+        "path": "sound/player/lucy/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.613,
+        "rms": 0.0562,
+        "size_bytes": 27062
+      },
+      {
+        "path": "sound/player/major/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.481,
+        "rms": 0.3162,
+        "size_bytes": 21268
+      },
+      {
+        "path": "sound/player/mynx/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.527,
+        "rms": 0.0813,
+        "size_bytes": 23264
+      },
+      {
+        "path": "sound/player/orbb/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 1.723,
+        "rms": 0.2455,
+        "size_bytes": 76030
+      },
+      {
+        "path": "sound/player/ranger/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.313,
+        "rms": 0.1429,
+        "size_bytes": 13868
+      },
+      {
+        "path": "sound/player/razor/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.466,
+        "rms": 0.0767,
+        "size_bytes": 20588
+      },
+      {
+        "path": "sound/player/santa/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.867,
+        "rms": 0.1334,
+        "size_bytes": 38300
+      },
+      {
+        "path": "sound/player/sarge/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.374,
+        "rms": 0.309,
+        "size_bytes": 16522
+      },
+      {
+        "path": "sound/player/slash/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.384,
+        "rms": 0.2917,
+        "size_bytes": 16988
+      },
+      {
+        "path": "sound/player/sorlag/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.549,
+        "rms": 0.2291,
+        "size_bytes": 24242
+      },
+      {
+        "path": "sound/player/tankjr/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 1.016,
+        "rms": 0.2138,
+        "size_bytes": 44844
+      },
+      {
+        "path": "sound/player/uriel/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 1.268,
+        "rms": 0.1349,
+        "size_bytes": 55972
+      },
+      {
+        "path": "sound/player/visor/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.492,
+        "rms": 0.1718,
+        "size_bytes": 21738
+      },
+      {
+        "path": "sound/player/xaero/jump1.wav",
+        "event_type": "jump",
+        "duration_s": 0.506,
+        "rms": 0.1047,
+        "size_bytes": 22358
+      }
+    ],
+    "player_pain": [
+      {
+        "path": "sound/player/anarki/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.438,
+        "rms": 0.2754,
+        "size_bytes": 19374
+      },
+      {
+        "path": "sound/player/anarki/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.971,
+        "rms": 0.4169,
+        "size_bytes": 42858
+      },
+      {
+        "path": "sound/player/anarki/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.346,
+        "rms": 0.4677,
+        "size_bytes": 15302
+      },
+      {
+        "path": "sound/player/anarki/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.723,
+        "rms": 0.2344,
+        "size_bytes": 31908
+      },
+      {
+        "path": "sound/player/biker/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.718,
+        "rms": 0.166,
+        "size_bytes": 31696
+      },
+      {
+        "path": "sound/player/biker/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 1.981,
+        "rms": 0.2399,
+        "size_bytes": 87424
+      },
+      {
+        "path": "sound/player/biker/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 1.113,
+        "rms": 0.1928,
+        "size_bytes": 49146
+      },
+      {
+        "path": "sound/player/biker/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.868,
+        "rms": 0.1799,
+        "size_bytes": 38306
+      },
+      {
+        "path": "sound/player/bitterman/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.409,
+        "rms": 0.061,
+        "size_bytes": 18074
+      },
+      {
+        "path": "sound/player/bitterman/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.999,
+        "rms": 0.2239,
+        "size_bytes": 44096
+      },
+      {
+        "path": "sound/player/bitterman/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.603,
+        "rms": 0.1799,
+        "size_bytes": 26624
+      },
+      {
+        "path": "sound/player/bitterman/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.558,
+        "rms": 0.1148,
+        "size_bytes": 24672
+      },
+      {
+        "path": "sound/player/bones/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.371,
+        "rms": 0.2344,
+        "size_bytes": 16392
+      },
+      {
+        "path": "sound/player/bones/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 1.238,
+        "rms": 0.1122,
+        "size_bytes": 54628
+      },
+      {
+        "path": "sound/player/bones/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.645,
+        "rms": 0.2018,
+        "size_bytes": 28490
+      },
+      {
+        "path": "sound/player/bones/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.484,
+        "rms": 0.0785,
+        "size_bytes": 21402
+      },
+      {
+        "path": "sound/player/crash/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.361,
+        "rms": 0.3311,
+        "size_bytes": 15972
+      },
+      {
+        "path": "sound/player/crash/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.788,
+        "rms": 0.3162,
+        "size_bytes": 34802
+      },
+      {
+        "path": "sound/player/crash/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.753,
+        "rms": 0.1718,
+        "size_bytes": 33246
+      },
+      {
+        "path": "sound/player/crash/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.564,
+        "rms": 0.1288,
+        "size_bytes": 24904
+      },
+      {
+        "path": "sound/player/doom/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.488,
+        "rms": 0.2818,
+        "size_bytes": 21580
+      },
+      {
+        "path": "sound/player/doom/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 1.565,
+        "rms": 0.1396,
+        "size_bytes": 69062
+      },
+      {
+        "path": "sound/player/doom/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.758,
+        "rms": 0.1175,
+        "size_bytes": 33488
+      },
+      {
+        "path": "sound/player/doom/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.518,
+        "rms": 0.1995,
+        "size_bytes": 22904
+      },
+      {
+        "path": "sound/player/grunt/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.809,
+        "rms": 0.3126,
+        "size_bytes": 35728
+      },
+      {
+        "path": "sound/player/grunt/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.888,
+        "rms": 0.3548,
+        "size_bytes": 39184
+      },
+      {
+        "path": "sound/player/grunt/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.739,
+        "rms": 0.3311,
+        "size_bytes": 32638
+      },
+      {
+        "path": "sound/player/grunt/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.626,
+        "rms": 0.309,
+        "size_bytes": 27662
+      },
+      {
+        "path": "sound/player/hunter/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.418,
+        "rms": 0.302,
+        "size_bytes": 18494
+      },
+      {
+        "path": "sound/player/hunter/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.384,
+        "rms": 0.3311,
+        "size_bytes": 16984
+      },
+      {
+        "path": "sound/player/hunter/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.404,
+        "rms": 0.3548,
+        "size_bytes": 17866
+      },
+      {
+        "path": "sound/player/hunter/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.58,
+        "rms": 0.3126,
+        "size_bytes": 25616
+      },
+      {
+        "path": "sound/player/james/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.44,
+        "rms": 0.2951,
+        "size_bytes": 19438
+      },
+      {
+        "path": "sound/player/james/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.893,
+        "rms": 0.257,
+        "size_bytes": 39418
+      },
+      {
+        "path": "sound/player/james/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.933,
+        "rms": 0.2512,
+        "size_bytes": 41208
+      },
+      {
+        "path": "sound/player/james/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.834,
+        "rms": 0.257,
+        "size_bytes": 36834
+      },
+      {
+        "path": "sound/player/janet/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.431,
+        "rms": 0.1738,
+        "size_bytes": 19050
+      },
+      {
+        "path": "sound/player/janet/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.683,
+        "rms": 0.309,
+        "size_bytes": 30182
+      },
+      {
+        "path": "sound/player/janet/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.688,
+        "rms": 0.2661,
+        "size_bytes": 30382
+      },
+      {
+        "path": "sound/player/janet/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.611,
+        "rms": 0.2239,
+        "size_bytes": 26974
+      },
+      {
+        "path": "sound/player/keel/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.791,
+        "rms": 0.26,
+        "size_bytes": 34946
+      },
+      {
+        "path": "sound/player/keel/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 1.907,
+        "rms": 0.1778,
+        "size_bytes": 84162
+      },
+      {
+        "path": "sound/player/keel/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 1.277,
+        "rms": 0.2917,
+        "size_bytes": 56346
+      },
+      {
+        "path": "sound/player/keel/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 1.779,
+        "rms": 0.2884,
+        "size_bytes": 78514
+      },
+      {
+        "path": "sound/player/klesk/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 1.643,
+        "rms": 0.1,
+        "size_bytes": 72480
+      },
+      {
+        "path": "sound/player/klesk/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 2.139,
+        "rms": 0.3548,
+        "size_bytes": 94352
+      },
+      {
+        "path": "sound/player/klesk/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 1.892,
+        "rms": 0.3126,
+        "size_bytes": 83474
+      },
+      {
+        "path": "sound/player/klesk/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 2.209,
+        "rms": 0.1622,
+        "size_bytes": 97442
+      },
+      {
+        "path": "sound/player/lucy/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.604,
+        "rms": 0.1928,
+        "size_bytes": 26690
+      },
+      {
+        "path": "sound/player/lucy/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.62,
+        "rms": 0.3162,
+        "size_bytes": 27382
+      },
+      {
+        "path": "sound/player/lucy/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.984,
+        "rms": 0.1496,
+        "size_bytes": 43442
+      },
+      {
+        "path": "sound/player/lucy/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.634,
+        "rms": 0.2851,
+        "size_bytes": 28014
+      },
+      {
+        "path": "sound/player/major/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.783,
+        "rms": 0.3673,
+        "size_bytes": 34574
+      },
+      {
+        "path": "sound/player/major/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.723,
+        "rms": 0.3631,
+        "size_bytes": 31922
+      },
+      {
+        "path": "sound/player/major/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 1.805,
+        "rms": 0.2427,
+        "size_bytes": 79644
+      },
+      {
+        "path": "sound/player/major/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.722,
+        "rms": 0.1698,
+        "size_bytes": 31874
+      },
+      {
+        "path": "sound/player/mynx/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.496,
+        "rms": 0.2512,
+        "size_bytes": 21902
+      },
+      {
+        "path": "sound/player/mynx/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 1.082,
+        "rms": 0.3673,
+        "size_bytes": 47776
+      },
+      {
+        "path": "sound/player/mynx/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.489,
+        "rms": 0.2884,
+        "size_bytes": 21596
+      },
+      {
+        "path": "sound/player/mynx/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.464,
+        "rms": 0.2483,
+        "size_bytes": 20510
+      },
+      {
+        "path": "sound/player/orbb/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 1.697,
+        "rms": 0.2541,
+        "size_bytes": 74876
+      },
+      {
+        "path": "sound/player/orbb/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 2.066,
+        "rms": 0.2483,
+        "size_bytes": 91134
+      },
+      {
+        "path": "sound/player/orbb/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 1.862,
+        "rms": 0.2317,
+        "size_bytes": 82180
+      },
+      {
+        "path": "sound/player/orbb/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 1.685,
+        "rms": 0.2541,
+        "size_bytes": 74346
+      },
+      {
+        "path": "sound/player/ranger/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.471,
+        "rms": 0.2113,
+        "size_bytes": 20802
+      },
+      {
+        "path": "sound/player/ranger/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.613,
+        "rms": 0.2483,
+        "size_bytes": 27066
+      },
+      {
+        "path": "sound/player/ranger/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.596,
+        "rms": 0.2371,
+        "size_bytes": 26328
+      },
+      {
+        "path": "sound/player/ranger/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.468,
+        "rms": 0.1245,
+        "size_bytes": 20678
+      },
+      {
+        "path": "sound/player/razor/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.512,
+        "rms": 0.1202,
+        "size_bytes": 22614
+      },
+      {
+        "path": "sound/player/razor/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.933,
+        "rms": 0.2344,
+        "size_bytes": 41206
+      },
+      {
+        "path": "sound/player/razor/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.917,
+        "rms": 0.2455,
+        "size_bytes": 40500
+      },
+      {
+        "path": "sound/player/razor/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.878,
+        "rms": 0.1334,
+        "size_bytes": 38776
+      },
+      {
+        "path": "sound/player/santa/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.718,
+        "rms": 0.166,
+        "size_bytes": 31696
+      },
+      {
+        "path": "sound/player/santa/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 1.981,
+        "rms": 0.2399,
+        "size_bytes": 87424
+      },
+      {
+        "path": "sound/player/santa/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 1.113,
+        "rms": 0.1928,
+        "size_bytes": 49146
+      },
+      {
+        "path": "sound/player/santa/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.868,
+        "rms": 0.1799,
+        "size_bytes": 38306
+      },
+      {
+        "path": "sound/player/sarge/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.537,
+        "rms": 0.309,
+        "size_bytes": 23720
+      },
+      {
+        "path": "sound/player/sarge/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.975,
+        "rms": 0.3981,
+        "size_bytes": 43060
+      },
+      {
+        "path": "sound/player/sarge/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.783,
+        "rms": 0.2818,
+        "size_bytes": 34594
+      },
+      {
+        "path": "sound/player/sarge/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.708,
+        "rms": 0.3936,
+        "size_bytes": 31282
+      },
+      {
+        "path": "sound/player/slash/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.361,
+        "rms": 0.2818,
+        "size_bytes": 15972
+      },
+      {
+        "path": "sound/player/slash/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.788,
+        "rms": 0.26,
+        "size_bytes": 34802
+      },
+      {
+        "path": "sound/player/slash/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.753,
+        "rms": 0.1862,
+        "size_bytes": 33246
+      },
+      {
+        "path": "sound/player/slash/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.564,
+        "rms": 0.138,
+        "size_bytes": 24904
+      },
+      {
+        "path": "sound/player/sorlag/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.35,
+        "rms": 0.3715,
+        "size_bytes": 15468
+      },
+      {
+        "path": "sound/player/sorlag/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.819,
+        "rms": 0.3428,
+        "size_bytes": 36144
+      },
+      {
+        "path": "sound/player/sorlag/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.585,
+        "rms": 0.3548,
+        "size_bytes": 25840
+      },
+      {
+        "path": "sound/player/sorlag/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.72,
+        "rms": 0.3508,
+        "size_bytes": 31782
+      },
+      {
+        "path": "sound/player/tankjr/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 1.375,
+        "rms": 0.2089,
+        "size_bytes": 60672
+      },
+      {
+        "path": "sound/player/tankjr/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 1.54,
+        "rms": 0.3673,
+        "size_bytes": 67974
+      },
+      {
+        "path": "sound/player/tankjr/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 1.771,
+        "rms": 0.263,
+        "size_bytes": 78136
+      },
+      {
+        "path": "sound/player/tankjr/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 1.613,
+        "rms": 0.2692,
+        "size_bytes": 71190
+      },
+      {
+        "path": "sound/player/uriel/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 2.575,
+        "rms": 0.2138,
+        "size_bytes": 113602
+      },
+      {
+        "path": "sound/player/uriel/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 2.811,
+        "rms": 0.2455,
+        "size_bytes": 124020
+      },
+      {
+        "path": "sound/player/uriel/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 1.619,
+        "rms": 0.2786,
+        "size_bytes": 71450
+      },
+      {
+        "path": "sound/player/uriel/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 2.272,
+        "rms": 0.2818,
+        "size_bytes": 100242
+      },
+      {
+        "path": "sound/player/visor/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.478,
+        "rms": 0.4121,
+        "size_bytes": 21140
+      },
+      {
+        "path": "sound/player/visor/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.833,
+        "rms": 0.4074,
+        "size_bytes": 36794
+      },
+      {
+        "path": "sound/player/visor/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.733,
+        "rms": 0.3715,
+        "size_bytes": 32384
+      },
+      {
+        "path": "sound/player/visor/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.582,
+        "rms": 0.4365,
+        "size_bytes": 25696
+      },
+      {
+        "path": "sound/player/xaero/pain100_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.634,
+        "rms": 0.2042,
+        "size_bytes": 27998
+      },
+      {
+        "path": "sound/player/xaero/pain25_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.654,
+        "rms": 0.2291,
+        "size_bytes": 28874
+      },
+      {
+        "path": "sound/player/xaero/pain50_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.551,
+        "rms": 0.2317,
+        "size_bytes": 24346
+      },
+      {
+        "path": "sound/player/xaero/pain75_1.wav",
+        "event_type": "pain",
+        "duration_s": 0.537,
+        "rms": 0.2483,
+        "size_bytes": 23716
+      }
+    ],
+    "player_taunt": [
+      {
+        "path": "sound/player/anarki/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 2.641,
+        "rms": 0.2661,
+        "size_bytes": 116524
+      },
+      {
+        "path": "sound/player/biker/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 2.59,
+        "rms": 0.4074,
+        "size_bytes": 114244
+      },
+      {
+        "path": "sound/player/bitterman/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 0.603,
+        "rms": 0.1799,
+        "size_bytes": 26624
+      },
+      {
+        "path": "sound/player/bones/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 2.673,
+        "rms": 0.2917,
+        "size_bytes": 117904
+      },
+      {
+        "path": "sound/player/crash/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 2.149,
+        "rms": 0.1334,
+        "size_bytes": 94814
+      },
+      {
+        "path": "sound/player/doom/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 1.67,
+        "rms": 0.2427,
+        "size_bytes": 73692
+      },
+      {
+        "path": "sound/player/grunt/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 2.526,
+        "rms": 0.26,
+        "size_bytes": 111450
+      },
+      {
+        "path": "sound/player/hunter/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 1.458,
+        "rms": 0.4027,
+        "size_bytes": 64332
+      },
+      {
+        "path": "sound/player/james/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 1.258,
+        "rms": 0.2317,
+        "size_bytes": 55516
+      },
+      {
+        "path": "sound/player/janet/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 1.326,
+        "rms": 0.3311,
+        "size_bytes": 58506
+      },
+      {
+        "path": "sound/player/keel/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 2.496,
+        "rms": 0.263,
+        "size_bytes": 110132
+      },
+      {
+        "path": "sound/player/klesk/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 2.803,
+        "rms": 0.4266,
+        "size_bytes": 123648
+      },
+      {
+        "path": "sound/player/lucy/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 2.502,
+        "rms": 0.263,
+        "size_bytes": 110404
+      },
+      {
+        "path": "sound/player/major/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 2.864,
+        "rms": 0.2427,
+        "size_bytes": 126348
+      },
+      {
+        "path": "sound/player/mynx/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 2.357,
+        "rms": 0.1202,
+        "size_bytes": 103968
+      },
+      {
+        "path": "sound/player/orbb/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 3.175,
+        "rms": 0.2291,
+        "size_bytes": 140040
+      },
+      {
+        "path": "sound/player/ranger/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 2.015,
+        "rms": 0.1059,
+        "size_bytes": 88906
+      },
+      {
+        "path": "sound/player/razor/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 1.924,
+        "rms": 0.2985,
+        "size_bytes": 84872
+      },
+      {
+        "path": "sound/player/santa/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 1.26,
+        "rms": 0.4121,
+        "size_bytes": 55628
+      },
+      {
+        "path": "sound/player/sarge/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 2.436,
+        "rms": 0.1758,
+        "size_bytes": 107468
+      },
+      {
+        "path": "sound/player/slash/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 2.657,
+        "rms": 0.1884,
+        "size_bytes": 117204
+      },
+      {
+        "path": "sound/player/sorlag/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 2.519,
+        "rms": 0.2985,
+        "size_bytes": 111138
+      },
+      {
+        "path": "sound/player/tankjr/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 2.804,
+        "rms": 0.1365,
+        "size_bytes": 123684
+      },
+      {
+        "path": "sound/player/uriel/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 2.08,
+        "rms": 0.2692,
+        "size_bytes": 91762
+      },
+      {
+        "path": "sound/player/visor/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 2.521,
+        "rms": 0.3467,
+        "size_bytes": 111230
+      },
+      {
+        "path": "sound/player/xaero/taunt.wav",
+        "event_type": "taunt",
+        "duration_s": 2.494,
+        "rms": 0.1135,
+        "size_bytes": 110026
+      }
+    ],
+    "weapon_fire": [
+      {
+        "path": "sound/weapons/bfg/bfg_fire.wav",
+        "event_type": "bfg_fire",
+        "duration_s": 0.753,
+        "rms": 0.3936,
+        "size_bytes": 72320
+      },
+      {
+        "path": "sound/weapons/grapple/grfire.wav",
+        "event_type": "grapple_fire",
+        "duration_s": 0.476,
+        "rms": 0.1161,
+        "size_bytes": 45776
+      },
+      {
+        "path": "sound/weapons/grenade/grenlf1a.wav",
+        "event_type": "grenade_fire",
+        "duration_s": 1.491,
+        "rms": 0.1698,
+        "size_bytes": 143182
+      },
+      {
+        "path": "sound/weapons/hmg/machgf1b.wav",
+        "event_type": "hmg_fire",
+        "duration_s": 0.766,
+        "rms": 0.1641,
+        "size_bytes": 73648
+      },
+      {
+        "path": "sound/weapons/hmg/machgf2b.wav",
+        "event_type": "hmg_fire",
+        "duration_s": 0.865,
+        "rms": 0.1603,
+        "size_bytes": 83114
+      },
+      {
+        "path": "sound/weapons/hmg/machgf3b.wav",
+        "event_type": "hmg_fire",
+        "duration_s": 0.62,
+        "rms": 0.195,
+        "size_bytes": 59598
+      },
+      {
+        "path": "sound/weapons/hmg/machgf4b.wav",
+        "event_type": "hmg_fire",
+        "duration_s": 0.586,
+        "rms": 0.2042,
+        "size_bytes": 56364
+      },
+      {
+        "path": "sound/weapons/lightning/lg_fire.wav",
+        "event_type": "lightning_fire",
+        "duration_s": 2.768,
+        "rms": 0.195,
+        "size_bytes": 265848
+      },
+      {
+        "path": "sound/weapons/machinegun/machgf1b.wav",
+        "event_type": "machinegun_fire",
+        "duration_s": 1.488,
+        "rms": 0.1189,
+        "size_bytes": 142900
+      },
+      {
+        "path": "sound/weapons/machinegun/machgf2b.wav",
+        "event_type": "machinegun_fire",
+        "duration_s": 1.448,
+        "rms": 0.1202,
+        "size_bytes": 139060
+      },
+      {
+        "path": "sound/weapons/machinegun/machgf3b.wav",
+        "event_type": "machinegun_fire",
+        "duration_s": 1.484,
+        "rms": 0.1175,
+        "size_bytes": 142590
+      },
+      {
+        "path": "sound/weapons/machinegun/machgf4b.wav",
+        "event_type": "machinegun_fire",
+        "duration_s": 1.522,
+        "rms": 0.1161,
+        "size_bytes": 146182
+      },
+      {
+        "path": "sound/weapons/nailgun/wnalfire.wav",
+        "event_type": "nailgun_fire",
+        "duration_s": 1.491,
+        "rms": 0.2042,
+        "size_bytes": 143178
+      },
+      {
+        "path": "sound/weapons/plasma/hyprbf1a.wav",
+        "event_type": "plasma_fire",
+        "duration_s": 0.308,
+        "rms": 0.2951,
+        "size_bytes": 29614
+      },
+      {
+        "path": "sound/weapons/proxmine/wstbfire.wav",
+        "event_type": "proxmine_fire",
+        "duration_s": 1.331,
+        "rms": 0.263,
+        "size_bytes": 127862
+      },
+      {
+        "path": "sound/weapons/railgun/railgf1a.wav",
+        "event_type": "railgun_fire",
+        "duration_s": 1.551,
+        "rms": 0.2818,
+        "size_bytes": 148934
+      },
+      {
+        "path": "sound/weapons/rocket/rocklf1a.wav",
+        "event_type": "rocket_fire",
+        "duration_s": 1.901,
+        "rms": 0.2541,
+        "size_bytes": 182570
+      },
+      {
+        "path": "sound/weapons/shotgun/sshotf1b.wav",
+        "event_type": "shotgun_fire",
+        "duration_s": 1.986,
+        "rms": 0.2399,
+        "size_bytes": 190712
+      },
+      {
+        "path": "sound/weapons/vulcan/wvulfire.wav",
+        "event_type": "vulcan_fire",
+        "duration_s": 2.013,
+        "rms": 0.1175,
+        "size_bytes": 193368
+      }
+    ],
+    "weapon_idle": [
+      {
+        "path": "sound/weapons/bfg/bfg_hum.wav",
+        "event_type": "bfg_idle",
+        "duration_s": 0.923,
+        "rms": 0.335,
+        "size_bytes": 88696
+      },
+      {
+        "path": "sound/weapons/change.wav",
+        "event_type": "generic_idle",
+        "duration_s": 0.495,
+        "rms": 0.2344,
+        "size_bytes": 47618
+      },
+      {
+        "path": "sound/weapons/grapple/grhang.wav",
+        "event_type": "grapple_idle",
+        "duration_s": 3.65,
+        "rms": 0.026,
+        "size_bytes": 350482
+      },
+      {
+        "path": "sound/weapons/grapple/grpull.wav",
+        "event_type": "grapple_idle",
+        "duration_s": 0.186,
+        "rms": 0.0603,
+        "size_bytes": 17912
+      },
+      {
+        "path": "sound/weapons/grapple/grreset.wav",
+        "event_type": "grapple_idle",
+        "duration_s": 1.056,
+        "rms": 0.1216,
+        "size_bytes": 101482
+      },
+      {
+        "path": "sound/weapons/lightning/lg_hum.wav",
+        "event_type": "lightning_idle",
+        "duration_s": 0.965,
+        "rms": 0.1679,
+        "size_bytes": 92684
+      },
+      {
+        "path": "sound/weapons/melee/fsthum.wav",
+        "event_type": "melee_idle",
+        "duration_s": 1.995,
+        "rms": 0.0646,
+        "size_bytes": 191622
+      },
+      {
+        "path": "sound/weapons/proxmine/wstbactv.wav",
+        "event_type": "proxmine_idle",
+        "duration_s": 1.297,
+        "rms": 0.3508,
+        "size_bytes": 124626
+      },
+      {
+        "path": "sound/weapons/proxmine/wstbtick.wav",
+        "event_type": "proxmine_idle",
+        "duration_s": 1.099,
+        "rms": 0.0219,
+        "size_bytes": 48492
+      },
+      {
+        "path": "sound/weapons/railgun/rg_hum.wav",
+        "event_type": "railgun_idle",
+        "duration_s": 1.161,
+        "rms": 0.2213,
+        "size_bytes": 111534
+      },
+      {
+        "path": "sound/weapons/vulcan/wvulwind.wav",
+        "event_type": "vulcan_idle",
+        "duration_s": 1.06,
+        "rms": 0.0851,
+        "size_bytes": 101882
+      }
+    ],
+    "weapon_impact": [
+      {
+        "path": "sound/weapons/grapple/grhit.wav",
+        "event_type": "grapple_impact",
+        "duration_s": 0.47,
+        "rms": 0.1012,
+        "size_bytes": 45202
+      },
+      {
+        "path": "sound/weapons/lightning/lg_hit.wav",
+        "event_type": "lightning_impact",
+        "duration_s": 0.805,
+        "rms": 0.0881,
+        "size_bytes": 77344
+      },
+      {
+        "path": "sound/weapons/lightning/lg_hit2.wav",
+        "event_type": "lightning_impact",
+        "duration_s": 0.389,
+        "rms": 0.1189,
+        "size_bytes": 37416
+      },
+      {
+        "path": "sound/weapons/lightning/lg_hit3.wav",
+        "event_type": "lightning_impact",
+        "duration_s": 0.672,
+        "rms": 0.1072,
+        "size_bytes": 64566
+      },
+      {
+        "path": "sound/weapons/machinegun/buletby1.wav",
+        "event_type": "machinegun_impact",
+        "duration_s": 0.468,
+        "rms": 0.1349,
+        "size_bytes": 45014
+      },
+      {
+        "path": "sound/weapons/machinegun/ric1.wav",
+        "event_type": "machinegun_impact",
+        "duration_s": 0.428,
+        "rms": 0.1738,
+        "size_bytes": 41204
+      },
+      {
+        "path": "sound/weapons/machinegun/ric2.wav",
+        "event_type": "machinegun_impact",
+        "duration_s": 1.068,
+        "rms": 0.1202,
+        "size_bytes": 102596
+      },
+      {
+        "path": "sound/weapons/machinegun/ric3.wav",
+        "event_type": "machinegun_impact",
+        "duration_s": 1.09,
+        "rms": 0.1122,
+        "size_bytes": 104742
+      },
+      {
+        "path": "sound/weapons/nailgun/wnalimpd.wav",
+        "event_type": "nailgun_impact",
+        "duration_s": 1.146,
+        "rms": 0.1175,
+        "size_bytes": 110068
+      },
+      {
+        "path": "sound/weapons/nailgun/wnalimpl.wav",
+        "event_type": "nailgun_impact",
+        "duration_s": 0.499,
+        "rms": 0.2213,
+        "size_bytes": 47944
+      },
+      {
+        "path": "sound/weapons/nailgun/wnalimpm.wav",
+        "event_type": "nailgun_impact",
+        "duration_s": 0.503,
+        "rms": 0.1862,
+        "size_bytes": 48366
+      },
+      {
+        "path": "sound/weapons/plasma/plasmx1a.wav",
+        "event_type": "plasma_impact",
+        "duration_s": 1.257,
+        "rms": 0.3631,
+        "size_bytes": 120760
+      },
+      {
+        "path": "sound/weapons/proxmine/wstbexpl.wav",
+        "event_type": "proxmine_impact",
+        "duration_s": 1.764,
+        "rms": 0.3311,
+        "size_bytes": 169422
+      },
+      {
+        "path": "sound/weapons/proxmine/wstbimpd.wav",
+        "event_type": "proxmine_impact",
+        "duration_s": 0.677,
+        "rms": 0.2661,
+        "size_bytes": 65080
+      },
+      {
+        "path": "sound/weapons/proxmine/wstbimpl.wav",
+        "event_type": "proxmine_impact",
+        "duration_s": 0.71,
+        "rms": 0.2512,
+        "size_bytes": 68236
+      },
+      {
+        "path": "sound/weapons/proxmine/wstbimpm.wav",
+        "event_type": "proxmine_impact",
+        "duration_s": 1.649,
+        "rms": 0.2089,
+        "size_bytes": 158398
+      },
+      {
+        "path": "sound/weapons/rocket/rocklx1a.wav",
+        "event_type": "rocket_impact",
+        "duration_s": 1.722,
+        "rms": 0.4169,
+        "size_bytes": 165382
+      },
+      {
+        "path": "sound/weapons/vulcan/wvulimpd.wav",
+        "event_type": "vulcan_impact",
+        "duration_s": 1.493,
+        "rms": 0.3388,
+        "size_bytes": 143360
+      },
+      {
+        "path": "sound/weapons/vulcan/wvulimpl.wav",
+        "event_type": "vulcan_impact",
+        "duration_s": 1.269,
+        "rms": 0.2917,
+        "size_bytes": 121914
+      },
+      {
+        "path": "sound/weapons/vulcan/wvulimpm.wav",
+        "event_type": "vulcan_impact",
+        "duration_s": 1.38,
+        "rms": 0.2188,
+        "size_bytes": 132538
+      }
+    ],
+    "weapon_other": [
+      {
+        "path": "sound/weapons/grenade/hgrenb1a.wav",
+        "event_type": "grenade_hgrenb1a",
+        "duration_s": 0.367,
+        "rms": 0.1023,
+        "size_bytes": 35288
+      },
+      {
+        "path": "sound/weapons/grenade/hgrenb2a.wav",
+        "event_type": "grenade_hgrenb2a",
+        "duration_s": 0.447,
+        "rms": 0.1189,
+        "size_bytes": 42990
+      },
+      {
+        "path": "sound/weapons/lowammo.wav",
+        "event_type": "generic_lowammo",
+        "duration_s": 0.302,
+        "rms": 0.1349,
+        "size_bytes": 29058
+      },
+      {
+        "path": "sound/weapons/melee/fstatck.wav",
+        "event_type": "melee_fstatck",
+        "duration_s": 0.772,
+        "rms": 0.2455,
+        "size_bytes": 74198
+      },
+      {
+        "path": "sound/weapons/melee/fstrun.wav",
+        "event_type": "melee_fstrun",
+        "duration_s": 1.986,
+        "rms": 0.1072,
+        "size_bytes": 190752
+      },
+      {
+        "path": "sound/weapons/noammo.wav",
+        "event_type": "generic_noammo",
+        "duration_s": 0.128,
+        "rms": 0.2317,
+        "size_bytes": 12340
+      },
+      {
+        "path": "sound/weapons/vulcan/vulcanf1b.wav",
+        "event_type": "vulcan_vulcanf1b",
+        "duration_s": 1.162,
+        "rms": 0.1884,
+        "size_bytes": 111652
+      },
+      {
+        "path": "sound/weapons/vulcan/vulcanf2b.wav",
+        "event_type": "vulcan_vulcanf2b",
+        "duration_s": 1.008,
+        "rms": 0.2065,
+        "size_bytes": 96884
+      },
+      {
+        "path": "sound/weapons/vulcan/vulcanf3b.wav",
+        "event_type": "vulcan_vulcanf3b",
+        "duration_s": 1.105,
+        "rms": 0.2065,
+        "size_bytes": 106140
+      },
+      {
+        "path": "sound/weapons/vulcan/vulcanf4b.wav",
+        "event_type": "vulcan_vulcanf4b",
+        "duration_s": 1.183,
+        "rms": 0.1799,
+        "size_bytes": 113638
+      },
+      {
+        "path": "sound/weapons/weapon_hover.wav",
+        "event_type": "generic_weapon_hover",
+        "duration_s": 1.024,
+        "rms": 0.0442,
+        "size_bytes": 98386
+      }
+    ],
+    "weapon_flight": [
+      {
+        "path": "sound/weapons/plasma/lasfly.wav",
+        "event_type": "plasma_flight",
+        "duration_s": 0.826,
+        "rms": 0.2065,
+        "size_bytes": 79386
+      },
+      {
+        "path": "sound/weapons/rocket/rockfly.wav",
+        "event_type": "rocket_flight",
+        "duration_s": 1.292,
+        "rms": 0.6761,
+        "size_bytes": 124134
+      }
+    ],
+    "world": [
+      {
+        "path": "sound/world/1shot_droneboys_01.wav",
+        "event_type": "1shot_droneboys_01",
+        "duration_s": 12.713,
+        "rms": 0.2163,
+        "size_bytes": 560676
+      },
+      {
+        "path": "sound/world/1shot_femdrone_01.wav",
+        "event_type": "1shot_femdrone_01",
+        "duration_s": 8.318,
+        "rms": 0.195,
+        "size_bytes": 366868
+      },
+      {
+        "path": "sound/world/1shot_greg_01.wav",
+        "event_type": "1shot_greg_01",
+        "duration_s": 8.554,
+        "rms": 0.1462,
+        "size_bytes": 377344
+      },
+      {
+        "path": "sound/world/1shot_greg_03.wav",
+        "event_type": "1shot_greg_03",
+        "duration_s": 8.598,
+        "rms": 0.1023,
+        "size_bytes": 379404
+      },
+      {
+        "path": "sound/world/ambience03.wav",
+        "event_type": "ambience03",
+        "duration_s": 6.394,
+        "rms": 0.1928,
+        "size_bytes": 282014
+      },
+      {
+        "path": "sound/world/ambient/x_ancientsdrone.wav",
+        "event_type": "x_ancientsdrone",
+        "duration_s": 6.713,
+        "rms": 0.2213,
+        "size_bytes": 296290
+      },
+      {
+        "path": "sound/world/ambient/x_drowning.wav",
+        "event_type": "x_drowning",
+        "duration_s": 5.027,
+        "rms": 0.1995,
+        "size_bytes": 221756
+      },
+      {
+        "path": "sound/world/ambient/x_forbidden.wav",
+        "event_type": "x_forbidden",
+        "duration_s": 6.713,
+        "rms": 0.2113,
+        "size_bytes": 296092
+      },
+      {
+        "path": "sound/world/ambient/x_ominous.wav",
+        "event_type": "x_ominous",
+        "duration_s": 2.026,
+        "rms": 0.2483,
+        "size_bytes": 89398
+      },
+      {
+        "path": "sound/world/ambient/x_rumbledrone.wav",
+        "event_type": "x_rumbledrone",
+        "duration_s": 4.553,
+        "rms": 0.2188,
+        "size_bytes": 201028
+      },
+      {
+        "path": "sound/world/bell_01.wav",
+        "event_type": "bell_01",
+        "duration_s": 2.256,
+        "rms": 0.1303,
+        "size_bytes": 99772
+      },
+      {
+        "path": "sound/world/button_zap.wav",
+        "event_type": "button_zap",
+        "duration_s": 1.015,
+        "rms": 0.1585,
+        "size_bytes": 44792
+      },
+      {
+        "path": "sound/world/buzzer.wav",
+        "event_type": "buzzer",
+        "duration_s": 1.185,
+        "rms": 0.3981,
+        "size_bytes": 52536
+      },
+      {
+        "path": "sound/world/curnt2.wav",
+        "event_type": "curnt2",
+        "duration_s": 4.157,
+        "rms": 0.0195,
+        "size_bytes": 183368
+      },
+      {
+        "path": "sound/world/demonwind01.wav",
+        "event_type": "demonwind01",
+        "duration_s": 8.104,
+        "rms": 0.0989,
+        "size_bytes": 357434
+      },
+      {
+        "path": "sound/world/drone6.wav",
+        "event_type": "drone6",
+        "duration_s": 1.662,
+        "rms": 0.1905,
+        "size_bytes": 73600
+      },
+      {
+        "path": "sound/world/drones/amb1.wav",
+        "event_type": "amb1",
+        "duration_s": 1.127,
+        "rms": 0.0059,
+        "size_bytes": 49818
+      },
+      {
+        "path": "sound/world/electro.wav",
+        "event_type": "electro",
+        "duration_s": 1.359,
+        "rms": 0.0933,
+        "size_bytes": 59958
+      },
+      {
+        "path": "sound/world/evil.wav",
+        "event_type": "evil",
+        "duration_s": 3.364,
+        "rms": 0.0245,
+        "size_bytes": 148396
+      },
+      {
+        "path": "sound/world/fan4.wav",
+        "event_type": "fan4",
+        "duration_s": 6.553,
+        "rms": 0.3162,
+        "size_bytes": 289042
+      },
+      {
+        "path": "sound/world/fire1.wav",
+        "event_type": "fire1",
+        "duration_s": 4.081,
+        "rms": 0.0804,
+        "size_bytes": 180008
+      },
+      {
+        "path": "sound/world/fireloud.wav",
+        "event_type": "fireloud",
+        "duration_s": 4.081,
+        "rms": 0.2113,
+        "size_bytes": 180008
+      },
+      {
+        "path": "sound/world/firesoft.wav",
+        "event_type": "firesoft",
+        "duration_s": 4.081,
+        "rms": 0.0403,
+        "size_bytes": 180008
+      },
+      {
+        "path": "sound/world/growl1.wav",
+        "event_type": "growl1",
+        "duration_s": 2.414,
+        "rms": 0.0741,
+        "size_bytes": 106496
+      },
+      {
+        "path": "sound/world/growl2.wav",
+        "event_type": "growl2",
+        "duration_s": 3.241,
+        "rms": 0.0324,
+        "size_bytes": 142952
+      },
+      {
+        "path": "sound/world/growl3.wav",
+        "event_type": "growl3",
+        "duration_s": 1.753,
+        "rms": 0.0692,
+        "size_bytes": 77356
+      },
+      {
+        "path": "sound/world/hockey_horn.wav",
+        "event_type": "hockey_horn",
+        "duration_s": 2.516,
+        "rms": 0.3508,
+        "size_bytes": 110988
+      },
+      {
+        "path": "sound/world/jumppad.wav",
+        "event_type": "jumppad",
+        "duration_s": 1.426,
+        "rms": 0.1778,
+        "size_bytes": 62926
+      },
+      {
+        "path": "sound/world/klaxon1.wav",
+        "event_type": "klaxon1",
+        "duration_s": 2.213,
+        "rms": 0.1862,
+        "size_bytes": 97718
+      },
+      {
+        "path": "sound/world/klaxon2.wav",
+        "event_type": "klaxon2",
+        "duration_s": 1.202,
+        "rms": 0.1023,
+        "size_bytes": 53056
+      },
+      {
+        "path": "sound/world/lava1.wav",
+        "event_type": "lava1",
+        "duration_s": 16.101,
+        "rms": 0.0944,
+        "size_bytes": 710182
+      },
+      {
+        "path": "sound/world/lava_amb_01_quiet.wav",
+        "event_type": "lava_amb_01_quiet",
+        "duration_s": 2.94,
+        "rms": 0.061,
+        "size_bytes": 129688
+      },
+      {
+        "path": "sound/world/lava_short.wav",
+        "event_type": "lava_short",
+        "duration_s": 2.028,
+        "rms": 0.0569,
+        "size_bytes": 89464
+      },
+      {
+        "path": "sound/world/machinerydrone01.wav",
+        "event_type": "machinerydrone01",
+        "duration_s": 4.937,
+        "rms": 0.2042,
+        "size_bytes": 217754
+      },
+      {
+        "path": "sound/world/machinerydrone02.wav",
+        "event_type": "machinerydrone02",
+        "duration_s": 2.804,
+        "rms": 0.2661,
+        "size_bytes": 123680
+      },
+      {
+        "path": "sound/world/monitor_02.wav",
+        "event_type": "monitor_02",
+        "duration_s": 1.68,
+        "rms": 0.1216,
+        "size_bytes": 74142
+      },
+      {
+        "path": "sound/world/portal01.wav",
+        "event_type": "portal01",
+        "duration_s": 6.05,
+        "rms": 0.2818,
+        "size_bytes": 266864
+      },
+      {
+        "path": "sound/world/s_1shot_thunder_04.wav",
+        "event_type": "s_1shot_thunder_04",
+        "duration_s": 8.007,
+        "rms": 0.0804,
+        "size_bytes": 353162
+      },
+      {
+        "path": "sound/world/screech1.wav",
+        "event_type": "screech1",
+        "duration_s": 1.308,
+        "rms": 0.1514,
+        "size_bytes": 57714
+      },
+      {
+        "path": "sound/world/suck1.wav",
+        "event_type": "suck1",
+        "duration_s": 13.786,
+        "rms": 0.1135,
+        "size_bytes": 608004
+      },
+      {
+        "path": "sound/world/telein.wav",
+        "event_type": "telein",
+        "duration_s": 1.029,
+        "rms": 0.3758,
+        "size_bytes": 98844
+      },
+      {
+        "path": "sound/world/teleout.wav",
+        "event_type": "teleout",
+        "duration_s": 1.028,
+        "rms": 0.2661,
+        "size_bytes": 98756
+      },
+      {
+        "path": "sound/world/tim_comp_hum3.wav",
+        "event_type": "tim_comp_hum3",
+        "duration_s": 5.446,
+        "rms": 0.0638,
+        "size_bytes": 240196
+      },
+      {
+        "path": "sound/world/tim_drone1.wav",
+        "event_type": "tim_drone1",
+        "duration_s": 4.698,
+        "rms": 0.2265,
+        "size_bytes": 207444
+      },
+      {
+        "path": "sound/world/tim_elect.wav",
+        "event_type": "tim_elect",
+        "duration_s": 1.644,
+        "rms": 0.032,
+        "size_bytes": 72540
+      }
+    ]
+  }
+}

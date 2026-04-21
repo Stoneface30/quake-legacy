@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<!--
+  PANTHEON // RENDER APPROVAL FLOW
+  UX Prototype: dual video players + flow_plan git diff changelist
+               + approve/reject/revise buttons + version tagging
+
+  Serve from QUAKE_LEGACY root:
+    python -m http.server 8000
+    http://localhost:8000/creative_suite/frontend/prototypes/review/
+
+  Depends on: ../../style.css + ../../pantheon.css
+  No backend. All diff data is mock inline.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PANTHEON // RENDER APPROVAL FLOW</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Bebas+Neue&family=Black+Ops+One&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../pantheon.css">
+  <style>
+    body { overflow-y: auto; min-height: 100vh; background: var(--bg); }
+
+    .review-shell {
+      display: flex;
+      flex-direction: column;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px 16px 40px;
+      gap: 12px;
+      font-family: var(--font);
+    }
+
+    /* ─── Page header ────────────────────────────────────────────── */
+    .page-header {
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+      padding: 16px 0 8px;
+      border-bottom: 1px solid var(--border-hot);
+    }
+
+    .page-logo {
+      font-family: var(--font-hero);
+      font-size: 28px;
+      letter-spacing: .24em;
+      color: var(--silver-bright);
+    }
+
+    .page-divider { color: var(--border-hot); font-size: 18px; }
+
+    .page-sub {
+      font-family: var(--font-head);
+      font-size: 10px;
+      letter-spacing: .24em;
+      color: var(--silver-dim);
+    }
+
+    .part-badge {
+      margin-left: auto;
+      font-family: var(--font-head);
+      font-size: 10px;
+      letter-spacing: .2em;
+      color: var(--gold);
+      border: 1px solid var(--gold);
+      padding: 2px 10px;
+    }
+
+    /* ─── Status bar ─────────────────────────────────────────────── */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border-hot);
+      font-size: 9px;
+      letter-spacing: .08em;
+    }
+
+    .status-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--silver-mute);
+      flex-shrink: 0;
+    }
+
+    .status-dot.pending { background: var(--silver); animation: blink-s 2s infinite; }
+    .status-dot.approved { background: var(--gold); box-shadow: 0 0 5px var(--gold); }
+    .status-dot.rejected { background: var(--red-hot); box-shadow: 0 0 5px var(--red); }
+
+    @keyframes blink-s { 0%,100%{opacity:1} 50%{opacity:.25} }
+
+    .status-txt { color: var(--silver-bright); }
+    .status-sub { color: var(--silver-dim); }
+    .status-ts { margin-left: auto; color: var(--silver-mute); font-size: 8px; }
+
+    /* ─── Video compare grid ─────────────────────────────────────── */
+    .compare-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .ver-card {
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+
+    .ver-card-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 10px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border-hot);
+      font-size: 9px;
+    }
+
+    .ver-label {
+      font-family: var(--font-head);
+      font-size: 9px;
+      letter-spacing: .22em;
+    }
+
+    .ver-label.old { color: var(--silver-dim); }
+    .ver-label.new { color: var(--gold); }
+
+    .ver-tag {
+      font-family: var(--font);
+      font-size: 8px;
+      letter-spacing: .06em;
+      color: var(--silver-mute);
+      border: 1px solid var(--border-hot);
+      padding: 0 5px;
+    }
+
+    .ver-tag.active { border-color: var(--gold); color: var(--gold); }
+
+    .ver-stats {
+      display: flex;
+      gap: 10px;
+      margin-left: auto;
+      font-size: 8px;
+    }
+
+    .ver-stat { color: var(--silver-mute); letter-spacing: .05em; }
+    .ver-stat span { color: var(--silver); margin-left: 3px; }
+
+    /* Video slot */
+    .vid-area {
+      flex: 1;
+      background: #000;
+      min-height: 200px;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: none;
+    }
+
+    video.loaded { display: block; }
+
+    .vid-drop-z {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border: 1px dashed var(--border-hot);
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+
+    .vid-drop-z:hover { border-color: var(--silver); background: var(--silver-glo); }
+    .vid-drop-z.hidden { display: none; }
+
+    .vid-drop-icon { font-size: 22px; color: var(--border-hot); }
+    .vid-drop-txt { font-size: 9px; color: var(--silver-dim); letter-spacing: .08em; }
+    .vid-drop-hint { font-size: 7px; color: var(--silver-mute); letter-spacing: .06em; }
+
+    /* Scrub strip shared */
+    .shared-scrub {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 10px;
+      border-top: 1px solid var(--border);
+      background: var(--surface2);
+    }
+
+    .ss-t {
+      font-family: var(--font);
+      font-size: 9px;
+      color: var(--silver-dim);
+      width: 40px;
+      flex-shrink: 0;
+    }
+
+    .ss-t.right { text-align: right; }
+
+    .ss-track {
+      flex: 1;
+      height: 6px;
+      background: var(--bg);
+      border: 1px solid var(--border-hot);
+      position: relative;
+      cursor: pointer;
+    }
+
+    .ss-fill {
+      position: absolute; left: 0; top: 0; bottom: 0;
+      background: var(--silver);
+      pointer-events: none;
+    }
+
+    .ss-thumb {
+      position: absolute; top: -4px; left: 0%;
+      width: 2px; height: 14px;
+      background: var(--gold);
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+
+    .sync-btn {
+      background: none;
+      border: 1px solid var(--border-hot);
+      color: var(--silver-dim);
+      font-family: var(--font);
+      font-size: 8px;
+      padding: 1px 7px;
+      cursor: pointer;
+      letter-spacing: .06em;
+      transition: all .1s;
+    }
+
+    .sync-btn.on { background: var(--red); border-color: var(--red-hot); color: #fff; }
+
+    /* ─── Changelist ─────────────────────────────────────────────── */
+    .section-head {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 0 4px;
+    }
+
+    .section-head h2 {
+      font-family: var(--font-head);
+      font-size: 10px;
+      letter-spacing: .24em;
+      color: var(--silver-bright);
+      margin: 0;
+    }
+
+    .section-count {
+      font-size: 8px;
+      color: var(--silver-mute);
+      letter-spacing: .08em;
+      border: 1px solid var(--border-hot);
+      padding: 1px 6px;
+    }
+
+    .diff-table {
+      background: var(--surface);
+      border: 1px solid var(--border);
+    }
+
+    .diff-header {
+      display: grid;
+      grid-template-columns: 90px 60px 160px 160px 120px 1fr;
+      gap: 8px;
+      padding: 5px 10px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border-hot);
+      font-size: 8px;
+      letter-spacing: .12em;
+      color: var(--silver-mute);
+    }
+
+    .diff-row {
+      display: grid;
+      grid-template-columns: 90px 60px 160px 160px 120px 1fr;
+      gap: 8px;
+      padding: 4px 10px;
+      border-bottom: 1px solid var(--border);
+      align-items: center;
+      font-size: 9px;
+      transition: background .1s;
+      cursor: default;
+    }
+
+    .diff-row:last-child { border-bottom: none; }
+    .diff-row:hover { background: var(--silver-glo); }
+
+    .diff-domain {
+      font-family: var(--font-head);
+      font-size: 7px;
+      letter-spacing: .14em;
+      color: var(--silver-mute);
+    }
+
+    .diff-field { color: var(--silver-dim); letter-spacing: .05em; }
+
+    .diff-old {
+      color: var(--red-hot);
+      font-family: var(--font);
+      text-decoration: line-through;
+      opacity: .7;
+    }
+
+    .diff-new {
+      color: var(--gold);
+      font-family: var(--font);
+    }
+
+    .diff-new.better { color: var(--gold); }
+    .diff-new.worse  { color: var(--red-hot); text-decoration: none; }
+    .diff-new.neutral { color: var(--silver); }
+
+    .diff-impact {
+      font-size: 8px;
+      letter-spacing: .07em;
+    }
+
+    .diff-impact.positive { color: var(--gold); }
+    .diff-impact.negative { color: var(--red-hot); }
+    .diff-impact.neutral  { color: var(--silver-dim); }
+
+    .diff-note { color: var(--silver-dim); font-size: 8px; letter-spacing: .05em; }
+
+    /* ─── Notes section ──────────────────────────────────────────── */
+    .notes-area {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .notes-label {
+      font-family: var(--font-head);
+      font-size: 8px;
+      letter-spacing: .2em;
+      color: var(--silver-dim);
+    }
+
+    .notes-input {
+      background: var(--bg);
+      border: 1px solid var(--border-hot);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 10px;
+      padding: 6px 10px;
+      resize: vertical;
+      min-height: 60px;
+      letter-spacing: .04em;
+      outline: none;
+      transition: border-color .12s;
+    }
+
+    .notes-input:focus { border-color: var(--silver); }
+    .notes-input::placeholder { color: var(--silver-mute); }
+
+    /* ─── Approval bar ───────────────────────────────────────────── */
+    .approval-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      background: var(--surface2);
+      border: 1px solid var(--border-hot);
+    }
+
+    .approval-verdict {
+      font-family: var(--font-head);
+      font-size: 13px;
+      letter-spacing: .22em;
+      flex: 1;
+    }
+
+    .approval-verdict.pending  { color: var(--silver-dim); }
+    .approval-verdict.approved { color: var(--gold); }
+    .approval-verdict.rejected { color: var(--red-hot); }
+
+    .ver-input {
+      background: var(--bg);
+      border: 1px solid var(--border-hot);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 9px;
+      padding: 5px 9px;
+      width: 160px;
+      letter-spacing: .06em;
+      outline: none;
+      transition: border-color .12s;
+    }
+
+    .ver-input:focus { border-color: var(--gold); }
+    .ver-input::placeholder { color: var(--silver-mute); }
+
+    .btn-approve {
+      background: var(--surface2);
+      border: 1px solid var(--gold);
+      color: var(--gold);
+      font-family: var(--font-head);
+      font-size: 10px;
+      letter-spacing: .16em;
+      padding: 7px 18px;
+      cursor: pointer;
+      transition: background .12s, box-shadow .12s;
+    }
+
+    .btn-approve:hover {
+      background: var(--gold-dim);
+      box-shadow: 0 0 16px var(--gold-glo);
+    }
+
+    .btn-approve:active {
+      background: var(--gold);
+      color: #000;
+    }
+
+    .btn-reject {
+      background: transparent;
+      border: 1px solid var(--border-hot);
+      color: var(--silver-dim);
+      font-family: var(--font-head);
+      font-size: 10px;
+      letter-spacing: .14em;
+      padding: 7px 18px;
+      cursor: pointer;
+      transition: all .12s;
+    }
+
+    .btn-reject:hover {
+      border-color: var(--red);
+      color: var(--red-hot);
+    }
+
+    .btn-revise {
+      background: transparent;
+      border: 1px solid var(--border-hot);
+      color: var(--silver-dim);
+      font-family: var(--font);
+      font-size: 9px;
+      letter-spacing: .1em;
+      padding: 6px 14px;
+      cursor: pointer;
+      transition: all .12s;
+    }
+
+    .btn-revise:hover {
+      border-color: var(--silver);
+      color: var(--silver-bright);
+    }
+
+    /* Verdict overlay on video */
+    .ver-verdict-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .3s;
+    }
+
+    .ver-verdict-overlay.show { opacity: 1; }
+
+    .verdict-stamp {
+      font-family: var(--font-head);
+      font-size: 52px;
+      letter-spacing: .18em;
+      border: 4px solid;
+      padding: 8px 24px;
+      transform: rotate(-12deg);
+    }
+
+    .verdict-stamp.approved {
+      color: var(--gold);
+      border-color: var(--gold);
+      text-shadow: 0 0 24px var(--gold);
+    }
+
+    .verdict-stamp.rejected {
+      color: var(--red-hot);
+      border-color: var(--red-hot);
+      text-shadow: 0 0 24px var(--red-glo);
+    }
+
+    /* Proto header */
+    .proto-header {
+      text-align: center;
+      padding: 24px 20px 0px;
+      font-family: var(--font-head);
+      font-size: 11px;
+      letter-spacing: .28em;
+      color: var(--silver-dim);
+    }
+
+    .proto-header h1 {
+      font-family: var(--font-hero);
+      font-size: 28px;
+      letter-spacing: .16em;
+      color: var(--silver-bright);
+      margin: 0 0 4px;
+    }
+
+    .proto-header p {
+      font-size: 9px;
+      color: var(--silver-mute);
+      letter-spacing: .1em;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="review-shell">
+
+    <div class="proto-header">
+      <h1>PANTHEON</h1>
+      <p>// RENDER APPROVAL FLOW PROTOTYPE · MOCK DATA · NO BACKEND</p>
+    </div>
+
+    <!-- Page header -->
+    <div class="page-header">
+      <span class="page-logo">PANTHEON</span>
+      <span class="page-divider">//</span>
+      <span class="page-sub">RENDER APPROVAL CONSOLE</span>
+      <span class="part-badge" id="part-badge">PART 04</span>
+    </div>
+
+    <!-- Status bar -->
+    <div class="status-bar">
+      <div class="status-dot pending" id="status-dot"></div>
+      <span class="status-txt" id="status-txt">AWAITING REVIEW</span>
+      <span class="status-sub" id="status-sub">Comparing v9 → v10 · 8 parameter changes</span>
+      <span class="status-ts">2026-04-19 15:40 UTC</span>
+    </div>
+
+    <!-- Video compare -->
+    <div>
+      <div class="section-head">
+        <h2>// RENDER COMPARE</h2>
+        <button class="sync-btn on" id="sync-btn">⇌ SYNC</button>
+      </div>
+
+      <div class="compare-grid">
+
+        <!-- Version A (old) -->
+        <div class="ver-card" id="card-a">
+          <div class="ver-card-bar">
+            <span class="ver-label old">VERSION A</span>
+            <span class="ver-tag">v9 · 2026-04-18</span>
+            <div class="ver-stats">
+              <span class="ver-stat">CLIPS <span>24</span></span>
+              <span class="ver-stat">DUR <span>8:12</span></span>
+              <span class="ver-stat">DRIFT <span>12ms</span></span>
+            </div>
+          </div>
+          <div class="vid-area">
+            <video id="vid-a" preload="metadata" muted playsinline></video>
+            <div class="vid-drop-z" id="drop-a">
+              <div class="vid-drop-icon">⊞</div>
+              <div class="vid-drop-txt">DROP v9 MP4</div>
+              <div class="vid-drop-hint">or click to browse</div>
+              <input type="file" accept="video/*"
+                     style="position:absolute;inset:0;opacity:0;cursor:pointer"
+                     id="inp-a">
+            </div>
+            <div class="ver-verdict-overlay" id="overlay-a">
+              <div class="verdict-stamp rejected">SUPERSEDED</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Version B (new) -->
+        <div class="ver-card" id="card-b">
+          <div class="ver-card-bar">
+            <span class="ver-label new">VERSION B</span>
+            <span class="ver-tag active">v10 · 2026-04-19</span>
+            <div class="ver-stats">
+              <span class="ver-stat">CLIPS <span>22</span></span>
+              <span class="ver-stat">DUR <span>7:58</span></span>
+              <span class="ver-stat">DRIFT <span>8ms</span></span>
+            </div>
+          </div>
+          <div class="vid-area">
+            <video id="vid-b" preload="metadata" muted playsinline></video>
+            <div class="vid-drop-z" id="drop-b">
+              <div class="vid-drop-icon">⊞</div>
+              <div class="vid-drop-txt">DROP v10 MP4</div>
+              <div class="vid-drop-hint">or click to browse</div>
+              <input type="file" accept="video/*"
+                     style="position:absolute;inset:0;opacity:0;cursor:pointer"
+                     id="inp-b">
+            </div>
+            <div class="ver-verdict-overlay" id="overlay-b">
+              <div class="verdict-stamp approved">APPROVED</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Shared scrub -->
+      <div class="shared-scrub">
+        <span class="ss-t" id="ss-cur">0:00</span>
+        <div class="ss-track" id="ss-track">
+          <div class="ss-fill" id="ss-fill"></div>
+          <div class="ss-thumb" id="ss-thumb"></div>
+        </div>
+        <span class="ss-t right" id="ss-dur">0:00</span>
+        <button class="sync-btn" id="play-btn">▶ PLAY BOTH</button>
+      </div>
+    </div>
+
+    <!-- Changelist -->
+    <div>
+      <div class="section-head">
+        <h2>// CHANGES v9 → v10</h2>
+        <span class="section-count" id="change-count">8 CHANGES</span>
+      </div>
+
+      <div class="diff-table">
+        <div class="diff-header">
+          <span>DOMAIN</span>
+          <span>RULE</span>
+          <span>FIELD</span>
+          <span>v9 (OLD)</span>
+          <span>v10 (NEW)</span>
+          <span>IMPACT</span>
+        </div>
+        <!-- Rows populated by JS -->
+        <div id="diff-rows"></div>
+      </div>
+    </div>
+
+    <!-- Notes -->
+    <div class="notes-area">
+      <span class="notes-label">REVIEW NOTES</span>
+      <textarea class="notes-input"
+                id="notes-input"
+                placeholder="Add review notes... (saved with verdict)"></textarea>
+    </div>
+
+    <!-- Approval bar -->
+    <div class="approval-bar">
+      <span class="approval-verdict pending" id="verdict-label">PENDING REVIEW</span>
+      <input class="ver-input" id="ver-tag-input" type="text" placeholder="version tag (e.g. v10.1-approved)">
+      <button class="btn-revise" id="btn-revise">↩ REQUEST REVISE</button>
+      <button class="btn-reject" id="btn-reject">✕ REJECT — KEEP v9</button>
+      <button class="btn-approve" id="btn-approve">✓ APPROVE v10 →→</button>
+    </div>
+
+  </div><!-- /review-shell -->
+
+  <script>
+  'use strict';
+  /* ─────────────────────────────────────────────────────────────────
+     RENDER APPROVAL FLOW PROTOTYPE
+     Mock diff data reflects real rule changes from P1-G v4, P1-H v4,
+     P1-L v4, P1-X (music v from v9 to v10).
+   ──────────────────────────────────────────────────────────────── */
+
+  // Mock changelist (reflects actual v9→v10 rule diffs)
+  const CHANGES = [
+    { domain: 'AUDIO',   rule: 'P1-G v4', field: 'music_volume',       old: '0.30',      new: '0.20',      impact: 'QUIETER MUSIC',        impact_type: 'positive', note: 'Music drops 10% to pass ebur128 gate (≥12 LU below game)' },
+    { domain: 'AUDIO',   rule: 'P1-G v4', field: 'music_fadein_s',     old: '0.0',       new: '2.0',       impact: 'FADE-IN 2s',           impact_type: 'positive', note: 'Music no longer hard-starts; fades in under PANTHEON intro' },
+    { domain: 'VIDEO',   rule: 'P1-H v4', field: 'seam_xfade_dur',     old: '0.15s',     new: '0.40s',     impact: 'VISIBLE TRANSITIONS',  impact_type: 'positive', note: '0.15s was invisible; 0.40s crosses the perceptual threshold' },
+    { domain: 'TRIM',    rule: 'P1-L v4', field: 'clip_head_trim_fp',  old: '1.0s',      new: '0.0s',      impact: 'FP CLIPS UNTRIMMED',   impact_type: 'positive', note: 'FP = the frag itself; head never had console reappearance' },
+    { domain: 'TRIM',    rule: 'P1-L v4', field: 'clip_tail_trim_fp',  old: '2.5s',      new: '0.0s',      impact: 'FP CLIPS UNTRIMMED',   impact_type: 'positive', note: 'Tail trim was eating follow-through; removed for FP' },
+    { domain: 'TRIM',    rule: 'P1-L v4', field: 'clip_head_trim_fl',  old: '2.0s',      new: '1.0s',      impact: '−1s FL HEAD',          impact_type: 'neutral',  note: 'FL still needs console trim; reduced from 2s to 1s' },
+    { domain: 'INTRO',   rule: 'P1-X',    field: 'intro_clip_duration','old': '7.0s',    new: '5.0s',      impact: '−2s INTRO',            impact_type: 'positive', note: 'Logo beat lands at 5s; extra 2s was dead air' },
+    { domain: 'CLIPS',   rule: 'P1-U',    field: 'clip_count',         old: '24',        new: '22',        impact: '−2 CLIPS DROPPED',     impact_type: 'neutral',  note: '2 clips below min_playable_duration (2.0s after trim)' },
+  ];
+
+  // Populate diff table
+  const diffRows = document.getElementById('diff-rows');
+
+  function esc(s) {
+    return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  CHANGES.forEach(c => {
+    const row = document.createElement('div');
+    row.className = 'diff-row';
+
+    const domain = document.createElement('span');
+    domain.className = 'diff-domain';
+    domain.textContent = c.domain;
+
+    const rule = document.createElement('span');
+    rule.className = 'diff-field';
+    rule.style.cssText = 'font-size:8px;color:var(--silver-mute)';
+    rule.textContent = c.rule;
+
+    const field = document.createElement('span');
+    field.className = 'diff-field';
+    field.textContent = c.field;
+
+    const oldVal = document.createElement('span');
+    oldVal.className = 'diff-old';
+    oldVal.textContent = c.old;
+
+    const newVal = document.createElement('span');
+    newVal.className = 'diff-new ' + (c.impact_type === 'negative' ? 'worse' : c.impact_type === 'neutral' ? 'neutral' : 'better');
+    newVal.textContent = c.new;
+
+    const impact = document.createElement('span');
+    impact.className = 'diff-impact ' + c.impact_type;
+    impact.title = c.note;
+    impact.textContent = c.impact;
+
+    row.appendChild(domain);
+    row.appendChild(rule);
+    row.appendChild(field);
+    row.appendChild(oldVal);
+    row.appendChild(newVal);
+    row.appendChild(impact);
+
+    diffRows.appendChild(row);
+  });
+
+  document.getElementById('change-count').textContent = CHANGES.length + ' CHANGES';
+
+  // ── Video loading ────────────────────────────────────────────────
+  const vidA = document.getElementById('vid-a');
+  const vidB = document.getElementById('vid-b');
+  let syncActive = true;
+  let playing = false;
+
+  function loadVideo(vid, drop, file) {
+    const url = URL.createObjectURL(file);
+    vid.src = url;
+    drop.classList.add('hidden');
+    vid.classList.add('loaded');
+    vid.addEventListener('loadedmetadata', () => {
+      updateScrub(vid, vid.currentTime);
+    });
+  }
+
+  document.getElementById('inp-a').addEventListener('change', e => {
+    if (e.target.files[0]) loadVideo(vidA, document.getElementById('drop-a'), e.target.files[0]);
+  });
+
+  document.getElementById('inp-b').addEventListener('change', e => {
+    if (e.target.files[0]) loadVideo(vidB, document.getElementById('drop-b'), e.target.files[0]);
+  });
+
+  // ── Sync playback ────────────────────────────────────────────────
+  document.getElementById('sync-btn').addEventListener('click', e => {
+    e.target.classList.toggle('on');
+    syncActive = e.target.classList.contains('on');
+  });
+
+  document.getElementById('play-btn').addEventListener('click', () => {
+    playing = !playing;
+    const btn = document.getElementById('play-btn');
+    if (playing) {
+      if (vidA.src) vidA.play();
+      if (vidB.src) vidB.play();
+      btn.textContent = '▌▌ PAUSE BOTH';
+    } else {
+      if (vidA.src) vidA.pause();
+      if (vidB.src) vidB.pause();
+      btn.textContent = '▶ PLAY BOTH';
+    }
+  });
+
+  // Sync: when A moves, B follows
+  vidA.addEventListener('timeupdate', () => {
+    if (syncActive && vidB.src && Math.abs(vidA.currentTime - vidB.currentTime) > 0.1) {
+      vidB.currentTime = vidA.currentTime;
+    }
+    updateScrub(vidA, vidA.currentTime);
+  });
+
+  vidB.addEventListener('timeupdate', () => {
+    if (!syncActive) updateScrub(vidB, vidB.currentTime);
+  });
+
+  // ── Shared scrub ─────────────────────────────────────────────────
+  function fmtTime(s) {
+    if (!isFinite(s)) return '0:00';
+    const m = Math.floor(s / 60);
+    return m + ':' + Math.floor(s % 60).toString().padStart(2, '0');
+  }
+
+  function updateScrub(vid, t) {
+    const dur = vid.duration || 1;
+    const pct = (t / dur) * 100;
+    document.getElementById('ss-fill').style.width = pct + '%';
+    document.getElementById('ss-thumb').style.left = pct + '%';
+    document.getElementById('ss-cur').textContent = fmtTime(t);
+    document.getElementById('ss-dur').textContent = fmtTime(dur);
+  }
+
+  const ssTrack = document.getElementById('ss-track');
+  let ssScrubbing = false;
+
+  function scrubBoth(e) {
+    const rect = ssTrack.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const ref = vidA.src ? vidA : vidB;
+    const t = pct * (ref.duration || 0);
+    if (vidA.src) vidA.currentTime = t;
+    if (vidB.src) vidB.currentTime = t;
+  }
+
+  ssTrack.addEventListener('mousedown', e => { ssScrubbing = true; scrubBoth(e); });
+  window.addEventListener('mousemove', e => { if (ssScrubbing) scrubBoth(e); });
+  window.addEventListener('mouseup', () => { ssScrubbing = false; });
+
+  // ── Verdict buttons ──────────────────────────────────────────────
+  let verdict = null;
+
+  function setVerdict(v) {
+    verdict = v;
+    const label = document.getElementById('verdict-label');
+    const dot = document.getElementById('status-dot');
+    const statusTxt = document.getElementById('status-txt');
+    const overlayA = document.getElementById('overlay-a');
+    const overlayB = document.getElementById('overlay-b');
+
+    label.className = 'approval-verdict ' + v;
+    dot.className = 'status-dot ' + v;
+
+    if (v === 'approved') {
+      label.textContent = 'APPROVED — v10 SHIPS';
+      statusTxt.textContent = 'APPROVED';
+      overlayB.classList.add('show');
+    } else if (v === 'rejected') {
+      label.textContent = 'REJECTED — v9 STAYS';
+      statusTxt.textContent = 'REJECTED';
+      overlayA.classList.add('show');
+    } else {
+      label.textContent = 'REVISION REQUESTED';
+      statusTxt.textContent = 'REVISION REQUESTED';
+    }
+
+    document.getElementById('status-sub').textContent =
+      'Notes: ' + (document.getElementById('notes-input').value.trim() || '(none)');
+  }
+
+  document.getElementById('btn-approve').addEventListener('click', () => {
+    const tag = document.getElementById('ver-tag-input').value.trim();
+    if (!tag) {
+      document.getElementById('ver-tag-input').focus();
+      document.getElementById('ver-tag-input').style.borderColor = 'var(--red)';
+      return;
+    }
+    setVerdict('approved');
+    document.getElementById('part-badge').textContent = 'PART 04 — ' + tag.toUpperCase();
+  });
+
+  document.getElementById('btn-reject').addEventListener('click', () => setVerdict('rejected'));
+  document.getElementById('btn-revise').addEventListener('click', () => setVerdict('pending'));
+
+  document.getElementById('ver-tag-input').addEventListener('input', e => {
+    e.target.style.borderColor = '';
+  });
+  </script>
+</body>
+</html>

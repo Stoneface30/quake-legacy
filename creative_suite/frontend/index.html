@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PANTHEON // REVIEW CONSOLE</title>
+  <!--
+    SERVE FROM REPO ROOT for JSON auto-load:
+      cd G:\QUAKE_LEGACY
+      python -m http.server 8000
+      http://localhost:8000/creative_suite/frontend/
+
+    Serving from frontend dir: JSON must be dropped manually via LOAD JSON button.
+  -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="pantheon.css">
+  <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js"}}</script>
+</head>
+<body>
+<div class="shell">
+
+  <!-- ─── HEADER ──────────────────────────────────────────────────────── -->
+  <header class="hdr">
+    <canvas id="hdr-canvas"></canvas>
+    <div class="hdr-inner">
+
+      <div class="logo">
+        <span class="logo-cross">⊕</span>
+        <span class="logo-name">PANTHEON</span>
+        <span class="logo-div">//</span>
+        <span class="logo-sub">REVIEW CONSOLE v2</span>
+      </div>
+
+      <nav class="part-nav">
+        <span class="nav-label">PART</span>
+        <div id="part-btns" class="part-btns"></div>
+      </nav>
+
+      <div class="hdr-actions">
+        <button class="hdr-btn" id="btn-load-flow" title="Manually load flow_plan.json">⊞ FLOW JSON</button>
+        <button class="hdr-btn" id="btn-load-event" title="Manually load event_diversity.json">⊞ EVENT JSON</button>
+        <input type="file" id="inp-flow" accept=".json" style="display:none">
+        <input type="file" id="inp-event" accept=".json" style="display:none">
+      </div>
+
+      <div class="hdr-status">
+        <div class="status-led" id="status-led"></div>
+        <span id="status-txt">INIT</span>
+      </div>
+
+    </div>
+  </header>
+
+  <!-- ─── THREE PANELS ────────────────────────────────────────────────── -->
+  <main class="panels">
+
+    <!-- ── PANEL 1 : RENDER COMPARE ────────────────────────────────── -->
+    <section class="panel p-compare">
+      <div class="panel-bar">
+        <span class="panel-title">// RENDER COMPARE</span>
+        <div class="panel-acts">
+          <button class="pnl-btn" id="btn-play">▶ PLAY</button>
+          <button class="pnl-btn on" id="btn-sync">⇌ SYNC</button>
+        </div>
+      </div>
+
+      <div class="ab-layout">
+        <!-- Slot A -->
+        <div class="ab-slot" id="slot-a">
+          <div class="ab-tag" id="tag-a">VERSION A</div>
+          <div class="drop-z" id="drop-a">
+            <div class="drop-icon">⊞</div>
+            <p class="drop-txt">DROP VIDEO<br><span class="drop-hint">or click to browse</span></p>
+            <input type="file" accept="video/*" class="drop-inp" id="inp-vid-a">
+          </div>
+          <video class="vid" id="vid-a" preload="metadata" muted playsinline></video>
+          <div class="ab-meta" id="meta-a">—</div>
+        </div>
+
+        <div class="ab-divider"></div>
+
+        <!-- Slot B -->
+        <div class="ab-slot" id="slot-b">
+          <div class="ab-tag" id="tag-b">VERSION B</div>
+          <div class="drop-z" id="drop-b">
+            <div class="drop-icon">⊞</div>
+            <p class="drop-txt">DROP VIDEO<br><span class="drop-hint">or click to browse</span></p>
+            <input type="file" accept="video/*" class="drop-inp" id="inp-vid-b">
+          </div>
+          <video class="vid" id="vid-b" preload="metadata" muted playsinline></video>
+          <div class="ab-meta" id="meta-b">—</div>
+        </div>
+      </div>
+
+      <!-- Shared scrub -->
+      <div class="scrub-row">
+        <span class="scrub-t" id="scrub-cur">0:00</span>
+        <div class="scrub-track" id="scrub-track">
+          <div class="scrub-fill" id="scrub-fill"></div>
+          <div class="scrub-marks" id="scrub-marks"></div>
+          <div class="scrub-thumb" id="scrub-thumb"></div>
+        </div>
+        <span class="scrub-t right" id="scrub-dur">0:00</span>
+      </div>
+
+      <!-- VMAF row -->
+      <div class="vmaf-row">
+        <span class="vmaf-lbl">VMAF</span>
+        <div class="vmaf-wrap" id="vmaf-wrap">
+          <span class="vmaf-empty">drop vmaf.json to enable</span>
+        </div>
+        <input type="file" accept=".json" id="inp-vmaf" style="display:none">
+        <button class="pnl-btn" id="btn-vmaf">↑ LOAD</button>
+      </div>
+    </section>
+
+    <!-- ── PANEL 2 : FLOW PLAN ──────────────────────────────────────── -->
+    <section class="panel p-flow">
+      <div class="panel-bar">
+        <span class="panel-title">// FLOW PLAN</span>
+        <div class="panel-acts">
+          <span class="data-pill" id="flow-count">— CLIPS</span>
+          <button class="pnl-btn" id="btn-zoom-out">− ZOOM</button>
+          <button class="pnl-btn" id="btn-zoom-in">+ ZOOM</button>
+        </div>
+      </div>
+
+      <div class="flow-legend">
+        <span class="leg drop">■ DROP</span>
+        <span class="leg build">■ BUILD</span>
+        <span class="leg brk">■ BREAK</span>
+        <span class="leg intro">■ INTRO</span>
+        <span class="leg outro">■ OUTRO</span>
+        <span class="leg-sep">│</span>
+        <span class="leg t1">▌T1</span>
+        <span class="leg t2">▌T2</span>
+        <span class="leg t3">▌T3</span>
+      </div>
+
+      <div class="flow-scroll" id="flow-scroll">
+        <div class="flow-tl" id="flow-tl">
+          <div class="flow-clips" id="flow-clips"></div>
+          <div class="flow-axis" id="flow-axis"></div>
+        </div>
+      </div>
+
+      <div class="flow-tip" id="flow-tip"></div>
+    </section>
+
+    <!-- ── PANEL 3 : EVENT DIVERSITY ────────────────────────────────── -->
+    <section class="panel p-events">
+      <div class="panel-bar">
+        <span class="panel-title">// EVENT DIVERSITY</span>
+        <div class="panel-acts">
+          <span class="data-pill" id="ev-total">— EVENTS</span>
+          <button class="pnl-btn" id="btn-ev-sort" title="Sort by count / weight">≡ COUNT</button>
+        </div>
+      </div>
+
+      <div class="ev-chart-wrap">
+        <canvas id="ev-canvas"></canvas>
+      </div>
+
+      <div class="ev-detail" id="ev-detail">
+        <div class="ev-placeholder">click bar → top clips for that event type</div>
+      </div>
+
+      <div class="ev-stats" id="ev-stats"></div>
+    </section>
+
+  </main>
+</div>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+# Part 6 — v10 per-clip overrides
+# Inherits audio foundation (P1-G v5, P1-Z, P1-AA, P1-BB, P1-CC) + Bungee Inline title card.
+#
+# Carry-forward from v9 header in part06.txt (now expressible via override grammar):
+Demo (152)  - 83.avi: slow=0.5, flag=SLOWMO_TAIL_REQUESTED
+Demo (17)  -  112.avi: flag=REPLAY_NORMAL_THEN_SLOW_REQUESTED

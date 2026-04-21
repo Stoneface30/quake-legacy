@@ -1,0 +1,149 @@
+# Part 6 clip list -- v9 (Part 6 v8 draft review 2026-04-18)
+# User edits applied:
+#  - Demo (107)  - 14 REMOVED per user "remove 107-14"
+#  - Demo (107FL2) relocated next to Demo (107) - 13 (was floating in T1 head)
+#    so FL2 sits as the angle-replay of 107-13/107FL1 per Rule P1-K.
+#  - Demo (17)  -  112 and Demo (152)  -  83: flagged [slow] — user asked for
+#    "replay normal then slowmo" (17-112) and "slowmo last second" (152-83).
+#    Full-clip slow is the v9 approximation; [replay]/[slow_tail] grammar
+#    ships in v10.
+#  - Demo (205FL2) last-frame bug: no per-frame trim grammar yet in v9;
+#    workaround = the 2.5 s tail trim (P1-L v3) should eat the bug frame.
+#    If not, v10 adds bad-frame exclusion registry.
+# One filename per line. Lines starting with # are ignored.
+# Grammar: `[slow]` = 0.5× slowmo on the clip; `[fast]`, `[zoom]`, `[intro]`.
+
+# --- T1 (60 clips) ---
+Demo (107)  - 13.avi
+Demo (107FL1).avi
+Demo (107FL2).avi
+Demo (121)  - 38.avi
+Demo (152)  - 83.avi [slow]
+Demo (161)  - 99.avi
+Demo (161FL2).avi
+Demo (161FL3).avi
+Demo (191)  -  147.avi
+Demo (221)  -  198.avi
+Demo (221FL1).avi
+Demo (221FL2).avi
+Demo (227)  -  208.avi
+Demo (244)  -  234.avi
+Demo (267)  -  279.avi
+Demo (29)  -  319.avi
+Demo (301)  -  332.avi
+Demo (329)  -  368.avi
+Demo (329FL1).avi
+Demo (329FL2).avi
+Demo (329FL3).avi
+Demo (329FL4).avi
+Demo (335)  -  384.avi
+Demo (363)  -  436.avi
+Demo (389)  -  479.avi
+Demo (404) - 504.avi
+Demo (404FL1).avi
+Demo (404FL2).avi
+Demo (407) - 507.avi
+Demo (437)  - 539.avi
+Demo (48)  - 583.avi
+Demo (48FL1).avi
+Demo (49)  - 593.avi
+Demo (490)  - 594.avi
+Demo (511)  -  621.avi
+Demo (511FL1).avi
+Demo (526)  -  643.avi
+Demo (563)  - 706.avi
+Demo (563FL1).avi
+Demo (567)  - 712.avi
+Demo (601)  -  755.avi
+Demo (626)  -  782.avi
+Demo (626FL1).avi
+Demo (635)  -  795.avi
+Demo (661)  - 830.avi
+Demo (687)  - 872.avi
+Demo (690)  - 876.avi
+Demo (690FL1).avi
+Demo (690FL2).avi
+Demo (71)  - 895.avi
+Demo (728)  -  919.avi
+Demo (780)  -  968.avi
+Demo (798)  -  989.avi
+Demo (798FL3).avi
+Demo (813)  -  1013.avi
+Demo (847)  -  1066.avi
+Demo (883)  -  1124.avi
+Demo (885)  -  1126.avi
+Demo (885FL1).avi
+Demo (908)  -  1164.avi
+Demo (928)  -  1198.avi
+
+# --- T2 (54 clips — 107-14 removed per user) ---
+Demo (119)  - 34.avi
+Demo (132)  - 52.avi
+Demo (132FL1).avi
+Demo (149)  - 77.avi
+Demo (17)  -  112.avi [slow]
+Demo (172)  -  119.avi
+Demo (194)  -  151.avi
+Demo (205)  -  177.avi
+Demo (205FL2).avi
+Demo (216)  -  193.avi
+Demo (251)  -  244.avi
+Demo (263)  -  274.avi
+Demo (274)  -  294.avi
+Demo (274FL1).avi
+Demo (282)  -  306.avi
+Demo (291)  -  327.avi
+Demo (321)  -  359.avi
+Demo (335)  -  385.avi
+Demo (349)  -  415.avi
+Demo (373)  -  452.avi
+Demo (392)  -  487.avi
+Demo (416)  - 518.avi
+Demo (439)  - 540.avi
+Demo (439FL1).avi
+Demo (448)  - 553.avi
+Demo (45)  - 554.avi
+Demo (477)  - 578.avi
+Demo (506)  -  612.avi
+Demo (528)  -  645.avi
+Demo (544)  - 673.avi
+Demo (560)  - 697.avi
+Demo (594)  - 742.avi
+Demo (594FL1).avi
+Demo (611)  -  764.avi
+Demo (645)  -  807.avi
+Demo (668)  - 840.avi
+Demo (694)  - 879.avi
+Demo (70)  - 883.avi
+Demo (722)-001.avi
+Demo (726)  -  917.avi
+Demo (726FL1).avi
+Demo (767)  -  950.avi
+Demo (789)  -  979.avi
+Demo (830)  -  1037.avi
+Demo (84)  -  1049.avi
+Demo (847)  -  1064.avi
+Demo (861)  -  1090.avi
+Demo (863)  -  1091.avi
+Demo (863FL1).avi
+Demo (889)  -  1131.avi
+Demo (914)  -  1174.avi
+Demo (931)  -  1203.avi
+Demo (931FL1).avi
+Demo (940)  -  1218.avi
+
+# --- T3 (13 clips) ---
+Demo (162)  - 101.avi
+Demo (204)  -  173.avi
+Demo (258)  -  259.avi
+Demo (330)  -  371.avi
+Demo (354)  -  421.avi
+Demo (506)  -  611.avi
+Demo (507)  -  613.avi
+Demo (507FL1).avi
+Demo (598)  - 748.avi
+Demo (68)  - 862.avi
+Demo (857)  -  1080.avi
+Demo (900)  -  1151.avi
+Demo (94)  -  1213.avi
+

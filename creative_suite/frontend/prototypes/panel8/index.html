@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<!--
+  PANTHEON // PANEL 8 — TIER B ENGINE SCRUB
+  UX Prototype: frame counter + time ruler + scrub-by-drag on the frame
+                WebSocket JPEG stream simulation (mock via requestAnimationFrame)
+
+  Serve from QUAKE_LEGACY root:
+    python -m http.server 8000
+    http://localhost:8000/creative_suite/frontend/prototypes/panel8/
+
+  Depends on: ../../style.css  (layout skeleton)
+              ../../pantheon.css (brand tokens)
+  No backend. Simulates 4 Hz frame stream inline.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PANTHEON // PANEL 8 — TIER B ENGINE SCRUB</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;700&family=Bebas+Neue&family=Black+Ops+One&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../pantheon.css">
+  <style>
+    body { overflow: auto; min-height: 100vh; }
+
+    .scrub-shell {
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      max-width: 960px;
+      margin: 20px auto;
+      font-family: var(--font);
+    }
+
+    /* ─── Header bar ─────────────────────────────────────────────── */
+    .scrub-bar {
+      height: 26px;
+      background: var(--surface2);
+      border-bottom: 1px solid var(--border-hot);
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px;
+      flex-shrink: 0;
+    }
+
+    .scrub-bar-title {
+      font-family: var(--font-head);
+      font-size: 9px;
+      letter-spacing: .24em;
+      color: var(--silver-bright);
+      flex: 1;
+    }
+
+    .conn-led {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--silver-mute);
+    }
+
+    .conn-led.live { background: var(--red-hot); animation: blink-s 1s infinite; box-shadow: 0 0 5px var(--red); }
+    .conn-led.ok   { background: var(--gold); box-shadow: 0 0 5px var(--gold); }
+
+    .conn-txt {
+      font-size: 8px;
+      letter-spacing: .1em;
+      color: var(--silver-dim);
+    }
+
+    /* Frame counter */
+    .frame-counter {
+      font-family: var(--font);
+      font-size: 10px;
+      color: var(--gold);
+      letter-spacing: .1em;
+      padding: 0 10px;
+      border-left: 1px solid var(--border-hot);
+      border-right: 1px solid var(--border-hot);
+    }
+
+    /* Demo + seek controls */
+    .seek-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .seek-input {
+      background: var(--bg);
+      border: 1px solid var(--border-hot);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 9px;
+      padding: 2px 7px;
+      width: 78px;
+      letter-spacing: .05em;
+      outline: none;
+    }
+
+    .seek-input:focus { border-color: var(--silver); }
+
+    .seek-btn {
+      background: transparent;
+      border: 1px solid var(--border-hot);
+      color: var(--silver-dim);
+      font-family: var(--font);
+      font-size: 9px;
+      padding: 2px 9px;
+      cursor: pointer;
+      letter-spacing: .06em;
+      transition: all .1s;
+    }
+
+    .seek-btn:hover { border-color: var(--silver); color: var(--silver-bright); }
+    .seek-btn.primary { border-color: var(--red); color: var(--red-hot); }
+    .seek-btn.primary:hover { background: var(--red); color: #fff; }
+
+    /* ─── Time ruler ─────────────────────────────────────────────── */
+    .ruler-row {
+      height: 24px;
+      background: var(--bg);
+      border-bottom: 1px solid var(--border);
+      position: relative;
+      flex-shrink: 0;
+      overflow: hidden;
+      user-select: none;
+      cursor: col-resize;
+    }
+
+    .ruler-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    /* Playhead on ruler */
+    .ruler-playhead {
+      position: absolute;
+      top: 0;
+      width: 1px;
+      height: 100%;
+      background: var(--gold);
+      box-shadow: 0 0 4px var(--gold);
+      pointer-events: none;
+      transform: translateX(-50%);
+    }
+
+    /* ─── Engine frame area ──────────────────────────────────────── */
+    .engine-frame-area {
+      flex: 1;
+      background: #000;
+      position: relative;
+      min-height: 320px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: col-resize;
+      user-select: none;
+      overflow: hidden;
+    }
+
+    #engine-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      object-fit: contain;
+    }
+
+    /* Drag-scrub cursor indicator */
+    .drag-indicator {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: var(--font-head);
+      font-size: 9px;
+      letter-spacing: .2em;
+      color: var(--silver-mute);
+      text-align: center;
+      pointer-events: none;
+      transition: opacity .2s;
+    }
+
+    .drag-indicator.hidden { opacity: 0; }
+
+    /* Scrub delta overlay during drag */
+    .scrub-delta {
+      position: absolute;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,.8);
+      border: 1px solid var(--silver);
+      padding: 4px 14px;
+      font-family: var(--font);
+      font-size: 11px;
+      color: var(--silver-bright);
+      letter-spacing: .1em;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .15s;
+    }
+
+    .scrub-delta.show { opacity: 1; }
+
+    /* ─── Current time display ───────────────────────────────────── */
+    .time-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 6px 12px;
+      background: var(--surface2);
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .time-main {
+      font-family: var(--font);
+      font-size: 14px;
+      letter-spacing: .12em;
+      color: var(--gold);
+      font-weight: 500;
+    }
+
+    .time-sub {
+      font-size: 9px;
+      color: var(--silver-dim);
+      letter-spacing: .08em;
+    }
+
+    .fps-badge {
+      margin-left: auto;
+      font-size: 8px;
+      letter-spacing: .1em;
+      color: var(--silver-mute);
+      border: 1px solid var(--border-hot);
+      padding: 1px 6px;
+    }
+
+    .fps-badge.live { color: var(--red-hot); border-color: var(--red); }
+
+    /* ─── Scrub track ────────────────────────────────────────────── */
+    .full-scrub-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 12px;
+      border-top: 1px solid var(--border);
+      background: var(--surface2);
+      flex-shrink: 0;
+    }
+
+    .full-scrub-t {
+      font-size: 9px;
+      color: var(--silver-dim);
+      width: 50px;
+      font-family: var(--font);
+      letter-spacing: .05em;
+      flex-shrink: 0;
+    }
+
+    .full-scrub-t.right { text-align: right; }
+
+    .full-scrub-track {
+      flex: 1;
+      height: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border-hot);
+      position: relative;
+      cursor: pointer;
+    }
+
+    .full-scrub-fill {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      background: var(--silver);
+      pointer-events: none;
+    }
+
+    .full-scrub-thumb {
+      position: absolute;
+      top: -4px;
+      width: 2px; height: 16px;
+      background: var(--gold);
+      transform: translateX(-50%);
+      pointer-events: none;
+    }
+
+    /* ─── Action buttons ─────────────────────────────────────────── */
+    .action-row {
+      display: flex;
+      gap: 6px;
+      padding: 8px 12px;
+      border-top: 1px solid var(--border);
+      background: var(--bg);
+      flex-shrink: 0;
+    }
+
+    /* ─── Proto header ───────────────────────────────────────────── */
+    .proto-header {
+      text-align: center;
+      padding: 24px 20px 10px;
+      font-family: var(--font-head);
+      font-size: 11px;
+      letter-spacing: .28em;
+      color: var(--silver-dim);
+      background: var(--bg);
+    }
+
+    .proto-header h1 {
+      font-family: var(--font-hero);
+      font-size: 28px;
+      letter-spacing: .16em;
+      color: var(--silver-bright);
+      margin: 0 0 4px;
+    }
+
+    .proto-header p {
+      font-size: 9px;
+      color: var(--silver-mute);
+      letter-spacing: .1em;
+      margin: 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="proto-header">
+    <h1>PANTHEON</h1>
+    <p>// PANEL 8 — TIER B ENGINE SCRUB PROTOTYPE · SIMULATED 4 Hz FRAME STREAM</p>
+  </div>
+
+  <div class="scrub-shell">
+
+    <!-- Header bar -->
+    <div class="scrub-bar">
+      <span class="scrub-bar-title">// TIER B ENGINE SCRUB — PART 04</span>
+      <div class="conn-led" id="conn-led"></div>
+      <span class="conn-txt" id="conn-txt">ENGINE OFFLINE</span>
+      <div class="frame-counter" id="frame-counter">FRAME —/—</div>
+      <div class="seek-controls">
+        <input class="seek-input" id="seek-input" type="text" value="8:52" placeholder="mm:ss">
+        <button class="seek-btn primary" id="seek-btn">⟶ SEEK</button>
+        <button class="seek-btn" id="stop-btn">■ STOP</button>
+        <button class="seek-btn" id="launch-btn">⊕ LAUNCH</button>
+      </div>
+    </div>
+
+    <!-- Time ruler (canvas-drawn) -->
+    <div class="ruler-row" id="ruler-row">
+      <canvas class="ruler-canvas" id="ruler-canvas"></canvas>
+      <div class="ruler-playhead" id="ruler-playhead" style="left:0%"></div>
+    </div>
+
+    <!-- Engine frame (canvas simulating JPEG stream) -->
+    <div class="engine-frame-area" id="frame-area">
+      <canvas id="engine-canvas"></canvas>
+      <div class="drag-indicator" id="drag-indicator">
+        DRAG ← → TO SCRUB<br>
+        <span style="color:var(--silver-mute);font-size:8px;letter-spacing:.08em">CLICK ⊕ LAUNCH TO START ENGINE</span>
+      </div>
+      <div class="scrub-delta" id="scrub-delta">+0.0s</div>
+    </div>
+
+    <!-- Current time -->
+    <div class="time-row">
+      <span class="time-main" id="time-main">8:52.000</span>
+      <span class="time-sub" id="time-sub">SEEKCLOCK</span>
+      <span class="fps-badge" id="fps-badge">4 Hz STREAM</span>
+    </div>
+
+    <!-- Full scrub row -->
+    <div class="full-scrub-row">
+      <span class="full-scrub-t" id="full-scrub-start">0:00</span>
+      <div class="full-scrub-track" id="full-scrub-track">
+        <div class="full-scrub-fill" id="full-scrub-fill" style="width:0%"></div>
+        <div class="full-scrub-thumb" id="full-scrub-thumb" style="left:0%"></div>
+      </div>
+      <span class="full-scrub-t right" id="full-scrub-end">—</span>
+    </div>
+
+    <!-- Actions -->
+    <div class="action-row">
+      <button class="seek-btn primary" id="btn-prev-clip">⟵ PREV CLIP</button>
+      <button class="seek-btn primary" id="btn-next-clip">NEXT CLIP ⟶</button>
+      <button class="seek-btn" style="margin-left:auto">⊞ SEND SEAM</button>
+      <button class="seek-btn">↑ EXPORT FRAME</button>
+    </div>
+
+  </div><!-- /scrub-shell -->
+
+  <script>
+  'use strict';
+  /* ─────────────────────────────────────────────────────────────────
+     PANEL 8 PROTOTYPE — Tier B Engine Scrub
+     Simulates WebSocket 4 Hz JPEG stream with canvas rendering.
+     Scrub-by-drag: horizontal drag on frame updates currentTime.
+   ──────────────────────────────────────────────────────────────── */
+
+  // Mock demo parameters
+  const DEMO_DURATION = 95;   // seconds
+  const FPS = 60;
+  const TOTAL_FRAMES = DEMO_DURATION * FPS;
+  const STREAM_HZ = 4;
+
+  let currentTime = 8 * 60 + 52;   // 8:52 seekclock start
+  let isRunning = false;
+  let streamInterval = null;
+  let frameCount = 0;
+
+  // Clip seam times (mirrors Panel 7 mock data)
+  const SEAM_TIMES = [0, 14.2, 28.8, 41.5, 55.0, 68.3, 82.7, DEMO_DURATION];
+
+  // ── Canvas setup ─────────────────────────────────────────────────
+  const engineCanvas = document.getElementById('engine-canvas');
+  const engineCtx = engineCanvas.getContext('2d');
+  const rulerCanvas = document.getElementById('ruler-canvas');
+  const rulerCtx = rulerCanvas.getContext('2d');
+
+  function resizeCanvases() {
+    const fa = document.getElementById('frame-area');
+    engineCanvas.width  = fa.clientWidth;
+    engineCanvas.height = fa.clientHeight;
+    rulerCanvas.width  = rulerCanvas.parentElement.clientWidth;
+    rulerCanvas.height = rulerCanvas.parentElement.clientHeight;
+    drawFrame(currentTime);
+    drawRuler(currentTime);
+  }
+
+  window.addEventListener('resize', resizeCanvases);
+  resizeCanvases();
+
+  // ── Frame renderer (simulates Wolfcam JPEG stream) ───────────────
+  function drawFrame(t) {
+    const W = engineCanvas.width;
+    const H = engineCanvas.height;
+    engineCtx.clearRect(0, 0, W, H);
+
+    // Simulated Quake Live arena background
+    const grd = engineCtx.createLinearGradient(0, 0, 0, H);
+    grd.addColorStop(0, '#08080f');
+    grd.addColorStop(0.4, '#101020');
+    grd.addColorStop(1, '#060610');
+    engineCtx.fillStyle = grd;
+    engineCtx.fillRect(0, 0, W, H);
+
+    // Arena floor grid lines (Quake concrete feel)
+    engineCtx.strokeStyle = 'rgba(30,32,44,.8)';
+    engineCtx.lineWidth = 1;
+    for (let x = 0; x < W; x += 40) {
+      engineCtx.beginPath();
+      engineCtx.moveTo(x, H * 0.55);
+      engineCtx.lineTo(W / 2 + (x - W / 2) * 0.3, H * 0.82);
+      engineCtx.stroke();
+    }
+
+    // Which segment are we in
+    let seg = 0;
+    for (let i = 0; i < SEAM_TIMES.length - 1; i++) {
+      if (t >= SEAM_TIMES[i] && t < SEAM_TIMES[i + 1]) { seg = i; break; }
+    }
+
+    // Red heat vignette near seam boundary
+    const segEnd = SEAM_TIMES[Math.min(seg + 1, SEAM_TIMES.length - 1)];
+    const nearSeam = (segEnd - t) < 2.0;
+    if (nearSeam) {
+      const alpha = Math.max(0, (2.0 - (segEnd - t)) / 2.0) * 0.18;
+      const vgrd = engineCtx.createRadialGradient(W/2, H/2, H*0.1, W/2, H/2, H*0.8);
+      vgrd.addColorStop(0, 'transparent');
+      vgrd.addColorStop(1, `rgba(196,21,21,${alpha})`);
+      engineCtx.fillStyle = vgrd;
+      engineCtx.fillRect(0, 0, W, H);
+    }
+
+    // HUD area — timecode overlay (simulates Wolfcam HUD)
+    engineCtx.fillStyle = 'rgba(0,0,0,.55)';
+    engineCtx.fillRect(8, 8, 220, 50);
+    engineCtx.strokeStyle = 'rgba(138,144,156,.2)';
+    engineCtx.lineWidth = 1;
+    engineCtx.strokeRect(8.5, 8.5, 219, 49);
+
+    engineCtx.font = 'bold 11px "IBM Plex Mono", monospace';
+    engineCtx.fillStyle = '#d4a04a';
+    engineCtx.fillText('SEEKCLOCK  ' + fmtTimeClock(t), 16, 26);
+
+    engineCtx.font = '9px "IBM Plex Mono", monospace';
+    engineCtx.fillStyle = '#5a6070';
+    engineCtx.fillText('FRAME  ' + Math.round(t * FPS) + '/' + TOTAL_FRAMES, 16, 42);
+
+    engineCtx.fillStyle = '#c41515';
+    engineCtx.fillText('SEG ' + (seg + 1) + '/7', 16, 54);
+
+    // Crosshair (Quake Live rail crosshair center)
+    const cx = W / 2, cy = H / 2;
+    engineCtx.strokeStyle = 'rgba(212,160,74,.6)';
+    engineCtx.lineWidth = 1;
+    engineCtx.beginPath();
+    engineCtx.moveTo(cx - 12, cy); engineCtx.lineTo(cx - 4, cy);
+    engineCtx.moveTo(cx + 4,  cy); engineCtx.lineTo(cx + 12, cy);
+    engineCtx.moveTo(cx, cy - 12); engineCtx.lineTo(cx, cy - 4);
+    engineCtx.moveTo(cx, cy + 4);  engineCtx.lineTo(cx, cy + 12);
+    engineCtx.stroke();
+
+    // Weapon silhouette bottom (railgun barrel suggestion)
+    engineCtx.fillStyle = 'rgba(0,0,0,.7)';
+    engineCtx.fillRect(W * 0.6, H * 0.7, W * 0.4, H * 0.3);
+    engineCtx.fillStyle = 'rgba(30,32,44,.9)';
+    engineCtx.fillRect(W * 0.65, H * 0.72, W * 0.32, H * 0.22);
+
+    // Seam warning banner if within 0.4s of seam
+    if (nearSeam && (segEnd - t) < 0.4) {
+      engineCtx.fillStyle = 'rgba(138,10,10,.5)';
+      engineCtx.fillRect(0, H - 20, W, 20);
+      engineCtx.fillStyle = '#c41515';
+      engineCtx.font = 'bold 9px "IBM Plex Mono", monospace';
+      engineCtx.textAlign = 'center';
+      engineCtx.fillText('// SEAM BOUNDARY — ' + fmtTimeMs(segEnd - t) + ' //   ', W / 2, H - 6);
+      engineCtx.textAlign = 'left';
+    }
+  }
+
+  // ── Ruler renderer ───────────────────────────────────────────────
+  function drawRuler(t) {
+    const W = rulerCanvas.width;
+    const H = rulerCanvas.height;
+    rulerCtx.clearRect(0, 0, W, H);
+
+    // Background
+    rulerCtx.fillStyle = '#06060a';
+    rulerCtx.fillRect(0, 0, W, H);
+
+    const scale = W / DEMO_DURATION;  // px per second
+
+    // Major ticks every 10s, minor every 2s
+    for (let s = 0; s <= DEMO_DURATION; s += 2) {
+      const x = s * scale;
+      const isMajor = s % 10 === 0;
+      rulerCtx.strokeStyle = isMajor ? '#2e3040' : '#1e202c';
+      rulerCtx.lineWidth = 1;
+      rulerCtx.beginPath();
+      rulerCtx.moveTo(x, isMajor ? 0 : H * 0.5);
+      rulerCtx.lineTo(x, H);
+      rulerCtx.stroke();
+
+      if (isMajor) {
+        rulerCtx.fillStyle = '#4a5060';
+        rulerCtx.font = '7px "IBM Plex Mono", monospace';
+        rulerCtx.fillText(fmtTime(s), x + 2, H - 3);
+      }
+    }
+
+    // Seam markers on ruler
+    SEAM_TIMES.slice(1, -1).forEach((st, i) => {
+      const x = st * scale;
+      rulerCtx.strokeStyle = '#c41515';
+      rulerCtx.lineWidth = 1.5;
+      rulerCtx.beginPath();
+      rulerCtx.moveTo(x, 0); rulerCtx.lineTo(x, H);
+      rulerCtx.stroke();
+
+      rulerCtx.fillStyle = '#c41515';
+      rulerCtx.font = '6px "IBM Plex Mono", monospace';
+      rulerCtx.fillText('S' + (i + 1), x + 2, 8);
+    });
+
+    // Playhead
+    const px = (t / DEMO_DURATION) * W;
+    document.getElementById('ruler-playhead').style.left = px + 'px';
+  }
+
+  // ── Stream simulation ─────────────────────────────────────────────
+  function startStream(seekT) {
+    if (streamInterval) clearInterval(streamInterval);
+    currentTime = seekT;
+    isRunning = true;
+    frameCount = 0;
+
+    document.getElementById('conn-led').className = 'conn-led live';
+    document.getElementById('conn-txt').textContent = 'ENGINE LIVE';
+    document.getElementById('fps-badge').className = 'fps-badge live';
+    document.getElementById('fps-badge').textContent = '4 Hz LIVE';
+    document.getElementById('drag-indicator').classList.add('hidden');
+
+    streamInterval = setInterval(() => {
+      if (!isRunning) return;
+      currentTime += 1 / STREAM_HZ;
+      if (currentTime >= DEMO_DURATION) {
+        currentTime = DEMO_DURATION;
+        stopStream();
+        return;
+      }
+      frameCount++;
+      updateDisplay(currentTime);
+    }, 1000 / STREAM_HZ);
+  }
+
+  function stopStream() {
+    if (streamInterval) clearInterval(streamInterval);
+    streamInterval = null;
+    isRunning = false;
+    document.getElementById('conn-led').className = 'conn-led ok';
+    document.getElementById('conn-txt').textContent = 'ENGINE IDLE';
+    document.getElementById('fps-badge').className = 'fps-badge';
+    document.getElementById('fps-badge').textContent = '4 Hz STREAM';
+  }
+
+  function seekTo(t) {
+    currentTime = Math.max(0, Math.min(DEMO_DURATION, t));
+    updateDisplay(currentTime);
+    if (isRunning) startStream(currentTime);
+  }
+
+  function updateDisplay(t) {
+    drawFrame(t);
+    drawRuler(t);
+
+    const totalFrames = Math.round(DEMO_DURATION * FPS);
+    const curFrame = Math.round(t * FPS);
+
+    document.getElementById('frame-counter').textContent =
+      'FRAME ' + String(curFrame).padStart(4, '0') + '/' + totalFrames;
+    document.getElementById('time-main').textContent = fmtTimeClock(t);
+
+    const pct = (t / DEMO_DURATION) * 100;
+    document.getElementById('full-scrub-fill').style.width = pct + '%';
+    document.getElementById('full-scrub-thumb').style.left = pct + '%';
+    document.getElementById('full-scrub-end').textContent = fmtTime(DEMO_DURATION);
+  }
+
+  // ── Scrub-by-drag on frame ───────────────────────────────────────
+  let dragging = false;
+  let dragStartX = 0;
+  let dragStartTime = 0;
+  const DRAG_SCALE = 0.1;  // seconds per pixel
+
+  const frameArea = document.getElementById('frame-area');
+  const scrubDelta = document.getElementById('scrub-delta');
+
+  frameArea.addEventListener('mousedown', e => {
+    dragging = true;
+    dragStartX = e.clientX;
+    dragStartTime = currentTime;
+    scrubDelta.classList.add('show');
+  });
+
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const dx = e.clientX - dragStartX;
+    const dt = dx * DRAG_SCALE;
+    const newT = Math.max(0, Math.min(DEMO_DURATION, dragStartTime + dt));
+    currentTime = newT;
+    updateDisplay(newT);
+    const sign = dt >= 0 ? '+' : '';
+    scrubDelta.textContent = sign + dt.toFixed(1) + 's';
+  });
+
+  window.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    scrubDelta.classList.remove('show');
+  });
+
+  // ── Full scrub track ─────────────────────────────────────────────
+  const fullScrubTrack = document.getElementById('full-scrub-track');
+  let fullScrubbing = false;
+
+  function scrubFromTrack(e) {
+    const rect = fullScrubTrack.getBoundingClientRect();
+    const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    seekTo(pct * DEMO_DURATION);
+  }
+
+  fullScrubTrack.addEventListener('mousedown', e => { fullScrubbing = true; scrubFromTrack(e); });
+  window.addEventListener('mousemove', e => { if (fullScrubbing) scrubFromTrack(e); });
+  window.addEventListener('mouseup', () => { fullScrubbing = false; });
+
+  // ── Ruler scrub ──────────────────────────────────────────────────
+  const rulerRow = document.getElementById('ruler-row');
+  rulerRow.addEventListener('click', e => {
+    const rect = rulerRow.getBoundingClientRect();
+    const pct = (e.clientX - rect.left) / rect.width;
+    seekTo(pct * DEMO_DURATION);
+  });
+
+  // ── Controls ─────────────────────────────────────────────────────
+  document.getElementById('launch-btn').addEventListener('click', () => {
+    startStream(currentTime);
+  });
+
+  document.getElementById('stop-btn').addEventListener('click', stopStream);
+
+  document.getElementById('seek-btn').addEventListener('click', () => {
+    const raw = document.getElementById('seek-input').value.trim();
+    const parts = raw.split(':');
+    if (parts.length === 2) {
+      const m = parseInt(parts[0]);
+      const s = parseFloat(parts[1]);
+      seekTo(m * 60 + s);
+      if (isRunning) startStream(currentTime);
+    }
+  });
+
+  document.getElementById('btn-prev-clip').addEventListener('click', () => {
+    const before = SEAM_TIMES.filter(t => t < currentTime - 0.2);
+    if (before.length) seekTo(before[before.length - 1]);
+  });
+
+  document.getElementById('btn-next-clip').addEventListener('click', () => {
+    const after = SEAM_TIMES.filter(t => t > currentTime + 0.2);
+    if (after.length) seekTo(after[0]);
+  });
+
+  // ── Format helpers ───────────────────────────────────────────────
+  function fmtTime(s) {
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60).toString().padStart(2, '0');
+    return m + ':' + sec;
+  }
+
+  function fmtTimeClock(s) {
+    const m = Math.floor(s / 60);
+    const sec = (s % 60).toFixed(3).padStart(6, '0');
+    return m + ':' + sec;
+  }
+
+  function fmtTimeMs(s) {
+    return (s * 1000).toFixed(0) + 'ms';
+  }
+
+  // ── Init ─────────────────────────────────────────────────────────
+  updateDisplay(currentTime);
+  </script>
+</body>
+</html>

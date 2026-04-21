@@ -1,0 +1,20 @@
+{
+  "name": "quake-legacy-studio",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "node build.js"
+  },
+  "dependencies": {
+    "animation-timeline-js": "2.3.5",
+    "@theatre/browser-bundles": "0.7.2",
+    "wavesurfer.js": "7.8.16",
+    "wavesurfer-multitrack": "0.4.12",
+    "tweakpane": "4.0.5",
+    "mp4box": "0.5.2",
+    "litegraph.js": "0.7.15"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.0"
+  }
+}

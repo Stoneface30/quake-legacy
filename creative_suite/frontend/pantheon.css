@@ -1,0 +1,717 @@
+/*
+ * ╔════════════════════════════════════════════════════════════════════╗
+ * ║  PANTHEON DESIGN SYSTEM — pantheon.css                            ║
+ * ║  Brand override layer that cascades atop style.css                ║
+ * ║  Link AFTER style.css in index.html                               ║
+ * ║                                                                   ║
+ * ║  Clan: Pantheon / pTn  —  Quake Live competitive team             ║
+ * ║  Colors: ALWAYS blue + yellow/gold, sourced from:                 ║
+ * ║                                                                   ║
+ * ║    ██████████████████████████████  ← deep royal blue  #002B7F    ║
+ * ║    ████████████████████████████████                               ║
+ * ║    ▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄▄  ← yellow stripe  #FFC61E    ║
+ * ║    ██████████████████████████████████                             ║
+ * ║    ★  ← white 12-pt star  #FFFFFF                                ║
+ * ║    (Nauru island flag — the clan's explicit reference)            ║
+ * ║                                                                   ║
+ * ║  Typography: Bebas Neue (hero) · Black Ops One (heads) ·          ║
+ * ║              IBM Plex Mono (data, keep from style.css)            ║
+ * ╚════════════════════════════════════════════════════════════════════╝
+ */
+
+/* ═══════════════════════════════════════════════════════════════════
+   FONT IMPORTS
+   ═══════════════════════════════════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Black+Ops+One&display=swap');
+
+/* ═══════════════════════════════════════════════════════════════════
+   PANTHEON / pTn DESIGN TOKENS
+   Source: Nauru island flag
+   Blue  = #002B7F (flag field)  → screen: #1a3e9a
+   Gold  = #FFC61E (flag stripe) → screen: #f5c518
+   White = #FFFFFF (flag star)   → screen: #e8eef8
+   ═══════════════════════════════════════════════════════════════════ */
+:root {
+  /* ── Nauru flag raw values (reference) ──────────────────────────── */
+  --nauru-blue:  #002B7F;
+  --nauru-gold:  #FFC61E;
+  --nauru-white: #FFFFFF;
+
+  /* ── Background layers (near-black with deep blue tint) ─────────── */
+  --bg:          #040610;     /* void — deep space black-blue */
+  --surface:     #090c18;     /* panel body */
+  --surface2:    #0d1228;     /* raised surface (panel bars, inputs) */
+  --border:      #151d3a;     /* structural border */
+  --border-hot:  #1e2a50;     /* hover/active border */
+
+  /* ── pTn Blue palette (structural, cool) ───────────────────────── */
+  --blue:         #1a3e9a;    /* screen-adapted Nauru blue */
+  --blue-bright:  #2a5acc;    /* hover / link blue */
+  --blue-dim:     #0d2060;    /* panel bar background */
+  --blue-deep:    #081540;    /* deep accent, footer, wells */
+  --blue-mute:    #0a1440;    /* disabled / placeholder bg */
+  --blue-glo:     rgba(26,62,154,.22);
+  --blue-glo2:    rgba(42,90,204,.14);
+
+  /* ── pTn Gold palette (primary accent, action, glory) ───────────── */
+  --gold:         #f5c518;    /* primary accent — Nauru stripe */
+  --gold-bright:  #ffd740;    /* hover / active gold */
+  --gold-dim:     #c99a10;    /* dimmer gold */
+  --gold-pale:    #ffe580;    /* very light tint for subtle highlights */
+  --gold-glo:     rgba(245,197,24,.20);
+  --gold-glo2:    rgba(245,197,24,.08);
+
+  /* ── Flag star white (text, stars, confirmed) ───────────────────── */
+  --star:         #e8eef8;    /* near-white — flag star adapted */
+  --star-dim:     #8090b8;    /* secondary text, dimmed star */
+  --star-mute:    #2a3060;    /* placeholder, disabled */
+
+  /* ── Text hierarchy ─────────────────────────────────────────────── */
+  --text:        var(--star);
+  --text-dim:    var(--star-dim);
+  --text-mute:   var(--star-mute);
+
+  /* ── Compatibility shim: style.css uses --orange everywhere ─────── */
+  --orange:      var(--gold);
+  --orange-dim:  var(--gold-glo2);
+  --orange-glo:  rgba(245,197,24,.04);
+
+  /* Retained for layout code in style.css that uses these directly */
+  --silver:         var(--star-dim);
+  --silver-bright:  var(--star);
+  --silver-dim:     var(--star-dim);
+  --silver-mute:    var(--star-mute);
+  --silver-glo:     rgba(128,144,184,.08);
+  --silver-glo2:    rgba(128,144,184,.14);
+
+  /* ── Tier colours — gold for elite, blue for backbone ───────────── */
+  --t1:   var(--gold);            /* T1 = rarest/elite → flag gold */
+  --t2:   var(--blue-bright);     /* T2 = main meal → flag blue */
+  --t3:   #0d1228;                /* T3 = filler → near-invisible */
+
+  /* ── Section role colours ───────────────────────────────────────── */
+  --drop:  var(--gold);           /* drop = climax = gold */
+  --build: var(--blue-bright);    /* build = drive = blue */
+  --brk:   #1a2050;               /* break = rest = dim blue */
+  --intro: #0d2060;               /* intro = deep blue */
+  --outro: #0a1840;               /* outro = darker blue */
+
+  /* ── LED / gate states ──────────────────────────────────────────── */
+  --led-ok:   var(--gold);        /* approved = gold */
+  --led-warn: #c99a10;            /* warning = dim gold */
+  --led-err:  #c41515;            /* error = Quake red (only for errors) */
+
+  /* ── Typography ─────────────────────────────────────────────────── */
+  --font-hero:   'Bebas Neue', 'Black Ops One', ui-monospace, monospace;
+  --font-head:   'Black Ops One', ui-monospace, monospace;
+  /* --font stays IBM Plex Mono from style.css */
+
+  --hdr-h: 56px;
+  --bar-h: 26px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   BODY — deep blue-tinted void + scanlines + flag-star vignette
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Enhanced scanlines (3px stripe, tighter than style.css default) */
+body::after {
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 2px,
+    rgba(0,0,0,.07) 2px,
+    rgba(0,0,0,.07) 3px
+  );
+}
+
+/* Nauru flag atmosphere: gold-left (stripe light) + blue-right (field depth) */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 50% 35% at 0% 50%, rgba(245,197,24,.06), transparent 55%),
+    radial-gradient(ellipse 40% 80% at 100% 50%, rgba(8,21,64,.7), transparent 80%);
+  pointer-events: none;
+  z-index: 9998;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   HEADER — flag-bar feel: deep blue base, gold accent line
+   ═══════════════════════════════════════════════════════════════════ */
+.hdr {
+  background: var(--blue-deep);
+  border-bottom: 2px solid var(--gold);
+  box-shadow:
+    0 2px 0 var(--gold-glo),           /* gold glow line below */
+    0 4px 40px rgba(26,62,154,.30);    /* blue depth shadow */
+}
+
+#hdr-canvas { opacity: .55; }
+
+/* ── LOGO ── */
+.logo-cross {
+  color: var(--gold);
+  filter: drop-shadow(0 0 8px var(--gold)) drop-shadow(0 0 20px var(--gold-glo));
+}
+
+.logo-name {
+  font-family: var(--font-hero);
+  font-size: 19px;
+  font-weight: 400;
+  letter-spacing: .32em;
+  color: var(--gold);
+  text-shadow:
+    0 0 14px var(--gold-glo),
+    0 1px 0  rgba(0,0,0,.9);
+}
+
+.logo-div { color: var(--blue-bright); opacity: .6; }
+
+.logo-sub {
+  font-family: var(--font-head);
+  font-size: 8px;
+  letter-spacing: .22em;
+  color: var(--star-dim);
+}
+
+/* Temple ornament under logo — gold line bleeding right */
+.logo { position: relative; }
+.logo::after {
+  content: '';
+  display: block;
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 120%;
+  height: 1px;
+  background: linear-gradient(90deg, var(--gold) 0%, var(--gold-glo) 40%, transparent 70%);
+  pointer-events: none;
+}
+
+/* Part nav */
+.nav-label {
+  font-family: var(--font-head);
+  letter-spacing: .3em;
+  color: var(--star-dim);
+  font-size: 7px;
+}
+
+.part-btn {
+  border-color: var(--border-hot);
+  color: var(--star-dim);
+  background: transparent;
+}
+
+.part-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: var(--gold-glo2);
+}
+
+.part-btn.active {
+  background: var(--gold);
+  border-color: var(--gold-bright);
+  color: var(--blue-deep);
+  font-weight: 700;
+}
+
+/* Header action buttons */
+.hdr-btn {
+  border-color: var(--border-hot);
+  color: var(--star-dim);
+}
+
+.hdr-btn:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+  background: var(--gold-glo2);
+}
+
+/* Status LEDs */
+.status-led.ok    { background: var(--gold); box-shadow: 0 0 6px var(--gold); animation: blink-g 3s infinite; }
+.status-led.err   { background: var(--led-err); box-shadow: 0 0 6px rgba(196,21,21,.5); }
+.status-led.busy  { background: var(--blue-bright); animation: blink-b 1s infinite; box-shadow: 0 0 6px var(--blue-glo); }
+
+@keyframes blink-b { 0%,100%{opacity:1} 50%{opacity:.2} }
+
+/* ═══════════════════════════════════════════════════════════════════
+   PANEL GRID
+   ═══════════════════════════════════════════════════════════════════ */
+.panels { background: var(--border); }
+
+/* ── PANEL BAR — deep blue background, gold title ───────────────── */
+.panel-bar {
+  background: var(--blue-dim);
+  border-bottom: 1px solid var(--gold);
+  box-shadow: 0 1px 0 var(--gold-glo2);
+}
+
+.panel-title {
+  font-family: var(--font-head);
+  font-size: 10px;
+  letter-spacing: .22em;
+  color: var(--gold);
+  text-shadow: 0 0 10px var(--gold-glo);
+}
+
+/* Panel buttons (inside blue bar) */
+.pnl-btn {
+  background: transparent;
+  border-color: rgba(245,197,24,.25);
+  color: var(--gold-dim);
+}
+
+.pnl-btn:hover {
+  background: var(--gold-glo2);
+  border-color: var(--gold);
+  color: var(--gold-bright);
+}
+
+.pnl-btn.on {
+  background: var(--gold);
+  border-color: var(--gold-bright);
+  color: var(--blue-deep);
+  font-weight: 700;
+}
+
+.data-pill {
+  background: rgba(245,197,24,.08);
+  color: var(--gold-dim);
+  border: 1px solid rgba(245,197,24,.2);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   COMPARE PANEL
+   ═══════════════════════════════════════════════════════════════════ */
+.ab-tag {
+  font-family: var(--font-head);
+  font-size: 7px;
+  letter-spacing: .24em;
+  color: var(--star-dim);
+}
+
+.drop-z {
+  border-color: var(--border-hot);
+}
+
+.drop-z:hover, .drop-z.over {
+  border-color: var(--gold);
+  background: var(--gold-glo2);
+}
+
+.drop-icon { color: var(--border-hot); }
+.drop-hint { color: var(--star-mute); }
+
+/* Scrub — gold fill */
+.scrub-fill { background: var(--gold); }
+.scrub-track:hover .scrub-fill { background: var(--gold-bright); }
+
+/* VMAF */
+.vmaf-lbl {
+  font-family: var(--font-head);
+  letter-spacing: .18em;
+  color: var(--star-dim);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   FLOW PANEL — timeline, clip blocks, legend
+   ═══════════════════════════════════════════════════════════════════ */
+.flow-legend { border-bottom-color: var(--border); }
+
+.leg.drop  { color: var(--gold); }
+.leg.build { color: var(--blue-bright); }
+.leg.brk   { color: #2a3464; }
+.leg.intro { color: #1a3e9a; }
+.leg.outro { color: #14306a; }
+.leg.t1    { color: var(--gold); }
+.leg.t2    { color: var(--blue-bright); }
+.leg.t3    { color: #1e2a50; }
+.leg-sep   { color: var(--border); }
+
+/* Flow tooltip — gold border in pTn brand */
+.flow-tip {
+  background: var(--surface);
+  border-color: var(--gold);
+  box-shadow: 0 0 24px var(--gold-glo2);
+}
+
+.tip-ev { color: var(--gold); font-family: var(--font-head); letter-spacing: .2em; }
+.tip-k  { color: var(--star-dim); }
+.tip-v  { color: var(--star); }
+
+.axis-tick { color: var(--border-hot); }
+.flow-axis { background: var(--bg); border-top-color: var(--border); }
+
+/* Highlighted clip block — gold outline */
+.clip-block.hl { outline-color: var(--gold); }
+
+/* Clip confidence bar — gold */
+.clip-conf-fill { background: rgba(245,197,24,.55); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   EVENT PANEL
+   ═══════════════════════════════════════════════════════════════════ */
+.ev-type-label { color: var(--gold); }
+.top-rank { color: var(--gold); }
+.top-time { color: var(--blue-bright); }
+.top-row:hover { background: var(--gold-glo2); }
+.ev-stat-lbl { color: var(--border-hot); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   SCROLLBARS
+   ═══════════════════════════════════════════════════════════════════ */
+::-webkit-scrollbar-thumb:hover { background: var(--gold); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   UTILITY CLASSES — PANTHEON / pTn brand
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Gate / approval states */
+.pth-gate-pass    { color: var(--gold);       border-color: var(--gold); }
+.pth-gate-fail    { color: var(--led-err);    border-color: #8a0a0a; }
+.pth-gate-pending { color: var(--star-dim);   border-color: var(--border-hot); }
+
+/* Primary action — gold fill, blue-deep text (flag colours) */
+.pth-btn-action {
+  background: var(--gold);
+  border: 1px solid var(--gold-bright);
+  color: var(--blue-deep);
+  font-family: var(--font-head);
+  letter-spacing: .14em;
+  cursor: pointer;
+  padding: 5px 14px;
+  font-weight: 700;
+  transition: background .12s, box-shadow .12s;
+}
+
+.pth-btn-action:hover {
+  background: var(--gold-bright);
+  box-shadow: 0 0 18px var(--gold-glo);
+}
+
+/* Confirm — blue outline + gold text */
+.pth-btn-confirm {
+  background: transparent;
+  border: 1px solid var(--blue-bright);
+  color: var(--blue-bright);
+  font-family: var(--font-head);
+  letter-spacing: .14em;
+  cursor: pointer;
+  padding: 5px 14px;
+  transition: background .12s, color .12s;
+}
+
+.pth-btn-confirm:hover {
+  background: var(--blue-glo);
+  color: var(--star);
+  border-color: var(--star);
+}
+
+/* Ghost button */
+.pth-btn-ghost {
+  background: transparent;
+  border: 1px solid var(--border-hot);
+  color: var(--star-dim);
+  font-family: var(--font);
+  letter-spacing: .08em;
+  cursor: pointer;
+  padding: 4px 10px;
+  transition: border-color .12s, color .12s;
+}
+
+.pth-btn-ghost:hover {
+  border-color: var(--gold);
+  color: var(--gold);
+}
+
+/* Badges */
+.pth-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  font-size: 8px;
+  letter-spacing: .12em;
+  border: 1px solid var(--border-hot);
+  color: var(--star-dim);
+  background: var(--surface2);
+}
+
+.pth-badge.t1    { border-color: var(--gold);         color: var(--gold); }
+.pth-badge.t2    { border-color: var(--blue-bright);  color: var(--blue-bright); }
+.pth-badge.t3    { border-color: var(--border);       color: var(--star-mute); }
+.pth-badge.drop  { border-color: var(--gold);         color: var(--gold); }
+.pth-badge.build { border-color: var(--blue-bright);  color: var(--blue-bright); }
+.pth-badge.intro { border-color: #1a3e9a;             color: #2a5acc; }
+.pth-badge.outro { border-color: #14306a;             color: #1a4090; }
+.pth-badge.brk   { border-color: var(--border);       color: var(--star-mute); }
+
+/* Divider — flag stripe feel (gold fade) */
+.pth-divider {
+  border: none;
+  height: 1px;
+  background: linear-gradient(90deg,
+    transparent,
+    var(--border-hot) 15%,
+    var(--gold-dim) 50%,
+    var(--border-hot) 85%,
+    transparent
+  );
+  margin: 8px 0;
+}
+
+/* Data value highlights */
+.pth-val           { font-family: var(--font); color: var(--star); }
+.pth-val.gold      { color: var(--gold); }
+.pth-val.blue      { color: var(--blue-bright); }
+.pth-val.mute      { color: var(--star-dim); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   PROTOTYPE PANEL SCAFFOLDING
+   Shared by panel7/, panel8/, review/ prototypes
+   ═══════════════════════════════════════════════════════════════════ */
+
+.proto-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 12px;
+}
+
+.proto-bar {
+  height: var(--bar-h);
+  background: var(--blue-dim);
+  border-bottom: 1px solid var(--gold);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  flex-shrink: 0;
+}
+
+.proto-bar-title {
+  font-family: var(--font-head);
+  font-size: 9px;
+  letter-spacing: .24em;
+  color: var(--gold);
+}
+
+/* Time ruler */
+.ruler-row {
+  height: 22px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  flex-shrink: 0;
+  overflow: hidden;
+  user-select: none;
+}
+
+.ruler-tick        { position: absolute; top: 0; width: 1px; background: var(--border-hot); transform: translateX(-50%); }
+.ruler-tick.major  { height: 14px; background: var(--blue-bright); opacity: .5; }
+.ruler-tick.minor  { height: 7px; }
+
+.ruler-label {
+  position: absolute;
+  top: 14px;
+  font-size: 7px;
+  color: var(--star-dim);
+  letter-spacing: .04em;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+/* Frame counter */
+.frame-counter {
+  font-family: var(--font);
+  font-size: 10px;
+  color: var(--gold);
+  letter-spacing: .12em;
+  padding: 0 8px;
+  border-left: 1px solid var(--border-hot);
+}
+
+/* Seam marker — gold for pTn (not red — seams are structural, not danger) */
+.seam-marker {
+  position: absolute;
+  top: 0;
+  width: 2px;
+  background: var(--gold);
+  box-shadow: 0 0 6px var(--gold-glo);
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+
+.seam-marker::before {
+  content: attr(data-label);
+  position: absolute;
+  top: -14px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 7px;
+  color: var(--gold);
+  letter-spacing: .06em;
+  white-space: nowrap;
+  background: var(--bg);
+  padding: 0 2px;
+}
+
+/* Thumbnail strip */
+.thumb-strip {
+  height: 48px;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  flex-shrink: 0;
+  position: relative;
+}
+
+.thumb-frame {
+  flex-shrink: 0;
+  border-right: 1px solid rgba(0,0,0,.5);
+  background: #000;
+  overflow: hidden;
+  position: relative;
+  cursor: pointer;
+}
+
+.thumb-frame:hover { filter: brightness(1.4); }
+
+/* Seam on thumbnail — gold line */
+.thumb-frame.seam-here::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  right: 0;
+  width: 2px;
+  background: var(--gold);
+  box-shadow: 0 0 6px var(--gold-glo);
+}
+
+/* Hotkey legend */
+.hotkey-legend {
+  display: flex;
+  gap: 12px;
+  padding: 5px 10px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  background: var(--bg);
+}
+
+.hk-pair {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  color: var(--star-dim);
+  letter-spacing: .06em;
+}
+
+.hk-key {
+  background: var(--blue-dim);
+  border: 1px solid var(--border-hot);
+  color: var(--gold);
+  padding: 1px 6px;
+  font-family: var(--font);
+  font-size: 8px;
+  min-width: 18px;
+  text-align: center;
+}
+
+/* Rate toggle — gold active state */
+.rate-toggle {
+  display: flex;
+  gap: 1px;
+  border: 1px solid var(--border-hot);
+  overflow: hidden;
+}
+
+.rate-btn {
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border-hot);
+  color: var(--star-dim);
+  font-family: var(--font);
+  font-size: 9px;
+  letter-spacing: .06em;
+  padding: 2px 8px;
+  cursor: pointer;
+  transition: background .1s, color .1s;
+}
+
+.rate-btn:last-child { border-right: none; }
+.rate-btn:hover { background: var(--gold-glo2); color: var(--gold); }
+.rate-btn.active { background: var(--gold); color: var(--blue-deep); font-weight: 700; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   RENDER APPROVAL FLOW
+   ═══════════════════════════════════════════════════════════════════ */
+
+.diff-list { display: flex; flex-direction: column; gap: 2px; padding: 6px; font-size: 9px; }
+
+.diff-row {
+  display: grid;
+  grid-template-columns: 70px 1fr 90px 90px;
+  gap: 8px;
+  align-items: center;
+  padding: 3px 6px;
+  border: 1px solid transparent;
+  transition: border-color .1s, background .1s;
+}
+
+.diff-row:hover { background: var(--gold-glo2); border-color: var(--border-hot); }
+
+.diff-field    { color: var(--star-dim); letter-spacing: .06em; }
+.diff-old      { color: #c41515; text-decoration: line-through; opacity: .7; }
+.diff-new      { color: var(--gold); }
+.diff-neutral  { color: var(--blue-bright); }
+
+.diff-impact.positive { color: var(--gold); }
+.diff-impact.negative { color: #c41515; }
+.diff-impact.neutral  { color: var(--star-dim); }
+
+/* Approval bar */
+.approval-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 14px;
+  border-top: 1px solid var(--gold);
+  background: var(--blue-dim);
+  flex-shrink: 0;
+}
+
+.approval-verdict            { font-family: var(--font-head); font-size: 11px; letter-spacing: .2em; flex: 1; }
+.approval-verdict.approved   { color: var(--gold); }
+.approval-verdict.rejected   { color: #c41515; }
+.approval-verdict.pending    { color: var(--star-dim); }
+
+.ver-input {
+  background: var(--bg);
+  border: 1px solid var(--border-hot);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 10px;
+  padding: 4px 8px;
+  letter-spacing: .06em;
+  outline: none;
+  transition: border-color .12s;
+}
+
+.ver-input:focus { border-color: var(--gold); }
+.ver-input::placeholder { color: var(--star-mute); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   RESPONSIVE
+   ═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 1100px) {
+  .panels { grid-template-columns: 1fr; overflow-y: auto; overflow-x: hidden; }
+  .panel  { min-height: 50vh; }
+}

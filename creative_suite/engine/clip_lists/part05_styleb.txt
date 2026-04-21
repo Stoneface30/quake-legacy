@@ -1,0 +1,112 @@
+# Part clip list — rebuilt from disk scan (FP > FL grammar)
+# Rule P1-K: FL follows FP in same entry so renderer treats
+# them as ONE frag with FL as slow-contrast replay angle.
+# Rule P1-U tier-interleave handles pacing at render time.
+
+# --- T1 (42 frags: 12 multi-angle + 30 singles) ---
+Demo (42)  - 524.avi > Demo (42FL1).avi
+Demo (104) - 9.avi > Demo (104FL2).avi
+Demo (161)  - 98.avi > Demo (161FL1).avi
+Demo (215)  -  192.avi > demo (215FL2).avi
+Demo (305)  -  335.avi > Demo (305FL1).avi
+Demo (384)  -  470.avi > Demo (384FL1).avi > Demo (384FL2).avi > Demo (384FL3).avi
+Demo (509)  -  616.avi > Demo (509FL1).avi
+Demo (561)  - 701.avi > Demo (561FL1).avi > Demo (561FL2).avi > Demo (561FL3).avi
+Demo (625)  -  781.avi > Demo (625FL2).avi > Demo (625FL3).avi
+Demo (678)  - 859.avi > Demo (678FL1).avi
+Demo (791)  -  984.avi > Demo (791FL1).avi > Demo (791FL2).avi
+Demo (876)  -  1114.avi > Demo (876FL1).avi
+Demo (24)  -  224.avi
+Demo (48)  - 582.avi
+Demo (67)  - 845.avi
+Demo (118)  - 32.avi
+Demo (152)  - 82.avi
+Demo (182)  -  133.avi
+Demo (226)  -  207.avi
+Demo (244)  -  233.avi
+Demo (266)  -  278.avi
+Demo (299)  -  331.avi
+Demo (321)  -  360.avi
+Demo (362)  -  435.avi
+Demo (387)  -  477.avi
+Demo (403) - 502.avi
+Demo (430)  - 536.avi
+Demo (484)  - 587.avi
+Demo (521)  -  640.avi
+Demo (563)  - 707.avi
+Demo (597)  - 745.avi
+Demo (635)  -  794.avi
+Demo (661)  - 829.avi
+Demo (686)  - 869.avi
+Demo (724)  -  915.avi
+Demo (776)  -  964.avi
+Demo (812)  -  1011.avi
+Demo (842)  -  1055.avi
+Demo (859)  -  1085.avi
+Demo (894)  -  1139.avi
+Demo (918)  -  1181.avi
+Demo (939)  -  1211.avi
+
+# --- T2 (47 frags: 8 multi-angle + 39 singles) ---
+Demo (115)  - 27.avi > Demo (115FL1).avi
+Demo (202)  -  168.avi > Demo (202FL1).avi
+Demo (272)  -  291.avi > Demo (272FL1).avi > Demo (272FL2).avi
+Demo (426)  - 530.avi > Demo (426FL1).avi
+Demo (582)  - 730.avi > Demo (582FL1).avi > Demo (582FL2).avi
+Demo (709)  - 893.avi > Demo (709FL1).avi
+Demo (826)  -  1032.avi > Demo (826FL1).avi
+Demo (922)  -  1188.avi > Demo (922FL1).avi
+Demo (14)  - 66.avi
+Demo (44)  - 542.avi
+Demo (69)  - 874.avi
+Demo (81)  -  1007.avi
+Demo (105) - 10.avi
+Demo (118)  - 33.avi
+Demo (149)  - 76.avi
+Demo (171)  -  118.avi
+Demo (193)  -  149.avi
+Demo (213)  -  189.avi
+Demo (250)  -  242.avi
+Demo (262)  -  273.avi
+Demo (279)  -  302.avi
+Demo (290)  -  325.avi
+Demo (319)  -  355.avi
+Demo (334)  -  381.avi
+Demo (348)  -  414.avi
+Demo (371)  -  450.avi
+Demo (392)  -  486.avi
+Demo (414)  - 516.avi
+Demo (444)  - 548.avi
+Demo (471)  - 576.avi
+Demo (505)  -  609.avi
+Demo (527)  -  644.avi
+Demo (539)  - 669.avi
+Demo (559)  - 695.avi
+Demo (605)  -  758.avi
+Demo (641)  -  803.avi
+Demo (665)  - 836.avi
+Demo (694)  - 878.avi
+Demo (721)  - 912.avi
+Demo (764)  -  949.avi
+Demo (788)  -  977.avi
+Demo (829)  -  1035.avi
+Demo (847)  -  1063.avi
+Demo (859)  -  1084.avi
+Demo (888)  -  1129.avi
+Demo (913)  -  1173.avi
+Demo (938)  -  1210.avi
+
+# --- T3 (12 frags: 1 multi-angle + 11 singles) ---
+Demo (713)  - 901.avi > Demo (713FL1).avi
+Demo (66)  - 825.avi
+Demo (87)  -  1102.avi
+Demo (162)  -  100.avi
+Demo (203)  -  171.avi
+Demo (256)  -  253.avi
+Demo (327)  -  366.avi
+Demo (349)  -  416.avi
+Demo (492)  - 598.avi
+Demo (570)  - 718.avi
+Demo (829)  -  1034.avi
+Demo (894)  -  1140.avi
+

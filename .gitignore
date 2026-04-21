@@ -1,3 +1,7 @@
+# npm — node_modules is local only; vendor/ is tracked (generated but needed)
+node_modules/
+package-lock.json
+
 # Large video files - do not commit
 *.avi
 *.mp4
@@ -45,17 +49,17 @@ _staging_cleanup/
 .claude/scheduled_tasks.lock
 
 # Phase 5 intermediate pipeline output (regenerable from source)
-phase5/01_png/
-phase5/02_processed/
-phase5/03_tga/
-phase5/04_pk3/
+# phase5/ deleted 2026-04-20; assets moved to creative_suite/comfy/assets/phase5_png/
+creative_suite/comfy/assets/phase5_png/
 
-# Music beat analysis cache (regenerable)
-phase1/music/*.beats.json
+# Music beat analysis cache and stem download manifests (regenerable)
+creative_suite/engine/music/*.beats.json
+creative_suite/engine/music/*_fresh_stems.json
+creative_suite/engine/music/*_repair_map.json
 
 # Graphify intermediate JSON (regenerable)
-game-dissection/.graphify_*.json
-game-dissection/graphify-out/cache/
+engine/.graphify_*.json
+engine/graphify-out/cache/
 
 # OS
 .DS_Store
@@ -74,9 +78,7 @@ tools/ghidra/projects/
 options_local.ini
 local_config.py
 
-# Phase 3.5 — extracted Q3/QL character assets (copyright id Software)
-phase35/models/
-phase35/out/
+# Phase 3.5 — folder deleted 2026-04-20 (was empty scaffold, no code)
 
 # Visual-record gameplay frames — contain player nameplates / HUD (PII)
 # Only docs/visual-record/github-readme/ is safe for public (manually curated)
@@ -87,9 +89,97 @@ docs/visual-record/*/gameplay-frames/*.jpg
 docs/visual-record/*/gameplay-frames/*.png
 docs/visual-record/*/render-frames/*.jpg
 docs/visual-record/*/render-frames/*.png
-phase1/music/library/
+creative_suite/engine/music/library/
+# Copyrighted music — kept local, never committed to public repo (Rule P1-R assets)
+creative_suite/engine/music/*.mp3
+creative_suite/engine/music/*.ogg
+creative_suite/engine/music/*.wav
+creative_suite/engine/music/*.flac
+creative_suite/engine/music/_stitched/
 
 
 # Creative Suite v2 local storage
 storage/
+
+# Generated pk3 style packs — large binary files, regenerable, not for public repo
+creative_suite/generated/packs/
+
+# 2026-04-19 video tooling upgrade — downloaded binaries stay local, never committed
+tools/ffmpeg-7/
+tools/ffmpeg-8/
+tools/virtualdub2/
+tools/davinci/
+tools/premiere/
+tools/aftereffects/
+tools/topaz/
+*.iso
+
+# Creative Suite v2 — ComfyUI runtime (model weights, custom nodes, I/O are
+# regenerable and would bloat the repo / license-leak model files).
+tools/comfyui/models/**
+tools/comfyui/custom_nodes/**
+tools/comfyui/output/**
+tools/comfyui/input/**
+tools/comfyui/ComfyUI/**
+tools/comfyui/python_embeded/**
+tools/comfyui/update/**
+tools/comfyui/*.7z
+tools/comfyui/*.bat
+# But keep a top-level README if we write one
+!tools/comfyui/README.md
+
+# Engine consolidation — canonical tree and per-tree variants (third-party source,
+# too large + license-mixed for public repo). Only manifest/diffs/docs are tracked.
+engine/engines/_canonical/
+engine/engines/darkplaces/
+engine/engines/demodumper/
+engine/engines/gtkradiant/
+engine/engines/ioquake3/
+engine/engines/openarena-engine/
+engine/engines/openarena-gamecode/
+engine/engines/q3mme/
+engine/engines/q3vm/
+engine/engines/qldemo-python/
+engine/engines/quake1-source/
+engine/engines/quake2-source/
+engine/engines/quake3-source/
+engine/engines/quake3e/
+engine/engines/uberdemotools/
+engine/engines/wolfcamql-src/
+engine/engines/wolfcamql-local-src/
+engine/engines/wolfet-source/
+engine/engines/yamagi-quake2/
+# But DO track the inventory, diffs, and docs:
+!engine/engines/_manifest/
+!engine/engines/_diffs/
+!engine/engines/*.md
+
+# ComfyUI photoreal pipeline — generated output and proprietary game assets.
+# gallery.html (the viewer) IS committed; all binary output is not.
+creative_suite/comfy/photoreal/assets/          # pak00 PNGs extracted from Steam (986 MB, proprietary)
+creative_suite/comfy/photoreal/pipelines/       # full_overnight.py batch output (large, regenerable)
+creative_suite/comfy/photoreal/pass1/           # legacy first-pass output
+creative_suite/comfy/photoreal/e2e/             # generated E2E test images (regenerable)
+creative_suite/comfy/photoreal/assets.db        # runtime SQLite DB (regenerable)
+creative_suite/comfy/photoreal/run.log
+creative_suite/comfy/photoreal/run_err.log
+# gallery.html IS tracked — it is the visual viewer, not generated output
+!creative_suite/comfy/photoreal/gallery.html
+creative_suite/comfy/photoreal/compare/         # old comparison UI
+
+# Private nickname map — sha8(nick) -> real nickname. NEVER commit.
+.nickname_map.json
+
+# Ghidra sandbox (FT-4 reverse-engineering track)
+# Projects are huge (.gpr + .rep per-binary databases). Binaries are id Software IP
+# (QL / Q3A derivatives) — reference only, never redistribute. Reports + scripts
+# + ipc-maps + symbols ARE committed — that is the deliverable.
+engine/ghidra/projects/
+engine/ghidra/binaries/
+engine/ghidra/_staging_extract/
+!engine/ghidra/reports/
+!engine/ghidra/scripts/
+!engine/ghidra/ipc-maps/
+!engine/ghidra/symbols/
+!engine/ghidra/README.md
 
