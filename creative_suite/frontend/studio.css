@@ -163,6 +163,11 @@ ul {
   background: var(--bg-panel);
 }
 
+#panel-slot {
+  height: 100%;
+  overflow: hidden;
+}
+
 .panel-placeholder {
   display: flex;
   align-items: center;
@@ -170,7 +175,6 @@ ul {
   height: 100%;
   color: var(--text-secondary);
   font-size: 14px;
-  pointer-events: none;
 }
 
 .panel-not-loaded {
