@@ -168,6 +168,13 @@ def _init_db(db: sqlite3.Connection) -> None:
     CREATE INDEX IF NOT EXISTS assets_route ON assets(route);
     """)
     db.commit()
+    # Migrate existing DBs that predate the source/file_size columns
+    for col, defn in [("source", "TEXT NOT NULL DEFAULT ''"), ("file_size", "INTEGER")]:
+        try:
+            db.execute(f"ALTER TABLE assets ADD COLUMN {col} {defn}")
+            db.commit()
+        except sqlite3.OperationalError:
+            pass  # column already exists
 
 
 def _sha256(path: Path) -> str:
