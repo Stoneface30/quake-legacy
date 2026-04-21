@@ -1,6 +1,6 @@
 (function (global) {
   'use strict';
-  var _logEl = null, _statusEl = null, _demoLabel = null;
+  var _logEl = null, _statusEl = null, _demoLabel = null, _unsub = null;
 
   function _log(msg, kind) {
     if (!_logEl) return;
@@ -25,7 +25,7 @@
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ demo_path: demo, extract_frags: true }),
-      signal: AbortSignal.timeout(30000),
+      signal: AbortSignal.timeout(60000),
     })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
       .then(function (d) {
@@ -67,11 +67,14 @@
     _syncDemo();
     _log('Ready. Select a demo in LAB \u00b7 Demos then click EXTRACT.', 'info');
     if (global.StudioStore) {
-      global.StudioStore.subscribe(function () { _syncDemo(); });
+      _unsub = global.StudioStore.subscribe(function () { _syncDemo(); });
     }
   }
 
-  function unmount() { _logEl = null; _statusEl = null; _demoLabel = null; }
+  function unmount() {
+    if (_unsub) { _unsub(); _unsub = null; }
+    _logEl = null; _statusEl = null; _demoLabel = null;
+  }
 
   global.LabExtraction = { mount: mount, unmount: unmount };
 }(window));
