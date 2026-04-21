@@ -33,6 +33,7 @@
   var _filter     = { tier: 'ALL', text: '' };
   var _dragIdx    = null;
   var _activeMods = [];
+  var _playBtnUnsub = null;
   var _storeUnsub = null;
   var _saveTimer  = null;
   var _inspInner  = null;
@@ -322,6 +323,46 @@
     meta.id = 'nle-tl-meta';
     container.appendChild(meta);
 
+    var sep0 = document.createElement('span');
+    sep0.className = 'nle-action-sep';
+    container.appendChild(sep0);
+
+    // ── Transport: REW / PLAY / STOP ──────────────────────────────────────────
+    var rewBtn = document.createElement('button');
+    rewBtn.className = 'nle-tl-ctl-btn';
+    rewBtn.title = 'Rewind';
+    rewBtn.textContent = '\u23EE';
+    rewBtn.addEventListener('click', function () {
+      var s = global.StudioStore;
+      if (s) { s.dispatch({ type: 'SET_PLAYING', payload: false }); s.dispatch({ type: 'SET_CURRENT_TIME', payload: 0 }); }
+    });
+    container.appendChild(rewBtn);
+
+    var playBtn = document.createElement('button');
+    playBtn.className = 'nle-tl-ctl-btn';
+    playBtn.id = 'nle-play-btn';
+    playBtn.textContent = '\u25B6';
+    playBtn.style.cssText = 'min-width:28px;background:#1a2a1a;color:#6dbc6d;';
+    playBtn.addEventListener('click', function () {
+      var s = global.StudioStore;
+      if (!s) return;
+      var playing = !s.getState().isPlaying;
+      s.dispatch({ type: 'SET_PLAYING', payload: playing });
+      playBtn.textContent = playing ? '\u23F8' : '\u25B6';
+      playBtn.style.background = playing ? '#0a1a0a' : '#1a2a1a';
+    });
+    container.appendChild(playBtn);
+
+    // Keep play button in sync with store changes from outside
+    (function () {
+      var s = global.StudioStore;
+      if (!s) return;
+      _playBtnUnsub = s.subscribe(function (state) {
+        playBtn.textContent = state.isPlaying ? '\u23F8' : '\u25B6';
+        playBtn.style.background = state.isPlaying ? '#0a1a0a' : '#1a2a1a';
+      });
+    }());
+
     var sep1 = document.createElement('span');
     sep1.className = 'nle-action-sep';
     container.appendChild(sep1);
@@ -343,6 +384,19 @@
       });
       container.appendChild(b);
     });
+
+    var fitBtn = document.createElement('button');
+    fitBtn.className = 'nle-tl-ctl-btn';
+    fitBtn.textContent = 'FIT';
+    fitBtn.style.cssText = 'font-size:9px;letter-spacing:0.1em;padding:1px 6px;';
+    fitBtn.addEventListener('click', function () {
+      var nle = global.StudioTimelineNLE;
+      if (nle && typeof nle.fitZoom === 'function') {
+        var z = nle.fitZoom();
+        if (z) _zoom = z;
+      }
+    });
+    container.appendChild(fitBtn);
 
     var sep2 = document.createElement('span');
     sep2.className = 'nle-action-sep';
@@ -757,10 +811,6 @@
     _audioSlot   = null;
     _beatSlot    = null;
 
-    // Collapse sidebar — NLE needs every pixel
-    var appGrid = document.getElementById('app-grid');
-    if (appGrid) appGrid.classList.add('nle-active');
-
     // Root: action-bar / body
     _root = document.createElement('div');
     _root.className = 'nle-root';
@@ -771,34 +821,53 @@
     _buildActionBar(actionBar);
     _root.appendChild(actionBar);
 
-    // ── Body: library | center(canvas+audio) | inspector ──────────────────────
-    var body = document.createElement('div');
-    body.className = 'nle-body';
+    // ── Workspace: upper (3-col) + lower (timeline) ──────────────────────────
+    var workspace = document.createElement('div');
+    workspace.className = 'nle-workspace';
+
+    // Upper zone: library | viewer/preview | inspector
+    var upper = document.createElement('div');
+    upper.className = 'nle-upper';
 
     var libPanel = document.createElement('div');
     libPanel.className = 'nle-panel nle-library';
     _buildLibrary(libPanel);
-    body.appendChild(libPanel);
+    upper.appendChild(libPanel);
 
-    var centerPanel = document.createElement('div');
-    centerPanel.className = 'nle-panel nle-center';
-
-    _tlSlot = document.createElement('div');
-    _tlSlot.className = 'nle-tl-main';
-    centerPanel.appendChild(_tlSlot);
-
-    _audioSlot = document.createElement('div');
-    _audioSlot.className = 'nle-tl-audio';
-    centerPanel.appendChild(_audioSlot);
-
-    body.appendChild(centerPanel);
+    // Viewer (center-top): preview pane
+    _viewerSlot = document.createElement('div');
+    _viewerSlot.className = 'nle-panel nle-viewer';
+    var vHdr = document.createElement('div');
+    vHdr.className = 'nle-panel-hdr';
+    var vTitle = document.createElement('span');
+    vTitle.className = 'nle-panel-title';
+    vTitle.textContent = 'PREVIEW';
+    vHdr.appendChild(vTitle);
+    _viewerSlot.appendChild(vHdr);
+    // preview mounts directly into the viewer panel body (below the header)
+    upper.appendChild(_viewerSlot);
 
     var inspPanel = document.createElement('div');
     inspPanel.className = 'nle-panel nle-inspector';
     _buildInspector(inspPanel);
-    body.appendChild(inspPanel);
+    upper.appendChild(inspPanel);
 
-    _root.appendChild(body);
+    workspace.appendChild(upper);
+
+    // Lower zone: timeline canvas + audio
+    var lower = document.createElement('div');
+    lower.className = 'nle-lower';
+
+    _tlSlot = document.createElement('div');
+    _tlSlot.className = 'nle-tl-main';
+    lower.appendChild(_tlSlot);
+
+    _audioSlot = document.createElement('div');
+    _audioSlot.className = 'nle-tl-audio';
+    lower.appendChild(_audioSlot);
+
+    workspace.appendChild(lower);
+    _root.appendChild(workspace);
 
     slot.replaceChildren(_root);
 
@@ -839,9 +908,6 @@
   // ── Unmount ──────────────────────────────────────────────────────────────────
 
   function unmount() {
-    var appGrid = document.getElementById('app-grid');
-    if (appGrid) appGrid.classList.remove('nle-active');
-
     _closeFxModal();
 
     _activeMods.forEach(function (mod) {
@@ -851,6 +917,7 @@
     });
     _activeMods = [];
 
+    if (_playBtnUnsub) { _playBtnUnsub(); _playBtnUnsub = null; }
     if (_storeUnsub) { _storeUnsub(); _storeUnsub = null; }
     if (_saveTimer)  { clearTimeout(_saveTimer); _saveTimer = null; }
 

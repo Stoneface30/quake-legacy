@@ -18,9 +18,9 @@
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (d) {
         if (!d || !_statusEl) return;
-        var st = d.status || 'idle';
+        var st = d.ready ? 'ready' : 'blocked';
         _statusEl.textContent = st.toUpperCase();
-        _statusEl.style.color = st === 'idle' ? '#44bb44' : st === 'busy' ? '#e68a00' : '#888';
+        _statusEl.style.color = d.ready ? '#44bb44' : '#e68a00';
       })
       .catch(function () {
         if (_statusEl) { _statusEl.textContent = 'OFFLINE'; _statusEl.style.color = '#888'; }
@@ -45,25 +45,10 @@
         signal: AbortSignal.timeout(10000)
       })
         .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
-        .then(function (d) { _log('OK job_id=' + (d.job_id || '?'), 'ok'); })
+        .then(function (d) { _log((d.message || 'Intro queued') + ' · job_id=' + (d.job_id || '?'), 'ok'); })
         .catch(function (e) { _log('FAILED ' + e, 'err'); });
     });
-    var btnExtract = document.createElement('button'); btnExtract.className = 'panel-iframe-btn'; btnExtract.textContent = 'EXTRACT DEMO';
-    btnExtract.addEventListener('click', function () {
-      var st = global.StudioStore && global.StudioStore.getState();
-      var demo = st ? st.selectedDemo : null;
-      if (!demo) { _log('No demo selected', 'err'); return; }
-      fetch('/api/forge/demo/extract', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ demo_path: demo, extract_frags: true }),
-        signal: AbortSignal.timeout(30000)
-      })
-        .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
-        .then(function (d) { _log('OK ' + (d.fragments || 0) + ' frags', 'ok'); })
-        .catch(function (e) { _log('FAILED ' + e, 'err'); });
-    });
-    bar.appendChild(title); bar.appendChild(_statusEl); bar.appendChild(btnIntro); bar.appendChild(btnExtract);
+    bar.appendChild(title); bar.appendChild(_statusEl); bar.appendChild(btnIntro);
     _logEl = document.createElement('div');
     _logEl.style.cssText = 'flex:1;overflow-y:auto;padding:10px 14px;font-family:Consolas,monospace';
     wrap.appendChild(bar); wrap.appendChild(_logEl);
