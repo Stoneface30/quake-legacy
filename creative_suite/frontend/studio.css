@@ -1,3 +1,228 @@
+/* ── PANTHEON STUDIO — Dark Theme ─────────────────────────────────────────── */
+
+:root {
+  --gold:        #C9A84C;
+  --deep-blue:   #002147;
+  --bg-dark:     #0D0D0D;
+  --bg-panel:    #141414;
+  --bg-sidebar:  #1A1A1A;
+  --text-primary:   #E8E8E8;
+  --text-secondary: #888888;
+  --accent:      #FF4500;
+  --border:      #2A2A2A;
+  --header-h:    40px;
+  --sidebar-w:   220px;
+  --status-h:    24px;
+}
+
+/* ── Reset / Base ─────────────────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  font-family: "Segoe UI", system-ui, sans-serif;
+  font-size: 13px;
+  overflow: hidden;
+}
+
+ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+/* ── App Grid ─────────────────────────────────────────────────────────────── */
+
+#app-grid {
+  display: grid;
+  height: 100vh;
+  grid-template-rows: var(--header-h) 1fr var(--status-h);
+  grid-template-columns: var(--sidebar-w) 1fr;
+  grid-template-areas:
+    "header  header"
+    "sidebar main"
+    "status  status";
+}
+
+/* ── Headerbar ────────────────────────────────────────────────────────────── */
+
+#headerbar {
+  grid-area: header;
+  height: var(--header-h);
+  background: #111;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  gap: 8px;
+}
+
+#logo-text {
+  color: var(--gold);
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  margin-right: 8px;
+}
+
+#header-center {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+}
+
+#transport {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+#transport button {
+  font-family: monospace;
+  min-width: 32px;
+}
+
+#header-right {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+}
+
+/* ── Sidebar ──────────────────────────────────────────────────────────────── */
+
+#sidebar {
+  grid-area: sidebar;
+  width: var(--sidebar-w);
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+#nav-list {
+  padding-top: 8px;
+}
+
+.nav-item {
+  padding: 10px 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+  transition: color 0.15s, background 0.15s;
+  border-left: 2px solid transparent;
+  user-select: none;
+}
+
+.nav-item:hover,
+.nav-item.active {
+  color: var(--text-primary);
+  background: rgba(201, 168, 76, 0.08);
+}
+
+.nav-item.active {
+  border-left: 2px solid var(--gold);
+}
+
+.nav-icon {
+  font-size: 14px;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.nav-label {
+  flex: 1;
+}
+
+/* ── Main area ────────────────────────────────────────────────────────────── */
+
+#main-area {
+  grid-area: main;
+  flex: 1;
+  overflow: hidden;
+  background: var(--bg-panel);
+}
+
+.panel-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-secondary);
+  font-size: 14px;
+  pointer-events: none;
+}
+
+/* ── Statusbar ────────────────────────────────────────────────────────────── */
+
+#statusbar {
+  grid-area: status;
+  height: var(--status-h);
+  background: #0A0A0A;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* ── Form Controls ────────────────────────────────────────────────────────── */
+
+select,
+button {
+  background: #1E1E1E;
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 12px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+select:focus,
+button:focus {
+  outline: 1px solid var(--gold);
+  outline-offset: 0;
+}
+
+button:hover {
+  border-color: #444;
+}
+
+.btn-primary {
+  background: var(--gold);
+  color: #000;
+  font-weight: 600;
+  padding: 4px 14px;
+  border-color: var(--gold);
+}
+
+.btn-primary:hover {
+  background: #d4b05a;
+  border-color: #d4b05a;
+}
+
 /* ── Mode switch ──────────────────────────────────────────────────────────── */
 
 :root { --mode-studio:#C9A84C; --mode-lab:#3a66b8; --mode-creative:#a03fbc; }
@@ -28,7 +253,7 @@
 #nav-list[data-active-mode="lab"]      .nav-item.active .nav-icon svg { color: var(--mode-lab); }
 #nav-list[data-active-mode="creative"] .nav-item.active .nav-icon svg { color: var(--mode-creative); }
 
-/* ── Nav groups + chips (same as v1) ──────────────────────────────────────── */
+/* ── Nav groups + chips ──────────────────────────────────────────────────── */
 .nav-group + .nav-group { margin-top: 2px; padding-top: 6px; border-top: 1px solid rgba(42,42,42,.5); }
 .nav-group-label {
   font-family: "Bebas Neue", system-ui, sans-serif;
@@ -46,7 +271,7 @@
 .nav-item .nav-chip.count { color: var(--text-primary); }
 .nav-icon svg { width: 15px; height: 15px; display: block; color: inherit; }
 
-/* ── Status-bar mode chip ────────────────────────────────────────────── */
+/* ── Status-bar mode chip ────────────────────────────────────────────────── */
 .status-mode { font-family: "Bebas Neue", system-ui, sans-serif; letter-spacing: .2em; font-size: 10px; padding: 1px 7px; margin-right: 10px; }
 .status-mode.studio   { background: var(--mode-studio);   color: #000; }
 .status-mode.lab      { background: var(--mode-lab);      color: #fff; }
@@ -60,7 +285,7 @@
 .panel-iframe-btn:hover{ background: #231600; }
 .panel-iframe-frame   { flex: 1; border: none; width: 100%; background: var(--bg-dark); }
 
-/* ── Shared list-panel shell (demos, patterns, prompts, queue) ──────────── */
+/* ── Shared list-panel shell ────────────────────────────────────────────── */
 .list-panel           { display:flex;flex-direction:column;height:100%;background:var(--bg-dark); }
 .list-toolbar         { display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--bg-panel);border-bottom:1px solid var(--border);flex-shrink:0; }
 .list-filter          { flex:1;background:#0a0a0a;border:1px solid var(--border);color:var(--text-primary);padding:4px 10px;font-family:Consolas,monospace;font-size:11px;border-radius:3px; }
