@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
+from creative_suite.api.forge import router as forge_router
 from creative_suite.config import Config
 from creative_suite.db.migrate import migrate
 
@@ -32,6 +33,8 @@ def create_app() -> FastAPI:
     @app.get("/studio")
     def studio():
         return FileResponse(_FRONTEND_DIR / "studio.html")
+
+    app.include_router(forge_router)
 
     if _ENGINE_GRAPH_DIR.exists():
         app.mount(
