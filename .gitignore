@@ -154,6 +154,19 @@ engine/engines/yamagi-quake2/
 !engine/engines/_diffs/
 !engine/engines/*.md
 
+# ComfyUI photoreal pipeline — generated output and proprietary game assets.
+# gallery.html (the viewer) IS committed; all binary output is not.
+creative_suite/comfy/photoreal/assets/          # pak00 PNGs extracted from Steam (986 MB, proprietary)
+creative_suite/comfy/photoreal/pipelines/       # full_overnight.py batch output (large, regenerable)
+creative_suite/comfy/photoreal/pass1/           # legacy first-pass output
+creative_suite/comfy/photoreal/e2e/             # generated E2E test images (regenerable)
+creative_suite/comfy/photoreal/assets.db        # runtime SQLite DB (regenerable)
+creative_suite/comfy/photoreal/run.log
+creative_suite/comfy/photoreal/run_err.log
+# gallery.html IS tracked — it is the visual viewer, not generated output
+!creative_suite/comfy/photoreal/gallery.html
+creative_suite/comfy/photoreal/compare/         # old comparison UI
+
 # Private nickname map — sha8(nick) -> real nickname. NEVER commit.
 .nickname_map.json
 

@@ -21,17 +21,40 @@ QUAKE LEGACY is a single unified interface: one web app that IS the GUI for the 
 - Demo player names are anonymized in all code and docs
 - All gameplay analysis is statistical — no player profiles
 
-## New Folder Structure
+## Folder Structure
 
 ```
 G:\QUAKE_LEGACY\
   creative_suite/          <- THE WHOLE APP
+    app.py                 <- FastAPI entry point (port 8765)
+    config.py              <- Config dataclass (port, paths, etc.)
+    api/                   <- FastAPI routers (phase1, studio, forge, comfy, clips…)
     engine/                <- render pipeline (was phase1/)
+    frontend/              <- HTML/CSS/JS (studio.html, studio-*.js, vendor/)
+    web/                   <- annotate.html, creative.html
+    comfy/                 <- ComfyUI integration
+      client.py            <- ComfyUI HTTP client (submit_img2img + extra placeholders)
+      prompts.py           <- prompt builders
+      workflows/           <- 8 workflow JSONs (upscale_only, tile_*, img2img_*)
+      loras/               <- manifest.json (6 styles, all HuggingFace)
+      assets/              <- pak00 source PNGs (6190 files, 986 MB)
+      photoreal/           <- all generation output
+        assets/pak00/      <- original pak00 PNGs (9 categories, 6190 files)
+        e2e/               <- E2E sample per category (original + 9 pipelines each)
+        pipelines/         <- full_overnight.py batch output
+          upscale_only/    tile_d35/  tile_d50/
+          tile_d60/        tile_d70/  tile_d80/
+        gallery.html       <- before/after/wild visual gallery (open in browser)
+        assets.db          <- SQLite: assets + renders tables
+      download_loras.py    <- HuggingFace LoRA downloader (no auth)
+      download_controlnet.py
+      photoreal_e2e_test.py <- E2E test: 11 cats × 9 pipelines incl. LoRA/wild
+      full_overnight.py    <- Batch regeneration (resumable, DB-backed)
+      init_db.py           <- One-shot: create pipelines/ dirs + assets.db
+      verify_comfyui.py    <- Pre-flight: nodes/models/workflows/scripts
+      verify_workflows.py  <- Deep workflow node-connection check
     tools/                 <- ffmpeg, ghidra, comfyui (was tools/)
-    database/              <- MusicLibrary.json, frags.db (was database/)
-    api/                   <- FastAPI routers
-    frontend/              <- HTML/CSS/JS (includes /studio)
-    tests/                 <- all test suites
+    database/              <- MusicLibrary.json, frags.db
     editor/                <- OTIO bridge + state
   engine/                  <- engine source trees (was game-dissection/)
     engines/               <- ioquake3, wolfcamql, q3mme, etc. (SHA-256 deduped)
@@ -43,6 +66,49 @@ G:\QUAKE_LEGACY\
   demos/                   <- 13 GB .dm_73 corpus (stays at root)
   QUAKE VIDEO/             <- T1/T2/T3 source AVIs (stays at root)
   output/                  <- render output (stays at root)
+```
+
+## App Startup — Full Stack
+
+```powershell
+# 1. ComfyUI (required for any texture generation)
+Start-Process "E:\PersonalAI\run_comfyui_api.bat" -WorkingDirectory "E:\PersonalAI"
+# Wait ~30s, then verify:
+python -u creative_suite/comfy/verify_comfyui.py
+
+# 2. Creative Suite (FastAPI — port 8765)
+cd G:\QUAKE_LEGACY
+E:\PersonalAI\venv\Scripts\uvicorn.exe creative_suite.app:create_app `
+    --factory --host 0.0.0.0 --port 8765 --reload
+
+# 3. Browser URLs
+#   Studio editor:    http://localhost:8765/studio
+#   Annotation tool:  http://localhost:8765/annotate
+#   Cinema Suite:     http://localhost:8765/cinema
+#   API docs:         http://localhost:8765/docs
+#   Health check:     http://localhost:8765/health
+#   Photoreal gallery: open file:///G:/QUAKE_LEGACY/creative_suite/comfy/photoreal/gallery.html
+```
+
+## Texture Regeneration — Run Order
+
+```powershell
+# Step 1 — Verify ComfyUI is ready
+python -u creative_suite/comfy/verify_comfyui.py
+
+# Step 2 — E2E test (11 categories × 9 pipelines, ~45 min with LoRA)
+# Skips existing files — safe to resume
+E:\PersonalAI\venv\Scripts\python.exe -u `
+    G:\QUAKE_LEGACY\creative_suite\comfy\photoreal_e2e_test.py
+
+# Step 3 — Open gallery for sign-off
+# file:///G:/QUAKE_LEGACY/creative_suite/comfy/photoreal/gallery.html
+
+# Step 4 — Full overnight batch (ALL 6190 assets, all 6 pipelines)
+python -u creative_suite/comfy/full_overnight.py
+# Or targeted:
+python -u creative_suite/comfy/full_overnight.py `
+    --categories players weapons2 --pipelines upscale_only tile_d35 tile_d50
 ```
 
 ## Key Tool Paths

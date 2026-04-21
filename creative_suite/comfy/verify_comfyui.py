@@ -46,6 +46,8 @@ PYTHON_SCRIPTS = [
     Path(__file__).parent / "download_loras.py",
     Path(__file__).parent / "photoreal_e2e_test.py",
     Path(__file__).parent / "download_controlnet.py",
+    Path(__file__).parent / "init_db.py",
+    Path(__file__).parent / "client.py",
 ]
 
 PASS = "  OK  "
