@@ -500,8 +500,9 @@ The community will build on this. The Q3 engine is open source — this is the g
 - Base model: `juggernautXL_ragnarokBy.safetensors` (SDXL)
 - Workflow: `creative_suite/comfy/workflows/tile_sdxl_lora.json` (LoraLoader between checkpoint and KSampler)
 - Manifest: `creative_suite/comfy/loras/manifest.json` — 6 styles documented
+- All downloads via HuggingFace — no auth required. Script: `python -u creative_suite/comfy/download_loras.py`
 - Downloaded: `NeonifyV2-4Extreme.safetensors` (cel shade, 1.8GB), `sdxl_photorealistic_slider_v1-0.safetensors` (24MB)
-- Needs API token: `Photov3-000008.safetensors` (PhotorealTouch v3, 223MB) — `python download_loras.py --token YOUR_KEY`
+- Pending: `extremely detailed.safetensors` (ntc-ai/SDXL-LoRA-slider.extremely-detailed, 74MB) — replaces PhotorealTouch
 - LoRA strength sweet spot: 0.5–0.8 with tile ControlNet at denoise=0.35–0.45
 - Retro Quake LoRA: needs custom training on pak00 corpus (TRAIN_NEEDED in manifest)
 
