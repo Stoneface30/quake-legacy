@@ -1,6 +1,7 @@
 {
-  "_template_version": "1",
-  "_description": "ControlNet-Tile refinement on already-processed images (no re-upscale). Use for pass2/pass3 on top of tile_controlnet_sd15 pass1 outputs.",
+  "_template_version": "3",
+  "_description": "dreamshaper_8 SD1.5 + Tile SD1.5 ControlNet — painterly / dreamy style. SD1.5 DNA is radically different from SDXL. Use d=0.35 for soft painterly, d=0.55 for deeper dreamlike. No internal upscale.",
+  "_style": "painterly",
   "_placeholders": [
     "{{input_image}}",
     "{{prompt}}",
@@ -22,15 +23,10 @@
   },
   "3": {
     "class_type": "VAEEncode",
+    "_comment": "SD1.5 Tile ControlNet — no TTPLanet needed, raw image as conditioning",
     "inputs": {
-      "pixels": [
-        "2",
-        0
-      ],
-      "vae": [
-        "1",
-        2
-      ]
+      "pixels": ["2", 0],
+      "vae": ["1", 2]
     }
   },
   "4": {
@@ -43,41 +39,23 @@
     "class_type": "CLIPTextEncode",
     "inputs": {
       "text": "{{prompt}}",
-      "clip": [
-        "1",
-        1
-      ]
+      "clip": ["1", 1]
     }
   },
   "6": {
     "class_type": "CLIPTextEncode",
     "inputs": {
       "text": "{{negative_prompt}}",
-      "clip": [
-        "1",
-        1
-      ]
+      "clip": ["1", 1]
     }
   },
   "7": {
     "class_type": "ControlNetApplyAdvanced",
     "inputs": {
-      "positive": [
-        "5",
-        0
-      ],
-      "negative": [
-        "6",
-        0
-      ],
-      "control_net": [
-        "4",
-        0
-      ],
-      "image": [
-        "2",
-        0
-      ],
+      "positive": ["5", 0],
+      "negative": ["6", 0],
+      "control_net": ["4", 0],
+      "image": ["2", 0],
       "strength": 1.0,
       "start_percent": 0.0,
       "end_percent": 1.0
@@ -86,22 +64,10 @@
   "8": {
     "class_type": "KSampler",
     "inputs": {
-      "model": [
-        "1",
-        0
-      ],
-      "positive": [
-        "7",
-        0
-      ],
-      "negative": [
-        "7",
-        1
-      ],
-      "latent_image": [
-        "3",
-        0
-      ],
+      "model": ["1", 0],
+      "positive": ["7", 0],
+      "negative": ["7", 1],
+      "latent_image": ["3", 0],
       "seed": "{{seed}}",
       "steps": 15,
       "cfg": 7.0,
@@ -113,24 +79,15 @@
   "9": {
     "class_type": "VAEDecode",
     "inputs": {
-      "samples": [
-        "8",
-        0
-      ],
-      "vae": [
-        "1",
-        2
-      ]
+      "samples": ["8", 0],
+      "vae": ["1", 2]
     }
   },
   "10": {
     "class_type": "SaveImage",
     "inputs": {
-      "images": [
-        "9",
-        0
-      ],
-      "filename_prefix": "creative_suite/refine"
+      "images": ["9", 0],
+      "filename_prefix": "creative_suite/style_painterly"
     }
   }
 }

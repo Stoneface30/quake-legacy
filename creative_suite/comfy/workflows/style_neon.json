@@ -1,0 +1,115 @@
+{
+  "_template_version": "3",
+  "_description": "ZavyChromaXL + NeonifyV2-4Extreme LoRA + Canny SDXL. Cyberpunk neon glow aesthetic with hard edge definition. LoRA on disk: NeonifyV2-4Extreme.safetensors (1.7GB). Canny preserves UV edges. No internal upscale.",
+  "_style": "neon",
+  "_placeholders": [
+    "{{input_image}}",
+    "{{prompt}}",
+    "{{seed}}",
+    "{{denoise}}",
+    "{{negative_prompt}}"
+  ],
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "zavychromaxl_v100.safetensors"
+    }
+  },
+  "2": {
+    "class_type": "LoraLoader",
+    "_comment": "NeonifyV2-4Extreme.safetensors — 1.7GB, on disk. strength 0.65 balances neon glow vs structure.",
+    "inputs": {
+      "model": ["1", 0],
+      "clip": ["1", 1],
+      "lora_name": "NeonifyV2-4Extreme.safetensors",
+      "strength_model": 0.65,
+      "strength_clip": 0.65
+    }
+  },
+  "3": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "{{input_image}}"
+    }
+  },
+  "4": {
+    "class_type": "VAEEncode",
+    "inputs": {
+      "pixels": ["3", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "_comment": "neon prompt prefix activates LoRA trigger — baked into workflow",
+    "inputs": {
+      "text": "neon lights, cyberpunk glow, neonify, {{prompt}}",
+      "clip": ["2", 1]
+    }
+  },
+  "6": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "{{negative_prompt}}",
+      "clip": ["2", 1]
+    }
+  },
+  "7": {
+    "class_type": "ControlNetLoader",
+    "inputs": {
+      "control_net_name": "controlnet-canny-sdxl-1.0.safetensors"
+    }
+  },
+  "8": {
+    "class_type": "Canny",
+    "_comment": "Canny edges define structure so LoRA transforms colour/lighting only",
+    "inputs": {
+      "image": ["3", 0],
+      "low_threshold": 0.4,
+      "high_threshold": 0.8
+    }
+  },
+  "9": {
+    "class_type": "ControlNetApplyAdvanced",
+    "inputs": {
+      "positive": ["5", 0],
+      "negative": ["6", 0],
+      "control_net": ["7", 0],
+      "image": ["8", 0],
+      "strength": 0.6,
+      "start_percent": 0.0,
+      "end_percent": 0.85,
+      "vae": ["1", 2]
+    }
+  },
+  "10": {
+    "class_type": "KSampler",
+    "_comment": "model from LoraLoader (node 2) — LoRA modifies the ZavyXL model",
+    "inputs": {
+      "model": ["2", 0],
+      "positive": ["9", 0],
+      "negative": ["9", 1],
+      "latent_image": ["4", 0],
+      "seed": "{{seed}}",
+      "steps": 15,
+      "cfg": 6.0,
+      "sampler_name": "dpmpp_2m_sde_gpu",
+      "scheduler": "karras",
+      "denoise": "{{denoise}}"
+    }
+  },
+  "11": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": ["10", 0],
+      "vae": ["1", 2]
+    }
+  },
+  "12": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": ["11", 0],
+      "filename_prefix": "creative_suite/style_neon"
+    }
+  }
+}

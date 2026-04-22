@@ -1,83 +1,183 @@
 {
   "_template_version": "1",
-  "_description": "Cel shade via Canny edge detection + Union ProMax ControlNet. 4x upscale → tight Canny (0.3/0.7) for clean ink outlines → JuggernautXL guided at strength=0.90. High CFG (9.0) locks the anime/cel prompt. Best at denoise=0.55–0.70.",
-  "_placeholders": ["{{input_image}}", "{{prompt}}", "{{seed}}", "{{denoise}}", "{{negative_prompt}}"],
+  "_description": "Cel shade via Canny edge detection + Union ProMax ControlNet. 4x upscale \u2192 tight Canny (0.3/0.7) for clean ink outlines \u2192 JuggernautXL guided at strength=0.90. High CFG (9.0) locks the anime/cel prompt. Best at denoise=0.55\u20130.70.",
+  "_placeholders": [
+    "{{input_image}}",
+    "{{prompt}}",
+    "{{seed}}",
+    "{{denoise}}",
+    "{{negative_prompt}}"
+  ],
   "1": {
     "class_type": "CheckpointLoaderSimple",
-    "inputs": { "ckpt_name": "juggernautXL_ragnarokBy.safetensors" }
+    "inputs": {
+      "ckpt_name": "juggernautXL_ragnarokBy.safetensors"
+    }
   },
   "2": {
     "class_type": "LoadImage",
-    "inputs": { "image": "{{input_image}}" }
+    "inputs": {
+      "image": "{{input_image}}"
+    }
   },
   "3": {
     "class_type": "UpscaleModelLoader",
-    "inputs": { "model_name": "4x-UltraSharp.pth" }
+    "inputs": {
+      "model_name": "4x-UltraSharp.pth"
+    }
   },
   "4": {
     "class_type": "ImageUpscaleWithModel",
-    "inputs": { "upscale_model": ["3", 0], "image": ["2", 0] }
+    "inputs": {
+      "upscale_model": [
+        "3",
+        0
+      ],
+      "image": [
+        "2",
+        0
+      ]
+    }
   },
   "5": {
     "class_type": "ImageScaleBy",
-    "inputs": { "image": ["4", 0], "upscale_method": "lanczos", "scale_by": 0.5 }
+    "inputs": {
+      "image": [
+        "4",
+        0
+      ],
+      "upscale_method": "lanczos",
+      "scale_by": 0.5
+    }
   },
   "6": {
     "class_type": "VAEEncode",
-    "inputs": { "pixels": ["5", 0], "vae": ["1", 2] }
+    "inputs": {
+      "pixels": [
+        "5",
+        0
+      ],
+      "vae": [
+        "1",
+        2
+      ]
+    }
   },
   "7": {
     "_comment": "Tight thresholds preserve crisp cel-shade outlines without noise",
     "class_type": "Canny",
-    "inputs": { "image": ["5", 0], "low_threshold": 0.3, "high_threshold": 0.7 }
+    "inputs": {
+      "image": [
+        "5",
+        0
+      ],
+      "low_threshold": 0.3,
+      "high_threshold": 0.7
+    }
   },
   "8": {
     "class_type": "ControlNetLoader",
-    "inputs": { "control_net_name": "controlnet-canny-sdxl-1.0.safetensors" }
+    "inputs": {
+      "control_net_name": "controlnet-canny-sdxl-1.0.safetensors"
+    }
   },
   "9": {
     "class_type": "CLIPTextEncode",
-    "inputs": { "text": "{{prompt}}", "clip": ["1", 1] }
+    "inputs": {
+      "text": "{{prompt}}",
+      "clip": [
+        "1",
+        1
+      ]
+    }
   },
   "10": {
     "class_type": "CLIPTextEncode",
-    "inputs": { "text": "{{negative_prompt}}", "clip": ["1", 1] }
+    "inputs": {
+      "text": "{{negative_prompt}}",
+      "clip": [
+        "1",
+        1
+      ]
+    }
   },
   "11": {
-    "_comment": "strength=0.90, end_percent=0.90 — outline structure dominates the full denoise pass",
+    "_comment": "strength=0.90, end_percent=0.90 \u2014 outline structure dominates the full denoise pass",
     "class_type": "ControlNetApplyAdvanced",
     "inputs": {
-      "positive":      ["9", 0],
-      "negative":      ["10", 0],
-      "control_net":   ["8", 0],
-      "image":         ["7", 0],
-      "vae":           ["1", 2],
-      "strength":      0.90,
+      "positive": [
+        "9",
+        0
+      ],
+      "negative": [
+        "10",
+        0
+      ],
+      "control_net": [
+        "8",
+        0
+      ],
+      "image": [
+        "7",
+        0
+      ],
+      "vae": [
+        "1",
+        2
+      ],
+      "strength": 0.9,
       "start_percent": 0.0,
-      "end_percent":   0.90
+      "end_percent": 0.9
     }
   },
   "12": {
     "class_type": "KSampler",
     "inputs": {
-      "model":        ["1", 0],
-      "positive":     ["11", 0],
-      "negative":     ["11", 1],
-      "latent_image": ["6", 0],
-      "seed":         "{{seed}}",
-      "steps":        28,
-      "cfg":          9.0,
+      "model": [
+        "1",
+        0
+      ],
+      "positive": [
+        "11",
+        0
+      ],
+      "negative": [
+        "11",
+        1
+      ],
+      "latent_image": [
+        "6",
+        0
+      ],
+      "seed": "{{seed}}",
+      "steps": 15,
+      "cfg": 9.0,
       "sampler_name": "dpmpp_2m",
-      "scheduler":    "karras",
-      "denoise":      "{{denoise}}"
+      "scheduler": "karras",
+      "denoise": "{{denoise}}"
     }
   },
   "13": {
     "class_type": "VAEDecode",
-    "inputs": { "samples": ["12", 0], "vae": ["1", 2] }
+    "inputs": {
+      "samples": [
+        "12",
+        0
+      ],
+      "vae": [
+        "1",
+        2
+      ]
+    }
   },
   "14": {
     "class_type": "SaveImage",
-    "inputs": { "images": ["13", 0], "filename_prefix": "creative_suite/cel_shade" }
+    "inputs": {
+      "images": [
+        "13",
+        0
+      ],
+      "filename_prefix": "creative_suite/cel_shade"
+    }
   }
 }

@@ -2,9 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import FastAPI
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.base import BaseHTTPMiddleware
 
 from creative_suite.config import Config
 from creative_suite.db.migrate import migrate
@@ -25,6 +26,18 @@ def create_app() -> FastAPI:
     app = FastAPI(title="Creative Suite v2", version=VERSION)
     app.state.cfg = cfg
 
+    class NoCacheStaticMiddleware(BaseHTTPMiddleware):
+        async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+            response: Response = await call_next(request)
+            path = request.url.path
+            if path.startswith("/static/") or path.startswith("/vendor/"):
+                response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+                response.headers["Pragma"] = "no-cache"
+                response.headers["Expires"] = "0"
+            return response
+
+    app.add_middleware(NoCacheStaticMiddleware)
+
     from creative_suite.api._render_worker import JobQueue
 
     app.state.job_queue = JobQueue()
@@ -44,6 +57,7 @@ def create_app() -> FastAPI:
         clips,
         comfy,
         editor,
+        engine,
         forge,
         md3,
         ollama,
@@ -67,6 +81,7 @@ def create_app() -> FastAPI:
     app.include_router(editor.router)
     app.include_router(studio.router)
     app.include_router(forge.router)
+    app.include_router(engine.router)
 
     # Spec §11.3 mitigation: check img2img workflow placeholders at boot.
     # This only logs — it never aborts startup, so a ComfyUI update that

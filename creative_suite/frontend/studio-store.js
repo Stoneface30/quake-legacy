@@ -19,6 +19,7 @@
     activePart:    null,
     parts:         [],
     clips:         [],
+    selectedClip:  null,
     isPlaying:     false,
     currentTime:   0,
     buildStatus:   null,
@@ -153,6 +154,10 @@
 
       case 'SET_STATUS_MSG':
         setState({ statusMessage: action.payload });
+        break;
+
+      case 'SET_SELECTED_CLIP':
+        setState({ selectedClip: action.payload });
         break;
 
       default:

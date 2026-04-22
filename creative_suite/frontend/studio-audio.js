@@ -72,6 +72,12 @@
   /** @type {function|null} StudioStore unsubscribe handle. */
   var _unsubscribe = null;
 
+  /** @type {Element|null} Browse modal backdrop. */
+  var _browseModal = null;
+
+  /** @type {Array} Full browse results cache. */
+  var _browseCache = [];
+
   // ── DOM helpers ──────────────────────────────────────────────────────────────
 
   /**
@@ -118,9 +124,14 @@
 
     _trackCountEl = _el('span', 'audio-track-count', '0 tracks');
 
+    var btnBrowse = _el('button', 'audio-btn audio-browse-btn');
+    btnBrowse.textContent = 'BROWSE MUSIC';
+    btnBrowse.addEventListener('click', _openBrowseModal);
+
     toolbar.appendChild(label);
     toolbar.appendChild(btnZoomIn);
     toolbar.appendChild(btnZoomOut);
+    toolbar.appendChild(btnBrowse);
     toolbar.appendChild(_trackCountEl);
 
     // ── Tracks area
@@ -216,6 +227,115 @@
     }
   }
 
+  // ── Music browse modal ───────────────────────────────────────────────────────
+
+  function _openBrowseModal() {
+    if (_browseModal) return;
+
+    _browseModal = _el('div', 'music-modal-backdrop');
+    _browseModal.addEventListener('click', function (e) {
+      if (e.target === _browseModal) _closeBrowseModal();
+    });
+
+    var dlg = _el('div', 'music-modal');
+
+    // header
+    var hdr = _el('div', 'music-modal-hdr');
+    hdr.appendChild(_el('span', 'music-modal-title', 'MUSIC LIBRARY'));
+    var closeBtn = _el('button', 'music-modal-close', '\u2715');
+    closeBtn.addEventListener('click', _closeBrowseModal);
+    hdr.appendChild(closeBtn);
+    dlg.appendChild(hdr);
+
+    // search
+    var searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.className = 'music-modal-search';
+    searchInput.placeholder = 'Filter artist / title…';
+    dlg.appendChild(searchInput);
+
+    // list
+    var list = _el('div', 'music-modal-list');
+    list.appendChild(_el('div', 'music-modal-loading', 'Loading…'));
+    dlg.appendChild(list);
+
+    _browseModal.appendChild(dlg);
+    document.body.appendChild(_browseModal);
+
+    searchInput.addEventListener('input', function () {
+      _renderBrowseList(list, searchInput.value);
+    });
+
+    if (_browseCache.length) {
+      _renderBrowseList(list, '');
+    } else {
+      fetch('/api/studio/music/browse', { signal: AbortSignal.timeout(8000) })
+        .then(function (r) { return r.ok ? r.json() : []; })
+        .then(function (tracks) {
+          _browseCache = tracks || [];
+          _renderBrowseList(list, searchInput.value);
+        })
+        .catch(function (e) {
+          while (list.firstChild) list.removeChild(list.firstChild);
+          list.appendChild(_el('div', 'music-modal-loading', 'Error: ' + e.message));
+        });
+    }
+  }
+
+  function _closeBrowseModal() {
+    if (_browseModal && _browseModal.parentNode) {
+      _browseModal.parentNode.removeChild(_browseModal);
+    }
+    _browseModal = null;
+  }
+
+  function _fmtDur(s) {
+    if (s === null || s === undefined) return '';
+    var n = Math.round(Number(s));
+    var m = Math.floor(n / 60);
+    var sec = n % 60;
+    return m + ':' + (sec < 10 ? '0' : '') + sec;
+  }
+
+  function _renderBrowseList(listEl, query) {
+    while (listEl.firstChild) listEl.removeChild(listEl.firstChild);
+
+    var q = (query || '').toLowerCase();
+    var filtered = _browseCache.filter(function (t) {
+      if (!q) return true;
+      return ((t.artist || '') + ' ' + (t.title || '')).toLowerCase().indexOf(q) !== -1;
+    });
+
+    if (!filtered.length) {
+      listEl.appendChild(_el('div', 'music-modal-loading', filtered.length === 0 && _browseCache.length === 0 ? 'No tracks in library.' : 'No matches.'));
+      return;
+    }
+
+    filtered.forEach(function (track) {
+      var row = _el('div', 'music-track-row');
+
+      var info = _el('div', 'music-track-info');
+      var titleEl = _el('div', 'music-track-title', track.title || track.filename);
+      var metaEl  = _el('div', 'music-track-meta',
+        (track.artist ? track.artist + '  ·  ' : '') + _fmtDur(track.duration_s));
+      info.appendChild(titleEl);
+      info.appendChild(metaEl);
+      row.appendChild(info);
+
+      var addBtn = _el('button', 'music-add-btn', '+ ADD');
+      addBtn.addEventListener('click', function () {
+        var url = '/api/studio/music/file/' + encodeURIComponent(track.filename);
+        _loadedUrls.push({ url: url, label: track.title || track.filename });
+        loadAudio(_loadedUrls);
+        addBtn.textContent = '✓';
+        addBtn.disabled = true;
+      });
+      row.appendChild(addBtn);
+
+      listEl.appendChild(row);
+    });
+  }
+
   // ── Public API ───────────────────────────────────────────────────────────────
 
   /**
@@ -249,6 +369,7 @@
    * Unmount: destroy the multitrack instance, remove DOM, unsubscribe from store.
    */
   function unmount() {
+    _closeBrowseModal();
     _destroyMultitrack();
 
     if (_unsubscribe) {

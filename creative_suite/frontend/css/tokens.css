@@ -1,0 +1,70 @@
+/* tokens.css — Pantheon v3 canonical tokens. Do not override. */
+:root {
+  /* gold (brand + primary action only) */
+  --p-gold:       #e8b923;
+  --p-gold-hi:    #ffd340;
+  --p-gold-dim:   #b58d15;
+  --p-gold-glo:   rgba(232,185,35,.14);
+  --p-gold-glo2:  rgba(232,185,35,.06);
+
+  /* blue (structural, cool) */
+  --p-blue:       #1a3e9a;
+  --p-blue-hi:    #2a5acc;
+  --p-blue-deep:  #081540;
+  --p-blue-dim:   #0d2060;
+
+  /* semantic states (never use for anything else) */
+  --p-green:      #1e8449;  /* LED ok, success */
+  --p-amber:      #e68a00;  /* warning, degraded */
+  --p-red:        #c41515;  /* error, destructive */
+
+  /* surfaces */
+  --p-bg:         #040610;
+  --p-surface:    #0a0e1e;
+  --p-surface2:   #0f1430;
+  --p-border:     #1a2245;
+  --p-border-hi:  #243063;
+
+  /* text — all AA compliant on --p-bg */
+  --p-text:       #e8eef8;
+  --p-text-dim:   #8090b8;
+  --p-text-mute:  #5a6890;
+
+  /* tiers — desaturated gold-to-blue gradient */
+  --p-t1: var(--p-gold);
+  --p-t2: var(--p-blue-hi);
+  --p-t3: #3a4478;  /* readable, not near-invisible */
+
+  /* section roles */
+  --p-drop:  var(--p-gold);
+  --p-build: var(--p-blue-hi);
+  --p-break: #2a3464;
+  --p-intro: var(--p-blue);
+  --p-outro: #14306a;
+
+  /* type */
+  --p-font-display: 'Bebas Neue', sans-serif;
+  --p-font-data:    'IBM Plex Mono', ui-monospace, monospace;
+
+  /* spacing scale (4px base) */
+  --p-s1: 4px;  --p-s2: 8px;   --p-s3: 12px;
+  --p-s4: 16px; --p-s5: 24px;  --p-s6: 32px;
+
+  /* chrome heights */
+  --p-hdr-h: 56px;
+  --p-bar-h: 28px;
+
+  /* NO border-radius. Pantheon is 90-degree brutalist. */
+}
+
+/* CRT scanlines — opt-in via body.crt class */
+body.crt::after {
+  content: '';
+  position: fixed; inset: 0;
+  pointer-events: none; z-index: 9999;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0, transparent 2px,
+    rgba(0,0,0,.05) 2px, rgba(0,0,0,.05) 3px
+  );
+}
