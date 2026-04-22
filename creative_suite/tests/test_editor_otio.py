@@ -3,6 +3,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+pytest.importorskip("opentimelineio", reason="opentimelineio not installed")
+
 from creative_suite.editor.otio_bridge import (
     otio_to_state,
     read_otio,

@@ -29,6 +29,9 @@
   /** @type {HTMLCanvasElement|null} */
   var _canvas = null;
 
+  /** @type {HTMLVideoElement|null} */
+  var _video = null;
+
   /** @type {CanvasRenderingContext2D|null} */
   var _ctx = null;
 
@@ -348,6 +351,57 @@
       });
   }
 
+  /**
+   * Load a clip into the <video> element via the WebM stream endpoint.
+   * @param {string} clipPath  — absolute filesystem path to the clip
+   */
+  function _loadClipStream(clipPath) {
+    if (!_video) { return; }
+    var url = '/api/studio/clip-stream?path=' + encodeURIComponent(clipPath);
+    _video.pause();
+    _video.src = url;
+    _video.load();
+    // Show video, hide canvas once video is ready
+    _video.style.display = 'block';
+    if (_canvas) { _canvas.style.display = 'none'; }
+  }
+
+  /**
+   * Fetch a JPEG thumbnail from /api/studio/clip-thumb and draw it on the canvas.
+   * Falls back gracefully if the endpoint is unavailable.
+   * @param {string} clipPath  — absolute filesystem path to the clip
+   * @param {number} tSec      — timestamp in seconds for the frame
+   */
+  function _loadClipThumb(clipPath, tSec) {
+    if (!_ctx || !_canvas) { return; }
+    var url = '/api/studio/clip-thumb?path=' + encodeURIComponent(clipPath) +
+              '&t=' + (tSec || 1.0);
+    var img = new Image();
+    img.onload = function () {
+      if (!_ctx || !_canvas) { return; }
+      _ctx.clearRect(0, 0, _canvas.width, _canvas.height);
+      // Letterbox the image into the canvas.
+      var cw = _canvas.width, ch = _canvas.height;
+      var scale = Math.min(cw / img.width, ch / img.height);
+      var dw = img.width * scale, dh = img.height * scale;
+      var dx = (cw - dw) / 2, dy = (ch - dh) / 2;
+      _ctx.fillStyle = '#000';
+      _ctx.fillRect(0, 0, cw, ch);
+      _ctx.drawImage(img, dx, dy, dw, dh);
+      // Subtle overlay label.
+      _ctx.fillStyle = 'rgba(0,0,0,0.55)';
+      _ctx.fillRect(0, ch - 22, cw, 22);
+      _ctx.fillStyle = '#e8b923';
+      _ctx.font = '10px Consolas, monospace';
+      _ctx.fillText(clipPath.split('\\').pop() || clipPath.split('/').pop(), 6, ch - 6);
+    };
+    img.onerror = function () {
+      console.warn('[StudioPreview] Thumbnail fetch failed for', clipPath);
+      _renderPlaceholder('Thumbnail unavailable');
+    };
+    img.src = url;
+  }
+
   // ── playback loop ──────────────────────────────────────────────────────────
 
   /**
@@ -409,6 +463,13 @@
     _canvas.id     = 'preview-canvas';
     _canvas.width  = 1280;
     _canvas.height = 720;
+
+    // Video element for WebM stream playback (shown instead of canvas when a clip is selected)
+    _video = document.createElement('video');
+    _video.id       = 'preview-video';
+    _video.controls = true;
+    _video.style.cssText = 'display:none;max-width:100%;max-height:100%;background:#000;';
+    viewport.appendChild(_video);
 
     var overlay = document.createElement('div');
     overlay.className = 'preview-overlay';
@@ -520,6 +581,13 @@
         _rafLastTs   = null;
         _syncUI();
       }
+
+      // selectedClip changed — stream the newly selected clip.
+      if (state.selectedClip !== prev.selectedClip && state.selectedClip) {
+        // TODO: wire backend clip URL — resolve via /api/studio/clip-stream once clip index is ready
+        var cp = state.selectedClip.path || state.selectedClip.url;
+        if (cp) { _loadClipStream(cp); }
+      }
     });
   }
 
@@ -560,13 +628,10 @@
 
     _renderPlaceholder('Part ' + partNum + ' loaded — ' + _clips.length + ' clip(s)');
 
-    // Kick off loading the first clip.
+    // Kick off thumbnail for first clip.
     var firstClip = _clips[0];
     if (firstClip && (firstClip.path || firstClip.url)) {
-      // TODO: wire backend clip URL — construct the API URL from clip.path here,
-      // e.g. '/api/studio/clip-file?path=' + encodeURIComponent(firstClip.path)
-      // then call: _loadClipUrl(clipUrl);
-      console.info('[StudioPreview] First clip path:', firstClip.path || firstClip.url);
+      _loadClipThumb(firstClip.path || firstClip.url, 1.0);
     }
   }
 
@@ -598,7 +663,7 @@
     if (_container) { unmount(); }
 
     _container = document.createElement('div');
-    _container.style.cssText = 'width:100%;height:100%;';
+    _container.style.cssText = 'width:100%;flex:1;min-height:0;display:flex;flex-direction:column;';
 
     var panel = _buildDOM();
     _container.appendChild(panel);
@@ -636,6 +701,7 @@
     if (_container && _container.parentNode) {
       _container.parentNode.removeChild(_container);
     }
+    if (_video) { _video.pause(); _video.src = ''; _video = null; }
     _container    = null;
     _canvas       = null;
     _ctx          = null;

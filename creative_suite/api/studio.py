@@ -14,13 +14,16 @@ Serves metadata for the /studio editor UI:
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 
 router = APIRouter(prefix="/api/studio", tags=["studio"])
@@ -158,17 +161,12 @@ def list_parts(request: Request) -> list[dict[str, Any]]:
 
         render_exists = (out / f"part{nn}" / f"part{nn}_final.mp4").exists()
 
-        # Count clips across all three tiers
-        t1_count = _count_clips(f)
-        t2_count = sum(1 for x in (qv / "T2" / f"Part{part}").glob("*.avi") if qv.exists()) if qv.exists() else 0
-        t3_count = sum(1 for x in (qv / "T3" / f"Part{part}").glob("*.avi") if qv.exists()) if qv.exists() else 0
+        # clip_count = manifest lines only (source of truth per CLAUDE.md P1-A)
+        clip_count = _count_clips(f)
 
         results.append({
             "part": part,
-            "clip_count": t1_count + t2_count + t3_count,
-            "t1_count": t1_count,
-            "t2_count": t2_count,
-            "t3_count": t3_count,
+            "clip_count": clip_count,
             "has_flow_plan": has_flow_plan,
             "has_music": _has_music(part, cfg.phase1_music_dir),
             "render_exists": render_exists,
@@ -192,29 +190,19 @@ def get_clips(part_num: int, request: Request) -> dict[str, Any]:
     if saved is not None:
         return {"part": part_num, "clips": saved, "has_saved_order": True}
 
-    # Build default order: T1 (from manifest), then T2 (dir scan), then T3 (dir scan)
+    # Build default order from manifest; tier/is_fl inferred from path
     clips: list[dict[str, Any]] = []
-    qv_part = qv / "T1" / f"Part{part_num}"
     for line in clip_file.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
         c = _parse_clip_line(stripped, len(clips))
-        # Manifest lines are T1 — force tier and resolve full path
-        c["tier"] = "T1"
-        c["is_fl"] = False
-        name = Path(c["path"]).name
-        c["name"] = name
-        if not Path(c["path"]).is_absolute():
-            c["path"] = str(qv_part / name)
+        c["name"] = Path(c["path"]).name
         clips.append(c)
-
-    t2_clips = _scan_tier_dir(qv / "T2" / f"Part{part_num}", "T2", len(clips))
-    t3_clips = _scan_tier_dir(qv / "T3" / f"Part{part_num}", "T3", len(clips) + len(t2_clips))
 
     return {
         "part": part_num,
-        "clips": clips + t2_clips + t3_clips,
+        "clips": clips,
         "has_saved_order": False,
     }
 
@@ -262,7 +250,7 @@ def save_clip_order(part_num: int, body: ClipOrderBody, request: Request) -> dic
     return {"saved": True, "total": len(ordered), "t1": len(t1_clips)}
 
 
-_VALID_PARTS = range(1, 13)  # parts 1-12 inclusive
+_VALID_PARTS = range(4, 13)  # parts 4-12 inclusive (matches CLAUDE.md P1-A)
 
 # ── music helpers ─────────────────────────────────────────────────────────────
 
@@ -421,6 +409,153 @@ def get_beats(part_num: int, request: Request) -> dict[str, Any]:
             }
 
     return {"part": part_num, "beats": [], "sections": [], "note": "no beats file found"}
+
+
+# ── clip file + thumbnail endpoints ───────────────────────────────────────────
+
+_TOOLS_ROOT = Path(__file__).parent.parent / "tools"
+_ALLOWED_EXTS = {".avi", ".mp4", ".mov", ".mkv", ".webm"}
+
+
+def _ffmpeg_bin() -> str:
+    for cand in (
+        _TOOLS_ROOT / "ffmpeg" / "ffmpeg.exe",
+        Path("G:/QUAKE_LEGACY/creative_suite/tools/ffmpeg/ffmpeg.exe"),
+    ):
+        if cand.exists():
+            return str(cand)
+    found = shutil.which("ffmpeg")
+    if found:
+        return found
+    raise FileNotFoundError("ffmpeg binary not found")
+
+
+def _resolve_clip_path(raw: str, cfg: Any) -> Path:
+    """Resolve and validate a clip path — must be under the QUAKE VIDEO dir or the app root."""
+    p = Path(raw)
+    if not p.is_absolute():
+        raise HTTPException(status_code=400, detail="Path must be absolute")
+    if p.suffix.lower() not in _ALLOWED_EXTS:
+        raise HTTPException(status_code=400, detail="File type not allowed")
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="Clip file not found")
+    # Security: must be under QUAKE VIDEO dir or QUAKE_LEGACY root
+    root = Path("G:/QUAKE_LEGACY")
+    try:
+        p.relative_to(cfg.quake_video_dir)
+        return p
+    except ValueError:
+        pass
+    try:
+        p.relative_to(root)
+        return p
+    except ValueError:
+        raise HTTPException(status_code=403, detail="Path outside allowed directories")
+
+
+@router.get("/clip-file")
+def serve_clip_file(
+    path: str = Query(..., description="Absolute path to clip file"),
+    request: Request = None,  # type: ignore[assignment]
+) -> FileResponse:
+    """Stream a clip file to the browser. Used by the preview panel."""
+    cfg = request.app.state.cfg
+    p = _resolve_clip_path(path, cfg)
+    media_type = "video/mp4" if p.suffix.lower() == ".mp4" else "video/x-msvideo"
+    return FileResponse(str(p), media_type=media_type)
+
+
+@router.get("/clip-thumb")
+def clip_thumbnail(
+    path: str = Query(..., description="Absolute path to clip file"),
+    t: float = Query(default=1.0, description="Timestamp in seconds for thumbnail frame"),
+    request: Request = None,  # type: ignore[assignment]
+) -> Response:
+    """Extract a JPEG thumbnail frame from a clip using FFmpeg."""
+    cfg = request.app.state.cfg
+    p = _resolve_clip_path(path, cfg)
+
+    try:
+        ffmpeg = _ffmpeg_bin()
+    except FileNotFoundError:
+        raise HTTPException(status_code=503, detail="FFmpeg not available")
+
+    with tempfile.NamedTemporaryFile(suffix=".jpg", delete=False) as tmp:
+        tmp_path = tmp.name
+
+    try:
+        result = subprocess.run(
+            [
+                ffmpeg,
+                "-ss", str(t),
+                "-i", str(p),
+                "-vframes", "1",
+                "-vf", "scale=640:-1",
+                "-q:v", "4",
+                "-y",
+                tmp_path,
+            ],
+            capture_output=True,
+            timeout=15,
+        )
+        if result.returncode != 0 or not Path(tmp_path).exists():
+            raise HTTPException(status_code=500, detail="FFmpeg thumbnail extraction failed")
+        data = Path(tmp_path).read_bytes()
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+
+    return Response(content=data, media_type="image/jpeg")
+
+
+@router.get("/clip-stream")
+def clip_stream(
+    path: str = Query(..., description="Absolute path to clip file"),
+    request: Request = None,  # type: ignore[assignment]
+) -> Response:
+    """Transcode a clip to WebM/VP8 via FFmpeg and stream it to the browser.
+    Chrome can play WebM natively. Seeks are limited (no random seek support)."""
+    from fastapi.responses import StreamingResponse
+
+    cfg = request.app.state.cfg
+    p = _resolve_clip_path(path, cfg)
+
+    try:
+        ffmpeg = _ffmpeg_bin()
+    except FileNotFoundError:
+        raise HTTPException(status_code=503, detail="FFmpeg not available")
+
+    def generate():
+        proc = subprocess.Popen(
+            [
+                ffmpeg,
+                "-i", str(p),
+                "-c:v", "libvpx",
+                "-crf", "20",
+                "-b:v", "1M",
+                "-deadline", "realtime",
+                "-cpu-used", "5",
+                "-c:a", "libvorbis",
+                "-q:a", "3",
+                "-f", "webm",
+                "pipe:1",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        try:
+            while True:
+                chunk = proc.stdout.read(65536)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            proc.stdout.close()
+            proc.wait()
+
+    return StreamingResponse(generate(), media_type="video/webm")
 
 
 @router.get("/part/{part_num}/flow")

@@ -1,6 +1,7 @@
 /**
  * PANTHEON STUDIO — Inspector Panel
  * studio-inspector.js  (v2 — plain DOM, no Tweakpane)
+ * Tweakpane is not available in this context — plain DOM fallback is used throughout.
  *
  * Displays and edits clip properties for the currently selected clip.
  * Subscribes to StudioStore.selectedClip and repopulates on every change.
@@ -395,7 +396,7 @@
     if (init) { _currentClip = init; _showClip(init); }
     else      { _showEmpty(); }
 
-    _unsubscribe = store.subscribe(function (state, prev) {
+    _unsubscribe = global.StudioStore.subscribe(function (state, prev) {
       if (state.selectedClip === prev.selectedClip) return;
       _currentClip = state.selectedClip;
       if (_currentClip) _showClip(_currentClip);
@@ -436,6 +437,12 @@
     },
 
     inspectClip: function (clip) {
+      if (!clip) { _showEmpty(); return; }
+      _currentClip = clip;
+      _showClip(clip);
+    },
+
+    inspectEffects: function (clip) {
       if (!clip) { _showEmpty(); return; }
       _currentClip = clip;
       _showClip(clip);
