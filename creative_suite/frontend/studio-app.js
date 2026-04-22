@@ -70,7 +70,7 @@
         navItems.forEach(function (n) { n.classList.remove('active'); });
         item.classList.add('active');
 
-        store.dispatch({ type: 'SET_ACTIVE_PAGE', payload: page });
+        store.dispatch({ type: 'SET_ACTIVE_PAGE', page: page });
       });
     });
 

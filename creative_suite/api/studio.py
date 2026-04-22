@@ -142,7 +142,6 @@ def list_parts(request: Request) -> list[dict[str, Any]]:
     cfg = request.app.state.cfg
     clip_lists = _clip_lists_dir(request)
     out = _output_dir(request)
-    qv = cfg.quake_video_dir
 
     if not clip_lists.exists():
         return []
@@ -180,7 +179,6 @@ def get_clips(part_num: int, request: Request) -> dict[str, Any]:
     cfg = request.app.state.cfg
     clip_lists = _clip_lists_dir(request)
     clip_file = clip_lists / f"part{part_num:02d}.txt"
-    qv = cfg.quake_video_dir
 
     if not clip_file.exists():
         raise HTTPException(status_code=404, detail=f"No clip list for part {part_num}")
@@ -439,8 +437,9 @@ def _resolve_clip_path(raw: str, cfg: Any) -> Path:
         raise HTTPException(status_code=400, detail="File type not allowed")
     if not p.exists():
         raise HTTPException(status_code=404, detail="Clip file not found")
-    # Security: must be under QUAKE VIDEO dir or QUAKE_LEGACY root
-    root = Path("G:/QUAKE_LEGACY")
+    # Security: must be under QUAKE VIDEO dir or repo root
+    from creative_suite.config import REPO_ROOT
+    root = REPO_ROOT
     try:
         p.relative_to(cfg.quake_video_dir)
         return p
@@ -553,7 +552,12 @@ def clip_stream(
                 yield chunk
         finally:
             proc.stdout.close()
-            proc.wait()
+            proc.terminate()
+            try:
+                proc.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait()
 
     return StreamingResponse(generate(), media_type="video/webm")
 
