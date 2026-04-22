@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+pytest.importorskip("opentimelineio", reason="opentimelineio not installed")
+
 from creative_suite.otio_bridge import build_otio_timeline, write_otio_for_part
 
 

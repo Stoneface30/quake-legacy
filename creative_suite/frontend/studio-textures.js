@@ -154,4 +154,7 @@
     unmount: unmount,
   };
 
+  // Backward-compatibility alias — NAV still uses 'CreativeTextures' module name
+  global.CreativeTextures = global.StudioTextures;
+
 }(typeof window !== 'undefined' ? window : this));

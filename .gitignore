@@ -170,6 +170,41 @@ creative_suite/comfy/photoreal/compare/         # old comparison UI
 # Private nickname map — sha8(nick) -> real nickname. NEVER commit.
 .nickname_map.json
 
+# Graphify analysis artifacts (regenerable — root-level and engine-level)
+.graphify_*.json
+.graphify_python
+.graphify_uncached.txt
+.graphify_extract.json
+.graphify_analysis.json
+**/graphify-out/
+graphify-out/
+
+# Claude Code tooling and plugin caches
+.claude/
+.superpowers/
+.swarm/
+AGENTS.md
+
+# Root-level scratch / log files
+app_*.log
+uv*.log
+celshade_wild_out.log
+twopass_*.log
+cinema_panel.png
+creative_panel.png
+creative_suite_*.png
+celshade_wild.py
+
+# ComfyUI output artifacts (regenerable)
+creative_suite/comfy/photoreal/celshade_wild/
+creative_suite/comfy/photoreal/twopass_test/
+creative_suite/comfy/photoreal/*.log
+creative_suite/comfy/batch_overnight.py
+creative_suite/comfy/check_nodes.py
+
+# Vault — personal notes, not for public repo
+Vault/
+
 # Ghidra sandbox (FT-4 reverse-engineering track)
 # Projects are huge (.gpr + .rep per-binary databases). Binaries are id Software IP
 # (QL / Q3A derivatives) — reference only, never redistribute. Reports + scripts

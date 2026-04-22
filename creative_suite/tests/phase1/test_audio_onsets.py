@@ -4,8 +4,11 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-import numpy as np
 import pytest
+
+pytest.importorskip("librosa", reason="librosa not installed")
+
+import numpy as np
 
 from creative_suite.engine.audio_onsets import find_action_peak, find_action_peaks_per_clip
 from creative_suite.engine.config import Config

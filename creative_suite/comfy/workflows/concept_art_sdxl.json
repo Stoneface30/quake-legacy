@@ -1,67 +1,143 @@
 {
   "_template_version": "1",
-  "_description": "Pure img2img concept art — no ControlNet. RealVisXL at high denoise (0.70–0.80) freely reinterprets texture structure as painterly concept art. dpmpp_2m_sde_gpu + exponential scheduler introduces organic SDE noise for varied, illustration-like output. 35 steps for depth and richness.",
+  "_description": "Pure img2img concept art \u2014 no ControlNet. RealVisXL at high denoise (0.70\u20130.80) freely reinterprets texture structure as painterly concept art. dpmpp_2m_sde_gpu + exponential scheduler introduces organic SDE noise for varied, illustration-like output. 35 steps for depth and richness.",
   "_notes": [
-    "No ControlNet is intentional — concept art requires creative latitude, not structure preservation.",
+    "No ControlNet is intentional \u2014 concept art requires creative latitude, not structure preservation.",
     "RealVisXL chosen over JuggernautXL: better at painterly/editorial looks without LoRA.",
-    "SDE sampler (dpmpp_2m_sde_gpu) introduces stochastic variation each run — unique results at same seed.",
+    "SDE sampler (dpmpp_2m_sde_gpu) introduces stochastic variation each run \u2014 unique results at same seed.",
     "exponential scheduler front-loads denoising, leaving fine detail to late steps = concept art feel."
   ],
-  "_placeholders": ["{{input_image}}", "{{prompt}}", "{{seed}}", "{{denoise}}", "{{negative_prompt}}"],
+  "_placeholders": [
+    "{{input_image}}",
+    "{{prompt}}",
+    "{{seed}}",
+    "{{denoise}}",
+    "{{negative_prompt}}"
+  ],
   "1": {
     "class_type": "CheckpointLoaderSimple",
-    "inputs": { "ckpt_name": "RealVisXL_V5.0_fp16.safetensors" }
+    "inputs": {
+      "ckpt_name": "RealVisXL_V5.0_fp16.safetensors"
+    }
   },
   "2": {
     "class_type": "LoadImage",
-    "inputs": { "image": "{{input_image}}" }
+    "inputs": {
+      "image": "{{input_image}}"
+    }
   },
   "3": {
     "class_type": "UpscaleModelLoader",
-    "inputs": { "model_name": "4x-UltraSharp.pth" }
+    "inputs": {
+      "model_name": "4x-UltraSharp.pth"
+    }
   },
   "4": {
     "class_type": "ImageUpscaleWithModel",
-    "inputs": { "upscale_model": ["3", 0], "image": ["2", 0] }
+    "inputs": {
+      "upscale_model": [
+        "3",
+        0
+      ],
+      "image": [
+        "2",
+        0
+      ]
+    }
   },
   "5": {
     "class_type": "ImageScaleBy",
-    "inputs": { "image": ["4", 0], "upscale_method": "lanczos", "scale_by": 0.5 }
+    "inputs": {
+      "image": [
+        "4",
+        0
+      ],
+      "upscale_method": "lanczos",
+      "scale_by": 0.5
+    }
   },
   "6": {
     "class_type": "VAEEncode",
-    "inputs": { "pixels": ["5", 0], "vae": ["1", 2] }
+    "inputs": {
+      "pixels": [
+        "5",
+        0
+      ],
+      "vae": [
+        "1",
+        2
+      ]
+    }
   },
   "7": {
     "class_type": "CLIPTextEncode",
-    "inputs": { "text": "{{prompt}}", "clip": ["1", 1] }
+    "inputs": {
+      "text": "{{prompt}}",
+      "clip": [
+        "1",
+        1
+      ]
+    }
   },
   "8": {
     "class_type": "CLIPTextEncode",
-    "inputs": { "text": "{{negative_prompt}}", "clip": ["1", 1] }
+    "inputs": {
+      "text": "{{negative_prompt}}",
+      "clip": [
+        "1",
+        1
+      ]
+    }
   },
   "9": {
-    "_comment": "cfg=8.0 balanced — guides prompt without locking composition. SDE + exponential = painterly organic variation.",
+    "_comment": "cfg=8.0 balanced \u2014 guides prompt without locking composition. SDE + exponential = painterly organic variation.",
     "class_type": "KSampler",
     "inputs": {
-      "model":        ["1", 0],
-      "positive":     ["7", 0],
-      "negative":     ["8", 0],
-      "latent_image": ["6", 0],
-      "seed":         "{{seed}}",
-      "steps":        35,
-      "cfg":          8.0,
+      "model": [
+        "1",
+        0
+      ],
+      "positive": [
+        "7",
+        0
+      ],
+      "negative": [
+        "8",
+        0
+      ],
+      "latent_image": [
+        "6",
+        0
+      ],
+      "seed": "{{seed}}",
+      "steps": 15,
+      "cfg": 8.0,
       "sampler_name": "dpmpp_2m_sde_gpu",
-      "scheduler":    "exponential",
-      "denoise":      "{{denoise}}"
+      "scheduler": "exponential",
+      "denoise": "{{denoise}}"
     }
   },
   "10": {
     "class_type": "VAEDecode",
-    "inputs": { "samples": ["9", 0], "vae": ["1", 2] }
+    "inputs": {
+      "samples": [
+        "9",
+        0
+      ],
+      "vae": [
+        "1",
+        2
+      ]
+    }
   },
   "11": {
     "class_type": "SaveImage",
-    "inputs": { "images": ["10", 0], "filename_prefix": "creative_suite/concept_art" }
+    "inputs": {
+      "images": [
+        "10",
+        0
+      ],
+      "filename_prefix": "creative_suite/concept_art"
+    }
   }
 }

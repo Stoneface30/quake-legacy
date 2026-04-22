@@ -2,14 +2,22 @@
 
 Pipelines (all resumable, all stored in assets.db):
   upscale_only   — 4x-UltraSharp CNN only, zero diffusion (ALL categories)
-  tile_d35       — JuggernautXL + TTPLanet Tile denoise=0.35 (SURFACE only)
-  tile_d50       — denoise=0.50 (SURFACE only)
-  tile_d60       — denoise=0.60 (SURFACE only, experimental)
-  tile_d70       — denoise=0.70 (SURFACE only, experimental — gets spicy)
-  tile_d80       — denoise=0.80 (SURFACE only, experimental — chaos mode)
+
+  8 STYLE PIPELINES (SURFACE categories only):
+  photoreal      — JuggernautXL + TTPLanet Tile, d=0.35  → clean photorealistic surface
+  chromatic      — ZavyChromaXL + TTPLanet Tile, d=0.35  → vibrant chromatic saturation
+  edge_chrome    — ZavyChromaXL + Canny SDXL,   d=0.45  → sharp edges + chromatic fills
+  depth_realism  — JuggernautXL + DepthAnyV2 + Depth SDXL, d=0.40 → volumetric photoreal
+  isometric      — stylized-isometric-sdxl + TTPLanet Tile, d=0.45 → isometric game-art
+  painterly      — dreamshaper_8 SD1.5 + Tile SD1.5, d=0.35 → soft painterly
+  dreamlike      — dreamshaper_8 SD1.5 + Tile SD1.5, d=0.55 → deeper dreamlike transform
+  zavy_depth     — ZavyChromaXL + DepthAnyV2 + Depth SDXL, d=0.40 → vibrant + volumetric
+
+  All style workflows: NO internal upscale — use --twopass to feed CNN-upscaled images.
+  All style workflows: NO LoRA — style from checkpoint + ControlNet type only.
 
 Category routing (from E2E verdict 2026-04-21):
-  SURFACE (upscale + all tile pipelines):
+  SURFACE (upscale + all style pipelines):
     players, weapons2, textures, phase5
   FX / shape-critical (upscale_only only):
     weaphits, gfx, icons, ui, wolfcam_hud, powerups, mapobjects, sprites
@@ -21,10 +29,10 @@ Output structure:
   photoreal/compare/index.html
 
 Usage:
-  python -u creative_suite/comfy/full_overnight.py
-  python -u creative_suite/comfy/full_overnight.py --categories players weapons2
-  python -u creative_suite/comfy/full_overnight.py --pipelines upscale_only tile_d35 tile_d50
-  python -u creative_suite/comfy/full_overnight.py --categories phase5 --pipelines tile_d35 tile_d50 tile_d60
+  python -u creative_suite/comfy/full_overnight.py --twopass
+  python -u creative_suite/comfy/full_overnight.py --twopass --categories players weapons2
+  python -u creative_suite/comfy/full_overnight.py --twopass --pipelines photoreal chromatic edge_chrome
+  python -u creative_suite/comfy/full_overnight.py --pipelines upscale_only
 
 Fully resumable: existing output files and DB records are skipped.
 """
@@ -63,23 +71,21 @@ ASSETS     = PHOTOREAL / "assets"
 PIPELINES_DIR = PHOTOREAL / "pipelines"
 DB_PATH    = PHOTOREAL / "assets.db"
 
-WF_DIR         = Path(__file__).parent / "workflows"
-WF_UPSCALE     = WF_DIR / "upscale_only.json"
-WF_TILE_SDXL   = WF_DIR / "tile_controlnet_sdxl.json"
-WF_REFINE_SDXL = WF_DIR / "tile_refine_sdxl.json"
-WF_TILE_SD15   = WF_DIR / "tile_controlnet_sd15.json"
-WF_CEL_SHADE   = WF_DIR / "cel_shade_sdxl.json"
-WF_CARTOON     = WF_DIR / "cartoon_sdxl.json"
-WF_CONCEPT_ART = WF_DIR / "concept_art_sdxl.json"
-WF_INK_ETCHING = WF_DIR / "ink_etching_sdxl.json"
+WF_DIR            = Path(__file__).parent / "workflows"
+WF_UPSCALE        = WF_DIR / "upscale_only.json"
+# ── 10 style workflows (no internal upscale) ──────────────────────────────────
+WF_PHOTOREAL      = WF_DIR / "style_photoreal.json"      # JuggXL + TTPLanet Tile
+WF_CHROMATIC      = WF_DIR / "style_chromatic.json"      # ZavyChromaXL + TTPLanet Tile
+WF_EDGE_CHROME    = WF_DIR / "style_edge_chrome.json"    # ZavyChromaXL + Canny SDXL
+WF_DEPTH_REALISM  = WF_DIR / "style_depth_realism.json"  # JuggXL + DepthAnyV2 + Depth SDXL
+WF_ISOMETRIC      = WF_DIR / "style_isometric.json"      # stylized-isometric-sdxl + TTPLanet
+WF_PAINTERLY      = WF_DIR / "style_painterly.json"      # dreamshaper_8 + Tile SD1.5 (painterly+dreamlike)
+WF_ZAVY_DEPTH     = WF_DIR / "style_zavy_depth.json"     # ZavyChromaXL + DepthAnyV2 + Depth SDXL
+WF_PIXEL_ART      = WF_DIR / "style_pixel_art.json"      # JuggXL + pixel-art-xl LoRA + TTPLanet
+WF_NEON           = WF_DIR / "style_neon.json"           # ZavyXL + NeonifyV2 LoRA + Canny SDXL
 
-SDXL_CONTROLNET = Path(
-    r"E:\PersonalAI\ComfyUI\models\controlnet"
-    r"\TTPLANET_Controlnet_Tile_realistic_v2_fp16.safetensors"
-)
-
-POLL_INTERVAL = 1.0
-TIMEOUT       = 360.0
+POLL_INTERVAL = 2.0
+TIMEOUT       = 900.0   # 15 min — SDXL cold-start (first job loads 6GB checkpoint)
 FX_BLACK_RATIO = 0.70
 
 # ── Pipeline definitions ───────────────────────────────────────────────────────
@@ -89,17 +95,24 @@ FX_BLACK_RATIO = 0.70
 #   scope "surface" → runs only on SURFACE categories
 
 PIPELINE_DEFS: OrderedDict[str, tuple[str, float, str]] = OrderedDict([
-    ("upscale_only", ("upscale",      1.0,  "all")),
-    ("tile_d35",     ("tile",         0.35, "surface")),
-    ("tile_d50",     ("tile",         0.50, "surface")),
-    ("tile_d60",     ("tile",         0.60, "surface")),
-    ("tile_d70",     ("tile",         0.70, "surface")),
-    ("tile_d80",     ("tile",         0.80, "surface")),
-    # ── Style workflows ──────────────────────────────────────────────────
-    ("cel_shade",    ("cel_shade",    0.65, "surface")),
-    ("cartoon",      ("cartoon",      0.65, "surface")),
-    ("concept_art",  ("concept_art",  0.75, "surface")),
-    ("ink_etching",  ("ink_etching",  0.70, "surface")),
+    # ── Base CNN pass (all categories) ─────────────────────────────────
+    ("upscale_only",  ("upscale",        1.0,  "all")),
+    # ── 10 distinct style passes (SURFACE only, use --twopass) ─────────
+    # Each pair shares a checkpoint → minimal VRAM swaps in pipeline-first mode
+    # ── JuggernautXL family ─────────────────────────────────────────────
+    ("photoreal",     ("photoreal",      0.35, "surface")),  # JuggXL + TTPLanet Tile
+    ("depth_realism", ("depth_realism",  0.40, "surface")),  # JuggXL + DepthAnyV2 + Depth SDXL
+    ("pixel_art",     ("pixel_art",      0.55, "surface")),  # JuggXL + pixel-art-xl LoRA + TTPLanet
+    # ── ZavyChromaXL family ─────────────────────────────────────────────
+    ("chromatic",     ("chromatic",      0.35, "surface")),  # ZavyXL + TTPLanet Tile
+    ("edge_chrome",   ("edge_chrome",    0.45, "surface")),  # ZavyXL + Canny SDXL
+    ("zavy_depth",    ("zavy_depth",     0.40, "surface")),  # ZavyXL + DepthAnyV2 + Depth SDXL
+    ("neon",          ("neon",           0.50, "surface")),  # ZavyXL + NeonifyV2 LoRA + Canny SDXL
+    # ── stylized-isometric-sdxl ─────────────────────────────────────────
+    ("isometric",     ("isometric",      0.45, "surface")),  # iso-sdxl + TTPLanet Tile
+    # ── dreamshaper_8 SD1.5 family ──────────────────────────────────────
+    ("painterly",     ("painterly",      0.35, "surface")),  # dream8 + Tile SD1.5
+    ("dreamlike",     ("painterly",      0.55, "surface")),  # dream8 + Tile SD1.5 (deeper)
 ])
 
 # ── Category routing ───────────────────────────────────────────────────────────
@@ -303,12 +316,72 @@ def _build_asset_list() -> list[tuple[str, str, Path]]:
     return items
 
 
+# ── Resolution cap ─────────────────────────────────────────────────────────────
+
+_RESIZE_CACHE: dict[Path, Path] = {}   # src_path -> tmp_path
+
+def _cap_resolution(src: Path, max_side: int = 1024) -> Path:
+    """If src exceeds max_side on either dimension, resize proportionally and
+    return a temp path. Otherwise return src unchanged. Results are cached so
+    the same source is only resized once per batch run."""
+    from PIL import Image
+    import tempfile
+
+    if src in _RESIZE_CACHE:
+        return _RESIZE_CACHE[src]
+    try:
+        img = Image.open(src)
+        w, h = img.size
+        if max(w, h) <= max_side:
+            return src
+        scale = max_side / max(w, h)
+        nw, nh = int(w * scale), int(h * scale)
+        img = img.resize((nw, nh), Image.LANCZOS)
+        tmp = Path(tempfile.mktemp(suffix=".png", prefix="ql_resize_"))
+        img.save(tmp, format="PNG")
+        _RESIZE_CACHE[src] = tmp
+        return tmp
+    except Exception:
+        return src   # fall back to original on error
+
+
 # ── ComfyUI job ────────────────────────────────────────────────────────────────
+
+COMFY_URL = "http://127.0.0.1:8188"
+COMFY_WAIT_SECS = 300   # how long to wait for ComfyUI to come back up
+COMFY_RETRY_INTERVAL = 10
+
+
+def _comfy_alive() -> bool:
+    """Quick health-check — returns True if ComfyUI is responding."""
+    import urllib.request
+    try:
+        urllib.request.urlopen(f"{COMFY_URL}/system_stats", timeout=5).read()
+        return True
+    except Exception:
+        return False
+
+
+def _wait_comfy_up() -> bool:
+    """Block until ComfyUI is reachable or COMFY_WAIT_SECS elapses."""
+    deadline = time.monotonic() + COMFY_WAIT_SECS
+    while time.monotonic() < deadline:
+        if _comfy_alive():
+            return True
+        print(f"    [health] ComfyUI down — retrying in {COMFY_RETRY_INTERVAL}s …", flush=True)
+        time.sleep(COMFY_RETRY_INTERVAL)
+    return False
+
 
 def _wait_job(comfy: ComfyClient, job_id: str) -> list[dict[str, str]]:
     deadline = time.monotonic() + TIMEOUT
     while time.monotonic() < deadline:
-        outputs = comfy.output_filenames(job_id)
+        try:
+            outputs = comfy.output_filenames(job_id)
+        except Exception:
+            # ComfyUI may have restarted — give it time then keep polling
+            time.sleep(COMFY_RETRY_INTERVAL)
+            continue
         if outputs:
             return outputs
         time.sleep(POLL_INTERVAL)
@@ -321,6 +394,12 @@ def _run_one(
     prompt: str, denoise: float,
 ) -> bool:
     dst.parent.mkdir(parents=True, exist_ok=True)
+    # Health-check before submitting — wait up to COMFY_WAIT_SECS if down
+    if not _comfy_alive():
+        print("    [health] ComfyUI unreachable before submit — waiting …", flush=True)
+        if not _wait_comfy_up():
+            print("    [health] ComfyUI did not recover — skipping asset.", flush=True)
+            return False
     try:
         job_id = comfy.submit_img2img(
             workflow, src,
@@ -339,7 +418,7 @@ def _run_one(
         dst.write_bytes(png)
         return True
     except Exception as exc:
-        print(f"    ERR {src.name}: {exc}")
+        print(f"    ERR {src.name}: {exc}", flush=True)
         return False
 
 
@@ -410,8 +489,8 @@ def _build_gallery(active_pipelines: list[str]) -> None:
 </style></head><body>
 <h1>QUAKE LEGACY — Photorealistic Asset Dataset</h1>
 <p>
-  Pipeline: JuggernautXL + TTPLanet Tile ControlNet (SDXL) · {len(rows)} assets · {len(active_pipelines)} pipelines<br>
-  Surface route → all tile_d* pipelines &nbsp;|&nbsp; FX route → upscale_only only
+  10 styles: photoreal | chromatic | edge_chrome | depth_realism | isometric | painterly | dreamlike | zavy_depth | pixel_art | neon · {len(rows)} assets · {len(active_pipelines)} pipelines<br>
+  Surface route → all style pipelines &nbsp;|&nbsp; FX route → upscale_only only
 </p>
 <table>
 <tr>
@@ -428,16 +507,21 @@ def _build_gallery(active_pipelines: list[str]) -> None:
 
 def _pipe_label(name: str) -> str:
     labels = {
-        "upscale_only": "4x-UltraSharp<br>CNN only",
-        "tile_d35":     "JuggXL + TTPLanet<br>d=0.35 ✓",
-        "tile_d50":     "d=0.50<br>experimental",
-        "tile_d60":     "d=0.60<br>spicy",
-        "tile_d70":     "d=0.70<br>wild",
-        "tile_d80":     "d=0.80<br>chaos mode",
-        "cel_shade":    "Cel Shade<br>Canny + d=0.65",
-        "cartoon":      "Cartoon<br>Tile + d=0.65",
-        "concept_art":  "Concept Art<br>RealVis + d=0.75",
-        "ink_etching":  "Ink Etching<br>Canny + d=0.70",
+        "upscale_only":  "4x-UltraSharp<br>CNN only",
+        # JuggXL family
+        "photoreal":     "PHOTOREAL<br>JuggXL+Tile d=0.35",
+        "depth_realism": "DEPTH REAL<br>JuggXL+Depth d=0.40",
+        "pixel_art":     "PIXEL ART<br>JuggXL+LoRA+Tile d=0.55",
+        # ZavyXL family
+        "chromatic":     "CHROMATIC<br>ZavyXL+Tile d=0.35",
+        "edge_chrome":   "EDGE CHROME<br>ZavyXL+Canny d=0.45",
+        "zavy_depth":    "ZAVY DEPTH<br>ZavyXL+Depth d=0.40",
+        "neon":          "NEON<br>ZavyXL+NeonLoRA+Canny d=0.50",
+        # Isometric
+        "isometric":     "ISOMETRIC<br>IsoXL+Tile d=0.45",
+        # dreamshaper family
+        "painterly":     "PAINTERLY<br>Dream8+Tile d=0.35",
+        "dreamlike":     "DREAMLIKE<br>Dream8+Tile d=0.55",
     }
     return labels.get(name, name)
 
@@ -468,6 +552,16 @@ def main() -> None:
     ap.add_argument(
         "--twopass", action="store_true",
         help="Use upscale_only CNN output as source instead of raw pak00 PNG",
+    )
+    ap.add_argument(
+        "--chunk-size", type=int, default=200,
+        metavar="N",
+        help=(
+            "Pipeline-rotation chunk size (default 200). "
+            "Process N assets per pipeline before rotating to the next. "
+            "Use 0 to process ALL assets per pipeline before rotating (most VRAM-efficient). "
+            "Smaller values give earlier cross-style results and catch hallucinations sooner."
+        ),
     )
     args = ap.parse_args()
 
@@ -523,90 +617,135 @@ def main() -> None:
         print("  Start: E:\\PersonalAI\\run_comfyui_api.bat  (WorkingDirectory E:\\PersonalAI)")
         sys.exit(1)
 
-    using_sdxl = SDXL_CONTROLNET.exists()
-    wf_upscale     = load_workflow(WF_UPSCALE)
-    wf_tile        = load_workflow(WF_TILE_SDXL if using_sdxl else WF_TILE_SD15)
-    wf_cel_shade   = load_workflow(WF_CEL_SHADE)
-    wf_cartoon     = load_workflow(WF_CARTOON)
-    wf_concept_art = load_workflow(WF_CONCEPT_ART)
-    wf_ink_etching = load_workflow(WF_INK_ETCHING)
-    prompt         = build_final_prompt("")
+    wf_upscale       = load_workflow(WF_UPSCALE)
+    wf_photoreal     = load_workflow(WF_PHOTOREAL)
+    wf_chromatic     = load_workflow(WF_CHROMATIC)
+    wf_edge_chrome   = load_workflow(WF_EDGE_CHROME)
+    wf_depth_realism = load_workflow(WF_DEPTH_REALISM)
+    wf_isometric     = load_workflow(WF_ISOMETRIC)
+    wf_painterly     = load_workflow(WF_PAINTERLY)
+    wf_zavy_depth    = load_workflow(WF_ZAVY_DEPTH)
+    wf_pixel_art     = load_workflow(WF_PIXEL_ART)
+    wf_neon          = load_workflow(WF_NEON)
+    prompt           = build_final_prompt("")
 
-    model_label = ("JuggernautXL + TTPLanet Tile (SDXL)" if using_sdxl
-                   else "dreamshaper_8 + Tile (SD1.5 fallback)")
-    print(f"  Model: {model_label}")
+    print("  Workflows loaded: 10 style pipelines (8 no-LoRA + 2 signature LoRA)")
+    print("  Checkpoints: JuggXL | ZavyChromaXL | stylized-isometric-sdxl | dreamshaper_8")
+    print("  ControlNets: TTPLanet Tile | Canny SDXL | Depth SDXL | Tile SD1.5")
+    print("  LoRAs: pixel-art-xl (163MB) | NeonifyV2-4Extreme (1.7GB)")
 
     wf_map = {
-        "upscale":     wf_upscale,
-        "tile":        wf_tile,
-        "cel_shade":   wf_cel_shade,
-        "cartoon":     wf_cartoon,
-        "concept_art": wf_concept_art,
-        "ink_etching": wf_ink_etching,
+        "upscale":        wf_upscale,
+        "photoreal":      wf_photoreal,
+        "chromatic":      wf_chromatic,
+        "edge_chrome":    wf_edge_chrome,
+        "depth_realism":  wf_depth_realism,
+        "isometric":      wf_isometric,
+        "painterly":      wf_painterly,      # shared by painterly + dreamlike (denoise differs)
+        "zavy_depth":     wf_zavy_depth,
+        "pixel_art":      wf_pixel_art,
+        "neon":           wf_neon,
     }
 
-    # ── 5: Batch ───────────────────────────────────────────────────
-    print(f"\n[5/5] Processing {len(all_assets)} assets × {len(active_pipelines)} pipelines...")
+    # ── 5: Batch (pipeline-first, chunk rotation) ─────────────────
+    # Pipeline-first: one checkpoint stays in VRAM for the whole chunk.
+    # chunk_size=200 means process 200 assets per pipeline before rotating to next.
+    # This gives early cross-style results + catches hallucinations before wasting VRAM.
+    chunk_size = args.chunk_size if args.chunk_size > 0 else len(all_assets)
+    total_jobs = len(all_assets) * len(active_pipelines)
+    print(f"\n[5/5] Pipeline-first batch:")
+    print(f"  assets={len(all_assets)} × pipelines={len(active_pipelines)} = {total_jobs} jobs")
+    print(f"  chunk_size={chunk_size} — rotating through {len(active_pipelines)} styles per chunk")
 
     total_done = total_skip = total_err = 0
     start_t = time.monotonic()
 
-    with ComfyClient(base_url="http://127.0.0.1:8188", timeout=90.0) as comfy:
-        for idx, (label, source, rel) in enumerate(all_assets, 1):
-            orig = ASSETS / rel
-            if not orig.exists():
-                total_skip += 1
-                continue
+    # Pre-compute per-asset route + db-id to avoid redundant I/O in inner loop
+    asset_meta: list[tuple[int, str, str, str, Path, str]] = []  # (asset_id, label, source, route, orig, rel_str)
+    print("  Pre-computing asset metadata...")
+    for label, source, rel in all_assets:
+        orig = ASSETS / rel
+        if not orig.exists():
+            total_skip += 1
+            continue
+        route = _route(label, orig)
+        asset_id = _upsert_asset(db, rel, label, source, route)
+        asset_meta.append((asset_id, label, source, route, orig, str(rel).replace("\\", "/")))
+    print(f"  {len(asset_meta)} valid assets ({total_skip} missing)")
 
-            route    = _route(label, orig)
-            asset_id = _upsert_asset(db, rel, label, source, route)
+    with ComfyClient(base_url="http://127.0.0.1:8188", timeout=90.0) as comfy:
+        # Outer: pipeline rotation chunks
+        for chunk_start in range(0, len(asset_meta), chunk_size):
+            chunk = asset_meta[chunk_start : chunk_start + chunk_size]
+            chunk_end = chunk_start + len(chunk)
 
             for pipe_name in active_pipelines:
                 wf_key, denoise, scope = PIPELINE_DEFS[pipe_name]
-
-                # FX assets only get upscale_only
-                if scope == "surface" and route == "fx":
-                    continue
-
-                dst = PIPELINES_DIR / pipe_name / rel
-
-                if dst.exists() and not args.force_render:
-                    if not _already_rendered(db, asset_id, pipe_name):
-                        _log_render(db, asset_id, pipe_name, denoise, dst)
-                    total_skip += 1
-                    continue
-
-                if _already_rendered(db, asset_id, pipe_name) and not args.force_render:
-                    total_skip += 1
-                    continue
-
                 workflow = wf_map[wf_key]
-                # Two-pass: use CNN-upscaled image as source for diffusion pipelines
-                src = orig
-                if args.twopass and pipe_name != "upscale_only":
-                    up = PIPELINES_DIR / "upscale_only" / rel
-                    if up.exists():
-                        src = up
-                ok = _run_one(src, dst, comfy, workflow, prompt, denoise)
+                pipe_done = pipe_skip = pipe_err = 0
 
-                if ok:
-                    _log_render(db, asset_id, pipe_name, denoise, dst)
-                    total_done += 1
-                else:
-                    total_err += 1
-
-            # Progress every 25 assets
-            if idx % 25 == 0:
-                elapsed = time.monotonic() - start_t
-                rate = total_done / max(elapsed, 1)
-                remaining = len(all_assets) - idx
-                eta_s = int(remaining / max(rate, 0.001))
                 print(
-                    f"  [{idx}/{len(all_assets)}] "
-                    f"done={total_done} skip={total_skip} err={total_err} "
-                    f"rate={rate:.1f}/s ETA={eta_s//3600}h{(eta_s%3600)//60}m",
+                    f"\n  [{pipe_name}] assets {chunk_start+1}..{chunk_end} "
+                    f"(d={denoise})",
                     flush=True,
                 )
+
+                for asset_id, label, source, route, orig, rel_str in chunk:
+                    # FX assets only get upscale_only
+                    if scope == "surface" and route == "fx":
+                        pipe_skip += 1
+                        total_skip += 1
+                        continue
+
+                    rel_path = Path(rel_str)
+                    dst = PIPELINES_DIR / pipe_name / rel_path
+
+                    if dst.exists() and not args.force_render:
+                        if not _already_rendered(db, asset_id, pipe_name):
+                            _log_render(db, asset_id, pipe_name, denoise, dst)
+                        pipe_skip += 1
+                        total_skip += 1
+                        continue
+
+                    if _already_rendered(db, asset_id, pipe_name) and not args.force_render:
+                        pipe_skip += 1
+                        total_skip += 1
+                        continue
+
+                    # Source: twopass uses CNN-upscaled image as input
+                    src = orig
+                    if args.twopass and pipe_name != "upscale_only":
+                        up = PIPELINES_DIR / "upscale_only" / rel_path
+                        if up.exists():
+                            src = up
+                    # Cap at 1024px — prevents SDXL latent blowup (21s/step issue)
+                    src = _cap_resolution(src, max_side=1024)
+
+                    ok = _run_one(src, dst, comfy, workflow, prompt, denoise)
+
+                    if ok:
+                        _log_render(db, asset_id, pipe_name, denoise, dst)
+                        pipe_done += 1
+                        total_done += 1
+                    else:
+                        pipe_err += 1
+                        total_err += 1
+
+                # ── Per-pipeline chunk summary (hallucination checkpoint) ──
+                elapsed = time.monotonic() - start_t
+                rate = total_done / max(elapsed, 1)
+                print(
+                    f"  [{pipe_name}] chunk done: rendered={pipe_done} "
+                    f"skip={pipe_skip} err={pipe_err} "
+                    f"| total: done={total_done} skip={total_skip} err={total_err} "
+                    f"rate={rate:.2f}/s  elapsed={int(elapsed//60)}m",
+                    flush=True,
+                )
+                if pipe_err > pipe_done * 0.3 and pipe_done > 0:
+                    print(
+                        f"  WARN [{pipe_name}] error rate >30% — check ComfyUI logs for hallucination",
+                        flush=True,
+                    )
 
     db.close()
 

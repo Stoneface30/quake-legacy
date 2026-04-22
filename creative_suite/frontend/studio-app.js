@@ -70,7 +70,7 @@
         navItems.forEach(function (n) { n.classList.remove('active'); });
         item.classList.add('active');
 
-        store.dispatch({ type: 'SET_ACTIVE_PAGE', payload: page });
+        store.dispatch({ type: 'SET_ACTIVE_PAGE', page: page });
       });
     });
 
@@ -117,10 +117,10 @@
         store.dispatch({ type: 'SET_BUILD_STATUS', payload: 'building' });
         store.dispatch({ type: 'SET_STATUS_MSG',   payload: 'Building...' });
 
-        fetch('/api/phase1/rebuild', {
+        fetch('/api/phase1/parts/' + activePart + '/rebuild', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
-          body:    JSON.stringify({ part: activePart }),
+          body:    JSON.stringify({}),
         })
           .then(function (res) {
             if (!res.ok) {

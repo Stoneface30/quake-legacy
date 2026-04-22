@@ -5,6 +5,9 @@ import json
 from pathlib import Path
 
 import pytest
+
+pytest.importorskip("opentimelineio", reason="opentimelineio not installed")
+
 from fastapi.testclient import TestClient
 
 from creative_suite.app import create_app
