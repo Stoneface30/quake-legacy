@@ -54,7 +54,11 @@
   <script src="/vendor/wavesurfer-multitrack.js"></script>
   <script src="/vendor/animation-timeline.js"></script>
   <script src="/vendor/litegraph.js"></script>
-  <script src="/vendor/tweakpane.js"></script>
+  <!-- Tweakpane is an ES-module build; expose Pane to classic scripts via a module shim -->
+  <script type="module">
+    import { Pane } from '/vendor/tweakpane.js';
+    window.Tweakpane = { Pane: Pane };
+  </script>
   <script src="/vendor/mp4box.js"></script>
   <script src="/vendor/theatre-core-studio.js"></script>
 
