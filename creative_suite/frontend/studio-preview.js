@@ -582,9 +582,9 @@
         _syncUI();
       }
 
-      // selectedClip changed — stream the newly selected clip.
+      // selectedClip changed — stream the newly selected clip via /api/studio/clip-stream.
+      // Clips from /api/studio/part/{n}/clips carry an absolute .path field.
       if (state.selectedClip !== prev.selectedClip && state.selectedClip) {
-        // TODO: wire backend clip URL — resolve via /api/studio/clip-stream once clip index is ready
         var cp = state.selectedClip.path || state.selectedClip.url;
         if (cp) { _loadClipStream(cp); }
       }
