@@ -1,0 +1,32 @@
+# Part 2 clip list -- T1 primary manifest
+# One filename per line. Lines starting with # are ignored.
+# Generated from: G:\QUAKE_LEGACY\QUAKE VIDEO\T1\Part2
+Demo (124)  - 41.avi
+Demo (153)  - 87.avi
+Demo (195)  -  153.avi
+Demo (234)  -  216.avi
+Demo (249)  -  240.avi
+Demo (272)  -  289.avi
+Demo (308)  -  342.avi
+Demo (32)  -  356.avi
+Demo (336)  -  389.avi
+Demo (367)  -  443.avi
+Demo (390)  -  483.avi
+Demo (411)  - 513.avi
+Demo (445)  - 550.avi
+Demo (504)  -  608.avi
+Demo (51)  -  617.avi
+Demo (531) - 657.avi
+Demo (571)  - 719.avi
+Demo (607)  -  759.avi
+Demo (637)  -  797.avi
+Demo (666)  - 838.avi
+Demo (694)  - 881.avi
+Demo (735)  -  926.avi
+Demo (784)  -  974.avi
+Demo (817)  -  1020.avi
+Demo (82)  -  1023.avi
+Demo (844)  -  1059.avi
+Demo (869)  -  1098.avi
+Demo (900)  -  1152.avi
+Demo (921)  -  1186.avi

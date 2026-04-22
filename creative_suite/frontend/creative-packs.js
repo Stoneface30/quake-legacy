@@ -18,10 +18,11 @@
   }
 
   function _checkGate(d) {
-    var variants = d.variants || [];
-    var approved = variants.filter(function (v) { return v.status === 'approved'; }).length;
-    var hasSurface = variants.some(function (v) { return v.status === 'approved' && v.category === 'surface'; });
-    var hasSkin = variants.some(function (v) { return v.status === 'approved' && v.category === 'skin'; });
+    var gate = d.gate_cs1 || {};
+    var approved = gate.approved || 0;
+    var perCat = gate.per_category || {};
+    var hasSurface = !!perCat.surface;
+    var hasSkin = !!perCat.skin;
     if (_trafficEl) {
       _trafficEl.replaceChildren();
       var rows = [
@@ -36,14 +37,13 @@
         _trafficEl.appendChild(row);
       });
     }
-    var allGreen = approved >= 5 && hasSurface && hasSkin;
-    if (_btnBuild) _btnBuild.disabled = !allGreen;
-    if (_btnInstall) _btnInstall.disabled = !allGreen;
+    if (_btnBuild) _btnBuild.disabled = !gate.ok;
+    if (_btnInstall) _btnInstall.disabled = !(d.last_build && d.last_build.pk3_path);
   }
 
   function _refresh() {
-    fetch('/api/comfy/status', { signal: AbortSignal.timeout(5000) })
-      .then(function (r) { return r.ok ? r.json() : { variants: [] }; })
+    fetch('/api/packs/status', { signal: AbortSignal.timeout(5000) })
+      .then(function (r) { return r.ok ? r.json() : { gate_cs1: { approved: 0, per_category: {} }, last_build: null }; })
       .then(function (d) { _checkGate(d); })
       .catch(function () {});
   }

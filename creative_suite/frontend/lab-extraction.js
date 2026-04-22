@@ -29,8 +29,8 @@
     })
       .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
       .then(function (d) {
-        if (_statusEl) { _statusEl.textContent = '\u25cf DONE'; _statusEl.style.color = '#44bb44'; }
-        _log('OK \u00b7 ' + (d.fragments || 0) + ' fragments \u00b7 ' + (d.duration_s || 0) + 's', 'ok');
+        if (_statusEl) { _statusEl.textContent = '\u25cf QUEUED'; _statusEl.style.color = '#44bb44'; }
+        _log('Queued extraction job ' + (d.job_id || '?') + ' for ' + demo, 'ok');
       })
       .catch(function (e) {
         if (_statusEl) { _statusEl.textContent = '\u25cf FAILED'; _statusEl.style.color = '#ff6666'; }

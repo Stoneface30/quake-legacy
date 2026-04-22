@@ -36,19 +36,82 @@ _VALID_TARGET_STATES = {"approved", "rejected"}
 
 @router.get("")
 def list_variants(
-    request: Request, asset_id: int = Query(...)
+    request: Request,
+    asset_id: int | None = Query(default=None),
+    status: list[str] | None = Query(default=None),
+    limit: int = Query(default=50, ge=1, le=200),
 ) -> dict[str, Any]:
     cfg = request.app.state.cfg
+    where: list[str] = []
+    params: list[Any] = []
+    if asset_id is not None:
+        where.append("v.asset_id = ?")
+        params.append(asset_id)
+    if status:
+        where.append(
+            "v.status IN (" + ", ".join("?" for _ in status) + ")"
+        )
+        params.extend(status)
+    where_sql = ("WHERE " + " AND ".join(where)) if where else ""
     with connect(cfg) as con:
         rows = con.execute(
-            "SELECT id, asset_id, user_prompt, final_prompt, seed, "
-            "       comfy_job_id, png_path, status, approved_at, "
-            "       width, height, created_at "
-            "FROM variants WHERE asset_id = ? ORDER BY id DESC",
-            (asset_id,),
+            "SELECT v.id, v.asset_id, v.user_prompt, v.final_prompt, v.seed, "
+            "       v.comfy_job_id, v.png_path, v.status, v.approved_at, "
+            "       v.width, v.height, v.created_at, "
+            "       a.category, a.internal_path, a.thumbnail_path AS asset_thumbnail_path "
+            "FROM variants v "
+            "JOIN assets a ON a.id = v.asset_id "
+            f"{where_sql} "
+            "ORDER BY v.id DESC LIMIT ?",
+            tuple(params + [limit]),
         ).fetchall()
     return {
         "asset_id": asset_id,
+        "status": status or [],
+        "variants": [
+            {
+                **dict(r),
+                "png_url": (
+                    f"/api/variants/{r['id']}/png" if r["png_path"] else None
+                ),
+                "asset_thumbnail_url": (
+                    f"/api/assets/{r['asset_id']}/thumbnail"
+                    if r["asset_thumbnail_path"] else None
+                ),
+                "thumbnail_url": (
+                    f"/api/variants/{r['id']}/png"
+                    if r["png_path"]
+                    else (
+                        f"/api/assets/{r['asset_id']}/thumbnail"
+                        if r["asset_thumbnail_path"] else None
+                    )
+                ),
+            }
+            for r in rows
+        ],
+    }
+
+
+@router.get("/feed")
+def variant_feed(
+    request: Request,
+    limit: int = Query(default=60, ge=1, le=200),
+) -> dict[str, Any]:
+    """Shell-oriented variant feed: most-recent variants across all assets.
+
+    Designed for the CREATIVE/QUEUE panel — simpler shape than the full
+    GET /api/variants list (no asset_id or status filters, no join columns
+    beyond what the card needs).
+    """
+    cfg = request.app.state.cfg
+    with connect(cfg) as con:
+        rows = con.execute(
+            "SELECT v.id, v.status, v.png_path, a.category "
+            "FROM variants v JOIN assets a ON a.id = v.asset_id "
+            "ORDER BY v.id DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return {
         "variants": [
             {
                 **dict(r),
@@ -57,7 +120,7 @@ def list_variants(
                 ),
             }
             for r in rows
-        ],
+        ]
     }
 
 

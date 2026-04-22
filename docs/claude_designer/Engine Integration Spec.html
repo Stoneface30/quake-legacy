@@ -1,0 +1,717 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>PANTHEON — Engine Integration Spec</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --p-gold:#e8b923;--p-gold-hi:#ffd340;--p-gold-dim:#b58d15;--p-gold-glo:rgba(232,185,35,.14);
+  --p-blue:#1a3e9a;--p-blue-hi:#2a5acc;--p-blue-deep:#081540;--p-blue-dim:#0d2060;
+  --p-amber:#e68a00;--p-red:#c41515;--p-green:#1e8449;--p-magenta:#c2185b;
+  --p-bg:#040610;--p-surface:#0a0e1e;--p-surface2:#0f1430;--p-surface3:#141a3a;
+  --p-border:#1a2245;--p-border-hi:#243063;
+  --p-text:#e8eef8;--p-text-dim:#8090b8;--p-text-mute:#5a6890;
+  --font-display:'Bebas Neue',sans-serif;
+  --font-data:'IBM Plex Mono',ui-monospace,monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--p-bg);color:var(--p-text);font-family:var(--font-data);font-size:13px;line-height:1.6}
+body{background:radial-gradient(ellipse 60% 40% at 0% 0%,rgba(232,185,35,.05),transparent 55%),radial-gradient(ellipse 50% 60% at 100% 100%,rgba(13,32,96,.5),transparent 70%),var(--p-bg);min-height:100vh;padding-bottom:120px}
+
+header.top{position:sticky;top:0;z-index:50;background:#030612;border-bottom:1px solid var(--p-gold);box-shadow:0 2px 0 var(--p-gold-glo)}
+.top-inner{max-width:1280px;margin:0 auto;padding:16px 28px;display:flex;align-items:baseline;gap:18px;flex-wrap:wrap}
+.top h1{font-family:var(--font-display);font-size:32px;letter-spacing:.22em;color:var(--p-gold);text-shadow:0 0 18px var(--p-gold-glo)}
+.top .div{color:var(--p-blue-hi);opacity:.6}
+.top .sub{font-size:10px;letter-spacing:.26em;color:var(--p-text-dim);text-transform:uppercase}
+.top .meta{margin-left:auto;font-size:10px;color:var(--p-text-mute);letter-spacing:.14em}
+
+main{max-width:1280px;margin:0 auto;padding:40px 28px 0}
+
+/* section */
+section{margin-bottom:54px;scroll-margin-top:80px}
+.shdr{display:flex;align-items:flex-end;gap:14px;border-bottom:1px solid var(--p-gold);padding-bottom:8px;margin-bottom:22px}
+.snum{font-family:var(--font-display);font-size:42px;letter-spacing:.08em;color:var(--p-gold);line-height:.9}
+.sttl{font-family:var(--font-display);font-size:24px;letter-spacing:.16em;color:var(--p-text)}
+.stag{margin-left:auto;font-size:9px;letter-spacing:.22em;color:var(--p-text-mute)}
+
+h3{font-family:var(--font-display);font-size:16px;letter-spacing:.2em;color:var(--p-gold);margin:22px 0 10px;text-transform:uppercase}
+h4{font-family:var(--font-display);font-size:13px;letter-spacing:.18em;color:var(--p-text);margin:16px 0 6px;text-transform:uppercase}
+
+p{color:var(--p-text-dim);margin-bottom:10px;max-width:78ch}
+p em{color:var(--p-text);font-style:normal;background:rgba(232,185,35,.08);padding:0 3px}
+p b{color:var(--p-gold);font-weight:500}
+
+code,kbd{font-family:var(--font-data);background:var(--p-surface2);border:1px solid var(--p-border);color:var(--p-gold-dim);padding:1px 5px;font-size:11px}
+kbd{background:#05081a;color:var(--p-gold)}
+
+/* task badge */
+.tid{display:inline-block;font-family:var(--font-data);font-size:9px;letter-spacing:.2em;padding:2px 7px;border:1px solid var(--p-gold);color:var(--p-gold);background:var(--p-gold-glo);margin-right:6px;text-transform:uppercase}
+.tid.done{border-color:var(--p-green);color:var(--p-green);background:rgba(30,132,73,.1)}
+.tid.block{border-color:var(--p-amber);color:var(--p-amber);background:rgba(230,138,0,.1)}
+
+/* card */
+.card{background:var(--p-surface);border:1px solid var(--p-border);padding:18px 20px;margin-bottom:14px}
+.card.gold{border-left:2px solid var(--p-gold)}
+.card.red{border-left:2px solid var(--p-red)}
+.card.amber{border-left:2px solid var(--p-amber)}
+.card.green{border-left:2px solid var(--p-green)}
+.card h4{margin-top:0}
+
+pre{background:#020410;border:1px solid var(--p-border);border-left:2px solid var(--p-blue-hi);padding:14px 16px;overflow-x:auto;font-family:var(--font-data);font-size:11px;color:var(--p-text);line-height:1.6;margin:10px 0}
+pre .c{color:var(--p-text-mute)}
+pre .k{color:var(--p-gold)}
+pre .s{color:#7fd8a6}
+pre .n{color:var(--p-blue-hi)}
+pre .p{color:var(--p-magenta)}
+
+/* table */
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:11px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--p-border);vertical-align:top}
+th{color:var(--p-gold);font-family:var(--font-display);letter-spacing:.16em;font-size:10px;text-transform:uppercase;font-weight:400;background:var(--p-surface)}
+td{color:var(--p-text-dim)}
+td b{color:var(--p-text)}
+td code{font-size:10px}
+
+/* contract box */
+.contract{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:stretch;margin:14px 0}
+.contract .side{background:var(--p-surface);border:1px solid var(--p-border);padding:14px}
+.contract .side h4{margin-top:0;color:var(--p-gold)}
+.contract .mid{display:flex;flex-direction:column;align-items:center;justify-content:center;color:var(--p-gold);font-family:var(--font-display);letter-spacing:.2em;font-size:11px;gap:4px}
+.contract .mid svg{width:40px;height:20px;color:var(--p-gold)}
+
+/* flow pipeline */
+.pipe{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--p-border);margin:16px 0}
+.pipe .node{background:var(--p-surface);padding:14px 12px;text-align:center;position:relative}
+.pipe .node .n{font-family:var(--font-display);font-size:11px;letter-spacing:.18em;color:var(--p-gold);text-transform:uppercase;margin-bottom:4px}
+.pipe .node .d{font-size:10px;color:var(--p-text-dim)}
+.pipe .node:not(:last-child)::after{content:"▶";position:absolute;top:50%;right:-10px;transform:translateY(-50%);color:var(--p-gold);font-size:10px;z-index:2;background:var(--p-bg);padding:0 2px}
+
+/* quicklink grid */
+.links{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1px;background:var(--p-border);margin:14px 0}
+.links a{background:var(--p-surface);padding:10px 12px;color:var(--p-text);text-decoration:none;font-size:11px;display:flex;flex-direction:column;gap:2px}
+.links a:hover{background:var(--p-surface2);color:var(--p-gold)}
+.links a .s{font-size:9px;color:var(--p-text-mute);letter-spacing:.14em;text-transform:uppercase}
+
+/* callout */
+.callout{border:1px solid var(--p-gold);background:var(--p-gold-glo);padding:14px 18px;margin:14px 0;position:relative;padding-left:40px}
+.callout::before{content:"!";position:absolute;left:14px;top:11px;width:18px;height:18px;background:var(--p-gold);color:var(--p-blue-deep);display:flex;align-items:center;justify-content:center;font-family:var(--font-display);font-size:14px;font-weight:700}
+.callout.note{border-color:var(--p-blue-hi);background:rgba(42,90,204,.08)}
+.callout.note::before{content:"?";background:var(--p-blue-hi);color:#fff}
+.callout.warn{border-color:var(--p-amber);background:rgba(230,138,0,.06)}
+.callout.warn::before{background:var(--p-amber);color:var(--p-blue-deep)}
+
+/* TOC */
+.toc{background:var(--p-surface);border:1px solid var(--p-border);padding:18px 20px;margin:0 0 36px}
+.toc h3{margin-top:0;color:var(--p-gold)}
+.toc ol{list-style:none;counter-reset:toc;columns:2;column-gap:30px}
+.toc ol li{counter-increment:toc;padding:4px 0;font-size:11px}
+.toc ol li::before{content:counter(toc,decimal-leading-zero) " · ";color:var(--p-gold);font-family:var(--font-display);letter-spacing:.12em;margin-right:6px}
+.toc ol li a{color:var(--p-text);text-decoration:none}
+.toc ol li a:hover{color:var(--p-gold)}
+
+footer.sig{max-width:1280px;margin:40px auto 0;padding:24px 28px;border-top:1px solid var(--p-border);display:flex;justify-content:space-between;font-size:9px;letter-spacing:.2em;color:var(--p-text-mute)}
+</style>
+</head>
+<body data-screen-label="Engine Integration Spec">
+
+<header class="top">
+  <div class="top-inner">
+    <h1>PANTHEON</h1>
+    <span class="div">//</span>
+    <span class="sub">Engine Integration Spec · v2</span>
+    <span class="meta">Scout + review cams + demo lifecycle · P2-T9..T12 + P3-T1..T7</span>
+  </div>
+</header>
+
+<main>
+
+<div class="toc">
+  <h3>Contents</h3>
+  <ol>
+    <li><a href="#prem">Premise &amp; guarantee</a></li>
+    <li><a href="#law">Visual contract (non-negotiables)</a></li>
+    <li><a href="#pipe">Pipeline overview</a></li>
+    <li><a href="#p2">Plan 2 finish (T9 → T12)</a></li>
+    <li><a href="#p3">Plan 3 assimilation (T1 → T7)</a></li>
+    <li><a href="#dm73">DM_73 demo parser spec</a></li>
+    <li><a href="#extract">Scout page — manual extraction, review cams, demo lifecycle</a></li>
+    <li><a href="#live">Live-link protocol (engine ⇄ UI)</a></li>
+    <li><a href="#otio">OTIO bridge + MLT gate (P3-T4/T5)</a></li>
+    <li><a href="#merge">Engine unification: what to take from whom</a></li>
+    <li><a href="#risk">Where Claude Code typically drifts &amp; how to prevent it</a></li>
+    <li><a href="#order">Execution order &amp; ship criteria</a></li>
+  </ol>
+</div>
+
+<!-- ═══════ 01 ═══════ -->
+<section id="prem">
+  <div class="shdr"><div class="snum">01</div><div class="sttl">Premise &amp; guarantee</div><div class="stag">Read first</div></div>
+
+  <p>This spec binds four previously-shipped UI artifacts to the concrete engineering work still in flight (<em>P2-T9 → T12</em>, <em>P3-T1 → T7</em>). The goal is one-directional: <b>every visual in the HTML artifacts can be turned into running code</b> — the HTML is the design contract, this document is the execution plan.</p>
+
+  <div class="links">
+    <a href="UI Analysis.html" target="_blank"><span>01</span><span class="s">UI Analysis · 16 findings</span></a>
+    <a href="Pantheon v3 Direction Spec.html" target="_blank"><span>02</span><span class="s">Tokens · logos · components</span></a>
+    <a href="Pantheon Icon Set.html" target="_blank"><span>03</span><span class="s">39-icon sprite</span></a>
+    <a href="Pantheon Editor v2.html" target="_blank"><span>04</span><span class="s">Editor reference layout</span></a>
+  </div>
+
+  <div class="callout">
+    <b>Claude Code can ship every pixel</b> — but only if he treats the HTML as the <em>visual contract</em>, not as code to rewrite. The failure mode is always the same: he sees <code>#e8b923</code> and renames it <code>--warning-400</code>; or redraws an SVG from memory; or "improves" the grid. All three kill brand coherence.
+  </div>
+
+  <p>Architecture is already solid: <code>studio-store.js</code> (observable), <code>studio-preview.js</code> (WebCodecs + LRU), <code>studio-timeline.js</code> (animation-timeline-js), <code>studio-audio.js</code> (wavesurfer-multitrack), <code>studio-beatmarkers.js</code>. The remaining P2 tasks (T9/T10/T11/T12) and Plan 3 need design binding — that's this document.</p>
+</section>
+
+<!-- ═══════ 02 ═══════ -->
+<section id="law">
+  <div class="shdr"><div class="snum">02</div><div class="sttl">Visual contract</div><div class="stag">Non-negotiables</div></div>
+
+  <p>Five rules Claude Code must honor. If any one breaks, the cockpit looks generic.</p>
+
+  <div class="card gold">
+    <h4>Rule 1 · Tokens ship verbatim</h4>
+    <p style="margin:0">Copy the <code>:root { --p-* }</code> block from <b>Pantheon v3 Direction Spec</b> into <code>static/css/tokens.css</code>. Names stay. Values stay. No semantic renames. No shade generation. If a new value is needed, add it; do not replace existing ones.</p>
+  </div>
+
+  <div class="card gold">
+    <h4>Rule 2 · Icons ship as sprite</h4>
+    <p style="margin:0">All 39 <code>&lt;symbol&gt;</code> blocks from <b>Pantheon Icon Set</b> + <b>Pantheon Editor v2</b> go into <code>static/icons/pantheon.svg</code>. Reference with <code>&lt;svg&gt;&lt;use href="/static/icons/pantheon.svg#i-rg"/&gt;&lt;/svg&gt;</code>. One wrapper component: <code>&lt;Icon name="i-rg" /&gt;</code>. Never redraw.</p>
+  </div>
+
+  <div class="card gold">
+    <h4>Rule 3 · Grids ship as CSS</h4>
+    <p style="margin:0">The editor's <code>.app</code> grid (<code>grid-template-columns: 260px 1fr 300px; grid-template-rows: 1fr 340px 22px</code>) and the four-track timeline layout are load-bearing. Copy the CSS blocks; make children React components; the grid skeleton does not move.</p>
+  </div>
+
+  <div class="card gold">
+    <h4>Rule 4 · Fonts</h4>
+    <p style="margin:0">Bebas Neue for display (section headers, timecodes, weapon ammo, playhead time). IBM Plex Mono for data. No third family. System fonts are the fallback only.</p>
+  </div>
+
+  <div class="card gold">
+    <h4>Rule 5 · The four load-bearing "polish" elements are P0</h4>
+    <p style="margin:0">(a) CRT scanline + vignette overlay, (b) gold seam markers between clips, (c) event pins row above the ruler, (d) playhead with gold arrow-head. These read as optional polish; they are not. They are the <em>brand</em>.</p>
+  </div>
+</section>
+
+<!-- ═══════ 03 ═══════ -->
+<section id="pipe">
+  <div class="shdr"><div class="snum">03</div><div class="sttl">Pipeline overview</div><div class="stag">Ten-thousand-foot view</div></div>
+
+  <p>One arrow, five stages. This is the data path from a raw <code>.dm_73</code> file to a rendered movie.</p>
+
+  <div class="pipe">
+    <div class="node"><div class="n">DM_73</div><div class="d">Quake Live demo<br/>protocol 91</div></div>
+    <div class="node"><div class="n">PARSER</div><div class="d">engine/parser/<br/>C++17 · FT-1</div></div>
+    <div class="node"><div class="n">EXTRACT</div><div class="d">events → clips<br/>tiers T1/T2/T3</div></div>
+    <div class="node"><div class="n">STUDIO</div><div class="d">/studio editor<br/>live link</div></div>
+    <div class="node"><div class="n">RENDER</div><div class="d">OTIO → MLT<br/>master MP4</div></div>
+  </div>
+
+  <p>Every stage has a corresponding task in Plan 2 or Plan 3. Nothing invented — everything below maps to an existing row in the tracker you pasted.</p>
+</section>
+
+<!-- ═══════ 04 ═══════ -->
+<section id="p2">
+  <div class="shdr"><div class="snum">04</div><div class="sttl">Plan 2 finish</div><div class="stag">4 of 12 remaining</div></div>
+
+  <!-- P2-T9 -->
+  <div class="card gold">
+    <h4><span class="tid">P2-T9</span> Music library panel + <code>music_match.py</code></h4>
+    <p><b>Visual binding:</b> Library panel in <a href="Pantheon Editor v2.html" target="_blank">Pantheon Editor v2</a> (left column). Reuse the exact CSS (<code>.lib</code>, <code>.lib-item</code>, <code>.lib-thumb</code>, <code>.lib-filter</code>) but swap the thumb-SVG for a waveform mini-sparkline and the <code>.tr</code> tier chip for a <em>match %</em> chip.</p>
+    <h4>Match-% chip colors (reuse token set)</h4>
+    <table>
+      <thead><tr><th>Match %</th><th>Token</th><th>Pill class</th><th>Use</th></tr></thead>
+      <tbody>
+        <tr><td><b>≥ 90%</b></td><td><code>--p-gold</code></td><td><code>.pill.match-high</code></td><td>Flow-aligned — auto-propose</td></tr>
+        <tr><td>70–89%</td><td><code>--p-blue-hi</code></td><td><code>.pill.match-mid</code></td><td>Candidate — manual review</td></tr>
+        <tr><td>&lt; 70%</td><td><code>--p-text-dim</code></td><td><code>.pill.match-low</code></td><td>Weak — background only</td></tr>
+      </tbody>
+    </table>
+    <p><b>API:</b> extend <code>/api/studio/music</code> returning <code>{tracks: [{id, title, bpm, duration_ms, full_length_pct, needs_truncation, match_pct}]}</code>. The <code>full_length_pct</code> + <code>needs_truncation</code> fields satisfy the P3-T1 contract up-front so that task unblocks the moment T9 lands.</p>
+  </div>
+
+  <!-- P2-T10 -->
+  <div class="card gold">
+    <h4><span class="tid">P2-T10</span> LiteGraph effect node graph (<code>studio-litegraph.js</code>)</h4>
+    <p><b>Visual binding:</b> LiteGraph's default theme is dark-gray/teal — it will <em>clash</em>. Before wiring nodes, theme LiteGraph with Pantheon tokens. Minimum overrides:</p>
+<pre><span class="c">// On init, before new LGraph() / LGraphCanvas()</span>
+LiteGraph.NODE_DEFAULT_COLOR        = <span class="s">"#0a0e1e"</span>;   <span class="c">// --p-surface</span>
+LiteGraph.NODE_DEFAULT_BGCOLOR      = <span class="s">"#0f1430"</span>;   <span class="c">// --p-surface2</span>
+LiteGraph.NODE_DEFAULT_BOXCOLOR     = <span class="s">"#e8b923"</span>;   <span class="c">// --p-gold</span>
+LiteGraph.NODE_TITLE_COLOR          = <span class="s">"#e8b923"</span>;
+LiteGraph.NODE_SELECTED_TITLE_COLOR = <span class="s">"#ffd340"</span>;   <span class="c">// --p-gold-hi</span>
+LiteGraph.LINK_COLOR                = <span class="s">"#2a5acc"</span>;   <span class="c">// --p-blue-hi</span>
+LiteGraph.EVENT_LINK_COLOR          = <span class="s">"#e8b923"</span>;
+canvas.background_image             = <span class="k">null</span>;          <span class="c">// drop the default grid bitmap</span>
+canvas.clear_background             = <span class="k">true</span>;
+canvas.clear_background_color       = <span class="s">"#040610"</span>;   <span class="c">// --p-bg</span>
+canvas.render_connections_border    = <span class="k">false</span>;
+canvas.render_shadows               = <span class="k">false</span>;</pre>
+    <h4>Required node types (matches FX Inspector panel)</h4>
+    <table>
+      <thead><tr><th>Node</th><th>Ins</th><th>Outs</th><th>Maps to</th></tr></thead>
+      <tbody>
+        <tr><td><code>Clip</code></td><td>—</td><td>video, audio, events</td><td>Single clip from timeline</td></tr>
+        <tr><td><code>CRT</code></td><td>video, strength</td><td>video</td><td>Inspector toggle + 0-100</td></tr>
+        <tr><td><code>SlowMo</code></td><td>video, ramp, anchor</td><td>video</td><td>Speed ramp on event</td></tr>
+        <tr><td><code>ZoomOnHit</code></td><td>video, events, amount</td><td>video</td><td>Punch-in at frag moment</td></tr>
+        <tr><td><code>ChromaShift</code></td><td>video, amount</td><td>video</td><td>RGB split on hit</td></tr>
+        <tr><td><code>DuckOnHit</code></td><td>audio, events, depth</td><td>audio</td><td>Sidechain music to kill feed</td></tr>
+        <tr><td><code>BeatSnap</code></td><td>clip, beats</td><td>clip</td><td>Quantize cut to downbeat</td></tr>
+        <tr><td><code>Master</code></td><td>video, audio</td><td>—</td><td>Exit node</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- P2-T11 -->
+  <div class="card gold">
+    <h4><span class="tid">P2-T11</span> Inspector (Tweakpane + Theatre.js, <code>studio-inspector.js</code>)</h4>
+    <p><b>Visual binding:</b> Right-column Inspector in <a href="Pantheon Editor v2.html" target="_blank">Editor v2</a>. Tweakpane defaults to a floating blue-gray panel — it must be restyled to match <code>.ins-body .row</code> / <code>.fx-row</code> or embedded into our markup and hidden as a skin.</p>
+    <h4>Tweakpane theme override</h4>
+<pre><span class="c">/* static/css/tweakpane-pantheon.css — loaded AFTER tweakpane */</span>
+<span class="n">.tp-dfwv</span> { background:<span class="s">var(--p-surface)</span> !important; border:<span class="s">1px</span> solid <span class="s">var(--p-border)</span>; border-radius:<span class="s">0</span>; }
+<span class="n">.tp-lblv_l</span>, <span class="n">.tp-fldv_t</span> { color:<span class="s">var(--p-text-mute)</span>; font-family:<span class="s">var(--font-data)</span>; letter-spacing:<span class="s">.1em</span>; text-transform:<span class="s">uppercase</span>; font-size:<span class="s">9px</span>; }
+<span class="n">.tp-txtv_i</span>, <span class="n">.tp-sldv_i</span> { background:<span class="s">var(--p-surface2)</span>; color:<span class="s">var(--p-text)</span>; border-radius:<span class="s">0</span>; border:<span class="s">1px</span> solid <span class="s">var(--p-border-hi)</span>; }
+<span class="n">.tp-sldv_k</span> { background:<span class="s">var(--p-gold)</span> !important; }
+<span class="n">.tp-btnv_b</span> { background:<span class="s">var(--p-gold)</span>; color:<span class="s">var(--p-blue-deep)</span>; border-radius:<span class="s">0</span>; font-family:<span class="s">var(--font-display)</span>; letter-spacing:<span class="s">.18em</span>; }</pre>
+    <h4>Theatre.js integration</h4>
+    <p>Theatre drives keyframed parameters (zoom, slow-mo ramp, CRT strength). When a clip is selected, create a Theatre Sheet <em>per clip</em>; sheet name = clip UUID. Scrubbing the playhead scrubs the sheet. Theatre Studio UI stays <em>hidden in prod</em> — only the underlying Core drives values. That means AGPL local-only use is clean.</p>
+  </div>
+
+  <!-- P2-T12 -->
+  <div class="card gold">
+    <h4><span class="tid">P2-T12</span> 5-page layout + wire all panels (<code>studio-pages.js</code>)</h4>
+    <p>The Editor v2 artifact is <em>one</em> page. Claude Code needs five. Tab strip at top (already in nav).</p>
+    <table>
+      <thead><tr><th>Page</th><th>Layout</th><th>Panels</th><th>Maps to tab</th></tr></thead>
+      <tbody>
+        <tr><td><b>CINEMA</b></td><td>viewer dominant · clip reel below</td><td>Library · Viewer (full) · Reel</td><td>Play finished movies</td></tr>
+        <tr><td><b>EDITOR</b></td><td>3-col + timeline</td><td>Library · Viewer · Inspector · Timeline</td><td>The main surface (Editor v2)</td></tr>
+        <tr><td><b>FX GRAPH</b></td><td>graph full-bleed · inspector rail</td><td>LiteGraph (P2-T10) · Inspector</td><td>Node programming</td></tr>
+        <tr><td><b>ARCHIVE</b></td><td>grid of demos · filter rail</td><td>Demo grid · Filters · Metadata</td><td>Source .dm_73 files</td></tr>
+        <tr><td><b>FLAG</b></td><td>match grid · music library</td><td>Matches (P2-T9) · Preview</td><td>Music ⇄ flow alignment</td></tr>
+      </tbody>
+    </table>
+    <p>Each page is a route: <code>/studio/cinema</code>, <code>/studio/editor</code>, etc. Default is <code>/studio/editor</code>. Tab state persists in localStorage per P1-T8 UI-3 rule.</p>
+  </div>
+</section>
+
+<!-- ═══════ 05 ═══════ -->
+<section id="p3">
+  <div class="shdr"><div class="snum">05</div><div class="sttl">Plan 3 — Engine assimilation</div><div class="stag">7 tasks</div></div>
+
+  <p>Four of these (T4/T5/T6/T7) can run now; T2 parallel; T1 waits on T9; T3 depends on nothing. Below, ordered by recommended execution.</p>
+
+  <div class="card green"><h4><span class="tid">P3-T6</span> <code>engine/parser/</code> — dm_73 C++17 scaffold (FT-1)</h4>
+    <p><b>Priority: ship first.</b> Everything downstream (extractor, live-link, OTIO) depends on a parsed demo. Full schema in <a href="#dm73">§06</a>. The test file <code>uploads/CA-asylum-2011_06_18-19_29_23.dm_73</code> in this project is the reference input.</p>
+    <p><b>Deliverable:</b> a library with <code>parse_demo(path) → DemoStream</code> returning a struct defined in §06. No UI yet.</p>
+  </div>
+
+  <div class="card gold"><h4><span class="tid">P3-T7</span> FORGE backend stubs</h4>
+    <p><code>/api/forge/status</code>, <code>/api/forge/intro</code>, <code>/api/forge/demo/extract</code>. The extractor endpoint is the HTTP door into §07 rules. Return <code>{job_id, status}</code> and stream progress via SSE on <code>/api/forge/job/{id}/events</code>.</p>
+  </div>
+
+  <div class="card gold"><h4><span class="tid">P3-T4</span> OTIO bridge</h4>
+    <p>On every <code>_rebuild_job</code> run, emit <code>artifacts/{job}/timeline.otio</code>. Schema mapping in <a href="#otio">§08</a>. This is what DaVinci Resolve and the MLT renderer both consume.</p>
+  </div>
+
+  <div class="card amber"><h4><span class="tid">P3-T5</span> MLT verification — 3 gates</h4>
+    <p>Before committing MLT as the render backend, pass three gates: (a) decode dm_73-extracted MP4 with audio sync < 1 frame drift, (b) apply LiteGraph FX node chain via melt filters and match frame-by-frame with WebCodecs preview, (c) output encode <em>deterministic</em> — same input → identical hash. Decision logged to <code>docs/decisions/mlt-vs-alternatives.md</code>.</p>
+    <p><b>Fallback if MLT fails:</b> FFmpeg filter_complex chain generated from the OTIO tree. Slower, no live preview parity, but 100% deterministic.</p>
+  </div>
+
+  <div class="card block"><h4><span class="tid">P3-T1</span> Music full-length contract — blocked on P2-T9</h4>
+    <p>Already pre-satisfied if T9 ships with <code>full_length_pct</code> + <code>needs_truncation</code> in the <code>/api/studio/music</code> response. Then T1 is just wiring the field into <code>music_match.py</code>'s scoring.</p>
+  </div>
+
+  <div class="card gold"><h4><span class="tid">P3-T2</span> Graphify combined engine knowledge graph</h4>
+    <p>Nodes: maps, weapons, players, demos, clips, events, flows, tracks. Edges: <em>clip-extracted-from-demo</em>, <em>event-occurs-in-clip</em>, <em>flow-contains-clip</em>, <em>track-matches-flow</em>. Backing store: SQLite + networkx adjacency dump. Exposed via <code>/api/graph/query</code> as Cypher-lite.</p>
+  </div>
+
+  <div class="card gold"><h4><span class="tid">P3-T3</span> WOLF WHISPERER ingestion → <code>engine/wolfcam/</code></h4>
+    <p>Wolfcam's demo browser + first-person replay is the best prior art for dm_68/73 cam control. Ingest its cam-path interpolation code and expose it as the <em>camera track</em> on the timeline (4th track below beats, or replace the markers track when in Wolfcam mode).</p>
+  </div>
+</section>
+
+<!-- ═══════ 06 ═══════ -->
+<section id="dm73">
+  <div class="shdr"><div class="snum">06</div><div class="sttl">DM_73 parser spec</div><div class="stag">P3-T6 deliverable</div></div>
+
+  <p>Quake Live demo format, protocol 91. File is a stream of messages, each with a sequence number + delta-compressed entity state + serverCommands (incl. print messages that encode the kill feed). Parsing is a solved problem — <b>libuberdemotools</b> (already vendored per P1-T5) handles 99% of it. The scaffold is a thin C++17 wrapper that emits our canonical struct.</p>
+
+  <h3>Canonical struct — <code>DemoStream</code></h3>
+<pre><span class="k">struct</span> <span class="p">Snapshot</span> {           <span class="c">// per-tick, ~25Hz (40ms)</span>
+  uint32_t  <span class="n">server_time_ms</span>;
+  uint8_t   <span class="n">player_count</span>;
+  <span class="p">Player</span>    <span class="n">players</span>[<span class="n">MAX_CLIENTS</span>];  <span class="c">// pos, angles, hp, armor, weapon, ammo</span>
+  <span class="p">Entity</span>    <span class="n">entities</span>[<span class="n">MAX_ENTITIES</span>]; <span class="c">// projectiles, items, gibs</span>
+};
+
+<span class="k">struct</span> <span class="p">Event</span> {              <span class="c">// atomic — frag, pickup, mod_change, etc</span>
+  uint32_t   <span class="n">server_time_ms</span>;
+  <span class="p">EventKind</span>  <span class="n">kind</span>;             <span class="c">// see table below</span>
+  uint8_t    <span class="n">attacker_id</span>;
+  uint8_t    <span class="n">target_id</span>;
+  <span class="p">Weapon</span>     <span class="n">weapon</span>;
+  <span class="p">Modifier</span>   <span class="n">modifier</span>;          <span class="c">// HEADSHOT, TELEFRAG, SUICIDE</span>
+};
+
+<span class="k">struct</span> <span class="p">DemoStream</span> {
+  <span class="p">DemoMeta</span>            <span class="n">meta</span>;    <span class="c">// map, gametype, duration, ql_version</span>
+  <span class="k">std</span>::vector&lt;<span class="p">Snapshot</span>&gt; <span class="n">snaps</span>;
+  <span class="k">std</span>::vector&lt;<span class="p">Event</span>&gt;    <span class="n">events</span>;  <span class="c">// all events, time-sorted</span>
+  <span class="k">std</span>::vector&lt;<span class="p">ChatLine</span>&gt; <span class="n">chat</span>;    <span class="c">// say/say_team prints</span>
+};</pre>
+
+  <h3>EventKind enum (minimum viable)</h3>
+  <table>
+    <thead><tr><th>Kind</th><th>Trigger</th><th>Extractor use</th></tr></thead>
+    <tbody>
+      <tr><td><code>FRAG</code></td><td>Obituary serverCommand</td><td>Primary clip source</td></tr>
+      <tr><td><code>TELEFRAG</code></td><td>MOD_TELEFRAG</td><td>T1 candidate always</td></tr>
+      <tr><td><code>EXCELLENT</code></td><td>2 kills within 2s</td><td>Tier escalator</td></tr>
+      <tr><td><code>IMPRESSIVE</code></td><td>Rail hit at &gt; 1200 units</td><td>Tier escalator</td></tr>
+      <tr><td><code>HUMILIATION</code></td><td>MOD_GAUNTLET</td><td>T1 candidate always</td></tr>
+      <tr><td><code>DENIED</code></td><td>Weapon/armor pickup denial</td><td>Rare flavor pin</td></tr>
+      <tr><td><code>WEAPON_HIT</code></td><td>Damage event</td><td>Cluster detector for combos</td></tr>
+      <tr><td><code>PICKUP</code></td><td>Item grab</td><td>Context only</td></tr>
+      <tr><td><code>CHAT</code></td><td>print / chat</td><td>Subtitle overlays</td></tr>
+    </tbody>
+  </table>
+
+  <h3>CLI contract (FT-1 functional test)</h3>
+<pre>$ pantheon-parse CA-asylum-2011_06_18-19_29_23.dm_73 --json --out stream.json
+<span class="c">/* stream.json — top-level shape */</span>
+{
+  <span class="s">"meta"</span>: { <span class="s">"map"</span>:<span class="s">"asylum"</span>, <span class="s">"gametype"</span>:<span class="s">"CA"</span>, <span class="s">"duration_ms"</span>:<span class="n">482300</span>, <span class="s">"ql_version"</span>:<span class="s">"73"</span> },
+  <span class="s">"events"</span>: [ { <span class="s">"t"</span>:<span class="n">47217</span>, <span class="s">"kind"</span>:<span class="s">"FRAG"</span>, <span class="s">"attacker"</span>:<span class="s">"you"</span>, <span class="s">"target"</span>:<span class="s">"sarge"</span>, <span class="s">"weapon"</span>:<span class="s">"RG"</span> } ],
+  <span class="s">"snaps"</span>: [ <span class="c">/* 25Hz */</span> ]
+}</pre>
+</section>
+
+<!-- ═══════ 07 ═══════ -->
+<section id="extract">
+  <div class="shdr"><div class="snum">07</div><div class="sttl">Manual extraction — Scout workflow</div><div class="stag">human-in-the-loop</div></div>
+
+  <div class="callout warn" style="margin-bottom:14px">
+    <b>Direction change.</b> The previous auto-tier heuristic (≥3 frags = T1, RG single = T2, etc.) is <em>removed</em>. Tiering was arbitrary and fought the editor's judgment. Replaced with a <em>manual Scout page</em> where the human marks clips, tags them, and flags the demo as reviewed. No ML. No automatic tiering.
+  </div>
+
+  <p>The <b>Scout</b> page sits between Archive and Editor. One demo in → N hand-picked clips out → demo flagged <code>clean</code> when the human confirms they've extracted everything worth keeping.</p>
+
+  <h3>Page layout — Scout</h3>
+  <table>
+    <thead><tr><th>Zone</th><th>Contents</th></tr></thead>
+    <tbody>
+      <tr><td>Top bar</td><td>Demo name · map · gametype · duration · <b>demo-state pill</b> (fresh / in-review / clean) · <b>Mark Clean</b> button (disabled until ≥1 clip committed OR user explicitly picks "clean · nothing here")</td></tr>
+      <tr><td>Viewer (left, 70%)</td><td>Engine-rendered playback at chosen camera mode. Transport bar: rate (0.25 / 0.5 / 1 / 2 / 4), scrubber, in/out handles for the <em>pending clip</em>.</td></tr>
+      <tr><td>Camera rail (under viewer)</td><td>First-person · Third-person · Free-cam · Follow-player · <b>Projectile-follow</b> · Wolfcam path. One click switches; no page reload.</td></tr>
+      <tr><td>Event ribbon</td><td>Horizontal pin row from §06 events — FRAG / RAIL / TELE / HUM / EXC / CHAT. Clicking a pin seeks viewer to that t. Pins that fall inside a <em>committed</em> clip render filled; uncovered pins render outlined — at-a-glance coverage of what's still un-mined.</td></tr>
+      <tr><td>Right rail — Pending clip</td><td>Auto-name field · weapon/player tags · user notes · tier dropdown (T1/T2/T3, <em>user-chosen, no suggestion</em>) · <b>Commit</b> · <b>Discard</b>.</td></tr>
+      <tr><td>Bottom rail — This demo's clips</td><td>Thumb strip of every clip already committed from this demo. Click = load back into pending for edit. Red × = delete.</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Keyboard surface (non-negotiable)</h3>
+  <table>
+    <thead><tr><th>Key</th><th>Action</th></tr></thead>
+    <tbody>
+      <tr><td><code>J</code> / <code>K</code> / <code>L</code></td><td>−1s / play-pause / +1s  (muscle memory from editors)</td></tr>
+      <tr><td><code>Shift+J</code> / <code>Shift+L</code></td><td>−0.1s / +0.1s fine step</td></tr>
+      <tr><td><code>,</code> / <code>.</code></td><td>Prev / next frame (25Hz snap)</td></tr>
+      <tr><td><code>I</code> / <code>O</code></td><td>Mark IN / OUT on pending clip at current playhead</td></tr>
+      <tr><td><code>Enter</code></td><td>Commit pending clip (requires IN &amp; OUT set)</td></tr>
+      <tr><td><code>Esc</code></td><td>Discard pending clip</td></tr>
+      <tr><td><code>1</code> / <code>2</code> / <code>3</code></td><td>Tier tag on pending clip (purely a label; no priority math)</td></tr>
+      <tr><td><code>[</code> / <code>]</code></td><td>Prev / next event pin (jump to FRAG/RAIL/etc.)</td></tr>
+      <tr><td><code>C</code></td><td>Cycle camera (1P → 3P → free → follow → projectile → wolfcam)</td></tr>
+      <tr><td><code>D</code></td><td><b>Mark demo clean</b> (confirmation dialog if 0 clips committed)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Review cameras — what each is for</h3>
+  <table>
+    <thead><tr><th>Mode</th><th>Use case</th><th>Engine source</th></tr></thead>
+    <tbody>
+      <tr><td><b>1P</b> First-person</td><td>Default. See what the player saw.</td><td>ioquake3 cgame</td></tr>
+      <tr><td><b>3P</b> Third-person</td><td>Review <em>movement</em> and <em>positioning</em> — rocket-jumps, strafe patterns, dodge work. Invaluable for spotting pattern-work the 1P view hides.</td><td>ioquake3 <code>cg_thirdPerson</code> extended</td></tr>
+      <tr><td><b>Free-cam</b></td><td>Scrubbing around a frozen moment to see geometry &amp; positions.</td><td>CPMA multiview</td></tr>
+      <tr><td><b>Follow-player</b></td><td>Spectate any player on the server, not just the recorder.</td><td>CPMA multiview</td></tr>
+      <tr><td><b>Projectile-follow</b></td><td>Camera rides the rocket / rail trail / plasma ball. Critical for showcase frags — lets the reviewer judge the <em>arc</em> and <em>lead</em>, not just the impact.</td><td>q3mme style; Wolfcam smoothing</td></tr>
+      <tr><td><b>Wolfcam path</b></td><td>Play back a pre-authored spline for cinematic review.</td><td>Wolfcam splines (P3-T3)</td></tr>
+    </tbody>
+  </table>
+  <p style="color:var(--p-text-dim);font-size:12px">Live-link command for camera switch: <code>{op:"cam", mode:"projectile", follow:"rocket"}</code>. See §08.</p>
+
+  <h3>Demo lifecycle</h3>
+  <div class="contract">
+    <div class="side">
+      <h4>States</h4>
+      <table style="margin-top:6px">
+        <tbody>
+          <tr><td><b>fresh</b></td><td>Never opened in Scout. Default for newly ingested demos.</td></tr>
+          <tr><td><b>in-review</b></td><td>Opened at least once; has pending clips or &lt; 100% of event pins covered.</td></tr>
+          <tr><td><b>clean</b></td><td>Human pressed <code>D</code> or Mark Clean. Everything worth extracting is extracted.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="mid"><svg viewBox="0 0 40 20"><path d="M 4 10 L 14 10 M 18 10 L 28 10 M 32 10 L 36 10 M 12 7 L 14 10 L 12 13 M 26 7 L 28 10 L 26 13" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>FLOW</div>
+    <div class="side">
+      <h4>Transitions</h4>
+      <pre style="margin-top:6px">fresh     → in-review   <span class="c">// on first Scout open</span>
+in-review → clean       <span class="c">// on Mark Clean (D)</span>
+clean     → in-review   <span class="c">// if user edits a clip</span>
+           ↘ (hidden by default in Archive)</pre>
+    </div>
+  </div>
+
+  <h3>API contract</h3>
+<pre><span class="c">// 1. Open demo in Scout</span>
+GET  /api/scout/demo/{demoId}
+     <span class="c">→ { meta, events[], clips[], state: "fresh"|"in-review"|"clean", camera_caps }</span>
+
+<span class="c">// 2. Commit a clip (user pressed Enter)</span>
+POST /api/scout/demo/{demoId}/clip
+     <span class="s">{ "t_in": 47100, "t_out": 49800, "tier": "T2",
+       "name": "rail cross-map asylum",
+       "tags": ["RG","cross-map"], "notes": "nice lead", "camera_used": "3P" }</span>
+     <span class="c">→ { clipId, ...stored }</span>
+
+<span class="c">// 3. Update state</span>
+PATCH /api/scout/demo/{demoId}/state
+     <span class="s">{ "state": "clean" }</span>       <span class="c">// idempotent</span>
+
+<span class="c">// 4. Camera switch (via live-link, not REST)</span>
+ws  → { "type":"cmd", "op":"cam", "mode":"projectile", "follow":"rocket" }</pre>
+
+  <h3>Auto-name helper (suggestion only, not required)</h3>
+<pre><span class="c">// When the user marks IN/OUT, pre-fill the name field from events inside [t_in, t_out]:</span>
+<span class="s">"{dominant_weapon} {event_hint} {map}"</span>
+<span class="c">// Examples — user can overwrite freely:</span>
+<span class="s">"rail 4x asylum"</span>         <span class="c">// 4 FRAG events, RG dominant</span>
+<span class="s">"rocket telefrag dm6"</span>    <span class="c">// TELEFRAG event present</span>
+<span class="s">"lg duel campgrounds"</span>    <span class="c">// LG dominant, no special mod</span></pre>
+
+  <div class="callout note">
+    <b>Why manual beats auto.</b> The original auto-tier treated "3 frags in a window" the same as "cross-map railshot while airborne" — both T1. The editor always re-tiered anyway, so the suggestion was noise. The event-pin coverage indicator in the ribbon gives the human the exact information auto-extraction tried to give: <em>have I mined this demo?</em> — without pretending to judge the frag.
+  </div>
+
+  <p><b>Scout output</b> is the same JSON shape as <code>GET /api/studio/clips</code>. Clips committed in Scout show up in the Library panel immediately; no re-import step.</p>
+</section>
+
+<!-- ═══════ 08 ═══════ -->
+<section id="live">
+  <div class="shdr"><div class="snum">08</div><div class="sttl">Live-link protocol</div><div class="stag">engine ⇄ UI</div></div>
+
+  <p>Bi-directional. Engine publishes state, UI publishes intent. Transport is WebSocket to <code>ws://localhost:9731/live</code> — simplest to debug, plenty of bandwidth for 25-60Hz state frames. <em>Claude Code may promote to shared memory later if latency budget demands it; the schema is wire-agnostic.</em></p>
+
+  <div class="contract">
+    <div class="side">
+      <h4>Engine → UI</h4>
+      <p style="margin:0;font-size:11px">25Hz <b>state</b> frames + instant <b>event</b> messages.</p>
+<pre style="margin-top:10px">{<span class="s">"type"</span>:<span class="s">"state"</span>, <span class="s">"t"</span>:<span class="n">47217</span>,
+ <span class="s">"hp"</span>:<span class="n">100</span>,<span class="s">"armor"</span>:<span class="n">150</span>,<span class="s">"weapon"</span>:<span class="s">"RG"</span>,<span class="s">"ammo"</span>:<span class="n">47</span>,
+ <span class="s">"pos"</span>:[<span class="n">123</span>,<span class="n">-456</span>,<span class="n">78</span>],<span class="s">"ang"</span>:[<span class="n">12</span>,<span class="n">90</span>]}
+
+{<span class="s">"type"</span>:<span class="s">"event"</span>, <span class="s">"t"</span>:<span class="n">47417</span>,
+ <span class="s">"kind"</span>:<span class="s">"FRAG"</span>,<span class="s">"weapon"</span>:<span class="s">"RG"</span>,
+ <span class="s">"target"</span>:<span class="s">"sarge"</span>}</pre>
+    </div>
+    <div class="mid"><svg viewBox="0 0 40 20"><path d="M 2 10 L 34 10 M 30 6 L 34 10 L 30 14 M 2 14 L 2 6" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>LIVE</div>
+    <div class="side">
+      <h4>UI → Engine</h4>
+      <p style="margin:0;font-size:11px">Commands. Acks on the same connection tagged <code>resp</code>.</p>
+<pre style="margin-top:10px">{<span class="s">"type"</span>:<span class="s">"cmd"</span>,<span class="s">"id"</span>:<span class="s">"c42"</span>,
+ <span class="s">"op"</span>:<span class="s">"seek"</span>,<span class="s">"t"</span>:<span class="n">47000</span>}
+
+{<span class="s">"type"</span>:<span class="s">"cmd"</span>,<span class="s">"id"</span>:<span class="s">"c43"</span>,
+ <span class="s">"op"</span>:<span class="s">"fx"</span>,<span class="s">"effect"</span>:<span class="s">"crt"</span>,<span class="s">"on"</span>:<span class="k">true</span>,<span class="s">"strength"</span>:<span class="n">45</span>}
+
+{<span class="s">"type"</span>:<span class="s">"cmd"</span>,<span class="s">"id"</span>:<span class="s">"c44"</span>,
+ <span class="s">"op"</span>:<span class="s">"mark"</span>,<span class="s">"kind"</span>:<span class="s">"cut"</span>,<span class="s">"t"</span>:<span class="n">47217</span>}</pre>
+    </div>
+  </div>
+
+  <h3>UI command surface (minimum)</h3>
+  <table>
+    <thead><tr><th>Op</th><th>Payload</th><th>Effect in engine</th></tr></thead>
+    <tbody>
+      <tr><td><code>seek</code></td><td><code>{t}</code> ms</td><td>Jump demo playback to t</td></tr>
+      <tr><td><code>rate</code></td><td><code>{x}</code> 0.25 / 0.5 / 1 / 2 / 4</td><td>Playback rate</td></tr>
+      <tr><td><code>play</code> / <code>pause</code></td><td>—</td><td>Transport</td></tr>
+      <tr><td><code>mark</code></td><td><code>{kind, t}</code></td><td>Insert cut/seam/pin at t</td></tr>
+      <tr><td><code>fx</code></td><td><code>{effect, on, strength}</code></td><td>Toggle in-engine FX overlay</td></tr>
+      <tr><td><code>cam</code></td><td><code>{mode, follow?}</code> — modes: <code>1p</code> · <code>3p</code> · <code>free</code> · <code>follow</code> (needs <code>follow:"playerId"</code>) · <code>projectile</code> (needs <code>follow:"rocket"|"rail"|"plasma"|"auto"</code>) · <code>wolfcam</code> (needs <code>path:"pathId"</code>)</td><td>Camera mode (P3-T3). Switch is instant; no demo rewind.</td></tr>
+      <tr><td><code>demo_state</code></td><td><code>{demoId, state:"clean"|"in-review"}</code></td><td>Mirror of PATCH /api/scout/demo/{id}/state for live UI sync (Archive page refreshes pill)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Reconnection</h3>
+  <p>If UI loses socket, show <em>CAPTURE</em> chip in the nav turn <b>amber</b> (token <code>--p-amber</code>) and auto-retry every 1s. State frames that arrive while disconnected are discarded; events are buffered engine-side up to 30s.</p>
+
+  <div class="callout note">
+    <b>Why 9731?</b> Nothing claims it on common OSes and it's easy to recognize in netstat. Port is configurable via <code>CS_LIVE_PORT</code> env var, mirroring the <code>REPO_ROOT / CS_ROOT</code> convention from P1-T2.
+  </div>
+</section>
+
+<!-- ═══════ 09 ═══════ -->
+<section id="otio">
+  <div class="shdr"><div class="snum">09</div><div class="sttl">OTIO bridge &amp; MLT gate</div><div class="stag">P3-T4 · P3-T5</div></div>
+
+  <p>Once a <code>flow</code> exists in the studio, serialize it to OpenTimelineIO so (a) DaVinci can open it, (b) MLT can render it headlessly. OTIO is the interchange format; the studio store is the working format.</p>
+
+  <h3>Mapping — studio store → OTIO</h3>
+  <table>
+    <thead><tr><th>Studio concept</th><th>OTIO node</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>Flow</td><td><code>Timeline</code></td><td>Name, duration, frame rate</td></tr>
+      <tr><td>V1 track (clips)</td><td><code>Track(kind="Video")</code></td><td>Children are Clip nodes</td></tr>
+      <tr><td>A1 track (music)</td><td><code>Track(kind="Audio")</code></td><td>Single clip usually</td></tr>
+      <tr><td>Clip</td><td><code>Clip</code> + <code>ExternalReference</code></td><td>Source = dm_73-extracted MP4</td></tr>
+      <tr><td>Seam</td><td><code>Transition</code></td><td>Hard cut = 0-frame</td></tr>
+      <tr><td>FX node graph</td><td><code>Effect</code> metadata</td><td>Custom schema <code>pantheon.fx</code></td></tr>
+      <tr><td>Event pins</td><td><code>Marker</code> on track</td><td>Color = tier (red/gold/gray)</td></tr>
+      <tr><td>Downbeats</td><td><code>Marker</code> on A1</td><td>Color = beat strength</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Custom schema — <code>pantheon.fx</code></h3>
+<pre>{
+  <span class="s">"OTIO_SCHEMA"</span>: <span class="s">"Effect.1"</span>,
+  <span class="s">"name"</span>: <span class="s">"pantheon.fx"</span>,
+  <span class="s">"metadata"</span>: {
+    <span class="s">"graph"</span>: <span class="c">/* LiteGraph serialized JSON */</span>,
+    <span class="s">"theatre_sheet"</span>: <span class="c">/* Theatre.js state for keyframes */</span>
+  }
+}</pre>
+
+  <p><b>MLT gate decision</b> — log to <code>docs/decisions/mlt-vs-ffmpeg.md</code> with the three gate results. If MLT fails any, fall back to FFmpeg filter_complex generated from the OTIO tree by <code>scripts/otio_to_ffmpeg.py</code>.</p>
+</section>
+
+<!-- ═══════ 10 ═══════ -->
+<section id="merge">
+  <div class="shdr"><div class="snum">10</div><div class="sttl">Engine unification</div><div class="stag">The "best of all" question</div></div>
+
+  <p>You said: <em>unify all the engines keeping the best of all</em>. Concrete map of what to pull from each, targeted at movie-making (not competitive play).</p>
+
+  <table>
+    <thead><tr><th>Source</th><th>Take</th><th>Drop</th><th>Rationale</th></tr></thead>
+    <tbody>
+      <tr><td><b>ioquake3</b></td><td>Core renderer (opengl2), cgame, VM, cvars</td><td>Netcode beyond what demos need</td><td>Cleanest open base; modern GL</td></tr>
+      <tr><td><b>Quake Live</b></td><td>Weapon stats, movement physics, maps, protocol 73 demo format</td><td>Closed client code we can't use anyway</td><td>Demo format is our input; physics match the source footage</td></tr>
+      <tr><td><b>CPMA</b></td><td>Multiview + freecam code, HUD config system</td><td>CPM movement (conflicts w/ QL physics)</td><td>Best-in-class spectator tools</td></tr>
+      <tr><td><b>Wolfcam</b></td><td>Cam path spline, demo browser, smoothing</td><td>Its own UI chrome</td><td>P3-T3 — the cinematic camera</td></tr>
+      <tr><td><b>q3mme / Moviemaker's Edition</b></td><td>Capture pipeline, motion blur accumulation, deterministic output</td><td>Scripting system (replace w/ LiteGraph)</td><td>The reason movie-makers still use old Q3</td></tr>
+      <tr><td><b>libuberdemotools</b></td><td>The whole parser</td><td>—</td><td>Already solves P3-T6 for us</td></tr>
+    </tbody>
+  </table>
+
+  <h3>The assimilation order</h3>
+  <ol style="margin-left:22px;color:var(--p-text-dim)">
+    <li>Start from <b>ioquake3</b> master.</li>
+    <li>Port QL weapon/physics constants and dm_73 parser (libuberdemotools vendored).</li>
+    <li>Merge q3mme's capture + motion-blur pipeline into <code>cl_cin.c</code> + <code>cl_avi.c</code>.</li>
+    <li>Port CPMA multiview + freecam into cgame.</li>
+    <li>Port Wolfcam cam-paths and demo browser as an optional module (<code>engine/wolfcam/</code>).</li>
+    <li>Remove multiplayer netcode paths not needed for solo demo playback (saves binary size and surface area).</li>
+  </ol>
+
+  <div class="callout warn">
+    <b>License compatibility</b> — ioq3 is GPL-2; libuberdemotools is permissive; q3mme is GPL-2 (compatible); Wolfcam is GPL-2 (compatible). QL client is closed; we only port <em>constants</em> and use the <em>demo format</em>, both of which are fair. Theatre Studio is AGPL-3 but used as a <em>local tool</em>, not shipped in a server — per the CLAUDE.md exception, that's fine.
+  </div>
+</section>
+
+<!-- ═══════ 11 ═══════ -->
+<section id="risk">
+  <div class="shdr"><div class="snum">11</div><div class="sttl">Where Claude Code drifts</div><div class="stag">Guardrails</div></div>
+
+  <div class="card red"><h4>Drift 1 · Token renaming</h4>
+    <p><b>Symptom:</b> <code>--p-gold</code> becomes <code>--warning-400</code> or <code>--accent</code>. Two refactors later, someone replaces the "warning" color.</p>
+    <p><b>Fix:</b> <code>tokens.css</code> is written once from the v3 Spec. Every subsequent PR that touches tokens requires the literal block unchanged. Add a pre-commit grep: if <code>--p-gold</code> disappears, fail.</p>
+  </div>
+
+  <div class="card red"><h4>Drift 2 · Icon redraws</h4>
+    <p><b>Symptom:</b> A new feature needs the rail icon. Claude Code writes fresh SVG from memory; geometry drifts. Now there are two rails.</p>
+    <p><b>Fix:</b> single <code>pantheon.svg</code> sprite under <code>static/icons/</code>. <code>&lt;Icon/&gt;</code> component is the <em>only</em> way to render one. Lint rule: ban inline <code>&lt;svg&gt;</code> outside the sprite file.</p>
+  </div>
+
+  <div class="card red"><h4>Drift 3 · "Polish" deletion</h4>
+    <p><b>Symptom:</b> CRT overlay, gold seam markers, event pin row, playhead arrow — all marked low-priority and slipped to "phase 2". They never come back.</p>
+    <p><b>Fix:</b> treat each as a P0 acceptance criterion on the corresponding task (T6 timeline, T11 inspector, T12 layout). Do not accept a PR without them.</p>
+  </div>
+
+  <div class="card red"><h4>Drift 4 · Library theme leaks</h4>
+    <p><b>Symptom:</b> LiteGraph, Tweakpane, Multitrack ship with their default themes (Tweakpane's blue-gray, LiteGraph's teal + dim-gray). Instant visual dissonance.</p>
+    <p><b>Fix:</b> before <em>any</em> use, load the override stylesheets (§04 for each). Gate: screenshot test per page; if pixel-diff shows non-Pantheon color in the panel region, fail.</p>
+  </div>
+
+  <div class="card red"><h4>Drift 5 · Grid "improvements"</h4>
+    <p><b>Symptom:</b> "Let's make the inspector collapsible", "let's make the timeline bigger", "let's use flexbox instead". Density collapses.</p>
+    <p><b>Fix:</b> the <code>.app</code> grid is a <em>locked</em> component. Collapsible panels are fine as future work but do not change the default template. Reference the Editor v2 screenshot on every PR that touches layout.</p>
+  </div>
+</section>
+
+<!-- ═══════ 12 ═══════ -->
+<section id="order">
+  <div class="shdr"><div class="snum">12</div><div class="sttl">Execution order</div><div class="stag">What ships when</div></div>
+
+  <h3>Wave A — unblock downstream (1 week)</h3>
+  <ul style="margin-left:22px;color:var(--p-text-dim)">
+    <li><span class="tid">P3-T6</span> dm_73 parser — ship stream.json from the CA-asylum test file</li>
+    <li><span class="tid">P2-T9</span> music library + match API (includes P3-T1's fields)</li>
+    <li><span class="tid">P3-T7</span> FORGE stubs returning fixtures</li>
+    <li><em>Side:</em> write <code>tokens.css</code> + <code>pantheon.svg</code> sprite + <code>Icon</code> component</li>
+  </ul>
+
+  <h3>Wave B — make the studio complete (1 week)</h3>
+  <ul style="margin-left:22px;color:var(--p-text-dim)">
+    <li><span class="tid">P2-T10</span> LiteGraph (with Pantheon theme overrides from §04)</li>
+    <li><span class="tid">P2-T11</span> Inspector — Tweakpane skinned + Theatre.js</li>
+    <li><span class="tid">P2-T12</span> 6-page layout — Cinema / <b>Scout</b> / Editor / FX / Archive / Flag</li>
+    <li><span class="tid">P3-T2</span> Graphify knowledge graph (parallel, no UI blocker)</li>
+  </ul>
+
+  <h3>Wave C — render &amp; live-link (1 week)</h3>
+  <ul style="margin-left:22px;color:var(--p-text-dim)">
+    <li><span class="tid">P3-T4</span> OTIO bridge — emit on every rebuild</li>
+    <li><span class="tid">P3-T5</span> MLT 3-gate verification; decision log</li>
+    <li>Live-link WebSocket at <code>ws://localhost:9731/live</code>; state frames + commands</li>
+    <li><span class="tid">P3-T3</span> Wolfcam ingestion — camera track enabled</li>
+  </ul>
+
+  <h3>Ship criteria — one movie, end-to-end</h3>
+  <table>
+    <thead><tr><th>#</th><th>Gate</th><th>Evidence</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Parse <code>CA-asylum-2011_06_18-19_29_23.dm_73</code></td><td><code>stream.json</code> with &gt;20 events</td></tr>
+      <tr><td>2</td><td>Scout page: mark ≥4 clips manually, tag tiers, press <code>D</code> → demo state flips to <b>clean</b></td><td>PATCH response + Archive pill updates live</td></tr>
+      <tr><td>3</td><td>Clips appear in Library panel with user-chosen tier pills</td><td>Screenshot diff vs Editor v2</td></tr>
+      <tr><td>3b</td><td>Scout camera rail: 1P → 3P → projectile-follow switches inside a single clip review without reload</td><td>WS trace: 3 <code>cam</code> cmds; playhead unchanged</td></tr>
+      <tr><td>4</td><td>Drag clip to V1 · seam auto-snaps to nearest downbeat</td><td>Studio-store state diff</td></tr>
+      <tr><td>5</td><td>Inspector CRT toggle → live preview shows scanlines</td><td>WebCodecs frame has scanline signature</td></tr>
+      <tr><td>6</td><td>Render flow via MLT (or FFmpeg fallback)</td><td><code>master.mp4</code> produced, hash stable</td></tr>
+      <tr><td>7</td><td>OTIO emitted matches master timing</td><td><code>timeline.otio</code> opens in DaVinci</td></tr>
+      <tr><td>8</td><td>Live-link: <code>cmd:seek</code> jumps engine</td><td>WS trace + state frame at new t</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout">
+    When all 8 gates pass on <em>one demo</em>, the cockpit ships. Everything else (more demos, more maps, more FX nodes, more matches) is content, not engineering.
+  </div>
+</section>
+
+</main>
+
+<footer class="sig">
+  <span>PANTHEON // ENGINE INTEGRATION SPEC v2</span>
+  <span>FOR CLAUDE CODE · P2-T9..T12 + P3-T1..T7 · Scout + Review Cams + Demo Lifecycle</span>
+</footer>
+
+</body>
+</html>

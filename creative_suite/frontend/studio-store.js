@@ -13,9 +13,9 @@
   /** @type {StudioState} */
   var INITIAL_STATE = {
     activeMode:    'studio',
-    modePage:      { studio: 'preview', lab: 'demos', creative: 'textures' },
+    modePage:      { studio: 'clips', lab: 'demos', creative: 'textures' },
     selectedDemo:  null,
-    activePage:    'preview',
+    activePage:    'clips',
     activePart:    null,
     parts:         [],
     clips:         [],
@@ -25,7 +25,7 @@
     statusMessage: 'Ready',
   };
 
-  var _DEFAULTS = { studio: 'preview', lab: 'demos', creative: 'textures' };
+  var _DEFAULTS = { studio: 'clips', lab: 'demos', creative: 'textures' };
 
   // ── Private state ──────────────────────────────────────────────────────────
 

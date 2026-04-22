@@ -2,11 +2,38 @@
 
 All tests run against the full FastAPI app via TestClient.  The FORGE
 endpoints are stubs; no wolfcamql.exe / q3mme.exe is required.
+
+Also contains static-analysis tests for the lab-forge.js panel copy,
+verifying the panel uses job_id feedback (not fragment counts).
 """
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Iterator
+
+_LAB_FORGE_JS = Path("G:/QUAKE_LEGACY/creative_suite/frontend/lab-forge.js")
+
+
+# ---------------------------------------------------------------------------
+# Static contract: lab-forge.js panel copy
+# ---------------------------------------------------------------------------
+
+def test_lab_forge_js_uses_job_id_not_fragment_count() -> None:
+    """lab-forge.js must display job_id feedback, not fake fragment counts."""
+    src = _LAB_FORGE_JS.read_text(encoding="utf-8")
+    assert "job_id" in src, "job_id not found in lab-forge.js"
+    assert "frags" not in src, (
+        "lab-forge.js references 'frags' — use job_id feedback instead"
+    )
+
+
+def test_lab_forge_js_status_uses_blocked_not_stub() -> None:
+    """lab-forge.js must use 'blocked' (not 'stub') for the offline state."""
+    src = _LAB_FORGE_JS.read_text(encoding="utf-8")
+    assert "'blocked'" in src or '"blocked"' in src or "blocked" in src.lower(), (
+        "'blocked' state label not found in lab-forge.js"
+    )
+    assert "STUB" not in src, "Stale 'STUB' label still in lab-forge.js"
 
 import pytest
 from fastapi.testclient import TestClient

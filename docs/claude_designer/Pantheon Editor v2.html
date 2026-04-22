@@ -1,0 +1,820 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>PANTHEON EDITOR v2 — Timeline & Clips</title>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --p-gold:#e8b923;--p-gold-hi:#ffd340;--p-gold-dim:#b58d15;--p-gold-glo:rgba(232,185,35,.14);
+  --p-blue:#1a3e9a;--p-blue-hi:#2a5acc;--p-blue-deep:#081540;--p-blue-dim:#0d2060;
+  --p-amber:#e68a00;--p-red:#c41515;--p-green:#1e8449;--p-magenta:#c2185b;
+  --p-bg:#040610;--p-surface:#0a0e1e;--p-surface2:#0f1430;--p-surface3:#141a3a;
+  --p-border:#1a2245;--p-border-hi:#243063;
+  --p-text:#e8eef8;--p-text-dim:#8090b8;--p-text-mute:#5a6890;
+  --font-display:'Bebas Neue',sans-serif;
+  --font-data:'IBM Plex Mono',ui-monospace,monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--p-bg);color:var(--p-text);font-family:var(--font-data);font-size:12px;line-height:1.4}
+body{min-height:100vh;overflow-x:hidden}
+
+/* Top nav */
+.nav{display:flex;align-items:center;height:44px;background:#030612;border-bottom:1px solid var(--p-gold);padding:0 14px;gap:14px;box-shadow:0 2px 0 var(--p-gold-glo)}
+.brand{display:flex;align-items:center;gap:8px}
+.brand svg{width:22px;height:22px;color:var(--p-gold)}
+.brand .wm{font-family:var(--font-display);font-size:20px;letter-spacing:.22em;color:var(--p-gold)}
+.nav .slash{color:var(--p-blue-hi);opacity:.5}
+.nav .crumb{font-size:10px;letter-spacing:.2em;color:var(--p-text-dim);text-transform:uppercase}
+.nav .crumb b{color:var(--p-text)}
+.nav .tabs{display:flex;gap:2px;margin-left:18px}
+.nav .tabs .t{padding:6px 12px;font-size:10px;letter-spacing:.18em;color:var(--p-text-mute);border:1px solid transparent;text-transform:uppercase;cursor:pointer}
+.nav .tabs .t.active{color:var(--p-gold);border-color:var(--p-border-hi);background:var(--p-surface)}
+.nav .right{margin-left:auto;display:flex;align-items:center;gap:12px}
+.nav .chip{display:flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--p-border-hi);font-size:9px;letter-spacing:.14em;color:var(--p-text-dim);text-transform:uppercase}
+.nav .chip.live{border-color:var(--p-green);color:var(--p-green)}
+.nav .chip.live::before{content:"";width:6px;height:6px;background:var(--p-green);border-radius:50%;box-shadow:0 0 8px var(--p-green);animation:blink 1.2s infinite}
+@keyframes blink{50%{opacity:.35}}
+.nav .iconbtn{width:28px;height:28px;border:1px solid var(--p-border-hi);background:var(--p-surface);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--p-text-dim)}
+.nav .iconbtn:hover{color:var(--p-gold);border-color:var(--p-gold)}
+.nav .iconbtn svg{width:14px;height:14px}
+
+/* Layout */
+.app{display:grid;grid-template-columns:260px 1fr 300px;grid-template-rows:1fr 340px 22px;gap:1px;background:var(--p-border);height:calc(100vh - 44px)}
+.panel{background:var(--p-surface);display:flex;flex-direction:column;min-height:0;min-width:0}
+.phdr{display:flex;align-items:center;gap:6px;height:26px;background:var(--p-blue-dim);border-bottom:1px solid var(--p-gold);padding:0 10px;flex-shrink:0;white-space:nowrap;overflow:hidden}
+.phdr svg{width:14px;height:14px;color:var(--p-gold);flex-shrink:0}
+.phdr .t{font-family:var(--font-display);font-size:13px;letter-spacing:.18em;color:var(--p-gold);white-space:nowrap}
+.phdr .count{margin-left:auto;font-size:9px;color:var(--p-text-dim);letter-spacing:.1em}
+.phdr .mini{width:18px;height:18px;border:1px solid var(--p-border-hi);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--p-text-dim)}
+.phdr .mini:hover{color:var(--p-gold);border-color:var(--p-gold)}
+.phdr .mini svg{width:10px;height:10px}
+
+/* Clip library */
+.lib{grid-column:1;grid-row:1;overflow:hidden}
+.lib-body{flex:1;overflow-y:auto}
+.lib-filter{padding:8px 10px;display:flex;gap:4px;flex-wrap:wrap;border-bottom:1px solid var(--p-border)}
+.lib-filter .f{font-size:9px;letter-spacing:.14em;padding:3px 7px;border:1px solid var(--p-border-hi);color:var(--p-text-dim);cursor:pointer;text-transform:uppercase}
+.lib-filter .f.on{color:var(--p-blue-deep);background:var(--p-gold);border-color:var(--p-gold)}
+.lib-item{display:grid;grid-template-columns:56px 1fr;gap:8px;padding:8px 10px;border-bottom:1px solid var(--p-border);cursor:grab}
+.lib-item:hover{background:var(--p-surface2)}
+.lib-item.on{background:var(--p-surface3);border-left:2px solid var(--p-gold);padding-left:8px}
+.lib-thumb{height:40px;background:linear-gradient(135deg,#0a1545,#1a0f35);border:1px solid var(--p-border-hi);position:relative;overflow:hidden}
+.lib-thumb::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0 2px,rgba(0,0,0,.3) 2px 3px)}
+.lib-thumb svg.wpn{position:absolute;top:2px;left:2px;width:12px;height:12px;color:var(--p-gold);z-index:2}
+.lib-thumb .tr{position:absolute;top:2px;right:2px;font-size:7px;letter-spacing:.1em;color:var(--p-gold);background:rgba(0,0,0,.6);padding:0 3px;z-index:2}
+.lib-thumb .dur{position:absolute;bottom:2px;right:2px;font-size:7px;color:var(--p-text);background:rgba(0,0,0,.75);padding:0 3px;z-index:2}
+.lib-meta .nm{font-size:10px;color:var(--p-text);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lib-meta .sub{font-size:8px;color:var(--p-text-mute);letter-spacing:.1em;text-transform:uppercase}
+.lib-meta .evt{margin-top:3px;display:flex;gap:3px;flex-wrap:wrap}
+.lib-meta .evt svg{width:10px;height:10px;color:var(--p-gold-dim)}
+
+/* Viewer */
+.viewer{grid-column:2;grid-row:1;display:flex;flex-direction:column;background:#000;min-height:0}
+.vphdr{display:flex;align-items:center;gap:8px;height:26px;background:var(--p-blue-dim);border-bottom:1px solid var(--p-gold);padding:0 10px;flex-shrink:0}
+.vphdr svg{width:14px;height:14px;color:var(--p-gold)}
+.vphdr .t{font-family:var(--font-display);font-size:13px;letter-spacing:.2em;color:var(--p-gold)}
+.vphdr .rate{margin-left:auto;display:flex;gap:2px}
+.vphdr .rate .r{font-size:9px;padding:2px 7px;border:1px solid var(--p-border-hi);color:var(--p-text-dim);cursor:pointer}
+.vphdr .rate .r.on{color:var(--p-blue-deep);background:var(--p-gold);border-color:var(--p-gold)}
+.stage{flex:1;position:relative;display:grid;place-items:center;min-height:0;background:#000;overflow:hidden;container-type:size}
+.stage-inner{position:relative;width:min(100%,calc(100cqh * 16 / 9));height:min(100%,calc(100cqw * 9 / 16));aspect-ratio:16/9;background:linear-gradient(135deg,#0a1545,#1a0f35);overflow:hidden}
+.stage-inner::before{content:"";position:absolute;inset:0;background:
+  radial-gradient(ellipse at 30% 40%,rgba(232,185,35,.08),transparent 45%),
+  radial-gradient(ellipse at 70% 60%,rgba(42,90,204,.15),transparent 50%);pointer-events:none}
+/* mock arena */
+.arena{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.arena .hud{position:absolute;inset:0;pointer-events:none}
+.arena .hud .hpline{position:absolute;bottom:24px;left:24px;display:flex;gap:14px;align-items:center;font-family:var(--font-display);font-size:36px;letter-spacing:.1em;color:var(--p-gold);text-shadow:0 0 8px rgba(232,185,35,.5)}
+.arena .hud .hpline .hv{color:var(--p-red)}
+.arena .hud .wpn-hud{position:absolute;bottom:24px;right:24px;display:flex;gap:8px;align-items:center}
+.arena .hud .wpn-hud svg{width:28px;height:28px;color:var(--p-gold);filter:drop-shadow(0 0 6px rgba(232,185,35,.6))}
+.arena .hud .wpn-hud .ammo{font-family:var(--font-display);font-size:32px;color:var(--p-gold);letter-spacing:.05em}
+.arena .hud .ts{position:absolute;top:16px;right:16px;font-size:9px;letter-spacing:.2em;color:rgba(255,255,255,.5);font-family:var(--font-data)}
+.arena .hud .crosshair{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:16px;height:16px}
+.arena .hud .crosshair::before,.arena .hud .crosshair::after{content:"";position:absolute;background:rgba(232,185,35,.7)}
+.arena .hud .crosshair::before{width:2px;height:100%;left:50%;transform:translateX(-50%)}
+.arena .hud .crosshair::after{height:2px;width:100%;top:50%;transform:translateY(-50%)}
+.arena .hud .killfeed{position:absolute;top:16px;left:16px;display:flex;flex-direction:column;gap:4px}
+.arena .hud .kf{display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.5);padding:3px 6px;font-size:9px}
+.arena .hud .kf .you{color:var(--p-gold)}
+.arena .hud .kf svg{width:12px;height:12px;color:var(--p-text)}
+.arena .hud .kf .them{color:var(--p-text-dim)}
+/* CRT overlay */
+.crt-fx{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .2s;z-index:10}
+.crt-fx::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.25) 0 1px,transparent 1px 3px);mix-blend-mode:multiply}
+.crt-fx::after{content:"";position:absolute;inset:-8%;background:radial-gradient(ellipse at center,transparent 55%,rgba(0,0,0,.75) 100%);pointer-events:none}
+.app.crt .crt-fx{opacity:1}
+.app.crt .stage-inner{filter:saturate(1.2) contrast(1.08)}
+/* time-indicator */
+.tc{position:absolute;top:10px;left:12px;font-family:var(--font-data);font-size:11px;color:var(--p-gold);letter-spacing:.12em;background:rgba(0,0,0,.55);padding:3px 7px;border:1px solid var(--p-gold);z-index:5}
+.tc .sep{color:var(--p-text-dim);margin:0 4px}
+
+/* Transport */
+.transport{display:flex;align-items:center;gap:8px;height:40px;background:#050914;border-top:1px solid var(--p-border-hi);padding:0 12px;flex-shrink:0}
+.transport .tbtn{width:30px;height:24px;border:1px solid var(--p-border-hi);background:var(--p-surface);display:flex;align-items:center;justify-content:center;cursor:pointer;color:var(--p-gold)}
+.transport .tbtn:hover{background:var(--p-surface2);border-color:var(--p-gold)}
+.transport .tbtn.primary{background:var(--p-gold);color:var(--p-blue-deep);border-color:var(--p-gold);width:38px}
+.transport .tbtn svg{width:12px;height:12px}
+.transport .tbtn.primary svg{width:14px;height:14px}
+.transport .time{font-family:var(--font-display);font-size:18px;letter-spacing:.08em;color:var(--p-gold);margin-left:6px}
+.transport .time .mm{color:var(--p-text-dim);font-size:10px;margin-left:6px;letter-spacing:.18em}
+.transport .shortcuts{margin-left:auto;display:flex;gap:10px;font-size:9px;color:var(--p-text-mute);letter-spacing:.1em;text-transform:uppercase}
+.transport .shortcuts kbd{display:inline-block;padding:1px 5px;border:1px solid var(--p-border-hi);background:var(--p-surface);color:var(--p-gold);font-family:var(--font-data);margin-right:3px;font-size:8px}
+
+/* Inspector */
+.ins{grid-column:3;grid-row:1;overflow:hidden}
+.ins-body{flex:1;overflow-y:auto;padding:12px 12px 20px}
+.ins h4{font-family:var(--font-display);font-size:11px;letter-spacing:.24em;color:var(--p-text-dim);text-transform:uppercase;margin:14px 0 6px;padding-top:12px;border-top:1px solid var(--p-border)}
+.ins h4:first-child{margin-top:2px;padding-top:0;border-top:none}
+.row{display:grid;grid-template-columns:90px 1fr;gap:8px;align-items:center;margin-bottom:6px;font-size:10px}
+.row .k{color:var(--p-text-mute);letter-spacing:.1em;text-transform:uppercase;font-size:9px}
+.row .v{color:var(--p-text)}
+.row .v input,.row .v select{width:100%;background:var(--p-surface2);border:1px solid var(--p-border-hi);color:var(--p-text);padding:3px 6px;font-family:var(--font-data);font-size:10px}
+.row .v input:focus{outline:none;border-color:var(--p-gold)}
+.pill{display:inline-block;padding:2px 8px;border:1px solid var(--p-gold);color:var(--p-gold);font-size:9px;letter-spacing:.14em;text-transform:uppercase;background:var(--p-gold-glo)}
+.pill.t1{border-color:var(--p-red);color:var(--p-red);background:rgba(196,21,21,.08)}
+.pill.t2{border-color:var(--p-gold)}
+.pill.t3{border-color:var(--p-text-dim);color:var(--p-text-dim);background:transparent}
+
+/* FX controls */
+.fx-row{display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px dashed var(--p-border)}
+.fx-row .fx-name{flex:1;font-size:10px;color:var(--p-text);display:flex;align-items:center;gap:6px}
+.fx-row .fx-name svg{width:12px;height:12px;color:var(--p-gold)}
+.fx-row .fx-val{font-family:var(--font-data);font-size:10px;color:var(--p-gold);min-width:28px;text-align:right}
+.fx-row input[type=range]{flex:0 0 80px;accent-color:var(--p-gold);height:2px}
+.toggle{position:relative;width:28px;height:14px;background:var(--p-surface2);border:1px solid var(--p-border-hi);cursor:pointer}
+.toggle::after{content:"";position:absolute;top:1px;left:1px;width:10px;height:10px;background:var(--p-text-mute);transition:.12s}
+.toggle.on{background:var(--p-gold-glo);border-color:var(--p-gold)}
+.toggle.on::after{left:15px;background:var(--p-gold);box-shadow:0 0 6px var(--p-gold)}
+
+/* Timeline */
+.tl{grid-column:1 / span 3;grid-row:2;background:var(--p-surface);display:flex;flex-direction:column;min-height:0}
+.tlhdr{display:flex;align-items:center;gap:10px;height:30px;background:var(--p-blue-dim);border-bottom:1px solid var(--p-gold);padding:0 12px;flex-shrink:0}
+.tlhdr svg{width:14px;height:14px;color:var(--p-gold)}
+.tlhdr .t{font-family:var(--font-display);font-size:14px;letter-spacing:.2em;color:var(--p-gold)}
+.tlhdr .zoom{margin-left:auto;display:flex;gap:2px;align-items:center}
+.tlhdr .zoom span{font-size:9px;color:var(--p-text-dim);letter-spacing:.14em;margin-right:6px;text-transform:uppercase}
+.tlhdr .zoom .z{width:22px;height:20px;border:1px solid var(--p-border-hi);background:var(--p-surface);color:var(--p-gold);cursor:pointer;display:flex;align-items:center;justify-content:center}
+.tlhdr .zoom .z:hover{border-color:var(--p-gold)}
+.tlhdr .zoom .z svg{width:10px;height:10px}
+.tlhdr .snap{display:flex;align-items:center;gap:6px;padding-left:10px;border-left:1px solid var(--p-border-hi);margin-left:6px}
+.tlhdr .snap span{font-size:9px;letter-spacing:.14em;color:var(--p-text-dim);text-transform:uppercase}
+
+.tlbody{flex:1;overflow-x:auto;overflow-y:hidden;position:relative;background:var(--p-bg)}
+.tlinner{height:100%;min-width:1800px;position:relative;display:grid;grid-template-rows:24px 22px 64px 64px 40px 36px;grid-template-columns:120px 1fr;gap:0}
+
+/* ruler */
+.rule-lbl{grid-column:1;grid-row:1;background:#05081a;border-right:1px solid var(--p-border-hi);border-bottom:1px solid var(--p-border);display:flex;align-items:center;padding:0 10px;font-size:8px;color:var(--p-text-mute);letter-spacing:.14em;text-transform:uppercase}
+.ruler{grid-column:2;grid-row:1;background:#05081a;border-bottom:1px solid var(--p-border);position:relative}
+.ruler .tick{position:absolute;top:0;bottom:0;border-left:1px solid var(--p-border);color:var(--p-text-mute);font-size:8px;padding:3px 0 0 3px;letter-spacing:.1em}
+.ruler .tick.major{border-left-color:var(--p-text-dim);color:var(--p-text);font-family:var(--font-data);font-weight:500}
+.ruler .tick.major::before{content:"";position:absolute;top:0;left:-1px;width:1px;height:5px;background:var(--p-gold)}
+
+/* event pin row */
+.pins-lbl{grid-column:1;grid-row:2;background:#05081a;border-right:1px solid var(--p-border-hi);border-bottom:1px solid var(--p-border);display:flex;align-items:center;padding:0 10px;font-size:8px;color:var(--p-gold);letter-spacing:.14em;text-transform:uppercase}
+.pins{grid-column:2;grid-row:2;background:#03051a;border-bottom:1px solid var(--p-border);position:relative}
+.pin{position:absolute;top:2px;bottom:2px;display:flex;align-items:center;gap:2px;padding:0 4px;border:1px solid var(--p-gold);background:rgba(232,185,35,.15);color:var(--p-gold);font-size:8px;letter-spacing:.08em;font-weight:500;cursor:pointer;white-space:nowrap}
+.pin:hover{background:rgba(232,185,35,.28)}
+.pin svg{width:10px;height:10px;flex-shrink:0}
+.pin.t1{border-color:var(--p-red);color:var(--p-red);background:rgba(196,21,21,.15)}
+.pin.rare{border-color:var(--p-magenta);color:#e77ca3;background:rgba(194,24,91,.15)}
+
+/* tracks */
+.track-lbl{grid-column:1;background:#05081a;border-right:1px solid var(--p-border-hi);border-bottom:1px solid var(--p-border);display:flex;align-items:center;gap:6px;padding:0 10px}
+.track-lbl svg{width:12px;height:12px;color:var(--p-gold-dim)}
+.track-lbl .tnm{font-size:9px;letter-spacing:.14em;color:var(--p-text);text-transform:uppercase;font-weight:500}
+.track-lbl .mute{margin-left:auto;font-size:7px;color:var(--p-text-mute);cursor:pointer;padding:1px 4px;border:1px solid var(--p-border-hi)}
+.track-lbl .mute.on{color:var(--p-gold);border-color:var(--p-gold)}
+
+.vtrack-lbl{grid-row:3}
+.atrack-lbl{grid-row:4}
+.dtrack-lbl{grid-row:5}
+.btrack-lbl{grid-row:6}
+
+.track{position:relative;border-bottom:1px solid var(--p-border);background:linear-gradient(180deg,#060a1c,#040714)}
+.vtrack{grid-column:2;grid-row:3}
+.atrack{grid-column:2;grid-row:4;background:linear-gradient(180deg,#040714,#060a1c)}
+.dtrack{grid-column:2;grid-row:5}
+.btrack{grid-column:2;grid-row:6;background:#02040e}
+
+/* gridlines */
+.track::before{content:"";position:absolute;inset:0;background-image:
+  repeating-linear-gradient(90deg,transparent 0 119px,rgba(26,34,69,.6) 119px 120px),
+  repeating-linear-gradient(90deg,transparent 0 59px,rgba(26,34,69,.3) 59px 60px);
+  pointer-events:none}
+
+/* clip on timeline */
+.clip{position:absolute;top:4px;bottom:4px;background:linear-gradient(180deg,#0d1e55,#081540);border:1px solid var(--p-gold);display:flex;flex-direction:column;cursor:pointer;overflow:hidden}
+.clip.selected{border:2px solid var(--p-gold-hi);box-shadow:0 0 14px var(--p-gold-glo),inset 0 0 0 1px rgba(0,0,0,.3)}
+.clip.t1{background:linear-gradient(180deg,#3a0a1e,#1a0310);border-color:var(--p-red)}
+.clip.t2{background:linear-gradient(180deg,#0d1e55,#081540);border-color:var(--p-gold)}
+.clip.t3{background:linear-gradient(180deg,#14204a,#0a1030);border-color:var(--p-border-hi)}
+.clip .ctop{display:flex;align-items:center;gap:4px;padding:3px 6px;background:rgba(0,0,0,.35);border-bottom:1px solid rgba(255,255,255,.08);font-size:8px;letter-spacing:.08em;color:var(--p-gold);text-transform:uppercase}
+.clip.t3 .ctop{color:var(--p-text-dim)}
+.clip.t1 .ctop{color:var(--p-red)}
+.clip .ctop svg{width:10px;height:10px}
+.clip .cnm{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:500}
+.clip .cdur{color:var(--p-text-dim);font-size:7px}
+.clip .cthumb{flex:1;position:relative;background:rgba(0,0,0,.25);overflow:hidden}
+.clip .cthumb::before{content:"";position:absolute;inset:0;background:repeating-linear-gradient(0deg,transparent 0 2px,rgba(0,0,0,.25) 2px 3px)}
+.clip .cevts{position:absolute;bottom:2px;left:4px;right:4px;display:flex;gap:3px;align-items:center}
+.clip .cevts svg{width:10px;height:10px;color:var(--p-gold);filter:drop-shadow(0 0 3px rgba(232,185,35,.5))}
+/* resize handles */
+.clip .hd{position:absolute;top:0;bottom:0;width:4px;cursor:ew-resize}
+.clip .hd.l{left:0;border-left:2px solid var(--p-gold-hi);opacity:0}
+.clip .hd.r{right:0;border-right:2px solid var(--p-gold-hi);opacity:0}
+.clip:hover .hd{opacity:1}
+
+/* seam marker between clips */
+.seam{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--p-gold);box-shadow:0 0 6px var(--p-gold-glo);z-index:3;pointer-events:none}
+.seam::before,.seam::after{content:"";position:absolute;left:-3px;width:8px;height:5px;background:var(--p-gold);clip-path:polygon(0 0,100% 0,50% 100%)}
+.seam::before{top:-5px}
+.seam::after{bottom:-5px;transform:scaleY(-1)}
+
+/* audio waveform */
+.wave{position:absolute;top:4px;bottom:4px;background:rgba(13,30,85,.4);border:1px solid var(--p-blue-hi);overflow:hidden}
+.wave svg{width:100%;height:100%;display:block}
+
+/* downbeats row */
+.downbeats{position:relative;height:100%}
+.db{position:absolute;top:8px;width:2px;background:var(--p-blue-hi);opacity:.6}
+.db.strong{background:var(--p-gold);opacity:.9;top:4px;width:2px}
+.db.drop{background:var(--p-magenta);top:0;width:3px;opacity:1;box-shadow:0 0 6px rgba(194,24,91,.7)}
+
+/* beats label row */
+.bnm{position:absolute;top:4px;font-size:8px;color:var(--p-text-mute);letter-spacing:.1em;white-space:nowrap}
+.bnm.strong{color:var(--p-gold);font-weight:500}
+.bnm.drop{color:var(--p-magenta);font-weight:500}
+
+/* playhead */
+.playhead{position:absolute;top:0;bottom:0;width:1px;background:var(--p-gold-hi);z-index:20;pointer-events:none;box-shadow:0 0 10px rgba(255,211,64,.7)}
+.playhead::before{content:"";position:absolute;top:-2px;left:-5px;width:11px;height:8px;background:var(--p-gold-hi);clip-path:polygon(0 0,100% 0,50% 100%)}
+
+/* status bar */
+.statusbar{grid-column:1 / span 3;grid-row:3;background:#030612;border-top:1px solid var(--p-border-hi);height:22px;display:flex;align-items:center;gap:14px;padding:0 12px;font-size:9px;letter-spacing:.14em;color:var(--p-text-mute);text-transform:uppercase;flex-shrink:0}
+.statusbar .dot{width:5px;height:5px;background:var(--p-green);border-radius:50%;box-shadow:0 0 5px var(--p-green)}
+.statusbar .s{display:flex;align-items:center;gap:6px}
+.statusbar .r{margin-left:auto;color:var(--p-gold)}
+
+/* hide def svgs */
+.defs{display:none}
+</style>
+</head>
+<body data-screen-label="Pantheon Editor v2">
+
+<!-- SVG icon definitions -->
+<svg class="defs" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <symbol id="i-ped" viewBox="0 0 24 24"><polygon points="3,11 12,3 21,11" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="2" y1="11" x2="22" y2="11" stroke="currentColor" stroke-width="1.5"/><line x1="5" y1="12" x2="5" y2="21" stroke="currentColor" stroke-width="1.5"/><line x1="10" y1="12" x2="10" y2="21" stroke="currentColor" stroke-width="1.5"/><line x1="14" y1="12" x2="14" y2="21" stroke="currentColor" stroke-width="1.5"/><line x1="19" y1="12" x2="19" y2="21" stroke="currentColor" stroke-width="1.5"/><line x1="3" y1="21" x2="21" y2="21" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-oculus" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="2.5" fill="currentColor"/></symbol>
+    <symbol id="i-play" viewBox="0 0 24 24"><polygon points="7,4 7,20 20,12" fill="currentColor"/></symbol>
+    <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" fill="currentColor"/><rect x="14" y="4" width="4" height="16" fill="currentColor"/></symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" fill="currentColor"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><polygon points="4,4 4,20 14,12" fill="currentColor"/><rect x="16" y="4" width="3" height="16" fill="currentColor"/></symbol>
+    <symbol id="i-prev" viewBox="0 0 24 24"><rect x="5" y="4" width="3" height="16" fill="currentColor"/><polygon points="20,4 20,20 10,12" fill="currentColor"/></symbol>
+    <symbol id="i-cut" viewBox="0 0 24 24"><circle cx="7" cy="7" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="7" cy="17" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="9.5" y1="8.5" x2="20" y2="18" stroke="currentColor" stroke-width="1.5"/><line x1="9.5" y1="15.5" x2="20" y2="6" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-split" viewBox="0 0 24 24"><rect x="3" y="9" width="7" height="6" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="14" y="9" width="7" height="6" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2 2"/></symbol>
+    <symbol id="i-fx" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/><path d="M 12 5 L 14 3 L 15 5" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-slow" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M 12 6 L 12 12 L 16 14" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-zoom" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="7" y1="10" x2="13" y2="10" stroke="currentColor" stroke-width="1.5"/><line x1="10" y1="7" x2="10" y2="13" stroke="currentColor" stroke-width="1.5"/><line x1="14.5" y1="14.5" x2="20" y2="20" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-zout" viewBox="0 0 24 24"><circle cx="10" cy="10" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="7" y1="10" x2="13" y2="10" stroke="currentColor" stroke-width="1.5"/><line x1="14.5" y1="14.5" x2="20" y2="20" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-seam" viewBox="0 0 24 24"><line x1="12" y1="3" x2="12" y2="21" stroke="currentColor" stroke-width="2.5"/><polygon points="9,3 15,3 12,6" fill="currentColor"/><polygon points="9,21 15,21 12,18" fill="currentColor"/></symbol>
+    <symbol id="i-crt" viewBox="0 0 24 24"><path d="M 2 12 Q 12 4 22 12 Q 12 20 2 12 Z" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="1.25" fill="currentColor"/></symbol>
+    <symbol id="i-set" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M 12 3 L 12 6 M 12 18 L 12 21 M 3 12 L 6 12 M 18 12 L 21 12 M 5.5 5.5 L 7.5 7.5 M 16.5 16.5 L 18.5 18.5 M 18.5 5.5 L 16.5 7.5 M 7.5 16.5 L 5.5 18.5" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <!-- weapons -->
+    <symbol id="i-rg" viewBox="0 0 24 24"><rect x="3" y="10" width="17" height="4" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="20" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="7" y1="14" x2="7" y2="19" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-lg" viewBox="0 0 24 24"><path d="M 13 3 L 6 13 L 11 13 L 9 21 L 18 9 L 13 9 Z" fill="currentColor"/></symbol>
+    <symbol id="i-rl" viewBox="0 0 24 24"><path d="M 3 12 L 15 12 L 19 9 L 21 12 L 19 15 L 15 12" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="17" cy="12" r="1" fill="currentColor"/></symbol>
+    <symbol id="i-sg" viewBox="0 0 24 24"><rect x="3" y="9" width="16" height="5" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="5" y="14" width="4" height="5" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-mg" viewBox="0 0 24 24"><rect x="3" y="10" width="14" height="5" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="17" y1="12.5" x2="21" y2="12.5" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-pg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></symbol>
+    <symbol id="i-gaunt" viewBox="0 0 24 24"><path d="M 7 4 L 7 13 L 12 18 L 17 13 L 17 4" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <!-- events -->
+    <symbol id="i-star" viewBox="0 0 24 24"><polygon points="12,3 14,9 20,9 15,13 17,20 12,16 7,20 9,13 4,9 10,9" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M 6 13 L 10 17 L 18 7" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-frag" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="12" y1="4" x2="12" y2="20" stroke="currentColor" stroke-width="1.5"/><line x1="4" y1="12" x2="20" y2="12" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="1.5" fill="currentColor"/></symbol>
+    <symbol id="i-tele" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M 6 8 L 12 12 L 18 8 M 6 16 L 12 12 L 18 16" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-hum" viewBox="0 0 24 24"><circle cx="12" cy="9" r="4" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M 5 21 L 5 17 A 7 7 0 0 1 19 17 L 19 21" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <!-- tiers -->
+    <symbol id="i-t1" viewBox="0 0 24 24"><path d="M 12 4 L 7 10 L 7 20 L 17 20 L 17 10 Z" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-t2" viewBox="0 0 24 24"><polygon points="5,6 12,11 19,6 19,18 12,13 5,18" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-t3" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="3" fill="none" stroke="currentColor" stroke-width="1.5"/><rect x="4" y="13" width="16" height="3" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <!-- transport -->
+    <symbol id="i-scrub" viewBox="0 0 24 24"><line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="2"/><circle cx="12" cy="12" r="3" fill="currentColor"/></symbol>
+    <symbol id="i-film" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="14" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="4" y1="9" x2="20" y2="9" stroke="currentColor" stroke-width="1.5"/><line x1="4" y1="15" x2="20" y2="15" stroke="currentColor" stroke-width="1.5"/><line x1="9" y1="5" x2="9" y2="19" stroke="currentColor" stroke-width="1.5"/><line x1="15" y1="5" x2="15" y2="19" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-speak" viewBox="0 0 24 24"><polygon points="4,9 4,15 9,15 14,19 14,5 9,9" fill="currentColor"/><path d="M 17 8 Q 20 12 17 16" fill="none" stroke="currentColor" stroke-width="1.5"/></symbol>
+    <symbol id="i-chev-l" viewBox="0 0 24 24"><polyline points="15,5 8,12 15,19" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-chev-r" viewBox="0 0 24 24"><polyline points="9,5 16,12 9,19" fill="none" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19" stroke="currentColor" stroke-width="2"/><line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-min" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12" stroke="currentColor" stroke-width="2"/></symbol>
+    <symbol id="i-pin" viewBox="0 0 24 24"><circle cx="12" cy="9" r="4" fill="none" stroke="currentColor" stroke-width="1.5"/><line x1="12" y1="13" x2="12" y2="21" stroke="currentColor" stroke-width="1.5"/></symbol>
+  </defs>
+</svg>
+
+<!-- NAV -->
+<nav class="nav">
+  <div class="brand">
+    <svg><use href="#i-ped"/></svg>
+    <span class="wm">PANTHEON</span>
+  </div>
+  <span class="slash">//</span>
+  <span class="crumb">PROJ · <b>CA-RAIL-SESH-04</b> · v12</span>
+  <div class="tabs">
+    <div class="t">CINEMA</div>
+    <div class="t active">EDITOR</div>
+    <div class="t">ARCHIVE</div>
+    <div class="t">FLAG</div>
+  </div>
+  <div class="right">
+    <div class="chip live">CAPTURE</div>
+    <div class="chip">38% DISK · 2.4TB FREE</div>
+    <div class="iconbtn" title="CRT FX Toggle" id="crtToggle"><svg><use href="#i-crt"/></svg></div>
+    <div class="iconbtn"><svg><use href="#i-set"/></svg></div>
+  </div>
+</nav>
+
+<!-- APP GRID -->
+<div class="app" id="app">
+
+  <!-- CLIP LIBRARY -->
+  <section class="panel lib">
+    <div class="phdr">
+      <svg><use href="#i-film"/></svg>
+      <span class="t">LIBRARY</span>
+      <span class="count">47 · 12 ON TL</span>
+      <div class="mini" title="Add"><svg><use href="#i-plus"/></svg></div>
+    </div>
+    <div class="lib-filter">
+      <span class="f on">ALL</span><span class="f">T1</span><span class="f">RAIL</span><span class="f">LG</span><span class="f">EXC</span><span class="f">HUM</span>
+    </div>
+    <div class="lib-body">
+
+      <div class="lib-item on">
+        <div class="lib-thumb"><svg class="wpn"><use href="#i-rg"/></svg><span class="tr">T1</span><span class="dur">6.6s</span></div>
+        <div class="lib-meta"><div class="nm">rail 4-frag asylum</div><div class="sub">CA-asylum · 00:47</div><div class="evt"><svg><use href="#i-frag"/></svg><svg><use href="#i-star"/></svg><svg><use href="#i-check"/></svg></div></div>
+      </div>
+
+      <div class="lib-item">
+        <div class="lib-thumb"><svg class="wpn"><use href="#i-lg"/></svg><span class="tr">T2</span><span class="dur">6.4s</span></div>
+        <div class="lib-meta"><div class="nm">lg chain campgrounds</div><div class="sub">CA-campgrounds · 01:12</div><div class="evt"><svg><use href="#i-frag"/></svg><svg><use href="#i-frag"/></svg><svg><use href="#i-check"/></svg></div></div>
+      </div>
+
+      <div class="lib-item">
+        <div class="lib-thumb"><svg class="wpn"><use href="#i-rl"/></svg><span class="tr">T1</span><span class="dur">3.1s</span></div>
+        <div class="lib-meta"><div class="nm">direct rocket telefrag</div><div class="sub">CA-overkill · 02:03</div><div class="evt"><svg><use href="#i-tele"/></svg><svg><use href="#i-star"/></svg></div></div>
+      </div>
+
+      <div class="lib-item">
+        <div class="lib-thumb"><svg class="wpn"><use href="#i-gaunt"/></svg><span class="tr">T1</span><span class="dur">2.4s</span></div>
+        <div class="lib-meta"><div class="nm">humiliation chase</div><div class="sub">CA-dm6 · 00:58</div><div class="evt"><svg><use href="#i-hum"/></svg><svg><use href="#i-star"/></svg></div></div>
+      </div>
+
+      <div class="lib-item">
+        <div class="lib-thumb"><svg class="wpn"><use href="#i-rg"/></svg><span class="tr">T2</span><span class="dur">4.2s</span></div>
+        <div class="lib-meta"><div class="nm">rail mid through-shot</div><div class="sub">CA-aerowalk · 03:14</div><div class="evt"><svg><use href="#i-frag"/></svg><svg><use href="#i-check"/></svg></div></div>
+      </div>
+
+      <div class="lib-item">
+        <div class="lib-thumb"><svg class="wpn"><use href="#i-sg"/></svg><span class="tr">T3</span><span class="dur">1.8s</span></div>
+        <div class="lib-meta"><div class="nm">sg point-blank</div><div class="sub">CA-dm17 · 00:22</div><div class="evt"><svg><use href="#i-frag"/></svg></div></div>
+      </div>
+
+      <div class="lib-item">
+        <div class="lib-thumb"><svg class="wpn"><use href="#i-pg"/></svg><span class="tr">T2</span><span class="dur">5.0s</span></div>
+        <div class="lib-meta"><div class="nm">plasma climb ledge</div><div class="sub">CA-dm6 · 04:45</div><div class="evt"><svg><use href="#i-frag"/></svg></div></div>
+      </div>
+
+      <div class="lib-item">
+        <div class="lib-thumb"><svg class="wpn"><use href="#i-lg"/></svg><span class="tr">T3</span><span class="dur">3.6s</span></div>
+        <div class="lib-meta"><div class="nm">lg duel ra-room</div><div class="sub">CA-pro-q3dm6 · 01:55</div><div class="evt"><svg><use href="#i-frag"/></svg></div></div>
+      </div>
+
+      <div class="lib-item">
+        <div class="lib-thumb"><svg class="wpn"><use href="#i-rl"/></svg><span class="tr">T2</span><span class="dur">2.8s</span></div>
+        <div class="lib-meta"><div class="nm">rocket jump rail</div><div class="sub">CA-aerowalk · 00:38</div><div class="evt"><svg><use href="#i-frag"/></svg></div></div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- VIEWER -->
+  <section class="panel viewer">
+    <div class="vphdr">
+      <svg><use href="#i-oculus"/></svg>
+      <span class="t">VIEWER</span>
+      <div class="rate"><span class="r">0.25×</span><span class="r">0.5×</span><span class="r on">1×</span><span class="r">2×</span><span class="r">4×</span></div>
+    </div>
+    <div class="stage">
+      <div class="stage-inner">
+        <div class="tc">01 <span class="sep">//</span> 00:04.217 <span class="sep">/</span> 00:38.500</div>
+        <div class="arena">
+          <!-- rough arena composition -->
+          <svg viewBox="0 0 800 450" width="100%" height="100%" preserveAspectRatio="xMidYMid slice" style="opacity:.75">
+            <defs>
+              <linearGradient id="floor" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0" stop-color="#1a2550"/>
+                <stop offset="1" stop-color="#050a1a"/>
+              </linearGradient>
+              <linearGradient id="wall" x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0" stop-color="#0a1230"/>
+                <stop offset="1" stop-color="#1a1b40"/>
+              </linearGradient>
+            </defs>
+            <rect x="0" y="0" width="800" height="270" fill="url(#wall)"/>
+            <rect x="0" y="270" width="800" height="180" fill="url(#floor)"/>
+            <!-- perspective floor grid -->
+            <g stroke="#2a3a7a" stroke-width="1" opacity=".45">
+              <line x1="0" y1="270" x2="800" y2="270"/>
+              <line x1="0" y1="290" x2="800" y2="290"/>
+              <line x1="0" y1="320" x2="800" y2="320"/>
+              <line x1="-100" y1="360" x2="900" y2="360"/>
+              <line x1="-200" y1="410" x2="1000" y2="410"/>
+              <line x1="400" y1="270" x2="400" y2="450"/>
+              <line x1="300" y1="270" x2="200" y2="450"/>
+              <line x1="500" y1="270" x2="600" y2="450"/>
+              <line x1="200" y1="270" x2="-100" y2="450"/>
+              <line x1="600" y1="270" x2="900" y2="450"/>
+            </g>
+            <!-- pillar -->
+            <rect x="130" y="120" width="60" height="230" fill="#141a35" stroke="#2a3563"/>
+            <rect x="620" y="150" width="48" height="180" fill="#141a35" stroke="#2a3563"/>
+            <!-- arch doorway -->
+            <path d="M 340 200 L 340 340 L 460 340 L 460 200 A 60 60 0 0 0 340 200 Z" fill="#03061a" stroke="#2a3563"/>
+            <rect x="355" y="260" width="90" height="80" fill="#0a1025" opacity=".7"/>
+            <!-- enemy silhouette -->
+            <g transform="translate(395,265)">
+              <rect x="-12" y="-18" width="24" height="14" fill="#c41515" opacity=".7"/>
+              <rect x="-14" y="-4" width="28" height="26" fill="#8a0e0e" opacity=".8"/>
+              <rect x="-16" y="22" width="12" height="20" fill="#6a0a0a"/>
+              <rect x="4" y="22" width="12" height="20" fill="#6a0a0a"/>
+            </g>
+            <!-- rail trail mid-shot -->
+            <line x1="400" y1="225" x2="420" y2="300" stroke="#ffd340" stroke-width="2" opacity=".9"/>
+            <circle cx="410" cy="262" r="6" fill="#ffd340" opacity=".4"/>
+            <circle cx="410" cy="262" r="14" fill="#ffd340" opacity=".15"/>
+            <!-- muzzle glow -->
+            <circle cx="560" cy="370" r="40" fill="#ffd340" opacity=".12"/>
+          </svg>
+          <div class="hud">
+            <div class="ts">CAM · PLAYER_01 · q3dm17</div>
+            <div class="killfeed">
+              <div class="kf"><span class="you">YOU</span><svg><use href="#i-rg"/></svg><span class="them">sarge</span></div>
+              <div class="kf"><span class="you">YOU</span><svg><use href="#i-rg"/></svg><span class="them">xaero</span></div>
+            </div>
+            <div class="crosshair"></div>
+            <div class="hpline"><span>100</span><span style="color:var(--p-text-dim);font-size:18px">/</span><span class="hv" style="color:var(--p-blue-hi)">150</span></div>
+            <div class="wpn-hud"><span class="ammo">47</span><svg><use href="#i-rg"/></svg></div>
+          </div>
+        </div>
+        <div class="crt-fx"></div>
+      </div>
+    </div>
+    <div class="transport">
+      <div class="tbtn" title="Prev Seam (J)"><svg><use href="#i-prev"/></svg></div>
+      <div class="tbtn" title="Back 1s"><svg><use href="#i-chev-l"/></svg></div>
+      <div class="tbtn primary" id="playBtn" title="Play/Pause (K)"><svg id="playIcon"><use href="#i-play"/></svg></div>
+      <div class="tbtn" title="Fwd 1s"><svg><use href="#i-chev-r"/></svg></div>
+      <div class="tbtn" title="Next Seam (L)"><svg><use href="#i-next"/></svg></div>
+      <div class="tbtn" title="Cut at playhead"><svg><use href="#i-cut"/></svg></div>
+      <div class="tbtn" title="Split clip"><svg><use href="#i-split"/></svg></div>
+      <div class="time">00:04.217<span class="mm">/ 00:38.500</span></div>
+      <div class="shortcuts">
+        <span><kbd>J</kbd>Back</span>
+        <span><kbd>K</kbd>Play</span>
+        <span><kbd>L</kbd>Fwd</span>
+        <span><kbd>B</kbd>Cut</span>
+        <span><kbd>M</kbd>Marker</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- INSPECTOR -->
+  <section class="panel ins">
+    <div class="phdr">
+      <svg><use href="#i-set"/></svg>
+      <span class="t">INSPECTOR</span>
+      <span class="count">1 SELECTED</span>
+    </div>
+    <div class="ins-body">
+      <h4>Clip</h4>
+      <div class="row"><span class="k">Name</span><span class="v"><input value="rail 4-frag asylum"/></span></div>
+      <div class="row"><span class="k">Source</span><span class="v" style="color:var(--p-text-dim);font-size:9px">CA-asylum.demo · 00:47.200</span></div>
+      <div class="row"><span class="k">Duration</span><span class="v">6.600s</span></div>
+      <div class="row"><span class="k">Tier</span><span class="v"><span class="pill t1">T1 · DROP</span></span></div>
+      <div class="row"><span class="k">Weapon</span><span class="v" style="display:flex;align-items:center;gap:6px"><svg style="width:12px;height:12px;color:var(--p-gold)"><use href="#i-rg"/></svg>Railgun</span></div>
+      <div class="row"><span class="k">Events</span><span class="v" style="display:flex;gap:4px"><svg style="width:14px;height:14px;color:var(--p-gold)"><use href="#i-frag"/></svg><svg style="width:14px;height:14px;color:var(--p-gold)"><use href="#i-star"/></svg><svg style="width:14px;height:14px;color:var(--p-gold)"><use href="#i-check"/></svg></span></div>
+
+      <h4>Transform</h4>
+      <div class="row"><span class="k">In</span><span class="v"><input value="00:04.217"/></span></div>
+      <div class="row"><span class="k">Out</span><span class="v"><input value="00:10.817"/></span></div>
+      <div class="row"><span class="k">Speed</span><span class="v"><input value="1.0×"/></span></div>
+      <div class="row"><span class="k">Audio</span><span class="v" style="display:flex;align-items:center;gap:6px"><input type="range" min="0" max="100" value="80" style="flex:1;accent-color:var(--p-gold)"/><span style="color:var(--p-gold)">80</span></span></div>
+
+      <h4>Effects</h4>
+      <div class="fx-row">
+        <div class="fx-name"><svg><use href="#i-crt"/></svg>CRT Overlay</div>
+        <input type="range" min="0" max="100" value="45"/>
+        <span class="fx-val">45</span>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="fx-row">
+        <div class="fx-name"><svg><use href="#i-slow"/></svg>Slow-mo Ramp</div>
+        <input type="range" min="0" max="100" value="0"/>
+        <span class="fx-val">—</span>
+        <div class="toggle" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="fx-row">
+        <div class="fx-name"><svg><use href="#i-zoom"/></svg>Zoom on Hit</div>
+        <input type="range" min="0" max="100" value="30"/>
+        <span class="fx-val">30</span>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="fx-row">
+        <div class="fx-name"><svg><use href="#i-fx"/></svg>Chroma Shift</div>
+        <input type="range" min="0" max="100" value="12"/>
+        <span class="fx-val">12</span>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
+      <div class="fx-row">
+        <div class="fx-name"><svg><use href="#i-speak"/></svg>Duck Music on Hit</div>
+        <input type="range" min="0" max="100" value="60"/>
+        <span class="fx-val">60</span>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+      </div>
+
+      <h4>Seam Into</h4>
+      <div class="row"><span class="k">Type</span><span class="v" style="display:flex;align-items:center;gap:6px"><svg style="width:12px;height:12px;color:var(--p-gold)"><use href="#i-seam"/></svg>Hard Cut · on Downbeat</span></div>
+      <div class="row"><span class="k">Align</span><span class="v" style="color:var(--p-gold)">✓ Quantized to drop @ 00:11.000</span></div>
+      <div class="row"><span class="k">Offset</span><span class="v">−12ms</span></div>
+    </div>
+  </section>
+
+  <!-- TIMELINE -->
+  <section class="panel tl">
+    <div class="tlhdr">
+      <svg><use href="#i-seam"/></svg>
+      <span class="t">TIMELINE</span>
+      <span style="margin-left:12px;color:var(--p-text-dim);font-size:10px;letter-spacing:.12em">38.500s · 4 TRACKS · 5 CLIPS · 4 SEAMS</span>
+      <div class="zoom">
+        <span>Zoom</span>
+        <div class="z"><svg><use href="#i-min"/></svg></div>
+        <div class="z"><svg><use href="#i-plus"/></svg></div>
+      </div>
+      <div class="snap">
+        <span>Snap</span>
+        <div class="toggle on" onclick="this.classList.toggle('on')"></div>
+        <span style="color:var(--p-gold);letter-spacing:.1em">DOWNBEAT</span>
+      </div>
+    </div>
+    <div class="tlbody">
+      <div class="tlinner" id="tlinner">
+
+        <!-- ruler -->
+        <div class="rule-lbl">00:00.000</div>
+        <div class="ruler" id="ruler"></div>
+
+        <!-- event pins row -->
+        <div class="pins-lbl"><svg style="width:10px;height:10px;margin-right:4px"><use href="#i-pin"/></svg>EVENTS</div>
+        <div class="pins" id="pins"></div>
+
+        <!-- video track -->
+        <div class="track-lbl vtrack-lbl">
+          <svg><use href="#i-film"/></svg>
+          <span class="tnm">V1 · FRAGS</span>
+          <span class="mute on">ON</span>
+        </div>
+        <div class="track vtrack" id="vtrack"></div>
+
+        <!-- audio track -->
+        <div class="track-lbl atrack-lbl">
+          <svg><use href="#i-speak"/></svg>
+          <span class="tnm">A1 · MUSIC</span>
+          <span class="mute on">ON</span>
+        </div>
+        <div class="track atrack">
+          <div class="wave" style="left:0;right:0">
+            <svg viewBox="0 0 1800 56" preserveAspectRatio="none"><path id="wavepath" fill="rgba(42,90,204,.6)" stroke="#2a5acc" stroke-width="0.5" d=""/></svg>
+          </div>
+        </div>
+
+        <!-- downbeats track -->
+        <div class="track-lbl dtrack-lbl">
+          <svg><use href="#i-t2"/></svg>
+          <span class="tnm">DOWNBEATS</span>
+        </div>
+        <div class="track dtrack"><div class="downbeats" id="downbeats"></div></div>
+
+        <!-- beat names track -->
+        <div class="track-lbl btrack-lbl">
+          <svg><use href="#i-oculus"/></svg>
+          <span class="tnm">MARKERS</span>
+        </div>
+        <div class="track btrack" id="btrack"></div>
+
+        <!-- playhead -->
+        <div class="playhead" id="playhead" style="left:120px;"></div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- STATUS -->
+  <div class="statusbar">
+    <span class="s"><span class="dot"></span>ENGINE OK</span>
+    <span class="s">PREVIEW · 60 FPS · 1080p</span>
+    <span class="s">RAM 4.2/16 GB</span>
+    <span class="s">GPU 34%</span>
+    <span class="s">RENDER Q · 0</span>
+    <span class="r">PROXY · READY · CTRL+R TO RENDER MASTER</span>
+  </div>
+
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════════
+   TIMELINE LAYOUT
+   ═══════════════════════════════════════════════════════════════ */
+(function(){
+  const DUR = 38.5;              // seconds
+  const PX_PER_SEC = 44;         // timeline density
+  const TL_W = DUR * PX_PER_SEC; // approx 1694 px
+
+  const ruler = document.getElementById('ruler');
+  const pins  = document.getElementById('pins');
+  const vtrk  = document.getElementById('vtrack');
+  const dbts  = document.getElementById('downbeats');
+  const btrk  = document.getElementById('btrack');
+  const wave  = document.getElementById('wavepath');
+
+  /* set track width */
+  document.getElementById('tlinner').style.gridTemplateColumns = `120px ${TL_W}px`;
+
+  /* ---------- ruler ---------- */
+  for(let s=0;s<=DUR;s++){
+    const el=document.createElement('div');
+    el.className='tick' + (s%5===0?' major':'');
+    el.style.left=(s*PX_PER_SEC)+'px';
+    if(s%5===0){
+      const m=String(Math.floor(s/60)).padStart(2,'0');
+      const sec=String(s%60).padStart(2,'0');
+      el.textContent = `${m}:${sec}`;
+    }
+    ruler.appendChild(el);
+  }
+
+  /* ---------- downbeats (120 bpm = 2 beats/sec; strong every 4) ---------- */
+  const BPM = 120;
+  const beatDur = 60/BPM;
+  const drops = [11.0, 27.5]; // seconds
+  for(let t=0;t<DUR;t+=beatDur){
+    const el=document.createElement('div');
+    const strong = Math.abs((t/beatDur) % 4) < 0.01;
+    const isDrop = drops.some(d=>Math.abs(d-t)<beatDur/2);
+    el.className='db' + (strong?' strong':'') + (isDrop?' drop':'');
+    el.style.left=(t*PX_PER_SEC)+'px';
+    el.style.height = isDrop?'32px':(strong?'26px':'18px');
+    dbts.appendChild(el);
+  }
+  /* beat labels — DROP, BUILD, BREAK */
+  const markers = [
+    {t:0, n:'INTRO'},
+    {t:11, n:'DROP', cls:'drop'},
+    {t:19, n:'BUILD', cls:'strong'},
+    {t:27.5, n:'DROP 2', cls:'drop'},
+    {t:34, n:'OUTRO'}
+  ];
+  markers.forEach(m=>{
+    const el=document.createElement('div');
+    el.className='bnm '+(m.cls||'');
+    el.style.left=(m.t*PX_PER_SEC+3)+'px';
+    el.textContent=m.n;
+    btrk.appendChild(el);
+  });
+
+  /* ---------- waveform (synthetic) ---------- */
+  (function(){
+    const W=1800,H=56,MID=H/2;
+    const pts=[];
+    for(let x=0;x<=W;x+=2){
+      const t=x/PX_PER_SEC;
+      // envelope: low intro, big at drop, build, drop2, outro
+      let env=0.2;
+      if(t>1&&t<11) env=.25+.04*(t-1);
+      if(t>=11&&t<19) env=.92;
+      if(t>=19&&t<27.5) env=.55+(.35*(t-19)/8.5);
+      if(t>=27.5&&t<33) env=.95;
+      if(t>=33) env=Math.max(.1,.95-.14*(t-33));
+      const noise=(Math.sin(t*31.4)*.5+Math.sin(t*11.1+1)*.3+Math.sin(t*3.1+2)*.2);
+      const amp=env*(MID-2)*Math.abs(noise);
+      pts.push(`${x},${MID-amp}`);
+    }
+    for(let x=W;x>=0;x-=2){
+      const t=x/PX_PER_SEC;
+      let env=0.2;
+      if(t>1&&t<11) env=.25+.04*(t-1);
+      if(t>=11&&t<19) env=.92;
+      if(t>=19&&t<27.5) env=.55+(.35*(t-19)/8.5);
+      if(t>=27.5&&t<33) env=.95;
+      if(t>=33) env=Math.max(.1,.95-.14*(t-33));
+      const noise=(Math.sin(t*31.4)*.5+Math.sin(t*11.1+1)*.3+Math.sin(t*3.1+2)*.2);
+      const amp=env*(MID-2)*Math.abs(noise);
+      pts.push(`${x},${MID+amp}`);
+    }
+    wave.setAttribute('d','M '+pts.join(' L ')+' Z');
+  })();
+
+  /* ---------- clips on V1 ---------- */
+  const clips=[
+    {start:0,    dur:4.217, name:'INTRO · establishing', tier:'t3', wpn:'i-ped',   evts:[], sel:false},
+    {start:4.217,dur:6.6,   name:'rail 4-frag asylum',   tier:'t1', wpn:'i-rg',    evts:['i-frag','i-star','i-check'], sel:true},
+    {start:10.817,dur:6.383,name:'lg chain campgrounds', tier:'t2', wpn:'i-lg',    evts:['i-frag','i-frag','i-check'], sel:false},
+    {start:17.2, dur:3.1,   name:'rocket telefrag',      tier:'t1', wpn:'i-rl',    evts:['i-tele','i-star'], sel:false},
+    {start:20.3, dur:7.2,   name:'rail mid throughshot', tier:'t2', wpn:'i-rg',    evts:['i-frag','i-check'], sel:false},
+    {start:27.5, dur:2.4,   name:'gaunt humiliation',    tier:'t1', wpn:'i-gaunt', evts:['i-hum','i-star'], sel:false},
+    {start:29.9, dur:5.0,   name:'plasma climb',         tier:'t2', wpn:'i-pg',    evts:['i-frag'], sel:false},
+    {start:34.9, dur:3.6,   name:'OUTRO · tag card',     tier:'t3', wpn:'i-ped',   evts:[], sel:false}
+  ];
+
+  clips.forEach(c=>{
+    const el=document.createElement('div');
+    el.className='clip '+c.tier+(c.sel?' selected':'');
+    el.style.left=(c.start*PX_PER_SEC)+'px';
+    el.style.width=(c.dur*PX_PER_SEC)+'px';
+    el.innerHTML=`
+      <div class="ctop">
+        <svg><use href="#${c.wpn}"/></svg>
+        <span class="cnm">${c.name}</span>
+        <span class="cdur">${c.dur.toFixed(1)}s</span>
+      </div>
+      <div class="cthumb"></div>
+      <div class="cevts">${c.evts.map(e=>`<svg><use href="#${e}"/></svg>`).join('')}</div>
+      <div class="hd l"></div><div class="hd r"></div>
+    `;
+    vtrk.appendChild(el);
+  });
+
+  /* ---------- seams (between adjacent clips) ---------- */
+  for(let i=0;i<clips.length-1;i++){
+    const a=clips[i], b=clips[i+1];
+    if(Math.abs(a.start+a.dur-b.start) < 0.05){
+      const s=document.createElement('div');
+      s.className='seam';
+      s.style.left=((a.start+a.dur)*PX_PER_SEC-1)+'px';
+      vtrk.appendChild(s);
+    }
+  }
+
+  /* ---------- event pins (above ruler) ---------- */
+  const evts=[
+    {t:5.2,  n:'RAIL', icon:'i-rg',  cls:'t1'},
+    {t:7.8,  n:'FRAG', icon:'i-frag',cls:'t1'},
+    {t:9.4,  n:'EXCELLENT', icon:'i-star', cls:'t1'},
+    {t:12.6, n:'LG CHAIN', icon:'i-lg', cls:''},
+    {t:17.9, n:'TELEFRAG', icon:'i-tele', cls:'rare'},
+    {t:22.4, n:'RAIL', icon:'i-rg',cls:''},
+    {t:27.9, n:'HUMILIATION', icon:'i-hum', cls:'rare'},
+    {t:32.1, n:'FRAG', icon:'i-frag', cls:''}
+  ];
+  evts.forEach(e=>{
+    const el=document.createElement('div');
+    el.className='pin '+e.cls;
+    el.style.left=(e.t*PX_PER_SEC)+'px';
+    el.innerHTML=`<svg><use href="#${e.icon}"/></svg>${e.n}`;
+    pins.appendChild(el);
+  });
+
+  /* ---------- playhead position @ current time ---------- */
+  const CUR = 4.217;
+  document.getElementById('playhead').style.left = (120 + CUR*PX_PER_SEC) + 'px';
+
+  /* ---------- CRT toggle ---------- */
+  const app = document.getElementById('app');
+  document.getElementById('crtToggle').addEventListener('click', ()=>{
+    app.classList.toggle('crt');
+  });
+  // default ON for showcase
+  app.classList.add('crt');
+
+  /* ---------- play button (cosmetic) ---------- */
+  let playing=false;
+  const playBtn=document.getElementById('playBtn');
+  const playIcon=document.getElementById('playIcon');
+  playBtn.addEventListener('click',()=>{
+    playing=!playing;
+    playIcon.innerHTML = `<use href="#${playing?'i-pause':'i-play'}"/>`;
+  });
+
+  /* keyboard shortcuts */
+  document.addEventListener('keydown',(e)=>{
+    if(e.key==='k'||e.key==='K'||e.key===' '){ playBtn.click(); e.preventDefault(); }
+  });
+
+})();
+</script>
+
+</body>
+</html>

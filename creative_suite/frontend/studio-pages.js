@@ -3,14 +3,11 @@
 
   var NAV = {
     studio: {
-      label: 'Edit',
+      label: 'NLE',
       groups: [
-        { label: 'Edit flow', items: [
-          { page: 'preview',   label: 'Preview',   icon: 'play',      module: 'StudioPreview'   },
-          { page: 'timeline',  label: 'Timeline',  icon: 'timeline',  module: 'StudioTimeline'  },
-          { page: 'audio',     label: 'Audio',     icon: 'wave',      module: 'StudioAudio'     },
-          { page: 'effects',   label: 'Effects',   icon: 'bolt',      module: 'StudioEffects'   },
-          { page: 'inspector', label: 'Inspector', icon: 'crosshair', module: 'StudioInspector' },
+        { label: 'STUDIO', items: [
+          { page: 'clips', label: 'CLIPS', icon: 'reel',     module: 'StudioClips' },
+          { page: 'edit',  label: 'EDIT',  icon: 'timeline', module: 'StudioEdit'  },
         ]},
       ],
     },
@@ -77,11 +74,137 @@
   var _currentPanel = null;
   var _currentKey   = null;
 
+  function _iconNode(name) {
+    var parser = new DOMParser();
+    var doc = parser.parseFromString(
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">' +
+      (ICONS[name] || '') +
+      '</svg>',
+      'image/svg+xml'
+    );
+    return document.importNode(doc.documentElement, true);
+  }
+
+  // ── Studio Parts List (dynamic, loaded from /api/studio/parts) ─────────────
+
+  var _partsListLoaded = false;
+  var _partsListEl     = null;
+
+  function _renderStudioPartsList(container) {
+    var store = global.StudioStore;
+
+    var hdrEl = document.createElement('div');
+    hdrEl.className = 'nav-group-label';
+    hdrEl.textContent = 'PARTS';
+    container.appendChild(hdrEl);
+
+    _partsListEl = document.createElement('div');
+    _partsListEl.className = 'sp-parts-wrap';
+    container.appendChild(_partsListEl);
+
+    var loading = document.createElement('div');
+    loading.className = 'sp-part-loading';
+    loading.textContent = 'Loading\u2026';
+    _partsListEl.appendChild(loading);
+
+    fetch('/api/studio/parts', { signal: AbortSignal.timeout(8000) })
+      .then(function (r) { return r.ok ? r.json() : []; })
+      .then(function (parts) {
+        if (!_partsListEl) return; // unmounted
+        _partsListEl.replaceChildren();
+        _partsListLoaded = true;
+
+        if (!parts.length) {
+          var empty = document.createElement('div');
+          empty.className = 'sp-part-loading';
+          empty.textContent = 'No parts found.';
+          _partsListEl.appendChild(empty);
+          return;
+        }
+
+        var activePart = store ? store.getState().activePart : null;
+
+        parts.forEach(function (p) {
+          var row = document.createElement('div');
+          row.className = 'sp-part-row' + (p.part === activePart ? ' active' : '');
+          row.setAttribute('data-part', p.part);
+          row.setAttribute('role', 'button');
+          row.setAttribute('tabindex', '0');
+
+          var num = document.createElement('span');
+          num.className = 'sp-part-num';
+          num.textContent = (p.part < 10 ? '0' : '') + p.part;
+          row.appendChild(num);
+
+          var info = document.createElement('div');
+          info.className = 'sp-part-info';
+          var chips = document.createElement('div');
+          chips.className = 'sp-part-chips';
+
+          if (p.t1_count) {
+            var c1 = document.createElement('span');
+            c1.className = 'sp-chip sp-chip-t1';
+            c1.textContent = p.t1_count + ' T1';
+            chips.appendChild(c1);
+          }
+          if (p.clip_count) {
+            var cc = document.createElement('span');
+            cc.className = 'sp-chip';
+            cc.textContent = p.clip_count + ' clips';
+            chips.appendChild(cc);
+          }
+          if (p.has_music) {
+            var cm = document.createElement('span');
+            cm.className = 'sp-chip sp-chip-music';
+            cm.textContent = '\u266A';
+            chips.appendChild(cm);
+          }
+          if (p.has_flow_plan) {
+            var cf = document.createElement('span');
+            cf.className = 'sp-chip sp-chip-plan';
+            cf.textContent = 'PLAN';
+            chips.appendChild(cf);
+          }
+          info.appendChild(chips);
+          row.appendChild(info);
+
+          function _select() {
+            if (store) {
+              store.dispatch({ type: 'SET_ACTIVE_PART', payload: p.part });
+              store.dispatch({ type: 'SET_ACTIVE_PAGE', page: 'edit' });
+            }
+            if (_partsListEl) {
+              _partsListEl.querySelectorAll('.sp-part-row').forEach(function (r) {
+                r.classList.toggle('active', r.getAttribute('data-part') === String(p.part));
+              });
+            }
+          }
+
+          row.addEventListener('click', _select);
+          row.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); _select(); }
+          });
+
+          _partsListEl.appendChild(row);
+        });
+      })
+      .catch(function (e) {
+        if (!_partsListEl) return;
+        _partsListEl.replaceChildren();
+        var err = document.createElement('div');
+        err.className = 'sp-part-loading';
+        err.textContent = 'Error: ' + e.message;
+        _partsListEl.appendChild(err);
+      });
+  }
+
   function _renderSidebar(mode, activePage) {
     var container = document.getElementById('nav-list');
     if (!container) return;
     container.setAttribute('data-active-mode', mode);
     container.replaceChildren();
+    _partsListEl = null;
+
     var groups = (NAV[mode] || {}).groups || [];
     if (!groups.length) return;
     for (var i = 0; i < groups.length; i++) {
@@ -102,7 +225,7 @@
         row.setAttribute('tabindex', '0');
         var icn = document.createElement('span');
         icn.className = 'nav-icon';
-        icn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">' + (ICONS[it.icon] || '') + '</svg>';
+        icn.appendChild(_iconNode(it.icon));
         var lab = document.createElement('span');
         lab.className = 'nav-label';
         lab.textContent = it.label;
@@ -124,6 +247,7 @@
     }
     _currentPanel = null;
     slot.replaceChildren();
+    slot.className = '';   // remove panel-placeholder (which has pointer-events:none)
 
     var cfg = _lookup(mode, page);
     if (!cfg) { _placeholder(slot, page); _currentKey = key; return; }
@@ -160,7 +284,7 @@
   }
 
   function _syncUrl(mode, page) {
-    var u = new URL(window.location.href);
+    var u = new URL(window.location.origin + window.location.pathname);
     u.searchParams.set('mode', mode);
     u.searchParams.set('page', page);
     window.history.replaceState(null, '', u.toString());
@@ -207,14 +331,19 @@
     var st = store.getState();
     var q = _readUrl();
     if (q.mode && NAV[q.mode]) store.dispatch({ type: 'SET_ACTIVE_MODE', mode: q.mode });
-    if (q.page && _lookup(q.mode && NAV[q.mode] ? q.mode : st.activeMode, q.page)) {
-      store.dispatch({ type: 'SET_ACTIVE_PAGE', page: q.page });
+    if (q.page) {
+      var current = store.getState();
+      var targetMode = (q.mode && NAV[q.mode]) ? q.mode : current.activeMode;
+      if (_lookup(targetMode, q.page)) {
+        store.dispatch({ type: 'SET_ACTIVE_PAGE', page: q.page });
+      }
     }
 
     _wire();
 
     store.subscribe(function (s, p) {
       if (s.activeMode !== p.activeMode) {
+        _partsListLoaded = false;
         _renderSidebar(s.activeMode, s.activePage);
         document.querySelectorAll('#mode-switch .mode-btn').forEach(function (b) {
           b.classList.toggle('active', b.getAttribute('data-mode') === s.activeMode);
@@ -225,11 +354,18 @@
         _switch(s.activeMode, s.activePage);
         _syncUrl(s.activeMode, s.activePage);
       }
+      // Sync active part highlight in the parts list sidebar
+      if (s.activePart !== p.activePart && _partsListEl) {
+        _partsListEl.querySelectorAll('.sp-part-row').forEach(function (r) {
+          r.classList.toggle('active', Number(r.getAttribute('data-part')) === s.activePart);
+        });
+      }
     });
 
-    _renderSidebar(st.activeMode, st.activePage);
-    _switch(st.activeMode, st.activePage);
-    _syncUrl(st.activeMode, st.activePage);
+    var initial = store.getState();
+    _renderSidebar(initial.activeMode, initial.activePage);
+    _switch(initial.activeMode, initial.activePage);
+    _syncUrl(initial.activeMode, initial.activePage);
   }
 
   function _syncActive(page) {
