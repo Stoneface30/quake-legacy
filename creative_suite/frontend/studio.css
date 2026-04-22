@@ -163,6 +163,11 @@ ul {
   background: var(--bg-panel);
 }
 
+#panel-slot {
+  height: 100%;
+  overflow: hidden;
+}
+
 .panel-placeholder {
   display: flex;
   align-items: center;
@@ -170,7 +175,6 @@ ul {
   height: 100%;
   color: var(--text-secondary);
   font-size: 14px;
-  pointer-events: none;
 }
 
 .panel-not-loaded {
@@ -234,7 +238,8 @@ button:hover {
 .preview-panel {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   background: var(--bg-dark);
 }
 .preview-viewport {
@@ -756,6 +761,7 @@ button:hover {
   --nle-insp-w:      272px;
   --nle-action-h:    38px;
   --nle-audio-h:     88px;
+  --nle-upper-h:     320px;
 }
 
 /* ── Hide sidebar when NLE is active ──────────────────────────────────── */
@@ -773,6 +779,7 @@ button:hover {
   height: 100%;
   overflow: hidden;
   background: var(--bg-dark);
+  position: relative;
 }
 
 /* ── Action bar (top strip with controls) ────────────────────────────── */
@@ -795,12 +802,31 @@ button:hover {
 }
 .nle-action-sep { width: 1px; height: 18px; background: #222; margin: 0 4px; }
 
-/* ── Body: library | center-canvas | inspector ───────────────────────── */
-.nle-body {
-  display: grid;
-  grid-template-columns: var(--nle-lib-w) 1fr var(--nle-insp-w);
+/* ── Workspace: wraps upper + lower ─────────────────────────────────── */
+.nle-workspace {
+  display: flex;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
+}
+
+/* ── Upper zone: library | preview | inspector ───────────────────────── */
+.nle-upper {
+  display: grid;
+  grid-template-columns: var(--nle-lib-w) 1fr var(--nle-insp-w);
+  flex: 2;           /* 40% of workspace height */
+  min-height: 180px;
+  border-bottom: 2px solid #1a1a1a;
+  overflow: hidden;
+}
+
+/* ── Lower zone: timeline + audio ───────────────────────────────────── */
+.nle-lower {
+  display: flex;
+  flex-direction: column;
+  flex: 3;           /* 60% of workspace height */
+  min-height: 120px;
   overflow: hidden;
 }
 
@@ -817,13 +843,30 @@ button:hover {
 /* Per-panel backgrounds */
 .nle-library   { background: var(--bg-sidebar); }
 .nle-inspector { background: var(--bg-dark); }
-.nle-center    { background: #090909; display: flex; flex-direction: column; }
-.nle-viewer    { background: #000; }   /* legacy — hidden in v3 */
-.nle-timeline  { display: none; }      /* legacy — replaced by .nle-center */
+.nle-viewer    { background: #000; }
 
-/* Center sub-areas */
+/* Viewer preview area */
+.nle-viewer-inner {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #050505;
+  min-height: 0;
+}
+.nle-viewer-placeholder {
+  color: #222;
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-align: center;
+  user-select: none;
+  line-height: 2.2;
+}
+
+/* Lower sub-areas */
 .nle-tl-main  { flex: 1; min-height: 0; position: relative; overflow: hidden; }
-.nle-tl-audio { flex-shrink: 0; height: var(--nle-audio-h); border-top: 1px solid var(--border); }
+.nle-tl-audio { flex-shrink: 0; height: var(--nle-audio-h); border-top: 1px solid var(--border); overflow: hidden; position: relative; }
 .nle-tl-beats { display: none; }
 
 /* ── Panel header ───────────────────────────────────────────────────────── */
@@ -1103,27 +1146,6 @@ button:hover {
 }
 .nle-tl-ctl-btn:hover { background: #1e1e1e; color: var(--text-primary); }
 
-/* Timeline sub-rows */
-.nle-tl-main {
-  height: var(--nle-tl-main-h);
-  border-bottom: 1px solid #1a1a1a;
-  flex-shrink: 0;
-  overflow: hidden;
-  position: relative;
-}
-.nle-tl-audio {
-  height: var(--nle-tl-audio-h);
-  border-bottom: 1px solid #1a1a1a;
-  flex-shrink: 0;
-  overflow: hidden;
-  position: relative;
-}
-.nle-tl-beats {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  position: relative;
-}
 
 /* ── Generate button ────────────────────────────────────────────────────── */
 .nle-gen-btn {
@@ -1142,6 +1164,35 @@ button:hover {
 }
 .nle-gen-btn:hover  { background: #ff5c25; }
 .nle-gen-btn:active { transform: scale(0.97); }
+.nle-randomize-btn { background: #333; color: var(--text-primary); margin-left: 0; }
+.nle-randomize-btn:hover { background: #444; }
+.nle-music-btn { background: #1a2a1a; color: #6dbc6d; margin-left: 0; }
+.nle-music-btn:hover { background: #1e341e; }
+
+/* Randomize confirm bar — overlays action bar, does not shift layout */
+.nle-rand-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--nle-action-h);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  background: #1a1200;
+  border-bottom: 2px solid rgba(232,185,35,0.6);
+}
+.nle-rand-msg {
+  font-family: Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: rgba(232,185,35,0.85);
+  flex: 1;
+}
+.nle-accept-btn { background: #2a6a2a !important; }
+.nle-accept-btn:hover { background: #358035 !important; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    STUDIO SIDEBAR — PARTS LIST  (studio-pages.js v2)
