@@ -68,13 +68,20 @@ class TestFormatTimecode:
         )
 
 
-# ── 5. Backend clip URL TODO placeholder present ──────────────────────────────
+# ── 5. Backend clip URL wired via /api/studio/clip-stream ────────────────────
 
-class TestTODOPlaceholder:
-    def test_todo_wire_backend_clip_url(self) -> None:
-        assert "TODO: wire backend clip URL" in _js(), (
-            "Placeholder comment '// TODO: wire backend clip URL' must appear in "
-            "studio-preview.js to mark the fetch point for clip files"
+class TestClipStreamWire:
+    def test_clip_stream_endpoint_referenced(self) -> None:
+        assert "/api/studio/clip-stream" in _js(), (
+            "_loadClipStream must construct URL using /api/studio/clip-stream"
+        )
+
+    def test_selected_clip_triggers_stream(self) -> None:
+        src = _js()
+        assert "selectedClip" in src, "selectedClip must be observed in the store subscription"
+        assert "_loadClipStream" in src, "_loadClipStream must be called when selectedClip changes"
+        assert "clip.path" in src or "selectedClip.path" in src, (
+            "clip.path must be used to resolve the stream URL"
         )
 
 

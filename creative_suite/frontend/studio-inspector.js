@@ -1,14 +1,14 @@
 /**
  * PANTHEON STUDIO — Inspector Panel
- * studio-inspector.js  (v2 — plain DOM, no Tweakpane)
- * Tweakpane is not available in this context — plain DOM fallback is used throughout.
+ * studio-inspector.js  (v3 — Tweakpane live wiring, plain DOM fallback)
  *
- * Displays and edits clip properties for the currently selected clip.
- * Subscribes to StudioStore.selectedClip and repopulates on every change.
+ * Uses window.Tweakpane.Pane (set by the inline module shim in studio.html)
+ * for the OVERRIDES section when available.  When Tweakpane is not available
+ * the plain DOM _rangeRow fallback is used throughout.
  *
  * Sections:
  *   CLIP INFO   — read-only: filename, tier, is_fl, duration
- *   OVERRIDES   — editable: head_trim, tail_trim, slow_rate
+ *   OVERRIDES   — editable via Tweakpane pane (or plain DOM fallback)
  *   EFFECTS     — editable: transition type
  *
  * "APPLY" button saves overrides back via PUT /api/studio/part/{n}/clips.
@@ -22,11 +22,12 @@
 
   // ── Module state ─────────────────────────────────────────────────────────────
 
-  var _container  = null;
-  var _panelEl    = null;
-  var _bodyEl     = null;
+  var _container   = null;
+  var _panelEl     = null;
+  var _bodyEl      = null;
   var _unsubscribe = null;
   var _currentClip = null;
+  var _tpPane      = null;   // active Tweakpane Pane instance (or null)
 
   var TRANSITIONS = ['none', 'xfade', 'fade', 'hard_cut'];
 
@@ -293,13 +294,19 @@
     }
   }
 
+  function _disposeTpPane() {
+    if (_tpPane) { try { _tpPane.dispose(); } catch (e) {} _tpPane = null; }
+  }
+
   function _showEmpty() {
+    _disposeTpPane();
     _clearBody();
     if (!_bodyEl) return;
     _bodyEl.appendChild(_el('div', 'insp-empty', 'No clip selected'));
   }
 
   function _showClip(clip) {
+    _disposeTpPane();
     _clearBody();
     if (!_bodyEl) return;
 
@@ -326,9 +333,30 @@
     // ── OVERRIDES ───────────────────────────────────────────────────────────
     var ovSec = _el('div', 'insp-section');
     ovSec.appendChild(_el('div', 'insp-section-title', 'OVERRIDES'));
-    ovSec.appendChild(_rangeRow('head trim', 0, 10, 0.1, values.head_trim, function (v) { values.head_trim = v; }));
-    ovSec.appendChild(_rangeRow('tail trim', 0, 10, 0.1, values.tail_trim, function (v) { values.tail_trim = v; }));
-    ovSec.appendChild(_rangeRow('slow rate', 0.1, 2.0, 0.1, values.slow_rate, function (v) { values.slow_rate = v; }));
+
+    var TP = (typeof global.Tweakpane !== 'undefined') && global.Tweakpane;
+    if (TP && TP.Pane) {
+      var paneWrap = _el('div', 'inspector-pane-wrap');
+      ovSec.appendChild(paneWrap);
+      try {
+        _tpPane = new TP.Pane({ container: paneWrap });
+        _tpPane.addBinding(values, 'head_trim', { min: 0,   max: 10,  step: 0.1, label: 'head trim' });
+        _tpPane.addBinding(values, 'tail_trim', { min: 0,   max: 10,  step: 0.1, label: 'tail trim' });
+        _tpPane.addBinding(values, 'slow_rate', { min: 0.1, max: 2.0, step: 0.1, label: 'slow rate' });
+      } catch (e) {
+        // Tweakpane not available — plain DOM fallback
+        console.warn('[inspector] Tweakpane init failed:', e);
+        _tpPane = null;
+        ovSec.appendChild(_rangeRow('head trim', 0, 10, 0.1, values.head_trim, function (v) { values.head_trim = v; }));
+        ovSec.appendChild(_rangeRow('tail trim', 0, 10, 0.1, values.tail_trim, function (v) { values.tail_trim = v; }));
+        ovSec.appendChild(_rangeRow('slow rate', 0.1, 2.0, 0.1, values.slow_rate, function (v) { values.slow_rate = v; }));
+      }
+    } else {
+      // Tweakpane not available — plain DOM fallback
+      ovSec.appendChild(_rangeRow('head trim', 0, 10, 0.1, values.head_trim, function (v) { values.head_trim = v; }));
+      ovSec.appendChild(_rangeRow('tail trim', 0, 10, 0.1, values.tail_trim, function (v) { values.tail_trim = v; }));
+      ovSec.appendChild(_rangeRow('slow rate', 0.1, 2.0, 0.1, values.slow_rate, function (v) { values.slow_rate = v; }));
+    }
     _bodyEl.appendChild(ovSec);
 
     // ── EFFECTS ─────────────────────────────────────────────────────────────
@@ -429,6 +457,7 @@
 
     unmount: function () {
       if (_unsubscribe) { _unsubscribe(); _unsubscribe = null; }
+      _disposeTpPane();
       if (_panelEl && _panelEl.parentNode) _panelEl.parentNode.removeChild(_panelEl);
       _panelEl    = null;
       _bodyEl     = null;

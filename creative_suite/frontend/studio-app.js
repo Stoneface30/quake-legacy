@@ -8,12 +8,23 @@
 (function () {
   'use strict';
 
-  // ── Constants ──────────────────────────────────────────────────────────────
-
-  var GLYPH_PLAY  = '\u25B6';     // ▶ BLACK RIGHT-POINTING TRIANGLE
-  var GLYPH_PAUSE = '\u258C\u258C'; // two left half-blocks used as pause bars
-
   // ── Helpers ────────────────────────────────────────────────────────────────
+
+  /**
+   * Swap a button's content to a PANTHEON SVG icon.
+   * Falls back to a text glyph if Icon() is not yet loaded.
+   * @param {Element} btn
+   * @param {string} iconName  — PANTHEON sprite id without "i-" prefix
+   * @param {string} fallback  — text glyph for environments without Icon()
+   */
+  function _setIcon(btn, iconName, fallback) {
+    if (!btn) { return; }
+    if (window.Icon) {
+      btn.replaceChildren(window.Icon(iconName, 14));
+    } else {
+      btn.textContent = fallback;
+    }
+  }
 
   /**
    * Safe querySelector — returns null without throwing if id is missing.
@@ -77,6 +88,7 @@
     // ── 3. Transport buttons ─────────────────────────────────────────────────
     var btnPlay = $('#btn-play');
     if (btnPlay) {
+      _setIcon(btnPlay, 'play', '\u25B6');
       btnPlay.addEventListener('click', function () {
         var isPlaying = store.getState().isPlaying;
         store.dispatch({ type: 'SET_PLAYING', payload: !isPlaying });
@@ -85,6 +97,7 @@
 
     var btnRew = $('#btn-rew');
     if (btnRew) {
+      _setIcon(btnRew, 'prev', '\u25C4\u25C4');
       btnRew.addEventListener('click', function () {
         store.dispatch({ type: 'SET_CURRENT_TIME', payload: 0 });
       });
@@ -92,6 +105,7 @@
 
     var btnFwd = $('#btn-fwd');
     if (btnFwd) {
+      _setIcon(btnFwd, 'next', '\u25BA\u25BA');
       btnFwd.addEventListener('click', function (e) {
         e.preventDefault();
         // no-op for now
@@ -150,10 +164,10 @@
         statusText.textContent = state.statusMessage;
       }
 
-      // Sync play button label (textContent only — no untrusted data)
+      // Sync play button icon on play/pause toggle
       if (btnPlay) {
-        btnPlay.textContent = state.isPlaying ? GLYPH_PAUSE : GLYPH_PLAY;
-        btnPlay.title       = state.isPlaying ? 'Pause' : 'Play';
+        _setIcon(btnPlay, state.isPlaying ? 'pause' : 'play', state.isPlaying ? '\u258C\u258C' : '\u25B6');
+        btnPlay.title = state.isPlaying ? 'Pause' : 'Play';
       }
     });
   });
