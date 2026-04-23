@@ -171,6 +171,16 @@
         _dragIdx = clip._i;
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', String(clip._i));
+        // Also publish NLE clip payload so canvas timeline can accept drops
+        var payload = JSON.stringify({
+          clip_path:  clip.path || clip.clip_path || '',
+          tier:       clip.tier       || 'T2',
+          is_fl:      clip.is_fl      || false,
+          pair_path:  clip.pair_path  || null,
+          duration_s: clip.duration_s || null,
+          role:       'body'
+        });
+        e.dataTransfer.setData('application/x-nle-clip', payload);
         row.classList.add('dragging');
       });
       row.addEventListener('dragend', function () {

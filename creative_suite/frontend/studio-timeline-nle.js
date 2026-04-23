@@ -561,6 +561,37 @@
     });
   }
 
+  // ── Library → canvas drag & drop ──────────────────────────────────────────
+
+  function _onDragOver(e) {
+    if (e.dataTransfer.types.indexOf('application/x-nle-clip') === -1) { return; }
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }
+
+  function _onDrop(e) {
+    e.preventDefault();
+    var raw = e.dataTransfer.getData('application/x-nle-clip');
+    if (!raw) { return; }
+    var clipData;
+    try { clipData = JSON.parse(raw); }
+    catch (ex) { console.error('[NLE] drop parse error', ex); return; }
+
+    var newClip = {
+      clip_path:  clipData.clip_path  || '',
+      tier:       clipData.tier       || 'T2',
+      is_fl:      clipData.is_fl      || false,
+      pair_path:  clipData.pair_path  || null,
+      duration_s: clipData.duration_s || null,
+      role:       'body',
+      trashed:    0,
+      position:   _clips.length
+    };
+    _clips.push(newClip);
+    _saveArrangement();
+    _scheduleRender();
+  }
+
   // ── Mount / unmount ────────────────────────────────────────────────────────
 
   function mount(container) {
@@ -580,6 +611,8 @@
     _canvas.addEventListener('mousedown', _onMouseDown);
     _canvas.addEventListener('contextmenu', _onContextMenu);
     _canvas.addEventListener('wheel', _onWheel, { passive: false });
+    _canvas.addEventListener('dragover', _onDragOver);
+    _canvas.addEventListener('drop', _onDrop);
     document.addEventListener('keydown', _onKeyDown);
 
     _subscribeStore();
@@ -600,6 +633,8 @@
       _canvas.removeEventListener('mousedown', _onMouseDown);
       _canvas.removeEventListener('contextmenu', _onContextMenu);
       _canvas.removeEventListener('wheel', _onWheel);
+      _canvas.removeEventListener('dragover', _onDragOver);
+      _canvas.removeEventListener('drop', _onDrop);
     }
     document.removeEventListener('keydown', _onKeyDown);
     if (_raf) { cancelAnimationFrame(_raf); _raf = null; }
