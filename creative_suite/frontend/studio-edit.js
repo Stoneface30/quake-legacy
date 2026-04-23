@@ -705,7 +705,102 @@
     _populateMusicList(list, part, 'main_1', tracks);
     _musicPanel.appendChild(list);
 
+    // Beatmatch clip recommendations section
+    _renderBeatRecs(_musicPanel, part);
+
     if (_root) _root.insertBefore(_musicPanel, _root.lastElementChild);
+  }
+
+  function _renderBeatRecs(container, partNum) {
+    var section = document.createElement('div');
+    section.className = 'nle-music-track-list';
+    section.style.borderTop = '1px solid #2a2a2a';
+    section.style.marginTop = '4px';
+    section.style.paddingTop = '4px';
+
+    var sectionHdr = document.createElement('div');
+    sectionHdr.className = 'nle-music-panel-hdr';
+    sectionHdr.style.fontSize = '10px';
+    sectionHdr.style.opacity = '0.7';
+    var sectionTitle = document.createElement('span');
+    sectionTitle.textContent = 'CLIP BEAT RECOMMENDATIONS';
+    sectionHdr.appendChild(sectionTitle);
+    section.appendChild(sectionHdr);
+
+    var loading = document.createElement('div');
+    loading.className = 'nle-music-empty';
+    loading.textContent = 'Analyzing\u2026';
+    section.appendChild(loading);
+    container.appendChild(section);
+
+    fetch('/api/studio/part/' + partNum + '/clip_recommendations')
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+      .then(function (data) {
+        section.removeChild(loading);
+        var recs = data.recommendations.filter(function (r) {
+          return r.suggestion !== 'none';
+        });
+        if (!recs.length) {
+          var none = document.createElement('div');
+          none.className = 'nle-music-empty';
+          none.textContent = 'All clips are beat-aligned \u2713';
+          section.appendChild(none);
+          return;
+        }
+        recs.forEach(function (rec) {
+          var row = document.createElement('div');
+          row.className = 'nle-music-row';
+
+          var pct = document.createElement('span');
+          pct.className = 'nle-music-pct';
+          pct.textContent = rec.tier;
+
+          var info = document.createElement('span');
+          info.className = 'nle-music-info';
+          var basename = rec.clip_path.split(/[/\\]/).pop().replace(/\.avi$/i, '');
+          info.textContent = basename;
+
+          var meta = document.createElement('span');
+          meta.className = 'nle-music-meta';
+          meta.textContent = rec.suggestion.toUpperCase() + ' ' + rec.recommended_rate + '\u00d7'
+            + '  \u0394 ' + (rec.beat_offset_s * 1000).toFixed(0) + 'ms';
+
+          var applyBtn = document.createElement('button');
+          applyBtn.className = 'nle-music-sel-btn';
+          applyBtn.textContent = 'APPLY';
+          (function (r, btn) {
+            btn.addEventListener('click', function () {
+              fetch('/api/studio/part/' + partNum + '/arrangement/' + r.clip_id + '/fx', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  effect_type: r.suggestion,
+                  params: { rate: r.recommended_rate },
+                  enabled: true,
+                  position: 0
+                })
+              })
+                .then(function (res) { return res.ok ? res.json() : Promise.reject(res.status); })
+                .then(function () {
+                  btn.textContent = '\u2713 APPLIED';
+                  btn.disabled = true;
+                })
+                .catch(function (err) {
+                  console.error('[NLE] apply beat rec failed', err);
+                });
+            });
+          }(rec, applyBtn));
+
+          row.appendChild(pct);
+          row.appendChild(info);
+          row.appendChild(meta);
+          row.appendChild(applyBtn);
+          section.appendChild(row);
+        });
+      })
+      .catch(function (err) {
+        loading.textContent = 'Error loading recommendations: ' + err;
+      });
   }
 
   function _populateMusicList(listEl, part, role, tracks) {

@@ -979,6 +979,83 @@ def randomize_body(part_num: int, request: Request) -> dict[str, Any]:
     return {"part": part_num, "body_clips": interleaved, "pinned": pinned}
 
 
+# ── Per-clip beatmatch recommendations ────────────────────────────────────────
+
+@router.get("/part/{part_num}/clip_recommendations")
+def clip_recommendations(part_num: int, request: Request) -> dict[str, Any]:
+    """Analyze each clip's action peak vs nearest beat.
+    Returns slowmo/speedup suggestion per clip.
+
+    Logic:
+    - BPM from music assignment (or default 138 BPM)
+    - beat_interval = 60 / BPM
+    - For each clip, action_peak_s = duration_s * 0.5 (midpoint fallback)
+    - beat_offset = action_peak_s % beat_interval
+    - ratio 0.04–0.35 -> suggest slowmo 0.5x
+    - ratio >0.65      -> suggest speedup 2.0x
+    - else             -> 'none'
+    """
+    db = _nle_db(request)
+    clips = _nle_db_mod.get_arrangement(db, part_num)
+
+    # Get BPM from first main music assignment (fallback 138)
+    assignments = _nle_db_mod.get_music_assignments(db, part_num)
+    bpm = 138.0
+    for a in assignments:
+        if a.get("role") == "main_1" and a.get("bpm"):
+            bpm = float(a["bpm"])
+            break
+    beat_interval = 60.0 / bpm
+
+    recs = []
+    for clip in clips:
+        dur = clip.get("duration_s") or 5.0
+        peak = dur * 0.5  # fallback: assume peak is midpoint
+
+        # Use slowmo effect peak_s if already set
+        for fx in clip.get("effects", []):
+            if fx.get("effect_type") == "slowmo":
+                try:
+                    params = json.loads(fx.get("params") or "{}")
+                    peak = float(params.get("peak_s", peak))
+                except Exception:
+                    pass
+
+        beat_offset = peak % beat_interval
+        ratio = beat_offset / beat_interval
+
+        if 0.04 < ratio < 0.35:
+            suggestion = "slowmo"
+            rate = 0.5
+        elif ratio > 0.65:
+            suggestion = "speedup"
+            rate = 2.0
+        else:
+            suggestion = "none"
+            rate = 1.0
+
+        recs.append({
+            "clip_id":          clip["id"],
+            "clip_path":        clip["clip_path"],
+            "tier":             clip.get("tier", "T2"),
+            "beat_offset_s":    round(beat_offset, 3),
+            "beat_ratio":       round(ratio, 3),
+            "suggestion":       suggestion,
+            "recommended_rate": rate,
+        })
+
+    # Sort: actionable first
+    order = {"slowmo": 0, "speedup": 1, "none": 2}
+    recs.sort(key=lambda r: order.get(r["suggestion"], 2))
+
+    return {
+        "part":            part_num,
+        "bpm":             bpm,
+        "beat_interval_s": round(beat_interval, 4),
+        "recommendations": recs,
+    }
+
+
 # ── Music recommendations ─────────────────────────────────────────────────────
 
 @router.get("/part/{part_num}/music_recommend")
