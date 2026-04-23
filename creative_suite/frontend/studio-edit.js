@@ -876,6 +876,13 @@
     _audioSlot.className = 'nle-tl-audio';
     lower.appendChild(_audioSlot);
 
+    _beatSlot = document.createElement('div');
+    _beatSlot.className = 'nle-tl-beat';
+    _beatSlot.style.height = '32px';
+    _beatSlot.style.flexShrink = '0';
+    _beatSlot.style.overflow = 'hidden';
+    lower.appendChild(_beatSlot);
+
     workspace.appendChild(lower);
     _root.appendChild(workspace);
 
