@@ -39,10 +39,16 @@ def _fx_to_overrides(effects: list[dict[str, Any]]) -> dict[str, str]:
             out["slow"] = str(round(params.get("rate", 0.5), 2))
         elif etype == "speedup":
             out["slow"] = str(round(params.get("rate", 2.0), 2))
-        # vignette/zoom/shine_on_kill/bass_drop/reverb_tail: render pipeline
-        # extension hooks — annotated in overrides as flag= tags for future use
-        elif etype in ("vignette", "zoom", "shine_on_kill", "bass_drop", "reverb_tail"):
-            out.setdefault("flag", etype.upper())
+        elif etype == "zoom":
+            out["zoom"] = str(round(params.get("scale", 1.15), 2))
+        elif etype == "shine_on_kill":
+            out["shine"] = "1"
+        elif etype == "vignette":
+            out["vignette"] = "1"
+        elif etype == "bass_drop":
+            out["bass_drop"] = "1"
+        elif etype == "reverb_tail":
+            out["reverb_tail"] = "1"
     return out
 
 

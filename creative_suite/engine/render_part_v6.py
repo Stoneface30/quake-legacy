@@ -77,8 +77,10 @@ def load_clip_overrides(part: int, cfg: Config) -> dict[str, dict[str, object]]:
 
     Grammar per line:
         <filename>: key=value[, key=value ...]
-    Supported keys: head_trim, tail_trim (float) — slow (float rate) — pair_with
-    (str filename) — flag (str).
+    Supported keys:
+      head_trim, tail_trim (float) — slow (float rate) — pair_with (str)
+      zoom (float scale, e.g. 1.15) — vignette (1) — shine (1)
+      bass_drop (1) — reverb_tail (1)
     Missing file returns an empty dict (not an error).
     """
     path = cfg.clip_lists_dir / f"part{part:02d}_overrides.txt"
@@ -428,6 +430,31 @@ def build_body_chunks(
             # Legacy whole-clip slow (used when cfg.event_localized_slow=False).
             vf += f",setpts=(1/{slow_rate:.4f})*PTS"
             af_parts.append(f"atempo={slow_rate:.4f}")
+
+        # ── NLE FX override keys (from manifest_generator / studio NLE) ──────
+        if ov:
+            if "zoom" in ov:
+                try:
+                    scale = float(ov["zoom"])
+                    if scale > 1.0:
+                        vf += (
+                            f",crop=iw/{scale:.2f}:ih/{scale:.2f}"
+                            f":(iw-iw/{scale:.2f})/2:(ih-ih/{scale:.2f})/2"
+                            f",scale={cfg.target_width}:{cfg.target_height}:flags=lanczos"
+                        )
+                except Exception:
+                    pass
+            if "vignette" in ov:
+                vf += ",vignette=PI/4"
+            if "bass_drop" in ov:
+                af_parts.append("bass=g=6:f=60:w=0.5")
+            if "reverb_tail" in ov:
+                af_parts.append("aecho=0.8:0.9:40:0.3")
+            # shine_on_kill: one-frame white flash logged; full impl needs event peak
+            if "shine" in ov:
+                print(f"  [NLE-FX] shine_on_kill annotated on {src.name} "
+                      f"(full impl requires event peak — flagged for postproc)")
+
         af_parts.append("aresample=async=1")
         if cfg.review_burn_clip_name:
             stem = src.stem
