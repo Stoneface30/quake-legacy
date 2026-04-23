@@ -141,6 +141,7 @@
     var x = 0;
     for (var i = 0; i < drawList.length; i++) {
       var clip = drawList[i];
+      if (clip.trashed) { continue; }  // skip soft-deleted clips
       var cx   = x - _scrollLeft;
       var cw   = _clipW(clip);
       var isSelected = !_ghostClips && _selected.indexOf(i) >= 0;
@@ -416,6 +417,23 @@
     _item('Copy',      function () { _selected = [clipIdx]; _copySelected(); });
     _item('Duplicate', function () { _selected = [clipIdx]; _duplicateSelected(); });
     _item('Delete',    function () { _selected = [clipIdx]; _deleteSelected(); });
+    _item('\uD83D\uDDD1 Move to Trash', function () {
+      var clip = _clips[clipIdx];
+      if (!clip || !clip.id) { return; }
+      var part = _activePart;
+      fetch('/api/studio/part/' + part + '/arrangement/' + clip.id + '/trash', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+        .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+        .then(function () {
+          _clips[clipIdx].trashed = 1;
+          _scheduleRender();
+        })
+        .catch(function (err) {
+          console.error('[NLE] trash failed', err);
+        });
+    });
     _item('── Set Role ──', function () {});
     _item('Set as Intro', function () {
       if (_clips[clipIdx]) {
