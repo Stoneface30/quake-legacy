@@ -131,19 +131,80 @@ def upsert_arrangement_clip(db_path: Path, part: int, position: int, role: str,
 
 def bulk_replace_arrangement(db_path: Path, part: int,
                               clips: list[dict[str, Any]]) -> None:
-    """Delete all clips for a part and re-insert in new order. Single transaction."""
+    """Delete all clips for a part and re-insert in new order.
+
+    Preserves two things that a naive DELETE+INSERT would silently destroy:
+    1. clip_effects rows (CASCADE-deleted with old arrangement_id) — snapshotted
+       before DELETE and restored by clip_path match after re-INSERT.
+    2. Soft-deleted (trashed) clips — re-appended after the new order so they
+       survive the next drag/reorder and can still be restored or recovered.
+    """
     now = time.time()
     with get_db(db_path) as con:
+        # ── Snapshot effects keyed by clip_path before CASCADE delete ──────────
+        fx_rows = con.execute(
+            """SELECT ca.clip_path, ce.effect_type, ce.params, ce.position, ce.enabled
+               FROM clip_arrangements ca
+               JOIN clip_effects ce ON ce.arrangement_id = ca.id
+               WHERE ca.part=?""",
+            (part,),
+        ).fetchall()
+        effects_by_path: dict[str, list[tuple]] = {}
+        for r in fx_rows:
+            effects_by_path.setdefault(r[0], []).append(r[1:])
+
+        # ── Snapshot trashed clips so they survive the replacement ─────────────
+        trashed_rows = con.execute(
+            """SELECT clip_path, role, tier, is_fl, pair_path, duration_s
+               FROM clip_arrangements WHERE part=? AND trashed=1""",
+            (part,),
+        ).fetchall()
+
         con.execute("DELETE FROM clip_arrangements WHERE part=?", (part,))
-        for i, c in enumerate(clips):
-            con.execute(
+
+        def _insert_clip(i: int, clip_path: str, role: str, tier: str,
+                         is_fl: int, pair_path: Any, duration_s: Any,
+                         trashed: int) -> int:
+            cur = con.execute(
                 """INSERT INTO clip_arrangements
-                   (part, position, role, clip_path, tier, is_fl, pair_path, duration_s, updated_at)
-                   VALUES (?,?,?,?,?,?,?,?,?)""",
-                (part, i, c.get("role", "body"), c["clip_path"],
-                 c.get("tier", "T2"), int(c.get("is_fl", False)),
-                 c.get("pair_path"), c.get("duration_s"), now),
+                   (part, position, role, clip_path, tier, is_fl, pair_path,
+                    duration_s, trashed, updated_at)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                (part, i, role, clip_path, tier, is_fl, pair_path,
+                 duration_s, trashed, now),
             )
+            return cur.lastrowid  # type: ignore[return-value]
+
+        def _restore_effects(new_id: int, clip_path: str) -> None:
+            for etype, params, pos, enabled in effects_by_path.get(clip_path, []):
+                con.execute(
+                    """INSERT INTO clip_effects
+                       (arrangement_id, effect_type, params, position, enabled)
+                       VALUES (?,?,?,?,?)""",
+                    (new_id, etype, params, pos, enabled),
+                )
+
+        # ── Re-insert active clips in new order ────────────────────────────────
+        for i, c in enumerate(clips):
+            cp = c["clip_path"]
+            new_id = _insert_clip(
+                i, cp, c.get("role", "body"), c.get("tier", "T2"),
+                int(c.get("is_fl", False)), c.get("pair_path"),
+                c.get("duration_s"), 0,
+            )
+            _restore_effects(new_id, cp)
+
+        # ── Re-append trashed clips (de-duped) at end ──────────────────────────
+        active_paths = {c["clip_path"] for c in clips}
+        offset = len(clips)
+        for j, (cp, role, tier, is_fl, pair_path, duration_s) in enumerate(trashed_rows):
+            if cp in active_paths:
+                continue  # active version takes precedence; don't double-insert
+            new_id = _insert_clip(
+                offset + j, cp, role or "body", tier or "T2",
+                int(is_fl or 0), pair_path, duration_s, 1,
+            )
+            _restore_effects(new_id, cp)
 
 
 def delete_arrangement_clip(db_path: Path, clip_id: int) -> None:

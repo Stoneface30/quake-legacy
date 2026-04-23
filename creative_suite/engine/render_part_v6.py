@@ -388,7 +388,10 @@ def build_body_chunks(
         # falling back to the v10 whole-clip setpts (P1-EE explicitly
         # deprecates that behavior).
         use_event_localized = bool(getattr(cfg, "event_localized_slow", False))
-        if slow_rate is not None and use_event_localized:
+        # event_localized filter is designed for slowmo (rate < 1.0) only.
+        # Speedup (rate >= 1.0) uses the legacy atempo path; its _build_audio_filter
+        # computes atempo=1/rate which for rate=2.0 gives atempo=0.5 — wrong direction.
+        if slow_rate is not None and use_event_localized and slow_rate < 1.0:
             window_s = float(
                 (ov.get("slow_window") if ov is not None else None)
                 or getattr(cfg, "slow_window_default", 0.8)

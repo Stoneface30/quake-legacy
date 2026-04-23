@@ -1003,9 +1003,14 @@ def clip_recommendations(part_num: int, request: Request) -> dict[str, Any]:
     bpm = 138.0
     for a in assignments:
         if a.get("role") == "main_1" and a.get("bpm"):
-            bpm = float(a["bpm"])
+            try:
+                candidate = float(a["bpm"])
+                if candidate > 0:
+                    bpm = candidate
+            except (TypeError, ValueError):
+                pass
             break
-    beat_interval = 60.0 / bpm
+    beat_interval = 60.0 / bpm  # safe: bpm > 0 guaranteed above
 
     recs = []
     for clip in clips:

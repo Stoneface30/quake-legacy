@@ -76,7 +76,9 @@
   }
 
   function _totalDur() {
-    return _clips.reduce(function (s, c) { return s + _clipDur(c); }, 0);
+    return _clips.reduce(function (s, c) {
+      return c.trashed ? s : s + _clipDur(c);
+    }, 0);
   }
 
   function _hitTestClip(px, py) {
@@ -84,6 +86,7 @@
     var x = 0;
     var list = _ghostClips || _clips;
     for (var i = 0; i < list.length; i++) {
+      if (list[i].trashed) { continue; }  // trashed clips take no visual space
       var w  = _clipW(list[i]);
       var cx = x - _scrollLeft;
       if (px >= cx && px < cx + w) return i;
@@ -508,7 +511,22 @@
           };
         }),
       }),
-    }).catch(function (err) {
+    })
+    .then(function (r) { return r.ok ? r.json() : Promise.reject(r.status); })
+    .then(function () {
+      // Rehydrate integer DB IDs so trash/effects actions have a real id to POST
+      return fetch('/api/studio/part/' + part + '/arrangement');
+    })
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (data) {
+      if (!data || !Array.isArray(data.clips)) return;
+      // Merge IDs back by position (active/non-trashed rows only)
+      var active = data.clips.filter(function (r) { return !r.trashed; });
+      active.forEach(function (row, i) {
+        if (_clips[i]) { _clips[i].id = row.id; }
+      });
+    })
+    .catch(function (err) {
       console.error('[NLETimeline] save failed', err);
     });
   }
