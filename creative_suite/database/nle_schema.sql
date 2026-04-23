@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS clip_arrangements (
     is_fl       INTEGER NOT NULL DEFAULT 0,
     pair_path   TEXT,
     duration_s  REAL,                              -- populated at import via ffprobe; NULL if unknown
+    trashed     INTEGER NOT NULL DEFAULT 0,        -- soft-delete: 1=trashed, clip kept on disk
     updated_at  REAL    NOT NULL DEFAULT (unixepoch('now','subsecond'))
 );
 

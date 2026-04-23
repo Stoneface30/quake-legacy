@@ -26,6 +26,16 @@ def _connect(db_path: Path) -> sqlite3.Connection:
     return con
 
 
+def _migrate(db_path: Path) -> None:
+    """Add columns introduced after initial schema. Safe to call on every startup."""
+    with get_db(db_path) as con:
+        cols = {row[1] for row in con.execute("PRAGMA table_info(clip_arrangements)")}
+        if "trashed" not in cols:
+            con.execute(
+                "ALTER TABLE clip_arrangements ADD COLUMN trashed INTEGER NOT NULL DEFAULT 0"
+            )
+
+
 def init_db(db_path: Path) -> None:
     """Create tables if they don't exist. Safe to call on every startup."""
     db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -33,6 +43,7 @@ def init_db(db_path: Path) -> None:
     con.executescript(_SCHEMA_SQL.read_text(encoding="utf-8"))
     con.commit()
     con.close()
+    _migrate(db_path)  # run after schema creation to handle existing DBs
 
 
 @contextmanager
@@ -57,9 +68,10 @@ def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
 # ── clip_arrangements ──────────────────────────────────────────────────────────
 
 def get_arrangement(db_path: Path, part: int) -> list[dict[str, Any]]:
+    """Get active (non-trashed) clips for a part, ordered by position."""
     with get_db(db_path) as con:
         rows = con.execute(
-            "SELECT * FROM clip_arrangements WHERE part=? ORDER BY position",
+            "SELECT * FROM clip_arrangements WHERE part=? AND trashed=0 ORDER BY position",
             (part,),
         ).fetchall()
         clips = [_row_to_dict(r) for r in rows]
@@ -79,6 +91,16 @@ def get_arrangement(db_path: Path, part: int) -> list[dict[str, Any]]:
     for c in clips:
         c["effects"] = fx_by_clip[c["id"]]
     return clips
+
+
+def get_arrangement_all(db_path: Path, part: int) -> list[dict[str, Any]]:
+    """Get ALL clips for a part including trashed, ordered by position."""
+    with get_db(db_path) as con:
+        rows = con.execute(
+            "SELECT * FROM clip_arrangements WHERE part=? ORDER BY position",
+            (part,),
+        ).fetchall()
+    return [_row_to_dict(r) for r in rows]
 
 
 def upsert_arrangement_clip(db_path: Path, part: int, position: int, role: str,
@@ -127,6 +149,24 @@ def bulk_replace_arrangement(db_path: Path, part: int,
 def delete_arrangement_clip(db_path: Path, clip_id: int) -> None:
     with get_db(db_path) as con:
         con.execute("DELETE FROM clip_arrangements WHERE id=?", (clip_id,))
+
+
+def trash_clip(db_path: Path, clip_id: int) -> None:
+    """Soft-delete: set trashed=1. Clip stays in DB and on disk."""
+    with get_db(db_path) as con:
+        con.execute(
+            "UPDATE clip_arrangements SET trashed=1, updated_at=? WHERE id=?",
+            (time.time(), clip_id),
+        )
+
+
+def restore_clip(db_path: Path, clip_id: int) -> None:
+    """Un-trash a clip: set trashed=0."""
+    with get_db(db_path) as con:
+        con.execute(
+            "UPDATE clip_arrangements SET trashed=0, updated_at=? WHERE id=?",
+            (time.time(), clip_id),
+        )
 
 
 # ── clip_effects ───────────────────────────────────────────────────────────────

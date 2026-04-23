@@ -863,6 +863,33 @@ def delete_fx(part_num: int, clip_id: int, fx_id: int,
     return {"deleted": True}
 
 
+# ── Trash (soft-delete) ───────────────────────────────────────────────────────
+
+@router.post("/part/{part_num}/arrangement/{clip_id}/trash")
+def trash_clip(part_num: int, clip_id: int, request: Request) -> dict[str, Any]:
+    """Soft-delete a clip from the arrangement. Clip stays in DB and on disk."""
+    db = _nle_db(request)
+    _nle_db_mod.trash_clip(db, clip_id)
+    return {"trashed": True, "clip_id": clip_id}
+
+
+@router.delete("/part/{part_num}/arrangement/{clip_id}/trash")
+def restore_clip(part_num: int, clip_id: int, request: Request) -> dict[str, Any]:
+    """Restore a trashed clip back to active arrangement."""
+    db = _nle_db(request)
+    _nle_db_mod.restore_clip(db, clip_id)
+    return {"restored": True, "clip_id": clip_id}
+
+
+@router.get("/part/{part_num}/arrangement/trashed")
+def list_trashed(part_num: int, request: Request) -> dict[str, Any]:
+    """List all trashed clips for a part (for trash bin UI)."""
+    db = _nle_db(request)
+    rows = _nle_db_mod.get_arrangement_all(db, part_num)
+    trashed = [r for r in rows if r.get("trashed")]
+    return {"part": part_num, "trashed": trashed, "count": len(trashed)}
+
+
 # ── Randomizer ────────────────────────────────────────────────────────────────
 
 @router.post("/part/{part_num}/randomize")
