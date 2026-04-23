@@ -727,6 +727,20 @@ def _nle_db(request: Request):
     return request.app.state.cfg.nle_db_path
 
 
+def _ffprobe_duration(clip_path: str, ffprobe_bin: str) -> float | None:
+    """Return clip duration in seconds via ffprobe, or None on error."""
+    try:
+        result = subprocess.run(
+            [ffprobe_bin, "-v", "quiet", "-print_format", "json",
+             "-show_format", clip_path],
+            capture_output=True, text=True, timeout=10,
+        )
+        data = json.loads(result.stdout)
+        return float(data["format"]["duration"])
+    except Exception:
+        return None
+
+
 # ── Pydantic models ───────────────────────────────────────────────────────────
 
 class _ArrangementClip(BaseModel):
@@ -830,6 +844,21 @@ def import_from_clip_list(part_num: int, request: Request) -> dict[str, Any]:
         for c in raw_clips
     ]
     _nle_db_mod.bulk_replace_arrangement(db, part_num, db_clips)
+
+    # Populate duration_s for each clip via ffprobe (runs synchronously; clips stay fast)
+    ffprobe = str(cfg.ffprobe_bin)
+    rows = _nle_db_mod.get_arrangement(db, part_num)
+    for row in rows:
+        if row.get("duration_s"):
+            continue  # already known
+        dur = _ffprobe_duration(row["clip_path"], ffprobe)
+        if dur is not None:
+            with _nle_db_mod.get_db(db) as con:
+                con.execute(
+                    "UPDATE clip_arrangements SET duration_s=? WHERE id=?",
+                    (dur, row["id"]),
+                )
+
     return {"imported": len(db_clips), "part": part_num}
 
 
