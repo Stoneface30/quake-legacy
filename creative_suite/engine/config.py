@@ -28,7 +28,7 @@ class Config:
             2: REPO_ROOT / "QUAKE VIDEO" / "T2",
             3: REPO_ROOT / "QUAKE VIDEO" / "T3",
         }
-        self.intro_source:  Path = REPO_ROOT / "FRAGMOVIE VIDEOS" / "IntroPart2.mp4"
+        self.intro_source:  Path = ROOT / "engine" / "assets" / "intro_trim_7s.mp4"
         # PANTHEON intro: 25.77s, grey/silver logo → in-game CA Tribute billboard.
         # Prepended to EVERY Part automatically. Never skip.
 

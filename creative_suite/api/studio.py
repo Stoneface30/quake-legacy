@@ -667,12 +667,30 @@ def browse_music_library(request: Request) -> list[dict[str, Any]]:
             title  = stem.replace("_", " ").replace("-", " ").strip()
 
         duration = _get_track_duration(f)
+
+        # BPM from sidecar .beats.json if available
+        bpm: float | None = None
+        for bjson in [
+            f.parent / (f.name + ".beats.json"),
+            f.with_suffix(".beats.json"),
+        ]:
+            if bjson.exists():
+                try:
+                    bdata = json.loads(bjson.read_text(encoding="utf-8"))
+                    t = float(bdata.get("tempo", 0))
+                    if t > 0:
+                        bpm = round(t, 1)
+                except Exception:
+                    pass
+                break
+
         tracks.append({
             "id":         f.stem,
             "filename":   f.name,
             "artist":     artist,
             "title":      title,
             "duration_s": round(duration, 3) if duration is not None else None,
+            "bpm":        bpm,
             "path":       "library/" + f.name,
         })
     return tracks
@@ -1061,6 +1079,74 @@ def clip_recommendations(part_num: int, request: Request) -> dict[str, Any]:
     }
 
 
+class _BeatmatchApplyAll(BaseModel):
+    """Optional: caller can send explicit clip_ids + rates. If empty, server recomputes."""
+    clips: list[dict[str, Any]] = []
+
+
+@router.post("/part/{part_num}/beatmatch/apply_all")
+def beatmatch_apply_all(part_num: int, body: _BeatmatchApplyAll,
+                        request: Request) -> dict[str, Any]:
+    """Apply beatmatch recommendations for all actionable clips in one shot.
+
+    If body.clips is provided, use those (each must have clip_id, suggestion, recommended_rate).
+    Otherwise, recompute recommendations server-side and apply the non-'none' suggestions.
+    """
+    db  = _nle_db(request)
+    cfg = request.app.state.cfg
+
+    if body.clips:
+        actionable = [c for c in body.clips if c.get("suggestion") not in ("none", None)]
+    else:
+        # Re-run the same logic as clip_recommendations
+        clips       = _nle_db_mod.get_arrangement(db, part_num)
+        assignments = _nle_db_mod.get_music_assignments(db, part_num)
+        bpm         = 138.0
+        for a in assignments:
+            if a.get("role") == "main_1" and a.get("bpm"):
+                try:
+                    candidate = float(a["bpm"])
+                    if candidate > 0:
+                        bpm = candidate
+                except (TypeError, ValueError):
+                    pass
+                break
+        beat_interval = 60.0 / bpm
+        actionable = []
+        for clip in clips:
+            dur  = clip.get("duration_s") or 5.0
+            peak = dur * 0.5
+            for fx in clip.get("effects", []):
+                if fx.get("effect_type") == "slowmo":
+                    try:
+                        params = json.loads(fx.get("params") or "{}")
+                        peak   = float(params.get("peak_s", peak))
+                    except Exception:
+                        pass
+            beat_offset = peak % beat_interval
+            ratio       = beat_offset / beat_interval
+            if 0.04 < ratio < 0.35:
+                suggestion, rate = "slowmo", 0.5
+            elif ratio > 0.65:
+                suggestion, rate = "speedup", 2.0
+            else:
+                continue
+            actionable.append({"clip_id": clip["id"], "suggestion": suggestion, "recommended_rate": rate})
+
+    applied = 0
+    for item in actionable:
+        clip_id = item.get("clip_id")
+        if not clip_id:
+            continue
+        effect_type = item.get("suggestion", "slowmo")
+        rate        = float(item.get("recommended_rate", 0.5))
+        _nle_db_mod.add_clip_effect(db, clip_id, effect_type,
+                                    {"rate": rate}, position=0, enabled=True)
+        applied += 1
+
+    return {"applied": applied, "part": part_num}
+
+
 # ── Music recommendations ─────────────────────────────────────────────────────
 
 @router.get("/part/{part_num}/music_recommend")
@@ -1091,16 +1177,50 @@ def music_recommend(part_num: int, request: Request,
 
 # ── Music assignment ──────────────────────────────────────────────────────────
 
+def _resolve_bpm_from_beats_json(track_filename: str, music_dir: Path) -> float | None:
+    """Look for a sidecar .beats.json next to the track file and return tempo."""
+    for candidate in [
+        music_dir / (track_filename + ".beats.json"),
+        (music_dir / track_filename).with_suffix(".beats.json"),
+        music_dir / "library" / (track_filename + ".beats.json"),
+        (music_dir / "library" / track_filename).with_suffix(".beats.json"),
+    ]:
+        if candidate.exists():
+            try:
+                data = json.loads(candidate.read_text(encoding="utf-8"))
+                tempo = float(data.get("tempo", 0))
+                if tempo > 0:
+                    return tempo
+            except Exception:
+                pass
+    return None
+
+
+@router.get("/part/{part_num}/music_assignments")
+def get_music_assignments(part_num: int, request: Request) -> dict[str, Any]:
+    """Return all music assignments for a part (intro/main/outro slots)."""
+    db = _nle_db(request)
+    rows = _nle_db_mod.get_music_assignments(db, part_num)
+    return {"part": part_num, "assignments": rows}
+
+
 @router.put("/part/{part_num}/music_assignment")
 def save_music_assignment(part_num: int, body: _MusicAssignment,
                           request: Request) -> dict[str, Any]:
-    db = _nle_db(request)
+    cfg = request.app.state.cfg
+    db  = _nle_db(request)
+
+    # Auto-detect BPM from sidecar .beats.json if caller didn't supply it
+    bpm = body.bpm
+    if not bpm:
+        bpm = _resolve_bpm_from_beats_json(body.track_filename, cfg.phase1_music_dir)
+
     _nle_db_mod.upsert_music_assignment(
         db, part_num, body.role, body.track_filename,
-        body.artist, body.title, body.bpm, body.duration_s,
+        body.artist, body.title, bpm, body.duration_s,
         body.position, transition_out=body.transition_out,
     )
-    return {"saved": True}
+    return {"saved": True, "bpm_detected": bpm}
 
 
 @router.delete("/part/{part_num}/music_assignment/{role}")
