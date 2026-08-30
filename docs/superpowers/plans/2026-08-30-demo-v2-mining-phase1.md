@@ -1,6 +1,6 @@
 # Demo V2 Mining — Phase 1 Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Build the pre-capture data layer for the new demo-derived V2 series: demo_v2 output scaffold, `generated_clips` provenance DB, small-demo classification, ranked recorder capture windows (top 20/50/100), and a human review package — everything the charter requires *before* any WolfcamQL capture runs.
 
@@ -61,11 +61,11 @@ CREATE TABLE IF NOT EXISTS generated_clips (
 
 `demo_v2_db.py` exposes `connect(db_path=None)` (creates schema), `insert_candidate(conn, row: dict) -> int`, `ensure_output_tree(root=None)` creating `output/demo_v2/{review,generated_clips,parts}`.
 
-- [ ] Step 1: failing tests — schema creation, insert round-trip, output tree creation (tmp_path)
-- [ ] Step 2: run, verify fail
-- [ ] Step 3: implement
-- [ ] Step 4: run, verify pass; verify `output/` is gitignored
-- [ ] Step 5: commit
+- [x] Step 1: failing tests — schema creation, insert round-trip, output tree creation (tmp_path)
+- [x] Step 2: run, verify fail
+- [x] Step 3: implement
+- [x] Step 4: run, verify pass; verify `output/` is gitignored
+- [x] Step 5: commit
 
 ### Task 2: Small-demo classification (§4)
 
@@ -90,7 +90,7 @@ Selection excludes duplicates: `WHERE size_bytes < 800*1024 AND duplicate_of IS 
 
 CLI main: read db read-only (`file:...?mode=ro`), select `size_bytes < 800*1024`, classify, write CSV+JSON with per-class counts, include `has_recorder_frags` and max frag score per demo (join `frags` on `by_recorder=1`) so tiny-but-valuable demos surface (§4 last line).
 
-- [ ] Steps: failing tests for each class branch → fail → implement → pass → run CLI on real DB → commit
+- [x] Steps: failing tests for each class branch → fail → implement → pass → run CLI on real DB → commit
 
 ### Task 3: Recorder capture windows (§5, §9, §17, §6)
 
@@ -111,7 +111,7 @@ Logic:
 8. Emit full list + top20/50/100 CSVs with `demo, canonical_demo_hash, map, round, clock_start, clock_end, capture_start_ms, capture_end_ms, duration_s, n_kills, weapons, tags, frag_offsets_ms, score, class, clutch_context`.
 9. Insert top-100 into `demo_v2.db` `generated_clips` as `promotion_status='CANDIDATE'`, `avi_path=NULL`, `source_quality=NULL` (set at capture QA time).
 
-- [ ] Steps: failing tests (merge logic, clamp, clutch extension by hash across duplicate names, post-extension re-merge produces ONE window, offsets preserved, scoring monotonicity, primary-kill field derivation) → fail → implement → pass → run on real data → sanity-check top rows → commit
+- [x] Steps: failing tests (merge logic, clamp, clutch extension by hash across duplicate names, post-extension re-merge produces ONE window, offsets preserved, scoring monotonicity, primary-kill field derivation) → fail → implement → pass → run on real data → sanity-check top rows → commit
 
 ### Task 4: Review package (Gate P-2 analog, §26 stage "review data")
 
@@ -121,7 +121,7 @@ Logic:
 
 Self-contained HTML (no external assets): summary counts, top-100 capture windows table, top-50 clutches table, small-demo class distribution, sortable via tiny inline JS, PANTHEON grey/silver aesthetic. Player names allowed (output/ is local-only, gitignored).
 
-- [ ] Steps: implement (presentation code — smoke test only: file exists, contains N rows) → run → open check → commit
+- [x] Steps: implement (presentation code — smoke test only: file exists, contains N rows) → run → open check → commit
 
 ### NOT in this plan (later phases, user-gated)
 
