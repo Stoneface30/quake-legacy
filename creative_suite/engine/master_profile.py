@@ -131,6 +131,8 @@ _GAMEPLAY_MASTER = {
     "cg_drawAttacker": 0,
     "cg_drawRewards": 0,
     "cg_drawPickupItem": 0,
+    "cg_weaponBar": 0,           # left ammo/weapon list (validation frame)
+    "cg_drawFullWeaponBar": 0,
 }
 
 # B2 - verification profile: enough HUD to prove POV/frag/health on screen.
