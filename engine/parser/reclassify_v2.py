@@ -270,7 +270,7 @@ def run() -> dict:
                 add_move += 7
                 reasons.append(f"+ lg dodge {inr:.0%}/{ticks}t (+7)")
             burst = a.get("lg_damage_burst_3s") or 0
-            if burst >= 150:
+            if burst >= 100:   # ~p99 of bucket-floor distribution
                 add("DAMAGE_BURST", "CONFIRMED", f"{burst}dmg/3s")
                 add_move += 4
                 reasons.append(f"+ damage burst {burst}/3s (+4)")
