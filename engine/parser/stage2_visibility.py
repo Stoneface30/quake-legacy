@@ -302,7 +302,7 @@ def run(candidates: list[dict], db_path: Path = RECOG_DB, verbose=True) -> list[
             if row.get("error"):
                 print(f"[s2] {key[0]} t={key[1]} ERROR {row['error']}")
             else:
-                print(f"[s2] {key[0]} t={key[1]} vic={key[2]} "
+                print(f"[s2] {key[0]} t={key[1]} vic={key[2]} "  # noqa
                       f"vf={row['visible_fraction']:.2f} "
                       f"vf-200={row['visible_fraction_m200']} "
                       f"los_open={row['los_open_duration_ms']}ms "

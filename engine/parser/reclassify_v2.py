@@ -335,7 +335,7 @@ def run() -> dict:
             ang = s2.get("angular_size_deg")
             los = s2.get("los_open_duration_ms")
             if vf is not None and 0 < vf <= 0.25 and (ang or 99) <= 3.0:
-                add("PIXEL_SHOT_CONFIRMED", "CONFIRMED",
+                add("PIXEL_SHOT_GEO", "HIGH",   # render proof upgrades to CONFIRMED
                     f"visible {vf:.0%}, {ang}deg target")
                 add_move += 8
                 reasons.append(f"+ pixel shot {vf:.0%} exposure (+8)")
