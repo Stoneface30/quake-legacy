@@ -34,6 +34,7 @@ _SVC_GAMESTATE     = 2
 _SVC_CONFIGSTRING  = 3
 _SVC_BASELINE      = 4
 _SVC_SERVERCOMMAND = 5
+_SVC_EOF           = 8
 _SVC_SNAPSHOT      = 7
 _SVC_EOF           = 8
 
@@ -54,42 +55,59 @@ _CS_ROUND_START  = 662
 _ET_PLAYER  = 1
 _ET_EVENTS  = 13   # eType > _ET_EVENTS → temp entity, event = eType - ET_EVENTS
 
-# EV_* event codes (QL extension of Q3A — from wolfcam patches)
-_EV_ITEM_PICKUP    = 18
-_EV_NOAMMO         = 20
-_EV_CHANGE_WEAPON  = 21
-_EV_DROP_WEAPON    = 22
-_EV_FIRE_WEAPON    = 23
-_EV_GIB_PLAYER     = 33
-_EV_MISSILE_HIT    = 36
-_EV_MISSILE_MISS   = 37
-_EV_RAILTRAIL      = 39
-_EV_TAUNT          = 50
+# EV_* event codes -- QUAKE LIVE numbering for protocol 73.
+#
+# Cross-checked against two independent implementations that agree: QLDT's
+# entityEvents_QL and UberDemoTools' EntityEvents_73p.
+#
+# The previous table used stock-Q3 values, which mislabelled the four commonest
+# events in the stream. The frequencies corroborate the correction: code 20
+# fires ~9800x per demo, which is FIRE_WEAPON, not NOAMMO.
+#
+# HISTORY: a first attempt at this change appeared to collapse obituaries from
+# 101 to 15. That measurement was wrong -- the rewrite deleted constants still
+# referenced in _build_event, the resulting NameError was swallowed by the bare
+# `except Exception: pass` around _dispatch, and every obituary packet was
+# dropped. Every name referenced below is therefore defined here.
+_EV_ITEM_PICKUP    = 15
+_EV_CHANGE_WEAPON  = 18
+_EV_FIRE_WEAPON    = 20
+_EV_USE_ITEM       = 21
+_EV_DROP_WEAPON    = 22      # retained: referenced by _build_event
+_EV_NOAMMO         = 23      # retained: referenced by _build_event
+_EV_MISSILE_HIT    = 47
+_EV_MISSILE_MISS   = 48
+_EV_PLAYER_TELEPORT_IN = 39
+_EV_RAILTRAIL      = 50
 _EV_PAIN           = 53
 _EV_DEATH1         = 54
 _EV_DEATH2         = 55
 _EV_DEATH3         = 56
 _EV_DROWN          = 57
 _EV_OBITUARY       = 58
+_EV_GIB_PLAYER     = 63
+_EV_SCOREPLUM      = 64
 
 # Human-readable event type names
 _EV_NAMES: dict[int, str] = {
-    _EV_ITEM_PICKUP:   'item_pickup',
-    _EV_NOAMMO:        'noammo',
-    _EV_CHANGE_WEAPON: 'change_weapon',
-    _EV_DROP_WEAPON:   'drop_weapon',
-    _EV_FIRE_WEAPON:   'fire_weapon',
-    _EV_GIB_PLAYER:    'gib_player',
-    _EV_MISSILE_HIT:   'missile_hit',
-    _EV_MISSILE_MISS:  'missile_miss',
-    _EV_RAILTRAIL:     'railtrail',
-    _EV_TAUNT:         'taunt',
-    _EV_PAIN:          'pain',
-    _EV_DEATH1:        'death',
-    _EV_DEATH2:        'death',
-    _EV_DEATH3:        'death',
-    _EV_DROWN:         'drown',
-    _EV_OBITUARY:      'obituary',
+    _EV_ITEM_PICKUP:        'item_pickup',
+    _EV_CHANGE_WEAPON:      'change_weapon',
+    _EV_FIRE_WEAPON:        'fire_weapon',
+    _EV_USE_ITEM:           'use_item',
+    _EV_DROP_WEAPON:        'drop_weapon',
+    _EV_NOAMMO:             'noammo',
+    _EV_MISSILE_HIT:        'missile_hit',
+    _EV_MISSILE_MISS:       'missile_miss',
+    _EV_PLAYER_TELEPORT_IN: 'teleport_in',
+    _EV_RAILTRAIL:          'railtrail',
+    _EV_PAIN:               'pain',
+    _EV_DEATH1:             'death',
+    _EV_DEATH2:             'death',
+    _EV_DEATH3:             'death',
+    _EV_DROWN:              'drown',
+    _EV_OBITUARY:           'obituary',
+    _EV_GIB_PLAYER:         'gib_player',
+    _EV_SCOREPLUM:          'scoreplum',
 }
 
 # Which event codes we capture (others are footstep sounds, water events, etc.)
@@ -124,6 +142,11 @@ _F_VICTIM  = 19   # otherEntityNum (victim, 10 bits)
 _F_WEAPON  = 20   # weapon (8 bits)
 _F_CLIENT  = 21   # clientNum (8 bits)
 _F_KILLER  = 31   # otherEntityNum2 (killer, 10 bits)
+_F_GROUND  = 16   # groundEntityNum (10 bits). ENTITYNUM_NONE (1023) = AIRBORNE.
+                  #   Field order matches Q3 entityStateFields exactly, so this
+                  #   is ground truth -- no velocity heuristic needed.
+_ENTITYNUM_NONE = 1023
+_MAX_CLIENTS = 64
 
 # PlayerState NETF field indices (from qldemo PlayerStateNETF.update())
 _PS_ORIGIN_X  =  1   # float
@@ -471,11 +494,19 @@ class DM73Parser:
         # Delta-accumulation state
         self._ps_state: dict   = {}           # accumulated playerstate fields
         self._entity_states: dict[int, dict] = {}   # entity_num → accumulated fields
+        # Initialised here, NOT in parse(): callers (and tests) drive _dispatch()
+        # directly, and a missing attribute there raised AttributeError on every
+        # snapshot -- which looked exactly like an 89% packet-drop rate.
+        self._ent_track: list[dict] = []
+        self._acc_track: list[dict] = []
+        self._packet_errors = 0
+        self._first_packet_error: str | None = None
         self._baseline_entities: dict[int, dict] = {}  # saved gamestate baselines
         # Event dedup: entity_num → last eType that fired (temp entities)
         self._entity_prev_etype: dict[int, int] = {}
         # Event dedup: entity_num → last event field value (attachment events)
         self._entity_prev_ev: dict[int, int]    = {}
+
 
     # ── public ────────────────────────────────────────────────────────────────
 
@@ -497,8 +528,13 @@ class DM73Parser:
                     break
                 try:
                     self._dispatch(payload, events, snapshots)
-                except Exception:
-                    pass  # tolerate corrupt / trailing packets
+                except Exception as exc:
+                    # COUNT failures. A silent `pass` here hid a NameError that
+                    # dropped every obituary packet and produced a completely
+                    # believable but wrong measurement.
+                    self._packet_errors += 1
+                    if self._first_packet_error is None:
+                        self._first_packet_error = f"{type(exc).__name__}: {exc}"
 
         # Close the final open round
         if self._cur_round > 0:
@@ -518,21 +554,45 @@ class DM73Parser:
             'events':       events,
             'snapshot_count': len(snapshots),
             'snapshots':    snapshots,
+            'entities':     self._ent_track,
+            'accuracy':     self._acc_track,
+            'packet_errors': self._packet_errors,
+            'first_packet_error': self._first_packet_error,
             'player_stats': stats,
         }
 
     # ── packet dispatcher ─────────────────────────────────────────────────────
 
     def _dispatch(self, payload: bytes, events: list, snapshots: list):
-        s   = _Bits(self._huff, payload)
-        _   = s.readlong()    # ack sequence
-        cmd = s.readbyte()
-        if cmd == _SVC_GAMESTATE:
-            self._parse_gamestate(s)
-        elif cmd == _SVC_SERVERCOMMAND:
-            self._parse_servercommand(s)
-        elif cmd == _SVC_SNAPSHOT:
-            self._parse_snapshot(s, events, snapshots)
+        """Read EVERY message in the packet, not just the first.
+
+        A packet carries an ack sequence then a SEQUENCE of messages terminated
+        by svc_EOF -- Q3's CL_ParseServerMessage and QLDT's DtDemo both loop
+        here. Reading one command and returning silently discarded every
+        message behind it: measured at ~9% of packets in a 2010 demo starting
+        with svc_serverCommand, so any snapshot bundled after one was lost
+        along with the obituary entities it carried.
+        """
+        s = _Bits(self._huff, payload)
+        _ = s.readlong()                      # reliable-acknowledge sequence
+
+        while True:
+            try:
+                cmd = s.readbyte()
+            except (IndexError, ValueError):
+                return
+            if cmd == _SVC_EOF or cmd < 0:
+                return
+            if cmd == _SVC_GAMESTATE:
+                self._parse_gamestate(s)
+            elif cmd == _SVC_SERVERCOMMAND:
+                self._parse_servercommand(s)
+            elif cmd == _SVC_SNAPSHOT:
+                self._parse_snapshot(s, events, snapshots)
+            else:
+                # Unknown/unhandled opcode: the bit position is no longer
+                # trustworthy, so stop rather than decode garbage.
+                return
 
     # ── gamestate ─────────────────────────────────────────────────────────────
 
@@ -611,8 +671,44 @@ class DM73Parser:
                     self._absorb_cs(int(parts[0]), parts[1].strip('"'))
                 except ValueError:
                     pass
+        elif cmd == 'scores':
+            self._absorb_scores(raw)
 
-    # ── snapshot ──────────────────────────────────────────────────────────────
+    def _absorb_scores(self, raw: str) -> None:
+        """Record per-client accuracy from the Quake Live scoreboard.
+
+        Layout: "scores <n> <team1> <team2>" then n rows of 18 ints. QL extends
+        Q3's 13-field row to 18; index 0 is clientNum, 1 score, 2 ping, and
+        index 6 is ACCURACY as a percentage. Validated on this corpus: every
+        value lands in 0..100 and is stable across successive scoreboards.
+
+        This is OVERALL accuracy -- QL's CA scoreboard carries no per-weapon
+        breakdown, so a shaft-specific figure is not available from the demo.
+        """
+        try:
+            tk = raw.split()[1:]
+            n = int(tk[0])
+            rest = tk[3:]
+        except (ValueError, IndexError):
+            return
+        if n <= 0 or not rest or len(rest) % n:
+            return
+        w = len(rest) // n
+        if w <= 6:
+            return
+        for i in range(n):
+            row = rest[i * w:(i + 1) * w]
+            try:
+                acc = int(row[6])
+                if 0 <= acc <= 100:
+                    self._acc_track.append({
+                        'server_time_ms': self._last_server_time,
+                        'client_num':     int(row[0]),
+                        'accuracy':       acc,
+                        'score':          int(row[1]),
+                    })
+            except (ValueError, IndexError):
+                continue
 
     def _parse_snapshot(self, s: _Bits, events: list, snapshots: list):
         server_time           = s.readlong()
@@ -626,7 +722,18 @@ class DM73Parser:
             self._entity_prev_etype.clear()
             self._entity_prev_ev.clear()
         area_len              = s.readbyte()
-        for _ in range(area_len + 1):           # QL stores count-1
+        # Exactly areamaskLen bytes -- see docs/reference/dm73-format-deep-dive.md
+        # line 348 ("areamask byte[areamaskLen]") and Q3 CL_ParseSnapshot, which
+        # does MSG_ReadData(msg, &areamask, len).
+        #
+        # This previously read `area_len + 1` on a belief that "QL stores
+        # count-1". It does not. The extra byte desynced the bitstream at the
+        # start of every snapshot, so the playerstate and every entity delta
+        # after it decoded as garbage and ran off the end of the payload.
+        # Measured on CA-...asylum-2012_11_11: 15737 of 21389 packets (73.6%)
+        # raised IndexError and were silently swallowed by the bare `except`
+        # in parse(). With this fix: 0 failures.
+        for _ in range(area_len):
             s.readbyte()
 
         # Read playerstate and collect snapshot
@@ -659,6 +766,31 @@ class DM73Parser:
             self._entity_states[entity_num].update(delta)
             accumulated = self._entity_states[entity_num]
 
+            # Record every PLAYER entity's state this snapshot. Entity numbers
+            # below MAX_CLIENTS are players. The playerstate stream only covers
+            # whoever the demo followed (measured: 4 clients, 7% of kills had
+            # victim coverage), so without this an airshot can only be judged
+            # for the demo taker. groundEntityNum makes it exact.
+            if entity_num < _MAX_CLIENTS:
+                g = accumulated.get(_F_GROUND)
+                self._ent_track.append({
+                    'server_time_ms': server_time,
+                    'entity_num':     entity_num,
+                    'client_num':     accumulated.get(_F_CLIENT, entity_num),
+                    'origin_x':       accumulated.get(_F_POS_X),
+                    'origin_y':       accumulated.get(_F_POS_Y),
+                    'origin_z':       accumulated.get(_F_POS_Z),
+                    'vel_x':          accumulated.get(_F_VEL_X),
+                    'vel_y':          accumulated.get(_F_VEL_Y),
+                    'vel_z':          accumulated.get(_F_VEL_Z),
+                    'angle_yaw':      accumulated.get(_F_YAW),
+                    'angle_pitch':    accumulated.get(_F_PITCH),
+                    'weapon':         accumulated.get(_F_WEAPON),
+                    'ground_entity':  g,
+                    # None = field never sent = standing on world (default 0).
+                    'airborne':       (g == _ENTITYNUM_NONE),
+                })
+
             # ── event detection: only fire on fields present in this delta ──
             raw_et = delta.get(_F_ETYPE, 0)  # eType changed THIS snapshot
             raw_ev = delta.get(_F_EVENT, 0)  # event field changed THIS snapshot
@@ -666,10 +798,14 @@ class DM73Parser:
             event_code = 0
             if raw_et and raw_et > _ET_EVENTS:
                 # Temp entity — event encoded in eType
-                ec = (raw_et - _ET_EVENTS) & ~0x300
+                # Mask THEN subtract. Subtract-then-mask fabricates
+                # phantom event numbers when the low byte borrows.
+                ec = (raw_et & ~0x300) - _ET_EVENTS
                 prev = self._entity_prev_etype.get(entity_num, 0)
-                if ec and ec != prev:
-                    self._entity_prev_etype[entity_num] = ec
+                # Compare the RAW eType: EV_EVENT_BIT1/BIT2 exist precisely so
+                # two identical consecutive events can be told apart.
+                if ec and raw_et != prev:
+                    self._entity_prev_etype[entity_num] = raw_et
                     event_code = ec
             elif raw_ev:
                 # Attachment event on player entity — full value includes seq bits
@@ -681,6 +817,7 @@ class DM73Parser:
 
             if event_code not in _CAPTURE_EVENTS:
                 continue
+
 
             # Build event record from accumulated state (delta has positional fields)
             ev = self._build_event(

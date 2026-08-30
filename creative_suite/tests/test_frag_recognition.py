@@ -9,13 +9,33 @@ sys.path.insert(0, str(REPO / "engine" / "parser"))
 fc = pytest.importorskip("frag_classify")
 fr = pytest.importorskip("frag_recognition")
 rs = pytest.importorskip("recognition_scan")
+rn = pytest.importorskip("recognition_norms")
 
 
-def _ent(client, t, z=0.0, ground=0, yaw=0.0, x=0.0, y=0.0):
-    return {"client_num": client, "server_time_ms": t, "origin_x": x,
-            "origin_y": y, "origin_z": z, "vel_x": 0.0, "vel_y": 0.0,
-            "vel_z": 0.0, "angle_yaw": yaw, "angle_pitch": 0.0,
-            "ground_entity": ground, "airborne": ground == 1023}
+def _ent(client, t, z=0.0, ground=0, yaw=0.0, x=0.0, y=0.0,
+         vx=0.0, vy=0.0, vz=0.0, weapon=None, health=None):
+    row = {"client_num": client, "server_time_ms": t, "origin_x": x,
+           "origin_y": y, "origin_z": z, "vel_x": vx, "vel_y": vy,
+           "vel_z": vz, "angle_yaw": yaw, "angle_pitch": 0.0,
+           "ground_entity": ground, "airborne": ground == 1023}
+    if weapon is not None:
+        row["weapon"] = weapon
+    if health is not None:
+        row["health"] = health
+    return row
+
+
+def _ps(client, t, health=None, weapon=None, vx=0.0, vy=0.0, vz=0.0,
+        x=0.0, y=0.0, z=0.0, yaw=0.0):
+    """Playerstate-style row: no ground_entity/airborne (recorder stream)."""
+    row = {"client_num": client, "server_time_ms": t, "origin_x": x,
+           "origin_y": y, "origin_z": z, "vel_x": vx, "vel_y": vy,
+           "vel_z": vz, "angle_yaw": yaw, "angle_pitch": 0.0}
+    if health is not None:
+        row["health"] = health
+    if weapon is not None:
+        row["weapon"] = weapon
+    return row
 
 
 def _kill(t, killer=1, victim=2, weapon=fc.W_LIGHTNING, name="LIGHTNING"):
@@ -183,7 +203,8 @@ def test_highlight_score_is_sum_of_components():
              _air_victim_ents(150.0))[0]
     assert r.highlight_score == pytest.approx(sum(r.components.values()))
     assert len(r.reasons) >= len(r.components)
-    assert all(x.startswith("+") for x in r.reasons)
+    # scores start "+", penalties start "- " (taxonomy v2)
+    assert all(x.startswith(("+", "- ")) for x in r.reasons)
 
 
 def test_weapon_combo_class_and_score():
@@ -193,7 +214,7 @@ def test_weapon_combo_class_and_score():
     c = classes_of(r)
     assert "WEAPON_COMBO" in c
     assert "rocket_rail" in c["WEAPON_COMBO"]["detail"]
-    assert r.components["weapon_combo_score"] > 0
+    assert r.components["combo_score"] > 0
 
 
 # ── confidence mapping ──────────────────────────────────────────────────────
@@ -261,3 +282,330 @@ def test_dedupe_keeps_different_moments_same_match():
     match_group = {"a.dm_73": 0}
     rows = [_row("a.dm_73", t=5000), _row("a.dm_73", t=9000)]
     assert len(rs.dedupe_rows(rows, match_group)) == 2
+
+
+# ════════════════════════════════════ taxonomy v2 ═══════════════════════════
+
+def _norms(metric="attacker_speed", scale=10.0):
+    """Synthetic archive table: percentile p maps to value p*scale."""
+    return rn.Norms({metric: [p * scale for p in range(101)]})
+
+
+def test_version_bump():
+    assert fr.RECOGNITION_VERSION == 2
+    assert rs.RECOGNITION_VERSION == 2
+
+
+# ── recognition_norms: grid math + persistence ──────────────────────────────
+
+def test_norms_percentile_interpolation():
+    n = _norms()
+    assert n.percentile_of("attacker_speed", -5) == 0.0
+    assert n.percentile_of("attacker_speed", 2000) == 100.0
+    assert n.percentile_of("attacker_speed", 500) == pytest.approx(50.0)
+    assert n.percentile_of("attacker_speed", 905) == pytest.approx(90.5)
+    assert n.percentile_of("attacker_speed", 992) == pytest.approx(99.2)
+    assert n.value_at("attacker_speed", 90) == 900.0
+    assert n.percentile_of("no_such_metric", 5) is None
+
+
+def test_norms_save_load_roundtrip(tmp_path):
+    p = tmp_path / "norms.json"
+    rn.save_norms(_norms(), p)
+    loaded = rn.load_norms(p)
+    assert loaded is not None
+    assert loaded.percentile_of("attacker_speed", 500) == pytest.approx(50.0)
+    assert rn.load_norms(tmp_path / "missing.json") is None
+
+
+# ── percentile speed labels from a synthetic norms table ────────────────────
+
+def test_speed_tier_labels_from_norms():
+    n = _norms()
+    assert fr.speed_tier(500, n)[0] is None
+    assert fr.speed_tier(905, n)[0] == "FAST"
+    assert fr.speed_tier(975, n)[0] == "VERY_FAST"
+    assert fr.speed_tier(992, n)[0] == "EXTREME_SPEED"
+    label, pct, prov = fr.speed_tier(992, n)
+    assert pct == pytest.approx(99.2)
+    assert prov is False
+
+
+def test_speed_tier_provisional_without_norms():
+    label, pct, prov = fr.speed_tier(1400, None)
+    assert label == "EXTREME_SPEED" and pct is None and prov is True
+    assert fr.speed_tier(800, None)[0] == "FAST"
+    assert fr.speed_tier(300, None)[0] is None
+
+
+def test_high_speed_frag_class_and_percentile_attr():
+    ents = [_ent(1, t, vx=992.0) for t in range(0, 1100, 100)]
+    n = _norms()
+    r = _rec([_kill(1000)], ents)[0]                      # no norms
+    r2 = fr.recognize({"events": [_kill(1000)], "entities": ents,
+                       "accuracy": []}, player=1,
+                      demo_name="t.dm_73", norms=n)[0]
+    c2 = classes_of(r2)
+    assert "HIGH_SPEED_FRAG" in c2
+    assert "EXTREME_SPEED" in c2["HIGH_SPEED_FRAG"]["detail"]
+    assert r2.attributes["attacker_speed_percentile"] == pytest.approx(99.2)
+    assert any("p99.2" in x for x in r2.reasons)
+    # without norms the provisional path fires (992 ups -> FAST) and says so
+    c1 = classes_of(r)
+    assert "HIGH_SPEED_FRAG" in c1
+    assert "FAST" in c1["HIGH_SPEED_FRAG"]["detail"]
+    assert any("provisional" in x for x in r.reasons if "fast" in x)
+
+
+def test_speed_target_frag_uses_victim_percentile():
+    ents = [_ent(1, t) for t in range(0, 1100, 100)]
+    ents += [_ent(2, t, x=100.0, vx=960.0) for t in range(0, 1100, 100)]
+    n = rn.Norms({"victim_speed": [p * 10.0 for p in range(101)]})
+    r = fr.recognize({"events": [_kill(1000)], "entities": ents,
+                      "accuracy": []}, player=1,
+                     demo_name="t.dm_73", norms=n)[0]
+    assert "SPEED_TARGET_FRAG" in classes_of(r)
+    assert r.attributes["victim_speed_percentile"] == pytest.approx(96.0)
+
+
+# ── rocket-jump self-impulse ────────────────────────────────────────────────
+
+def _rj_killer_ents():
+    """Ground until 2.0s, +700 ups vertical step at 2.2s, airborne at kill."""
+    ents = [_ent(1, t, z=0.0, ground=0, vz=0.0) for t in range(0, 2100, 100)]
+    ents += [_ent(1, 2200, z=40.0, ground=1023, vz=700.0),
+             _ent(1, 2600, z=100.0, ground=1023, vz=500.0),
+             _ent(1, 3000, z=150.0, ground=1023, vz=300.0)]
+    return ents
+
+
+def test_rocket_jump_frag_from_self_impulse():
+    r = _rec([_kill(3000, weapon=fc.W_ROCKET, name="ROCKET")],
+             _rj_killer_ents())[0]
+    c = classes_of(r)
+    assert "ROCKET_JUMP_FRAG" in c
+    assert c["ROCKET_JUMP_FRAG"]["confidence"] == fr.MEDIUM
+    assert r.attributes["rocket_jump_impulse_ups"] == pytest.approx(700.0)
+
+
+def test_rocket_jump_entry_for_non_rocket_kill():
+    r = _rec([_kill(3000, weapon=fc.W_RAILGUN, name="RAILGUN")],
+             _rj_killer_ents())[0]
+    assert "ROCKET_JUMP_ENTRY" in classes_of(r)
+    assert "ROCKET_JUMP_FRAG" not in classes_of(r)
+
+
+def test_no_rocket_jump_without_impulse():
+    ents = [_ent(1, t, z=0.0, ground=0) for t in range(0, 2000, 100)]
+    ents += [_ent(1, t, z=150.0, ground=1023, vz=100.0)
+             for t in range(2000, 3100, 100)]
+    r = _rec([_kill(3000, weapon=fc.W_ROCKET, name="ROCKET")], ents)[0]
+    assert "ROCKET_JUMP_FRAG" not in classes_of(r)
+
+
+# ── target transfer ─────────────────────────────────────────────────────────
+
+def _transfer_ents():
+    ents = [_ent(1, t) for t in range(0, 2100, 100)]                 # killer
+    ents += [_ent(2, t, x=1000.0) for t in range(0, 1100, 100)]      # A east
+    ents += [_ent(3, t, y=1000.0) for t in range(0, 2100, 100)]      # B north
+    return ents
+
+
+def test_target_transfer_math():
+    ev = [_kill(1000, victim=2), _kill(2000, victim=3)]
+    r = _rec(ev, _transfer_ents())[1]
+    c = classes_of(r)
+    assert "TARGET_TRANSFER" in c
+    assert r.attributes["transfer_deg"] == pytest.approx(90.0, abs=1.0)
+    assert r.attributes["transfer_ms"] == 1000
+    assert any("target transfer" in x for x in r.reasons)
+
+
+def test_lg_transfer_subtype():
+    ev = [_kill(1000, victim=2), _kill(2000, victim=3)]
+    recs = _rec(ev, _transfer_ents())
+    assert "LG_TRANSFER" in classes_of(recs[1])
+
+
+def test_no_transfer_below_angle_threshold():
+    ents = [_ent(1, t) for t in range(0, 2100, 100)]
+    ents += [_ent(2, t, x=1000.0) for t in range(0, 1100, 100)]
+    ents += [_ent(3, t, x=1000.0, y=100.0)
+             for t in range(0, 2100, 100)]                # ~6 deg apart
+    ev = [_kill(1000, victim=2), _kill(2000, victim=3)]
+    assert "TARGET_TRANSFER" not in classes_of(_rec(ev, ents)[1])
+
+
+# ── popup combo ─────────────────────────────────────────────────────────────
+
+def _popup_ents():
+    ents = [_ent(1, t) for t in range(0, 3100, 100)]
+    ents += [_ent(2, t, x=300.0, z=0.0, ground=0) for t in range(0, 1900, 100)]
+    ents += [_ent(2, 2000, x=300.0, z=50.0, ground=1023, vz=300.0),
+             _ent(2, 2500, x=300.0, z=120.0, ground=1023, vz=150.0),
+             _ent(2, 3000, x=300.0, z=150.0, ground=1023, vz=50.0)]
+    return ents
+
+
+def test_popup_combo_low_candidate_without_missile_evidence():
+    r = _rec([_kill(3000, weapon=fc.W_RAILGUN, name="RAILGUN")],
+             _popup_ents())[0]
+    c = classes_of(r)
+    assert "POPUP_COMBO" in c
+    assert c["POPUP_COMBO"]["confidence"] == fr.LOW_CANDIDATE
+    assert r.attributes["popup_rise_vz"] == pytest.approx(300.0)
+
+
+def test_popup_combo_medium_with_missile_hit():
+    events = [_kill(3000, weapon=fc.W_RAILGUN, name="RAILGUN"),
+              {"type": "missile_hit", "server_time_ms": 2400}]
+    r = fr.recognize({"events": events, "entities": _popup_ents(),
+                      "accuracy": []}, player=1, demo_name="t.dm_73")[0]
+    c = classes_of(r)
+    assert c["POPUP_COMBO"]["confidence"] == fr.MEDIUM
+
+
+# ── multikill v2: kills/second + deep subtypes ──────────────────────────────
+
+def test_kills_per_second_and_rapid_multikill():
+    ev = [_kill(1000, victim=2), _kill(2500, victim=3), _kill(4000, victim=4)]
+    last = _rec(ev)[-1]
+    mk = last.attributes["multikill"]
+    assert mk["kills_per_second"] == pytest.approx(1.0)
+    assert "RAPID_MULTIKILL" in classes_of(last)     # provisional >= 1.0 kps
+
+
+def test_slow_chain_is_not_rapid():
+    ev = [_kill(1000, victim=2), _kill(3900, victim=3), _kill(6800, victim=4)]
+    last = _rec(ev)[-1]
+    assert "MULTIKILL_TRIPLE" in classes_of(last)
+    assert "RAPID_MULTIKILL" not in classes_of(last)
+
+
+def test_multikill_penta_name():
+    ev = [_kill(1000 + i * 1000, victim=2 + i) for i in range(5)]
+    names = [n for r in _rec(ev) for n in r.class_names]
+    assert "MULTIKILL_PENTA" in names
+
+
+def test_multi_weapon_chain():
+    ev = [_kill(1000, victim=2, weapon=fc.W_ROCKET, name="ROCKET"),
+          _kill(2500, victim=3, weapon=fc.W_RAILGUN, name="RAILGUN")]
+    last = _rec(ev)[-1]
+    assert "MULTI_WEAPON_CHAIN" in classes_of(last)
+    assert "COMBO_KILL" in classes_of(last)          # rocket->rail finisher
+
+
+def test_rail_rocket_finisher_pair():
+    ev = [_kill(1000, victim=2, weapon=fc.W_RAILGUN, name="RAILGUN"),
+          _kill(2500, victim=3, weapon=fc.W_ROCKET, name="ROCKET")]
+    last = _rec(ev)[-1]
+    c = classes_of(last)
+    assert "COMBO_KILL" in c
+    assert "rail_rocket" in c["COMBO_KILL"]["detail"]
+
+
+# ── context: recorder health + weapon switch ────────────────────────────────
+
+def test_low_health_win_from_recorded_health():
+    snaps = [_ps(1, t, health=20) for t in range(0, 3100, 100)]
+    r = fr.recognize({"events": [_kill(3000)], "entities": [],
+                      "snapshots": snaps, "accuracy": []},
+                     player=1, demo_name="t.dm_73")[0]
+    c = classes_of(r)
+    assert "LOW_HEALTH_WIN" in c
+    assert c["LOW_HEALTH_WIN"]["confidence"] == fr.HIGH
+    assert r.attributes["min_health_prekill"] == 20
+    assert r.components["drama_score"] > 0
+
+
+def test_last_hp_frag_beats_low_health():
+    snaps = [_ps(1, t, health=8) for t in range(0, 3100, 100)]
+    r = fr.recognize({"events": [_kill(3000)], "entities": [],
+                      "snapshots": snaps, "accuracy": []},
+                     player=1, demo_name="t.dm_73")[0]
+    assert "LAST_HP_FRAG" in classes_of(r)
+    assert "LOW_HEALTH_WIN" not in classes_of(r)
+
+
+def test_fast_weapon_switch():
+    ents = [_ent(1, t, weapon=5) for t in range(0, 2600, 100)]
+    ents += [_ent(1, t, weapon=7) for t in range(2600, 3100, 100)]
+    r = _rec([_kill(3000, weapon=fc.W_RAILGUN, name="RAILGUN")], ents)[0]
+    c = classes_of(r)
+    assert "FAST_WEAPON_SWITCH" in c
+    assert r.attributes["weapon_switch_gap_ms"] == 400
+
+
+def test_no_switch_class_when_weapon_held():
+    ents = [_ent(1, t, weapon=7) for t in range(0, 3100, 100)]
+    r = _rec([_kill(3000, weapon=fc.W_RAILGUN, name="RAILGUN")], ents)[0]
+    assert "FAST_WEAPON_SWITCH" not in classes_of(r)
+
+
+# ── penalties ───────────────────────────────────────────────────────────────
+
+def test_stationary_victim_penalty_and_reason():
+    ents = [_ent(2, t, x=500.0) for t in range(0, 3100, 100)]   # parked victim
+    r = _rec([_kill(3000)], ents)[0]
+    assert r.components["penalty_score"] == pytest.approx(-1.0)
+    assert any(x.startswith("- stationary victim") for x in r.reasons)
+    # penalty is part of the additive score
+    assert r.highlight_score == pytest.approx(sum(r.components.values()))
+
+
+def test_no_penalty_when_victim_was_fighting():
+    events = [_kill(3000),
+              {"type": "pain", "server_time_ms": 1500, "client_num": 2}]
+    ents = [_ent(2, t, x=500.0) for t in range(0, 3100, 100)]
+    r = fr.recognize({"events": events, "entities": ents, "accuracy": []},
+                     player=1, demo_name="t.dm_73")[0]
+    assert "penalty_score" not in r.components
+
+
+def test_no_penalty_for_moving_victim():
+    ents = [_ent(2, t, x=500.0, vx=300.0) for t in range(0, 3100, 100)]
+    r = _rec([_kill(3000)], ents)[0]
+    assert "penalty_score" not in r.components
+
+
+# ── reaction candidate (stage-2 gated) ──────────────────────────────────────
+
+def test_reaction_shot_candidate_with_placeholder():
+    ents = [_ent(1, t) for t in range(0, 3100, 100)]
+    ents += [_ent(2, 2800, x=400.0), _ent(2, 3000, x=400.0)]  # 200 ms presence
+    r = _rec([_kill(3000, weapon=fc.W_RAILGUN, name="RAILGUN")], ents)[0]
+    c = classes_of(r)
+    assert "REACTION_SHOT_CANDIDATE" in c
+    assert c["REACTION_SHOT_CANDIDATE"]["confidence"] == fr.LOW_CANDIDATE
+    assert "reaction_ms" in r.attributes
+    assert r.attributes["reaction_ms"] is None       # stage-2 fills this
+
+
+def test_no_reaction_candidate_for_lg():
+    ents = [_ent(1, t) for t in range(0, 3100, 100)]
+    ents += [_ent(2, 2800, x=400.0), _ent(2, 3000, x=400.0)]
+    r = _rec([_kill(3000)], ents)[0]                 # LG kill
+    assert "REACTION_SHOT_CANDIDATE" not in classes_of(r)
+
+
+# ── movement extras ─────────────────────────────────────────────────────────
+
+def test_vertical_action():
+    ents = [_ent(1, t, z=float(t) * 0.2) for t in range(1000, 3100, 100)]
+    r = _rec([_kill(3000)], ents)[0]
+    c = classes_of(r)
+    assert "VERTICAL_ACTION" in c
+    assert r.attributes["vertical_travel"] >= fr.VERTICAL_MIN_DZ
+
+
+def test_high_speed_multikill_needs_all_kills_at_speed():
+    ents = [_ent(1, t, vx=1400.0) for t in range(0, 4200, 100)]
+    ev = [_kill(1000, victim=2), _kill(2500, victim=3), _kill(4000, victim=4)]
+    last = _rec(ev, ents)[-1]
+    c = classes_of(last)
+    assert "HIGH_SPEED_MULTIKILL" in c
+    mk = last.attributes["multikill"]
+    assert mk["speed_min"] == pytest.approx(1400.0)
+    assert mk["speed_samples"] == 3
