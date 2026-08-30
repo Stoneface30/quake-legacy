@@ -39,7 +39,8 @@ RECLASS_MARK = "db_reclass_v2"
 _REASON_RE = re.compile(
     r"^([+-] (extreme-speed p|very-fast p|high-speed p|fast target p|"
     r"stationary target|rapid chain |1v\d clutch |near-death |critical |"
-    r"low hp |survived \d+dmg burst|true flick |extreme flick |clean snap|"
+    r"low hp |survived \d+dmg burst|true flick |extreme flick |clean flick |"
+    r"tracking sweep |aim transition |clean snap|"
     r"lg pressure |lg dodge |damage burst ))")
 
 # Legacy weights of the two buggy runs (for the one-time score repair).
@@ -222,16 +223,33 @@ def run() -> dict:
             # teleport/respawn view snap, not aim
             humanly = (dps or 0) <= 2500 and fd <= 250
             clean = clean and humanly
+            # label contract: EXTREME_FLICK is a strict SUBSET of
+            # CLEAN_FLICK (both always applied together).
             if fd >= 90 and fms <= 350 and dps >= 350 and clean:
+                add("CLEAN_FLICK", "CONFIRMED", f"{fd}deg/{fms}ms")
                 add("EXTREME_FLICK", "CONFIRMED",
-                    f"{fd}deg/{fms}ms peak {dps}dps settle {settle}")
+                    f"{fd}deg/{fms}ms peak {dps}dps rev {rev}")
                 add_move += 9
                 reasons.append(f"+ extreme flick {fd}deg @ {dps}dps (+9)")
             elif fd >= 50 and fms <= 300 and clean:
-                add("TRUE_FLICK", "CONFIRMED",
-                    f"{fd}deg/{fms}ms settle {settle}")
+                add("CLEAN_FLICK", "CONFIRMED",
+                    f"{fd}deg/{fms}ms rev {rev}")
                 add_move += 4
-                reasons.append(f"+ true flick {fd}deg/{fms}ms (+4)")
+                reasons.append(f"+ clean flick {fd}deg/{fms}ms (+4)")
+            elif fd >= 80 and fms >= 400 and humanly and (rev or 0) <= 3:
+                # impressive aim that is NOT a snap: sustained engaged sweep
+                # (the honest home of the downgraded 106deg event)
+                add("AGGRESSIVE_TRACKING_SWEEP", "CONFIRMED",
+                    f"{fd}deg over {fms}ms, rev {rev}")
+                add_move += 4
+                reasons.append(f"+ tracking sweep {fd}deg/{fms}ms (+4)")
+            elif fd >= 120 and humanly:
+                add("LARGE_AIM_TRANSITION", "HIGH", f"{fd}deg/{fms}ms")
+                add_move += 2
+                reasons.append(f"+ aim transition {fd}deg (+2)")
+            if fd >= 80 and humanly and                     (a.get("attacker_speed_percentile") or 0) >= 90:
+                add("HIGH_SPEED_AIM_TRANSITION", "CONFIRMED",
+                    f"{fd}deg at p{a.get('attacker_speed_percentile')}")
             if clean and (rev == 0) and fd >= 40:
                 add_move += 2
                 reasons.append("+ clean snap (+2)")
