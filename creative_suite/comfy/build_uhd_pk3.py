@@ -6,8 +6,11 @@ assets would "exist" but never load. Every replacement is therefore written
 at the ORIGINAL in-pak filename and extension, so zzz_* pak precedence
 (ENG-2) decides deterministically.
 
-Pilot scope: surface-routed categories only (PH5-7): textures, players,
-weapons2. FX/shape-critical categories are excluded on purpose.
+Scope: any category passed via --categories; upscale_only renders are
+shape-safe (pure CNN, no diffusion) so PH5-7 permits them even for
+FX-routed categories. True FX sheets (gfx/weaphits/sprites/ui) are still
+left stock for the master profile: alpha-edge fidelity on explosions and
+beams outranks resolution.
 
 Usage:
     python -u creative_suite/comfy/build_uhd_pk3.py [--categories textures players weapons2]
@@ -32,7 +35,7 @@ STAGING_GAMEDIR = (REPO_ROOT / "output" / "demo_v2" / "_wolfcam_staging"
                    / "wolfcam-ql")
 PAK00 = (REPO_ROOT / "output" / "demo_v2" / "_wolfcam_staging" / "baseq3"
          / "pak00.pk3")
-MANIFEST_OUT = REPO_ROOT / "output" / "demo_v2" / "uhd_pk3_manifest.json"
+MANIFEST_OUT = REPO_ROOT / "output" / "demo_v2" / "uhd_pk3_manifest.json"  # overwritten per run; offset keeps pk3 names distinct
 SPLIT_BYTES = 1_800_000_000
 MAX_DIM = 2048   # engine texture cap (glconfig scaling caps at 2048)
 
@@ -73,20 +76,20 @@ def convert(png_path: Path, target_ext: str) -> bytes | None:
     return buf.getvalue()
 
 
-def run(categories: list[str]) -> dict:
+def run(categories: list[str], offset: int = 0) -> dict:
     idx = pak00_index()
     conn = sqlite3.connect(f"file:{ASSETS_DB}?mode=ro", uri=True)
     rows = conn.execute(
         """SELECT a.rel_path, r.output_path FROM assets a
            JOIN renders r ON r.asset_id = a.id
            WHERE r.pipeline='upscale_only' AND r.status='ok'
-             AND a.route='surface' AND a.category IN (%s)"""
+             AND a.category IN (%s)"""
         % ",".join("?" * len(categories)), categories).fetchall()
     conn.close()
 
     manifest = {"included": [], "skipped": [], "pk3s": []}
     pk3_n, written = 1, 0
-    zf = zipfile.ZipFile(STAGING_GAMEDIR / f"zzz_uhd_{pk3_n:02d}.pk3", "w",
+    zf = zipfile.ZipFile(STAGING_GAMEDIR / f"zzz_uhd_{pk3_n + offset:02d}.pk3", "w",
                          zipfile.ZIP_DEFLATED)
     manifest["pk3s"].append(zf.filename)
 
@@ -113,7 +116,7 @@ def run(categories: list[str]) -> dict:
             pk3_n += 1
             written = 0
             zf = zipfile.ZipFile(
-                STAGING_GAMEDIR / f"zzz_uhd_{pk3_n:02d}.pk3", "w",
+                STAGING_GAMEDIR / f"zzz_uhd_{pk3_n + offset:02d}.pk3", "w",
                 zipfile.ZIP_DEFLATED)
             manifest["pk3s"].append(zf.filename)
         zf.writestr(orig, data)
@@ -132,8 +135,10 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--categories", nargs="+",
                     default=["textures", "players", "weapons2"])
+    ap.add_argument("--offset", type=int, default=0,
+                    help="pk3 numbering offset (avoid clobbering earlier packs)")
     args = ap.parse_args()
-    m = run(args.categories)
+    m = run(args.categories, args.offset)
     print("included:", m["counts"]["included"],
           "skipped:", m["counts"]["skipped"])
     for p in m["pk3s"]:
