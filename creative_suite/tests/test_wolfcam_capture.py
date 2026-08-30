@@ -108,3 +108,15 @@ def test_capture_lock_blocks_second_writer(tmp_path, monkeypatch):
         cbr.acquire_lock()      # same live pid counts as a running writer
     cbr.release_lock()
     assert not (tmp_path / "_capture.lock").exists()
+
+
+def test_stage_demo_names_are_content_derived(tmp_path):
+    (tmp_path / "wolfcam-ql" / "demos").mkdir(parents=True)
+    a = tmp_path / "A.dm_73"
+    b = tmp_path / "B.dm_73"
+    a.write_bytes(b"alpha" * 100)
+    b.write_bytes(b"bravo" * 100)
+    sa = wc.stage_demo(a, 1, tmp_path)
+    sb = wc.stage_demo(b, 1, tmp_path)   # same index MUST NOT collide
+    assert sa != sb
+    assert wc.stage_demo(a, 9, tmp_path) == sa  # stable across runs/indices

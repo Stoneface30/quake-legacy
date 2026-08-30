@@ -95,9 +95,21 @@ def ensure_install(staging: Path = STAGING) -> Path:
     return staging
 
 
-def stage_demo(demo_path: Path, idx: int, staging: Path = STAGING) -> str:
-    """Copy a demo under a short, cfg-safe name. Returns the safe stem."""
-    safe = f"d{idx:04d}"
+def stage_demo(demo_path: Path, idx: int = 0, staging: Path = STAGING) -> str:
+    """Copy a demo under a short, cfg-safe, COLLISION-FREE name.
+
+    The name is derived from the demo file's content (first 64KB + size), not
+    a loop index: index-based names silently aliased different demos across
+    runs, so a capture could seek into the WRONG demo (found 2026-08-30 via a
+    validation frame showing another match's scoreboard). idx is retained for
+    call compatibility and ignored.
+    """
+    import hashlib
+    h = hashlib.sha256()
+    h.update(str(demo_path.stat().st_size).encode())
+    with open(demo_path, "rb") as f:
+        h.update(f.read(65536))
+    safe = f"d{h.hexdigest()[:10]}"
     dst = staging / "wolfcam-ql" / "demos" / f"{safe}.dm_73"
     if not dst.exists() or dst.stat().st_size != demo_path.stat().st_size:
         shutil.copy2(demo_path, dst)
