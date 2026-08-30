@@ -376,7 +376,7 @@ def analyze_kills(parsed: dict, kills: list[tuple[int, str, int]],
         impacts.append((e["server_time_ms"],
                         (e["pos_x"], e["pos_y"], e["pos_z"]),
                         e.get("weapon"), e["type"]))
-    impacts.sort()
+    impacts.sort(key=lambda x: x[0])  # ts only; tied rows may carry None fields
 
     snaps = []
     for sn in parsed.get("snapshots", []):
