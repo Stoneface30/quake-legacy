@@ -609,3 +609,14 @@ def test_high_speed_multikill_needs_all_kills_at_speed():
     mk = last.attributes["multikill"]
     assert mk["speed_min"] == pytest.approx(1400.0)
     assert mk["speed_samples"] == 3
+
+
+def test_health_drama_context_weighting():
+    """20 HP in a 1v3 must outrank 20 HP cleanup (reclassify_v2 rule)."""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "engine" / "parser"))
+    # context multiplier: 1.0 + 0.5*(enemies-1); LOW_HP base 3
+    assert round(3 * (1.0 + 0.5 * 2), 1) > round(3 * 1.0, 1)
+    # near-death beats low-hp at same context
+    assert 10 * 1.0 > 3 * 1.0

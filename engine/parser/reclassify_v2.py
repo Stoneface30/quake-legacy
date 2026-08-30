@@ -180,6 +180,39 @@ def run() -> dict:
                         stats["clutch_labeled"] += 1
                     break
 
+        # health drama (targeted extraction; context-weighted: the same HP
+        # means more with more enemies alive — mandate: 20HP cleanup != 20HP 1v3)
+        h = a.get("health_at_frag")
+        if h is not None:
+            enemies = 1
+            if "CLUTCH_1V4_PLUS" in have:
+                enemies = 4
+            elif "CLUTCH_1V3" in have:
+                enemies = 3
+            elif "CLUTCH_1V2" in have:
+                enemies = 2
+            ctx = 1.0 + 0.5 * (enemies - 1)
+            if h <= 5:
+                add("LAST_HP_CANDIDATE", "CONFIRMED", f"{h}hp")
+                bonus = round(10 * ctx, 1)
+                add_drama += bonus
+                reasons.append(f"+ near-death {h}hp x1v{enemies} (+{bonus})")
+            elif h <= 15:
+                add("CRITICAL_HP_FRAG", "CONFIRMED", f"{h}hp")
+                bonus = round(6 * ctx, 1)
+                add_drama += bonus
+                reasons.append(f"+ critical {h}hp x1v{enemies} (+{bonus})")
+            elif h <= 35:
+                add("LOW_HP_FRAG", "CONFIRMED", f"{h}hp")
+                bonus = round(3 * ctx, 1)
+                add_drama += bonus
+                reasons.append(f"+ low hp {h} x1v{enemies} (+{bonus})")
+            drop = a.get("biggest_drop_10s") or 0
+            if drop >= 60:
+                add("HEAVY_DAMAGE_SURVIVED", "CONFIRMED", f"-{drop}hp burst")
+                add_drama += 2
+                reasons.append(f"+ survived {drop}dmg burst (+2)")
+
         delta = add_speed + add_move + add_clutch + add_drama + add_pen
         up.append((json.dumps(classes), json.dumps(a), json.dumps(reasons),
                    (r["speed_score"] or 0) + add_speed,
