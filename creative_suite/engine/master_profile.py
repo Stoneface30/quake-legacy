@@ -135,6 +135,56 @@ _GAMEPLAY_MASTER = {
     "cg_drawFullWeaponBar": 0,
 }
 
+# V2 - THE gameplay master (supersedes hidden-weapon _GAMEPLAY_MASTER,
+# kept as historical): weapon VISIBLE, dot crosshair, tuned feed/message,
+# hit beeps ON, kill chime OFF. All cvars source-verified in
+# docs/reference/visible-weapon-master-config.md.
+_GAMEPLAY_MASTER_V2 = {
+    **_CLEAN_POV,               # start from full suppression, re-enable below
+    "cg_draw2D": 1,
+    "cg_drawGun": 1,            # visible with natural bob; 2 = steady variant
+    "cg_gunX": 0, "cg_gunY": 0, "cg_gunZ": 0,
+    "cg_gunSize": 1.0,
+    "cg_fallKick": 1,
+    # point crosshair (shape 25 = pure dot; 24 ~ 9px at 1080p)
+    "cg_drawCrosshair": 25,
+    "cg_crosshairSize": 24,
+    "cg_crosshairColor": "0xffffff",
+    "cg_crosshairAlpha": 255,
+    "cg_crosshairPulse": 0,
+    "cg_crosshairHealth": 0,
+    # tuned frag feed (recorder-first, old-school)
+    "cg_obituaryTime": 2500,
+    "cg_obituaryFadeTime": 600,
+    "cg_obituaryStack": 3,
+    "cg_obituaryTokens": "%k %i %v",
+    "cg_obituaryIconScale": 1.2,
+    # tuned frag confirmation
+    "cg_drawFragMessageTime": 2000,
+    "cg_drawFragMessageScale": 0.28,
+    "cg_drawFragMessageFadeTime": 250,
+    "cg_drawFragMessageX": 320,
+    "cg_drawFragMessageY": 110,
+    "cg_drawFragMessageAlign": 1,
+    "cg_drawFragMessageStyle": 6,
+    "cg_drawFragMessageTokens": "You fragged %v",
+    "cg_drawRewards": 1,
+    # audio: hits audible, kill chime gone (cg_event.c:120-124 separation)
+    "cg_hitBeep": 2,
+    "cg_killBeep": 0,
+    "s_killBeepVolume": 0,
+    # clutter that returns with cg_draw2D 1 (weapon bar seen in fov grid)
+    "cg_weaponBar": 0,
+    "cg_drawFullWeaponBar": 0,
+    "cg_drawAmmoWarning": 0,
+    "cg_lagometer": 0,
+    "cg_drawAttacker": 0,
+    "cg_drawPickupItem": 0,
+    # fov frozen from the VISIBLE-GUN benchmark grid (v2fov_grid.png):
+    # 115 stretches the gun; 110 = build design point, keeps speed feel.
+    "cg_fov": 110,
+}
+
 # B2 - verification profile: enough HUD to prove POV/frag/health on screen.
 _REFERENCE_POV = {
     "cg_draw2D": 1,
@@ -172,7 +222,8 @@ _ANALYSIS_HEADLESS = {
 }
 
 PROFILES = {
-    "TR4SH_GAMEPLAY_MASTER": {**_QUALITY, **_GAMEPLAY_MASTER},
+    "TR4SH_GAMEPLAY_MASTER_V2": {**_QUALITY, **_GAMEPLAY_MASTER_V2},
+    "TR4SH_GAMEPLAY_MASTER": {**_QUALITY, **_GAMEPLAY_MASTER},   # historical
     "TR4SH_MASTER_POV_CLEAN": {**_QUALITY, **_CLEAN_POV},
     "TR4SH_REFERENCE_POV": {**_QUALITY, **_REFERENCE_POV},
     "TR4SH_CINEMATIC_REPLAY": {**_QUALITY, **_CINEMATIC_REPLAY},
@@ -180,14 +231,15 @@ PROFILES = {
 }
 
 _CFG_FILES = {
-    "TR4SH_GAMEPLAY_MASTER": "wolfcam_tr4sh_master_capture.cfg",
+    "TR4SH_GAMEPLAY_MASTER_V2": "wolfcam_tr4sh_master_capture.cfg",
+    "TR4SH_GAMEPLAY_MASTER": "wolfcam_tr4sh_gameplay_v1_historical.cfg",
     "TR4SH_MASTER_POV_CLEAN": "wolfcam_tr4sh_cinematic_clean.cfg",
     "TR4SH_REFERENCE_POV": "wolfcam_tr4sh_reference.cfg",
     "TR4SH_CINEMATIC_REPLAY": "wolfcam_tr4sh_cinematic.cfg",
     "TR4SH_ANALYSIS_HEADLESS": "wolfcam_tr4sh_analysis.cfg",
 }
 
-PROFILE_NAME = "TR4SH_GAMEPLAY_MASTER"   # the MAIN frag footage (mandate 2A)
+PROFILE_NAME = "TR4SH_GAMEPLAY_MASTER_V2"   # weapon visible (display mandate)
 
 
 def cfg_text(profile: str = PROFILE_NAME) -> str:
