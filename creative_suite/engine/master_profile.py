@@ -49,6 +49,11 @@ LAUNCH_SETS = {
     "r_useFbo": 1,                 # capture from offscreen FBO
     "r_fboAntiAlias": 4,           # MSAA in the FBO (closest to supersampling)
     "sv_pure": 0,                  # required for zzz_* override paks (ENG-3)
+    # UHD textures: a single 2048x2048 RGBA decode is 16.7 MB; the 32-bit
+    # engine's default zone/hunk cannot hold the UHD set (proven Z_Malloc
+    # Com_Error in qconsole.log 2026-08-30).
+    "com_zoneMegs": 96,
+    "com_hunkMegs": 256,
 }
 
 # Session cvars → wolfcam_tr4sh_master_capture.cfg
