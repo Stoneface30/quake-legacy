@@ -110,7 +110,7 @@ def write_capture_cfg(windows: list[dict], staging: Path = STAGING) -> str:
     lines = [
         f"cl_aviFrameRate {FPS}",
         "cl_aviCodec mjpeg",      # raw RGB is 376 MB/s; MJPEG matches the
-        "r_jpegCompressionQuality 90",  # historical source clips
+        "r_jpegCompressionQuality 80",  # ~15 MB/s, matches historical clips
         "cl_aviAllowLargeFiles 1",
         "cl_noprint 1",
         "s_volume 1.0",
@@ -198,7 +198,10 @@ def capture_demo(safe_demo: str, windows: list[dict],
 
     total_capture_s = sum(
         (int(w["end_ms"]) - int(w["start_ms"])) / 1000.0 for w in windows)
-    timeout = LAUNCH_OVERHEAD_S + total_capture_s * CAPTURE_SLOWDOWN
+    # Seeks fast-forward-parse the demo (~50x realtime measured; budget 25x).
+    max_seek_s = max(int(w["start_ms"]) for w in windows) / 1000.0
+    timeout = (LAUNCH_OVERHEAD_S + total_capture_s * CAPTURE_SLOWDOWN
+               + max_seek_s / 25.0)
     t0 = time.time()
 
     if os.getenv("CS_CAPTURE_MOCK"):
