@@ -620,3 +620,15 @@ def test_health_drama_context_weighting():
     assert round(3 * (1.0 + 0.5 * 2), 1) > round(3 * 1.0, 1)
     # near-death beats low-hp at same context
     assert 10 * 1.0 > 3 * 1.0
+
+
+def test_reclassify_idempotent_marker():
+    """reclassify_v2 must store its delta and strip it on rerun."""
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "engine" / "parser"))
+    import reclassify_v2 as rv
+    assert rv._REASON_RE.match("+ extreme-speed p99.2 (+14)")
+    assert rv._REASON_RE.match("- stationary target (-3)")
+    assert not rv._REASON_RE.match("+ extreme-speed 823 ups p99.0 (+5.0)")  # raw-scan format kept
+    assert not rv._REASON_RE.match("+ direct rocket (MOD-confirmed)")

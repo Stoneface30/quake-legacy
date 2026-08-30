@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 import sqlite3
 from bisect import bisect_left
 from pathlib import Path
@@ -31,6 +32,17 @@ OUT_DIR = REPO_ROOT / "output" / "demo_v2" / "recognition"
 
 CHAIN_GAP_MS = 3000
 RECLASS_MARK = "db_reclass_v2"
+
+# Reasons this module appends (stripped before every recompute so the pass
+# is IDEMPOTENT — running twice must not double scores; the original
+# implementation double-added on rerun, repaired 2026-08-30).
+_REASON_RE = re.compile(
+    r"^([+-] (extreme-speed p|very-fast p|high-speed p|fast target p|"
+    r"stationary target|rapid chain |1v\d clutch |near-death |critical |"
+    r"low hp |survived \d+dmg burst))")
+
+# Legacy weights of the two buggy runs (for the one-time score repair).
+_OLD_HEALTH = {"near": 10, "crit": 6, "low": 3, "ctx": 0.5, "burst": 2}
 
 
 def pctile(sorted_vals: list[float], v: float) -> float:
@@ -105,12 +117,27 @@ def run() -> dict:
             i = j + 1
 
     stats = {"reused": len(rows), "labels_added": 0, "ca": 0, "duel": 0,
-             "other": 0, "clutch_labeled": 0}
+             "other": 0, "clutch_labeled": 0, "repaired_legacy": 0}
     up = []
     for r in rows:
         a = json.loads(r["attributes"] or "{}")
         classes = json.loads(r["classes"] or "[]")
         reasons = json.loads(r["reasons"] or "[]")
+
+        # ── idempotency: remove everything this module added previously ──
+        classes = [c for c in classes
+                   if not (isinstance(c, dict)
+                           and c.get("source") == RECLASS_MARK)]
+        reasons = [x for x in reasons if not _REASON_RE.match(x)]
+        prev = a.pop("_reclass_delta", None)
+        if prev is not None:
+            r["speed_score"] = (r["speed_score"] or 0) - prev.get("speed", 0)
+            r["movement_score"] = (r["movement_score"] or 0) - prev.get("move", 0)
+            r["clutch_score"] = (r["clutch_score"] or 0) - prev.get("clutch", 0)
+            r["drama_score"] = (r["drama_score"] or 0) - prev.get("drama", 0)
+            r["penalty_score"] = (r["penalty_score"] or 0) - prev.get("pen", 0)
+            r["highlight_score"] = (r["highlight_score"] or 0) - prev.get("total", 0)
+
         have = {c["name"] if isinstance(c, dict) else c for c in classes}
         add_speed = add_move = add_clutch = add_drama = 0.0
         add_pen = 0.0
@@ -191,29 +218,64 @@ def run() -> dict:
                 enemies = 3
             elif "CLUTCH_1V2" in have:
                 enemies = 2
-            ctx = 1.0 + 0.5 * (enemies - 1)
+            ctx = 1.0 + 0.25 * (enemies - 1)
             if h <= 5:
                 add("LAST_HP_CANDIDATE", "CONFIRMED", f"{h}hp")
-                bonus = round(10 * ctx, 1)
+                bonus = round(5 * ctx, 1)
                 add_drama += bonus
                 reasons.append(f"+ near-death {h}hp x1v{enemies} (+{bonus})")
             elif h <= 15:
                 add("CRITICAL_HP_FRAG", "CONFIRMED", f"{h}hp")
-                bonus = round(6 * ctx, 1)
+                bonus = round(1.5 * ctx, 1)
                 add_drama += bonus
                 reasons.append(f"+ critical {h}hp x1v{enemies} (+{bonus})")
             elif h <= 35:
                 add("LOW_HP_FRAG", "CONFIRMED", f"{h}hp")
-                bonus = round(3 * ctx, 1)
+                bonus = round(1.5 * ctx, 1)
                 add_drama += bonus
                 reasons.append(f"+ low hp {h} x1v{enemies} (+{bonus})")
             drop = a.get("biggest_drop_10s") or 0
             if drop >= 60:
                 add("HEAVY_DAMAGE_SURVIVED", "CONFIRMED", f"-{drop}hp burst")
-                add_drama += 2
-                reasons.append(f"+ survived {drop}dmg burst (+2)")
+                add_drama += 1
+                reasons.append(f"+ survived {drop}dmg burst (+1)")
+
+        # ── one-time legacy repair: the first two (non-idempotent) runs
+        # added the non-health delta TWICE and the old-weight health delta
+        # once, with nothing recorded. Reconstruct deterministically from
+        # the same attributes and subtract, recovering the v1 base. ──
+        if prev is None:
+            legacy_h = 0.0
+            hh = a.get("health_at_frag")
+            if hh is not None:
+                en = (4 if "CLUTCH_1V4_PLUS" in have else
+                      3 if "CLUTCH_1V3" in have else
+                      2 if "CLUTCH_1V2" in have else 1)
+                octx = 1.0 + _OLD_HEALTH["ctx"] * (en - 1)
+                if hh <= 5:
+                    legacy_h += round(_OLD_HEALTH["near"] * octx, 1)
+                elif hh <= 15:
+                    legacy_h += round(_OLD_HEALTH["crit"] * octx, 1)
+                elif hh <= 35:
+                    legacy_h += round(_OLD_HEALTH["low"] * octx, 1)
+                if (a.get("biggest_drop_10s") or 0) >= 60:
+                    legacy_h += _OLD_HEALTH["burst"]
+            nonhealth = add_speed + add_move + add_clutch + add_pen                 + (3.0 if (add_clutch > 0) else 0.0)  # old clutch drama +3
+            r["speed_score"] = (r["speed_score"] or 0) - 2 * add_speed
+            r["movement_score"] = (r["movement_score"] or 0) - 2 * add_move
+            r["clutch_score"] = (r["clutch_score"] or 0) - 2 * add_clutch
+            r["drama_score"] = ((r["drama_score"] or 0)
+                                - 2 * (3.0 if add_clutch > 0 else 0.0)
+                                - (0.0 if hh is None else legacy_h))
+            r["penalty_score"] = (r["penalty_score"] or 0) - 2 * add_pen
+            r["highlight_score"] = ((r["highlight_score"] or 0)
+                                    - 2 * nonhealth - legacy_h)
+            stats["repaired_legacy"] += 1
 
         delta = add_speed + add_move + add_clutch + add_drama + add_pen
+        a["_reclass_delta"] = {"speed": add_speed, "move": add_move,
+                               "clutch": add_clutch, "drama": add_drama,
+                               "pen": add_pen, "total": delta}
         up.append((json.dumps(classes), json.dumps(a), json.dumps(reasons),
                    (r["speed_score"] or 0) + add_speed,
                    (r["movement_score"] or 0) + add_move,
