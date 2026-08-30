@@ -95,8 +95,9 @@ def test_stage_demo_safe_name(tmp_path):
     src = tmp_path / "Demo (788) - 341;.dm_73"
     src.write_bytes(b"x" * 100)
     safe = wc.stage_demo(src, 7, tmp_path)
-    assert safe == "d0007"
-    assert (tmp_path / "wolfcam-ql" / "demos" / "d0007.dm_73").exists()
+    assert safe.startswith("d") and len(safe) == 11  # content-hash name
+    assert ";" not in safe and " " not in safe
+    assert (tmp_path / "wolfcam-ql" / "demos" / f"{safe}.dm_73").exists()
 
 
 def test_capture_lock_blocks_second_writer(tmp_path, monkeypatch):
