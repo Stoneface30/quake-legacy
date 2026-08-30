@@ -111,7 +111,10 @@ def ray_point_perp(origin, direction, point) -> tuple[float, float]:
     """(perpendicular distance, along-ray distance) of point vs forward ray.
 
     Points behind the ray origin get an inf perpendicular distance.
+    Partial demo delta rows can carry None coordinates - treat as unusable.
     """
+    if any(v is None for v in (*point[:3], *origin[:3])):
+        return (math.inf, 0.0)
     dx = point[0] - origin[0]
     dy = point[1] - origin[1]
     dz = point[2] - origin[2]
