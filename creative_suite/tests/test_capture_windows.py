@@ -135,3 +135,20 @@ def test_dedupe_clutches_by_signature():
          "kills_during_clutch": 1, "weapons": "ROCKET", "outcome": "WIN",
          "rank_score": 10.0}
     assert len(cw.dedupe_clutches([c, dict(c), dict(c, demo="othername")])) == 1
+
+
+def test_taxonomy_every_window_classed_and_sums():
+    windows = []
+    for i in range(40):
+        w = _win(f"d{i}.dm_73", i * 100000, [5000], score=float(i))
+        w["clutch_context"] = None
+        w["tags"] = "airshot" if i % 7 == 0 else ""
+        windows.append(w)
+    windows[3]["clutch_context"] = '{"enemies_alive_at_start": 3}'
+    cw.assign_classes(windows)
+    counts = {}
+    for w in windows:
+        assert w["class"], "every window must carry an explicit class"
+        counts[w["class"]] = counts.get(w["class"], 0) + 1
+    assert sum(counts.values()) == len(windows)
+    assert "NORMAL" in counts and "LOW_SCORE" in counts
