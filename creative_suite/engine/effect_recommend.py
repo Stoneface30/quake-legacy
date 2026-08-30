@@ -59,7 +59,8 @@ _RULE_BOOSTS: list[tuple[frozenset, dict[str, float]]] = [
 
 def _derived_classes(frag: dict) -> set[str]:
     """Expand raw classes with aliases and attribute-derived situations."""
-    classes = {c for c in frag.get("classes", [])}
+    classes = {c["name"] if isinstance(c, dict) else c
+               for c in frag.get("classes", [])}
     for c in list(classes):
         alias = CLASS_ALIASES.get(c)
         if alias:
