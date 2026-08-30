@@ -110,6 +110,29 @@ _CLEAN_POV = {
     "cg_fov": MASTER_POV_FOV,
 }
 
+# 2A - the MAIN frag footage: HUD clutter gone, but the frag feed and a
+# tuned frag confirmation stay — gameplay must not feel empty (mandate 2A/3/4).
+# Feed/message styling via wolfcam's per-element cvars (cg_main.c:2253-2272).
+_GAMEPLAY_MASTER = {
+    **_CLEAN_POV,
+    # restore the information layer, tuned
+    "cg_draw2D": 1,
+    "cg_obituaryTime": 2500,            # killfeed on, brisk
+    "cg_drawFragMessageTime": 1800,     # confirmation on, short
+    "cg_drawFragMessageScale": 0.22,    # subtle, not arcade
+    "cg_drawFragMessageFadeTime": 250,
+    "cg_drawFragMessageTokens": "You fragged %v",
+    # keep the clutter suppressed even with draw2D on
+    "cg_drawStatus": 0,
+    "cg_drawScores": 0,
+    "cg_drawTimer": 0,
+    "cg_drawAmmoWarning": 0,
+    "cg_lagometer": 0,
+    "cg_drawAttacker": 0,
+    "cg_drawRewards": 0,
+    "cg_drawPickupItem": 0,
+}
+
 # B2 - verification profile: enough HUD to prove POV/frag/health on screen.
 _REFERENCE_POV = {
     "cg_draw2D": 1,
@@ -147,6 +170,7 @@ _ANALYSIS_HEADLESS = {
 }
 
 PROFILES = {
+    "TR4SH_GAMEPLAY_MASTER": {**_QUALITY, **_GAMEPLAY_MASTER},
     "TR4SH_MASTER_POV_CLEAN": {**_QUALITY, **_CLEAN_POV},
     "TR4SH_REFERENCE_POV": {**_QUALITY, **_REFERENCE_POV},
     "TR4SH_CINEMATIC_REPLAY": {**_QUALITY, **_CINEMATIC_REPLAY},
@@ -154,13 +178,14 @@ PROFILES = {
 }
 
 _CFG_FILES = {
-    "TR4SH_MASTER_POV_CLEAN": "wolfcam_tr4sh_master_capture.cfg",
+    "TR4SH_GAMEPLAY_MASTER": "wolfcam_tr4sh_master_capture.cfg",
+    "TR4SH_MASTER_POV_CLEAN": "wolfcam_tr4sh_cinematic_clean.cfg",
     "TR4SH_REFERENCE_POV": "wolfcam_tr4sh_reference.cfg",
     "TR4SH_CINEMATIC_REPLAY": "wolfcam_tr4sh_cinematic.cfg",
     "TR4SH_ANALYSIS_HEADLESS": "wolfcam_tr4sh_analysis.cfg",
 }
 
-PROFILE_NAME = "TR4SH_MASTER_POV_CLEAN"   # what the batch captures with
+PROFILE_NAME = "TR4SH_GAMEPLAY_MASTER"   # the MAIN frag footage (mandate 2A)
 
 
 def cfg_text(profile: str = PROFILE_NAME) -> str:
