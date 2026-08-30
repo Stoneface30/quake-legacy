@@ -1,0 +1,243 @@
+"""Taxonomy v2 as a RECLASSIFICATION pass over cached recognition rows.
+
+Hard rule (user, 2026-08-30): never full-rescan the corpus for taxonomy
+changes. This pass derives every v2 label computable from persisted v1
+attributes + existing databases/CSVs, updates rows in place, and exports
+mode-weighted top lists. Runtime: seconds-to-minutes, zero demo IO.
+
+Adds from cache:
+  attacker/victim speed percentiles + FAST/VERY_FAST/EXTREME_SPEED labels
+  SPEED_TARGET_FRAG · RAPID_MULTIKILL (chain kills/s) · stationary penalty
+  CLUTCH_1V2/1V3/1V4_PLUS (clutch_recorder.csv join by hash + time window)
+  mode split MAIN_CA / SIDE_DUEL / SIDE_OTHER (demos.gametype join)
+Genuinely missing (needs targeted extraction, NOT here): recorder
+health/armor, view-angle timeseries, LG tick series, projectile paths,
+LOS/visibility geometry (stage-2 handles candidates).
+"""
+from __future__ import annotations
+
+import csv
+import json
+import sqlite3
+from bisect import bisect_left
+from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+RECOG_DB = REPO_ROOT / "creative_suite" / "database" / "frag_recognition.db"
+FRAGS_DB = REPO_ROOT / "creative_suite" / "database" / "frags_rebuilt.db"
+CLUTCH_CSV = REPO_ROOT / "output" / "clutch_recorder.csv"
+NORMS = REPO_ROOT / "output" / "demo_v2" / "recognition" / "norms.json"
+OUT_DIR = REPO_ROOT / "output" / "demo_v2" / "recognition"
+
+CHAIN_GAP_MS = 3000
+RECLASS_MARK = "db_reclass_v2"
+
+
+def pctile(sorted_vals: list[float], v: float) -> float:
+    if not sorted_vals:
+        return 0.0
+    return round(100.0 * bisect_left(sorted_vals, v) / len(sorted_vals), 1)
+
+
+def load_norm_samples(conn) -> dict[str, list[float]]:
+    """Percentile bases from the cached rows themselves (sorted samples)."""
+    ks, vs = [], []
+    for (attrs,) in conn.execute("SELECT attributes FROM recognized_frags"):
+        a = json.loads(attrs or "{}")
+        if a.get("killer_speed") is not None:
+            ks.append(float(a["killer_speed"]))
+        if a.get("victim_speed") is not None:
+            vs.append(float(a["victim_speed"]))
+    return {"killer_speed": sorted(ks), "victim_speed": sorted(vs)}
+
+
+def mode_of(gametype: str | None) -> str:
+    g = (gametype or "").upper()
+    if "CLAN" in g or g == "CA":
+        return "MAIN_CA"
+    if "DUEL" in g:
+        return "SIDE_DUEL"
+    return "SIDE_OTHER"
+
+
+def run() -> dict:
+    conn = sqlite3.connect(RECOG_DB)
+    conn.row_factory = sqlite3.Row
+
+    fconn = sqlite3.connect(f"file:{FRAGS_DB}?mode=ro", uri=True)
+    demo_meta = {name: (gt, dup or h) for name, gt, h, dup in fconn.execute(
+        "SELECT name, gametype, content_hash, duplicate_of FROM demos")}
+    fconn.close()
+
+    clutches: dict[str, list[dict]] = {}
+    with open(CLUTCH_CSV, newline="", encoding="utf-8") as f:
+        for c in csv.DictReader(f):
+            clutches.setdefault(c["canonical_demo_hash"], []).append(c)
+
+    samples = load_norm_samples(conn)
+    rows = [dict(r) for r in conn.execute(
+        "SELECT id, demo_name, server_time_ms, classes, attributes, reasons,"
+        " speed_score, movement_score, clutch_score, drama_score,"
+        " penalty_score, highlight_score, multikill_score"
+        " FROM recognized_frags")]
+
+    # chain grouping per demo for kills/s
+    by_demo: dict[str, list[dict]] = {}
+    for r in rows:
+        by_demo.setdefault(r["demo_name"], []).append(r)
+    chain_kps: dict[int, float] = {}
+    chain_len: dict[int, int] = {}
+    for demo, rs in by_demo.items():
+        rs.sort(key=lambda r: r["server_time_ms"])
+        i = 0
+        while i < len(rs):
+            j = i
+            while (j + 1 < len(rs) and
+                   rs[j + 1]["server_time_ms"] - rs[j]["server_time_ms"]
+                   <= CHAIN_GAP_MS):
+                j += 1
+            n = j - i + 1
+            dur_s = max(0.5, (rs[j]["server_time_ms"]
+                              - rs[i]["server_time_ms"]) / 1000.0)
+            for k in range(i, j + 1):
+                chain_len[rs[k]["id"]] = n
+                chain_kps[rs[k]["id"]] = n / dur_s if n > 1 else 0.0
+            i = j + 1
+
+    stats = {"reused": len(rows), "labels_added": 0, "ca": 0, "duel": 0,
+             "other": 0, "clutch_labeled": 0}
+    up = []
+    for r in rows:
+        a = json.loads(r["attributes"] or "{}")
+        classes = json.loads(r["classes"] or "[]")
+        reasons = json.loads(r["reasons"] or "[]")
+        have = {c["name"] if isinstance(c, dict) else c for c in classes}
+        add_speed = add_move = add_clutch = add_drama = 0.0
+        add_pen = 0.0
+
+        def add(name, conf, detail=""):
+            if name in have:
+                return
+            classes.append({"name": name, "confidence": conf,
+                            "detail": detail, "source": RECLASS_MARK})
+            have.add(name)
+            stats["labels_added"] += 1
+
+        gt, h = demo_meta.get(r["demo_name"], (None, None))
+        mode = mode_of(gt)
+        a["mode_pool"] = mode
+        stats[{"MAIN_CA": "ca", "SIDE_DUEL": "duel",
+               "SIDE_OTHER": "other"}[mode]] += 1
+
+        ks = a.get("killer_speed")
+        if ks is not None:
+            p = pctile(samples["killer_speed"], float(ks))
+            a["attacker_speed_percentile"] = p
+            if p >= 99:
+                add("EXTREME_SPEED", "CONFIRMED", f"p{p}")
+                add_speed += 14
+                reasons.append(f"+ extreme-speed p{p} (+14)")
+            elif p >= 97:
+                add("VERY_FAST_FRAG", "CONFIRMED", f"p{p}")
+                add_speed += 8
+                reasons.append(f"+ very-fast p{p} (+8)")
+            elif p >= 90:
+                add("HIGH_SPEED_FRAG", "CONFIRMED", f"p{p}")
+                add_speed += 4
+                reasons.append(f"+ high-speed p{p} (+4)")
+        vs = a.get("victim_speed")
+        if vs is not None:
+            pv = pctile(samples["victim_speed"], float(vs))
+            a["victim_speed_percentile"] = pv
+            if pv >= 97:
+                add("SPEED_TARGET_FRAG", "CONFIRMED", f"victim p{pv}")
+                add_move += 5
+                reasons.append(f"+ fast target p{pv} (+5)")
+            elif float(vs) < 40:
+                add_pen -= 3
+                reasons.append("- stationary target (-3)")
+
+        kps = chain_kps.get(r["id"], 0.0)
+        if kps >= 1.5 and chain_len.get(r["id"], 1) >= 3:
+            add("RAPID_MULTIKILL", "CONFIRMED",
+                f"{chain_len[r['id']]} kills @ {kps:.1f}/s")
+            add_move += 6
+            reasons.append(f"+ rapid chain {kps:.1f} kills/s (+6)")
+
+        if h and h in clutches:
+            t = r["server_time_ms"]
+            for c in clutches[h]:
+                if int(c["clutch_start_ms"]) <= t <= int(c["clutch_end_ms"]):
+                    n = int(c["enemies_alive_at_start"])
+                    label = ("CLUTCH_1V4_PLUS" if n >= 4 else
+                             "CLUTCH_1V3" if n == 3 else
+                             "CLUTCH_1V2" if n == 2 else None)
+                    if label:
+                        add(label, "CONFIRMED", f"1v{n} {c['outcome']}")
+                        add_clutch += 6 + 4 * (n - 2)
+                        add_drama += 3
+                        reasons.append(f"+ 1v{n} clutch (+{6 + 4*(n-2)})")
+                        stats["clutch_labeled"] += 1
+                    break
+
+        delta = add_speed + add_move + add_clutch + add_drama + add_pen
+        up.append((json.dumps(classes), json.dumps(a), json.dumps(reasons),
+                   (r["speed_score"] or 0) + add_speed,
+                   (r["movement_score"] or 0) + add_move,
+                   (r["clutch_score"] or 0) + add_clutch,
+                   (r["drama_score"] or 0) + add_drama,
+                   (r["penalty_score"] or 0) + add_pen,
+                   (r["highlight_score"] or 0) + delta,
+                   2, r["id"]))
+
+    conn.executemany(
+        "UPDATE recognized_frags SET classes=?, attributes=?, reasons=?,"
+        " speed_score=?, movement_score=?, clutch_score=?, drama_score=?,"
+        " penalty_score=?, highlight_score=?, recognition_version=?"
+        " WHERE id=?", up)
+    conn.commit()
+
+    # mode-weighted top lists (match-group dedup via canonical hash grouping)
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    conn.row_factory = sqlite3.Row
+    all_rows = [dict(r) for r in conn.execute(
+        "SELECT demo_name, server_time_ms, weapon_name, classes, attributes,"
+        " highlight_score, reasons FROM recognized_frags"
+        " ORDER BY highlight_score DESC")]
+    pools = {"top_overall_ca": [], "top_duel": [], "top_other": []}
+    seen_moments = set()
+    for r in all_rows:
+        a = json.loads(r["attributes"] or "{}")
+        gt, h = demo_meta.get(r["demo_name"], (None, None))
+        key = (h, r["server_time_ms"])
+        if key in seen_moments:
+            continue
+        seen_moments.add(key)
+        pool = {"MAIN_CA": "top_overall_ca", "SIDE_DUEL": "top_duel",
+                "SIDE_OTHER": "top_other"}[a.get("mode_pool", "SIDE_OTHER")]
+        if len(pools[pool]) < 100:
+            pools[pool].append(r)
+    for name, rs in pools.items():
+        with open(OUT_DIR / f"{name}.csv", "w", newline="",
+                  encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(["rank", "score", "demo", "server_time_ms", "weapon",
+                        "classes", "reasons"])
+            for i, r in enumerate(rs, 1):
+                cl = [c["name"] if isinstance(c, dict) else c
+                      for c in json.loads(r["classes"] or "[]")]
+                w.writerow([i, r["highlight_score"], r["demo_name"],
+                            r["server_time_ms"], r["weapon_name"],
+                            "|".join(cl),
+                            " ".join(json.loads(r["reasons"] or "[]"))])
+    conn.close()
+    stats["pools"] = {k: len(v) for k, v in pools.items()}
+    return stats
+
+
+if __name__ == "__main__":
+    import time
+    t0 = time.time()
+    s = run()
+    print(json.dumps(s, indent=1))
+    print(f"elapsed {time.time() - t0:.1f}s")
