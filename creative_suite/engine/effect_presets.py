@@ -1,7 +1,8 @@
 """Seed data for the cinematic effect database (mandate presets).
 
-16 effect presets + 16 recipes (ordered timelines of named actions),
-10 camera recipes, 8 audio effects. seed(conn) is idempotent: upsert by
+The 16 mandate presets (+ PREDICTION_PROJECTILE_V1 bonus = 17 rows) with
+matching recipes (ordered timelines of named actions), 10 camera recipes,
+8 audio effects. seed(conn) is idempotent: upsert by
 name, version bumped only when a payload actually changes.
 
 Timeline steps are dicts {"t_rel_ms": int, "action": str, "params": dict}
@@ -135,6 +136,14 @@ EFFECTS = [
             audio=["HEARTBEAT_CRITICAL"],
             hud_recipe={**_HEALTH_PULSE_HUD, "pulse_hz": 2.8},
             color_recipe={"saturation": 0.6, "vignette": 0.45}),
+    _effect("NEAR_DEATH_V1", "situation",
+            "Near-death survival treatment: pounding heartbeat, tunnel "
+            "vision vignette, heavy desaturation, world audio muffled.",
+            trigger_types=["NEAR_DEATH", "CRITICAL_HP"], intensity="hero",
+            audio=["HEARTBEAT_CRITICAL", "SLOWMO_FILTER"],
+            hud_recipe={**_HEALTH_PULSE_HUD, "pulse_hz": 3.5},
+            time_recipe={"slow_rate": 0.7, "window_ms": 900},
+            color_recipe={"saturation": 0.4, "vignette": 0.65}),
     _effect("CLUTCH_1V2_V1", "clutch",
             "1v2 clutch: enemy counter overlay + tension bed.",
             trigger_types=["CLUTCH_1V2"], intensity="subtle",
@@ -159,7 +168,7 @@ EFFECTS = [
             time_recipe={"per_kill_slow": [0.9, 0.7, 0.5, 0.35]},
             audio=["IMPACT_DROP"],
             fx_recipe={"per_kill_zoom": [1.0, 1.05, 1.1, 1.18]}),
-    _effect("PIXEL_REPLAY_V1", "replay",
+    _effect("PIXEL_REPLAY_ZOOM_V1", "replay",
             "Pixel-shot replay: freeze at impact, zoom to the gap, resume.",
             trigger_types=["PIXEL_SHOT"], intensity="medium",
             camera="BULLET_TIME_ARC",
@@ -212,7 +221,7 @@ EFFECTS = [
             tracking_recipe={"track": "recorder", "speed_match": True},
             fx_recipe={"motion_blur": 0.3, "fov_widen": 8},
             hud_recipe={"overlay": "speedometer", "position": "bottom_left"}),
-    _effect("ROCKET_JUMP_V1", "movement",
+    _effect("ROCKET_JUMP_CHASE_V1", "movement",
             "Rocket-jump rise: vertical orbit rising with the jump, "
             "landing frag punch.",
             trigger_types=["ROCKET_JUMP"], intensity="subtle",
@@ -257,6 +266,17 @@ RECIPES = [
          _step(-4000, "duck_music", db=-6),
          _step(-4000, "color_grade", saturation=0.6, vignette=0.45),
          _step(1500, "resume")]},
+    {"name": "NEAR_DEATH_V1", "frag_classes": ["NEAR_DEATH"],
+     "description": "Near-death: pounding heartbeat, tunnel vision, "
+                    "brief slow on the survival frag.",
+     "timeline": [
+         _step(-4000, "play_audio", effect="HEARTBEAT_CRITICAL"),
+         _step(-4000, "health_pulse", hz=3.5),
+         _step(-4000, "duck_music", db=-8),
+         _step(-4000, "color_grade", saturation=0.4, vignette=0.65),
+         _step(-300, "slow_to", rate=0.7, ramp_ms=120),
+         _step(0, "play_audio", effect="IMPACT_DROP"),
+         _step(600, "resume", ramp_ms=150)]},
     {"name": "CLUTCH_1V2_V1", "frag_classes": ["CLUTCH_1V2"],
      "description": "1v2: counter overlay + tension.",
      "timeline": [
@@ -294,7 +314,7 @@ RECIPES = [
          _step(2600, "zoom_target", scale=1.18),
          _step(2600, "play_audio", effect="IMPACT_DROP"),
          _step(3400, "resume")]},
-    {"name": "PIXEL_REPLAY_V1", "frag_classes": ["PIXEL_SHOT"],
+    {"name": "PIXEL_REPLAY_ZOOM_V1", "frag_classes": ["PIXEL_SHOT"],
      "description": "Freeze at impact, zoom to the pixel gap, resume.",
      "timeline": [
          _step(-400, "slow_to", rate=0.3, ramp_ms=120),
@@ -349,7 +369,7 @@ RECIPES = [
          _step(-3000, "overlay_enemy_count", overlay="speedometer"),
          _step(0, "speed_to", rate=1.0),
          _step(800, "resume")]},
-    {"name": "ROCKET_JUMP_V1", "frag_classes": ["ROCKET_JUMP"],
+    {"name": "ROCKET_JUMP_CHASE_V1", "frag_classes": ["ROCKET_JUMP"],
      "description": "Vertical orbit rising with the jump.",
      "timeline": [
          _step(-1200, "cut_to_camera", camera="VERTICAL_ORBIT_RISE"),
