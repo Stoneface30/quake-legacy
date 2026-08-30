@@ -109,6 +109,8 @@ def write_capture_cfg(windows: list[dict], staging: Path = STAGING) -> str:
     """
     lines = [
         f"cl_aviFrameRate {FPS}",
+        "cl_aviMotionJpeg 1",     # raw RGB is 376 MB/s; MJPEG matches the
+        "cl_aviAllowLargeFiles 1",  # historical source clips
         "cl_noprint 1",
         "s_volume 1.0",
     ]
