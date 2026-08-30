@@ -156,6 +156,30 @@ def build_windows(kills: list[dict], clutches: list[dict] | None = None,
     return [_finalize(w, demo_hash) for w in merged]
 
 
+def dedupe_windows(windows: list[dict]) -> list[dict]:
+    """Collapse near-duplicate demo files recording the same match.
+
+    Byte-identical duplicates were removed in the corpus rebuild, but the
+    archive also holds re-saved/partial copies with different hashes. The same
+    moment is identified by (map, server_time_ms, n_kills, frag_offsets_ms) —
+    round is excluded because a partial recording's round counter differs.
+    Keeps the descriptively named demo over an opaque "Demo (N)" export.
+    """
+    best: dict[tuple, dict] = {}
+    for w in windows:
+        key = (w["map"], w["server_time_ms"], w["n_kills"], w["frag_offsets_ms"])
+        cur = best.get(key)
+        if cur is None:
+            best[key] = w
+        else:
+            named_new = not w["demo"].startswith("Demo (")
+            named_cur = not cur["demo"].startswith("Demo (")
+            if (named_new and not named_cur) or (
+                    named_new == named_cur and w["score"] > cur["score"]):
+                best[key] = w
+    return list(best.values())
+
+
 def assign_classes(windows: list[dict]) -> None:
     scores = sorted((w["score"] for w in windows), reverse=True)
     if not scores:
@@ -201,6 +225,7 @@ def run() -> dict:
         h = demo_info.get(demo, (None, None, None))[0]
         windows.extend(build_windows(kills, clutch_by_hash.get(h, []), h))
 
+    windows = dedupe_windows(windows)
     assign_classes(windows)
     windows.sort(key=lambda w: w["score"], reverse=True)
 

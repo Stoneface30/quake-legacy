@@ -78,6 +78,26 @@ def test_clutch_bonus_applied():
     assert clutched == plain + 2.0 * 4
 
 
+def test_dedupe_windows_prefers_named_demo():
+    w1 = {"demo": "Demo (788) - 341;.dm_73", "map": "overkill", "round": 2,
+          "server_time_ms": 383575, "n_kills": 4, "frag_offsets_ms": "[1, 2]",
+          "score": 46.0}
+    w2 = {"demo": "CA-Gr0str4sh-overkill-2013_01_08.dm_73", "map": "overkill",
+          "round": 15, "server_time_ms": 383575, "n_kills": 4,
+          "frag_offsets_ms": "[1, 2]", "score": 46.0}
+    out = cw.dedupe_windows([w1, w2])
+    assert len(out) == 1
+    assert out[0]["demo"].startswith("CA-")
+
+
+def test_dedupe_windows_keeps_distinct():
+    w1 = {"demo": "a.dm_73", "map": "overkill", "round": 1,
+          "server_time_ms": 100, "n_kills": 1, "frag_offsets_ms": "[5]", "score": 9.0}
+    w2 = {"demo": "b.dm_73", "map": "overkill", "round": 1,
+          "server_time_ms": 200, "n_kills": 1, "frag_offsets_ms": "[5]", "score": 9.0}
+    assert len(cw.dedupe_windows([w1, w2])) == 2
+
+
 def test_dedupe_clutches_by_signature():
     c = {"canonical_demo_hash": "H1", "round": 3, "clutch_start_ms": 1000,
          "clutch_end_ms": 2000, "enemies_alive_at_start": 2,
