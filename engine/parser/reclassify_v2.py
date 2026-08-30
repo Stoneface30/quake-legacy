@@ -209,23 +209,30 @@ def run() -> dict:
                     break
 
         # true-aim quality (targeted view timeseries; complete movement curve)
-        fd = a.get("flick_true_deg")
+        fd = a.get("flick_deg_v2", a.get("flick_true_deg"))
         if fd is not None:
-            fms = a.get("flick_true_ms") or 0
-            dps = a.get("flick_peak_dps") or 0
+            fms = a.get("flick_ms_v2", a.get("flick_true_ms")) or 0
+            dps = a.get("flick_dps_v2", a.get("flick_peak_dps")) or 0
             settle = a.get("settle_deg")
-            clean = settle is not None and settle < 8.0
-            if fd >= 100 and dps >= 500 and clean:
+            rev = a.get("flick_reversals")
+            # a flick ENDS at the shot, so final-100ms stillness is the wrong
+            # cleanliness test; low reversal count = clean snap
+            clean = rev is not None and rev <= 1
+            # physical sanity: >2500 deg/s smoothed or >250deg net is a
+            # teleport/respawn view snap, not aim
+            humanly = (dps or 0) <= 2500 and fd <= 250
+            clean = clean and humanly
+            if fd >= 90 and fms <= 350 and dps >= 350 and clean:
                 add("EXTREME_FLICK", "CONFIRMED",
                     f"{fd}deg/{fms}ms peak {dps}dps settle {settle}")
                 add_move += 9
                 reasons.append(f"+ extreme flick {fd}deg @ {dps}dps (+9)")
-            elif fd >= 60 and fms <= 450 and clean:
+            elif fd >= 50 and fms <= 300 and clean:
                 add("TRUE_FLICK", "CONFIRMED",
                     f"{fd}deg/{fms}ms settle {settle}")
                 add_move += 4
                 reasons.append(f"+ true flick {fd}deg/{fms}ms (+4)")
-            if clean and settle < 3.0 and fd >= 40:
+            if clean and (rev == 0) and fd >= 40:
                 add_move += 2
                 reasons.append("+ clean snap (+2)")
 
