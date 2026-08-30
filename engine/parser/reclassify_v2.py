@@ -40,7 +40,8 @@ _REASON_RE = re.compile(
     r"^([+-] (extreme-speed p|very-fast p|high-speed p|fast target p|"
     r"stationary target|rapid chain |1v\d clutch |near-death |critical |"
     r"low hp |survived \d+dmg burst|true flick |extreme flick |clean flick |"
-    r"tracking sweep |aim transition |clean snap|"
+    r"tracking sweep |aim transition |clean snap|geo direct |geo near-direct |"
+    r"air rocket geo |temporal prediction |rarity |"
     r"lg pressure |lg dodge |damage burst ))")
 
 # Legacy weights of the two buggy runs (for the one-time score repair).
@@ -274,6 +275,33 @@ def run() -> dict:
                 add("DAMAGE_BURST", "CONFIRMED", f"{burst}dmg/3s")
                 add_move += 4
                 reasons.append(f"+ damage burst {burst}/3s (+4)")
+
+        # projectile geometry labels (targeted reconstruction cache)
+        pg = a.get("projectile_direct_geometry")
+        if pg == "DIRECT_CONFIRMED":
+            add("DIRECT_CONFIRMED_GEO", "CONFIRMED",
+                f"expansion {a.get('projectile_direct_expansion_u')}u")
+            add_move += 6
+            reasons.append("+ geo direct (body hit) (+6)")
+        elif pg in ("DIRECT_LIKELY", "NEAR_DIRECT"):
+            add("NEAR_DIRECT", "HIGH",
+                f"expansion {a.get('projectile_direct_expansion_u')}u")
+            add_move += 3
+            reasons.append("+ geo near-direct (+3)")
+        if (a.get("projectile_victim_airborne")
+                and abs(a.get("projectile_victim_vertical_speed") or 0) >= 250):
+            add("AIR_ROCKET_GEO", "CONFIRMED",
+                f"victim vz {a.get('projectile_victim_vertical_speed')}")
+            add_move += 5
+            reasons.append(
+                f"+ air rocket geo (vz {a.get('projectile_victim_vertical_speed')}) (+5)")
+        if ((a.get("victim_travel_during_flight") or 0) >= 300
+                and (a.get("projectile_flight_ms") or 0) >= 600):
+            add("PREDICTION_TEMPORAL", "HIGH",
+                f"{a.get('victim_travel_during_flight')}u during "
+                f"{a.get('projectile_flight_ms')}ms flight")
+            add_move += 4
+            reasons.append("+ temporal prediction (+4)")
 
         # health drama (targeted extraction; context-weighted: the same HP
         # means more with more enemies alive — mandate: 20HP cleanup != 20HP 1v3)
