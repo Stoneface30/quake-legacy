@@ -20,7 +20,7 @@ def test_merge_within_gap():
     assert len(wins) == 2
     assert wins[0]["n_kills"] == 2
     assert wins[0]["capture_start_ms"] == 10000 - cw.PRE_MS
-    assert wins[0]["capture_end_ms"] == 14000 + cw.POST_MS
+    assert wins[0]["capture_end_ms"] == 14000 + cw.POST_MS + 1000  # <3 kills: +1s post
 
 
 def test_start_clamped_at_zero():
@@ -33,7 +33,8 @@ def test_start_clamped_at_zero():
 def test_offsets_preserved_for_multikill():
     wins = cw.build_windows([_kill(20000), _kill(21500), _kill(24000)])
     offs = json.loads(wins[0]["frag_offsets_ms"])
-    assert offs == [cw.PRE_MS, cw.PRE_MS + 1500, cw.PRE_MS + 4000]
+    pre = cw.PRE_MS + 1000  # 3+ kills get extended setup context
+    assert offs == [pre, pre + 1500, pre + 4000]
 
 
 def test_primary_fields_from_best_kill():
@@ -78,24 +79,54 @@ def test_clutch_bonus_applied():
     assert clutched == plain + 2.0 * 4
 
 
-def test_dedupe_windows_prefers_named_demo():
-    w1 = {"demo": "Demo (788) - 341;.dm_73", "map": "overkill", "round": 2,
-          "server_time_ms": 383575, "n_kills": 4, "frag_offsets_ms": "[1, 2]",
-          "score": 46.0}
-    w2 = {"demo": "CA-Gr0str4sh-overkill-2013_01_08.dm_73", "map": "overkill",
-          "round": 15, "server_time_ms": 383575, "n_kills": 4,
-          "frag_offsets_ms": "[1, 2]", "score": 46.0}
-    out = cw.dedupe_windows([w1, w2])
+def _win(demo, start, offsets, score=10.0):
+    return {"demo": demo, "map": "overkill", "capture_start_ms": start,
+            "server_time_ms": start + offsets[0], "n_kills": len(offsets),
+            "frag_offsets_ms": json.dumps(offsets), "score": score}
+
+
+def test_match_groups_by_shared_kill_tuples():
+    groups = cw.build_match_groups({
+        "a.dm_73": [("q", 1000, 1, 2, 7), ("q", 2000, 1, 3, 7), ("q", 3000, 2, 1, 6)],
+        "b.dm_73": [("q", 1000, 1, 2, 7), ("q", 2000, 1, 3, 7), ("q", 3000, 2, 1, 6),
+                    ("q", 9000, 4, 5, 1)],
+        "c.dm_73": [("q", 1000, 9, 9, 7)],
+    })
+    assert groups["a.dm_73"] == groups["b.dm_73"]
+    assert groups["c.dm_73"] != groups["a.dm_73"]
+
+
+def test_match_groups_need_min_shared():
+    # 2 shared tuples < MIN_SHARED_TUPLES: same map+serverTime coincidence
+    groups = cw.build_match_groups({
+        "a.dm_73": [("q", 1000, 1, 2, 7), ("q", 2000, 1, 3, 7)],
+        "b.dm_73": [("q", 1000, 1, 2, 7), ("q", 2000, 1, 3, 7)],
+    })
+    assert groups["a.dm_73"] != groups["b.dm_73"]
+
+
+def test_dedupe_same_match_shared_kill_collapses():
+    w1 = _win("Demo (788) - 341;.dm_73", 380000, [5000], score=40.0)
+    w2 = _win("CA-Gr0str4sh-overkill.dm_73", 379000, [6000], score=46.0)  # same kill @385000
+    groups = {"Demo (788) - 341;.dm_73": 7, "CA-Gr0str4sh-overkill.dm_73": 7}
+    out = cw.dedupe_windows([w1, w2], groups)
     assert len(out) == 1
-    assert out[0]["demo"].startswith("CA-")
+    assert out[0]["demo"].startswith("CA-")  # higher score wins
 
 
-def test_dedupe_windows_keeps_distinct():
-    w1 = {"demo": "a.dm_73", "map": "overkill", "round": 1,
-          "server_time_ms": 100, "n_kills": 1, "frag_offsets_ms": "[5]", "score": 9.0}
-    w2 = {"demo": "b.dm_73", "map": "overkill", "round": 1,
-          "server_time_ms": 200, "n_kills": 1, "frag_offsets_ms": "[5]", "score": 9.0}
-    assert len(cw.dedupe_windows([w1, w2])) == 2
+def test_dedupe_unrelated_matches_never_merge():
+    # identical map, serverTime, offsets — but different match groups
+    w1 = _win("a.dm_73", 380000, [5000])
+    w2 = _win("b.dm_73", 380000, [5000])
+    out = cw.dedupe_windows([w1, w2], {"a.dm_73": 1, "b.dm_73": 2})
+    assert len(out) == 2
+
+
+def test_dedupe_same_match_different_moments_kept():
+    w1 = _win("a.dm_73", 100000, [5000])
+    w2 = _win("b.dm_73", 200000, [5000])
+    out = cw.dedupe_windows([w1, w2], {"a.dm_73": 3, "b.dm_73": 3})
+    assert len(out) == 2
 
 
 def test_dedupe_clutches_by_signature():

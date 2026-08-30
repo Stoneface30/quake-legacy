@@ -57,11 +57,18 @@ def _chain(kills: list[dict]) -> list[list[dict]]:
 
 
 def _mk_window(group: list[dict]) -> dict:
+    """Window bounds with dynamic context (charter: capture generously).
+
+    Single frag: 5 s pre / 4 s post. Multikill (3+): 6 s pre / 5 s post so the
+    setup and the aftermath both survive. Clutch extension widens further.
+    """
     times = [int(k["server_time_ms"]) for k in group]
+    pre = PRE_MS + (1000 if len(group) >= 3 else 0)
+    post = (POST_MS + 1000) if len(group) < 3 else (POST_MS + 2000)
     return {
         "kills": group,
-        "capture_start_ms": times[0] - PRE_MS,
-        "capture_end_ms": times[-1] + POST_MS,
+        "capture_start_ms": times[0] - pre,
+        "capture_end_ms": times[-1] + post,
         "clutch": None,
     }
 
@@ -156,36 +163,117 @@ def build_windows(kills: list[dict], clutches: list[dict] | None = None,
     return [_finalize(w, demo_hash) for w in merged]
 
 
-def dedupe_windows(windows: list[dict]) -> list[dict]:
-    """Collapse near-duplicate demo files recording the same match.
+MIN_SHARED_TUPLES = 3
 
-    Byte-identical duplicates were removed in the corpus rebuild, but the
-    archive also holds re-saved/partial copies with different hashes. The same
-    moment is identified by (map, server_time_ms, n_kills, frag_offsets_ms) —
-    round is excluded because a partial recording's round counter differs.
-    Keeps the descriptively named demo over an opaque "Demo (N)" export.
+
+def build_match_groups(demo_frags: dict[str, list[tuple]]) -> dict[str, int]:
+    """Group demo files that recorded the SAME server match.
+
+    Evidence: two recordings of one match contain identical
+    (map, server_time_ms, attacker_client, victim_client, mod) kill tuples —
+    for ALL players, not just the recorder. Unrelated matches colliding on
+    MIN_SHARED_TUPLES exact millisecond+clients+mod tuples is not a real
+    scenario, while same-map serverTime coincidences alone are (servers
+    restart serverTime). Union-find over shared-tuple demo pairs.
+
+    demo_frags: demo name -> list of kill tuples.
+    Returns demo name -> match_group_id.
     """
-    best: dict[tuple, dict] = {}
+    parent: dict[str, str] = {d: d for d in demo_frags}
+
+    def find(x: str) -> str:
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    def union(a: str, b: str) -> None:
+        ra, rb = find(a), find(b)
+        if ra != rb:
+            parent[ra] = rb
+
+    tuple_owners: dict[tuple, list[str]] = {}
+    for demo, tuples in demo_frags.items():
+        for t in tuples:
+            tuple_owners.setdefault(t, []).append(demo)
+
+    pair_counts: dict[tuple[str, str], int] = {}
+    for owners in tuple_owners.values():
+        if len(owners) < 2:
+            continue
+        owners = sorted(set(owners))
+        for i in range(len(owners)):
+            for j in range(i + 1, len(owners)):
+                pair = (owners[i], owners[j])
+                pair_counts[pair] = pair_counts.get(pair, 0) + 1
+
+    for (a, b), n in pair_counts.items():
+        if n >= MIN_SHARED_TUPLES:
+            union(a, b)
+
+    roots: dict[str, int] = {}
+    out: dict[str, int] = {}
+    for d in demo_frags:
+        r = find(d)
+        out[d] = roots.setdefault(r, len(roots))
+    return out
+
+
+def dedupe_windows(windows: list[dict], match_group: dict[str, int]) -> list[dict]:
+    """Collapse duplicate MOMENTS — only within one match group.
+
+    Two windows are the same moment iff their demos recorded the same match
+    (match_group) AND they share at least one kill serverTime (kill times are
+    server-authoritative, identical across copies of a match). Windows from
+    unrelated matches are NEVER merged, even if map+serverTime coincide.
+    Keeps the higher score (fuller chain), then the descriptively named demo.
+    """
+    import json as _json
+
+    def kill_times(w: dict) -> set[int]:
+        offs = _json.loads(w["frag_offsets_ms"])
+        return {w["capture_start_ms"] + o for o in offs}
+
+    by_group: dict[int, list[dict]] = {}
+    ungrouped: list[dict] = []
     for w in windows:
-        key = (w["map"], w["server_time_ms"], w["n_kills"], w["frag_offsets_ms"])
-        cur = best.get(key)
-        if cur is None:
-            best[key] = w
+        g = match_group.get(w["demo"])
+        if g is None:
+            ungrouped.append(w)
         else:
-            named_new = not w["demo"].startswith("Demo (")
-            named_cur = not cur["demo"].startswith("Demo (")
-            if (named_new and not named_cur) or (
-                    named_new == named_cur and w["score"] > cur["score"]):
-                best[key] = w
-    return list(best.values())
+            by_group.setdefault(g, []).append(w)
+
+    out: list[dict] = list(ungrouped)
+    for group in by_group.values():
+        demos = {w["demo"] for w in group}
+        if len(demos) == 1:
+            out.extend(group)
+            continue
+        kept: list[tuple[set[int], dict]] = []
+        for w in sorted(group, key=lambda w: (-w["score"],
+                                              w["demo"].startswith("Demo ("))):
+            kt = kill_times(w)
+            if any(kt & other_kt for other_kt, _ in kept):
+                continue
+            kept.append((kt, w))
+        out.extend(w for _, w in kept)
+    return out
 
 
 def assign_classes(windows: list[dict]) -> None:
+    """Complete taxonomy — every window gets an explicit class.
+
+    Premium: CLUTCH_PREMIUM / T1_NEW (P99) / T2_NEW (P95) / ACTION_PREMIUM
+    (action tag). Remainder: NORMAL (score >= median — solid but unremarkable
+    recorder kills) or LOW_SCORE (below median — context/killfeed value only).
+    Class counts always sum to the unique-window total.
+    """
     scores = sorted((w["score"] for w in windows), reverse=True)
     if not scores:
         return
     p99 = scores[max(0, len(scores) // 100 - 1)]
     p95 = scores[max(0, len(scores) * 5 // 100 - 1)]
+    p50 = scores[len(scores) // 2]
     for w in windows:
         if w["clutch_context"]:
             w["class"] = "CLUTCH_PREMIUM"
@@ -195,17 +283,33 @@ def assign_classes(windows: list[dict]) -> None:
             w["class"] = "T2_NEW"
         elif set((w["tags"] or "").split(",")) & ACTION_TAGS:
             w["class"] = "ACTION_PREMIUM"
+        elif w["score"] >= p50:
+            w["class"] = "NORMAL"
         else:
-            w["class"] = ""
+            w["class"] = "LOW_SCORE"
 
 
-def run() -> dict:
+def load_demo_frag_tuples(conn) -> dict[str, list[tuple]]:
+    """All kill tuples per demo (every player) for match fingerprinting."""
+    demo_frags: dict[str, list[tuple]] = {}
+    for demo, mp, t, a, v, mod in conn.execute(
+            "SELECT f.demo_name, d.map_name, f.server_time_ms, f.attacker_client,"
+            " f.victim_client, f.mod FROM frags f JOIN demos d ON d.demo_id=f.demo_id"):
+        demo_frags.setdefault(demo, []).append((mp, t, a, v, mod))
+    return demo_frags
+
+
+def prepare() -> tuple[list[dict], dict[str, int], dict[str, tuple]]:
+    """Everything up to (but excluding) dedup: pre-dedup windows,
+    match groups, and demo info map."""
     conn = sqlite3.connect(f"file:{FRAGS_DB}?mode=ro", uri=True)
     demo_info = {}
     for name, h, size, rc, dup in conn.execute(
             "SELECT name, content_hash, size_bytes, recorder_client, duplicate_of FROM demos"):
         demo_info[name] = (dup or h, size, rc)
+    demo_frags = load_demo_frag_tuples(conn)
     conn.close()
+    match_group = build_match_groups(demo_frags)
 
     with open(SEEK_CSV, newline="", encoding="utf-8") as f:
         seek = list(csv.DictReader(f))
@@ -225,12 +329,18 @@ def run() -> dict:
         h = demo_info.get(demo, (None, None, None))[0]
         windows.extend(build_windows(kills, clutch_by_hash.get(h, []), h))
 
-    windows = dedupe_windows(windows)
+    for w in windows:
+        w["match_group"] = match_group.get(w["demo"])
+    return windows, match_group, demo_info
+
+
+def run() -> dict:
+    windows, match_group, demo_info = prepare()
+    windows = dedupe_windows(windows, match_group)
     assign_classes(windows)
     windows.sort(key=lambda w: w["score"], reverse=True)
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    fields = list(windows[0].keys()) + ["class"] if windows else []
     fields = list(dict.fromkeys([*windows[0].keys()])) if windows else []
 
     def write_csv(path: Path, rows: list[dict]):
@@ -245,35 +355,12 @@ def run() -> dict:
     for n in (20, 50, 100):
         write_csv(OUT_DIR / f"capture_windows_top{n}.csv", windows[:n])
 
-    # Insert top-100 as promotion candidates
-    sys.path.insert(0, str(REPO_ROOT))
-    from creative_suite.database import demo_v2_db
-    dconn = demo_v2_db.connect()
-    dconn.execute("DELETE FROM generated_clips WHERE promotion_status='CANDIDATE' AND avi_path IS NULL")
-    dconn.commit()
-    for w in windows[:100]:
-        info = demo_info.get(w["demo"], (None, None, None))
-        demo_v2_db.insert_candidate(dconn, {
-            "demo_name": w["demo"],
-            "canonical_demo_hash": w["canonical_demo_hash"],
-            "server_time_ms": w["server_time_ms"],
-            "round": w["round"],
-            "capture_start_ms": w["capture_start_ms"],
-            "capture_end_ms": w["capture_end_ms"],
-            "frag_offsets_ms": w["frag_offsets_ms"],
-            "recorder_client": info[2],
-            "weapon": w["weapon"],
-            "tags": w["tags"],
-            "rank_score": w["score"],
-            "class": w["class"] or "T2_NEW",
-            "clutch_context": w["clutch_context"],
-            "source_size_bytes": info[1],
-        })
-    dconn.close()
+    # NOTE: promotion-candidate DB rows are owned by promotion_batch.py,
+    # which applies overlap removal and diversity before inserting.
 
     counts = {}
     for w in windows:
-        counts[w["class"] or "UNCLASSED"] = counts.get(w["class"] or "UNCLASSED", 0) + 1
+        counts[w["class"]] = counts.get(w["class"], 0) + 1
     return {"windows": len(windows), "class_counts": counts,
             "top_score": windows[0]["score"] if windows else 0}
 
