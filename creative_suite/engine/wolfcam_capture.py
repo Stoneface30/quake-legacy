@@ -77,6 +77,17 @@ def ensure_install(staging: Path = STAGING) -> Path:
         shutil.copy2(BIN_DIR / f"wolfcamql-11.3_{dll}", gamedir / dll)
     (gamedir / "demos").mkdir(exist_ok=True)
     (gamedir / "videos").mkdir(exist_ok=True)
+    # QL assets: fs_quakelivedir is ignored by this build (verified in
+    # qconsole.log — no Steam entries in the search path), so the paks are
+    # copied into staging/baseq3, which IS searched. Steam originals are
+    # never touched (ENG-4).
+    baseq3 = staging / "baseq3"
+    baseq3.mkdir(exist_ok=True)
+    for pak in ("pak00.pk3", "bin.pk3"):
+        src, dst = QL_DIR / "baseq3" / pak, baseq3 / pak
+        if src.exists() and (not dst.exists()
+                             or dst.stat().st_size != src.stat().st_size):
+            shutil.copy2(src, dst)
     return staging
 
 
