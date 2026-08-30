@@ -198,8 +198,19 @@ def pick_candidates(limit: int) -> list[dict]:
                       weapon_name, json_extract(attributes,'$.distance') AS d,
                       classes
                FROM recognized_frags
-               WHERE classes LIKE '%PIXEL_SHOT_CANDIDATE%'
-                  OR json_extract(attributes,'$.distance') > 1500
+               WHERE json_extract(attributes,'$.los_visible_fraction') IS NULL
+                 AND (classes LIKE '%PIXEL_SHOT_CANDIDATE%'
+                  OR classes LIKE '%REACTION_SHOT_CANDIDATE%'
+                  OR classes LIKE '%RAIL_FLICK%'
+                  OR classes LIKE '%EXTREME_FLICK%'
+                  OR classes LIKE '%CLEAN_FLICK%'
+                  OR (json_extract(attributes,'$.distance') >= 1200
+                      AND weapon_name IN
+                      ('RAILGUN','ROCKET','ROCKET_SPLASH','SHOTGUN'))
+                  OR (json_extract(attributes,
+                        '$.projectile_direct_geometry') = 'DIRECT_CONFIRMED'
+                      AND json_extract(attributes,
+                        '$.projectile_distance') >= 700))
                ORDER BY d DESC LIMIT ?""", (limit,)).fetchall()
     finally:
         con.close()
