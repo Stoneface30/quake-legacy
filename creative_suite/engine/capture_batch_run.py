@@ -25,6 +25,11 @@ sys.path.insert(0, str(REPO_ROOT))
 from creative_suite.database import demo_v2_db
 from creative_suite.engine import capture_qa, wolfcam_capture as wc
 
+
+def _profile_id() -> str:
+    from creative_suite.engine import master_profile
+    return master_profile.profile_id()
+
 FRAGS_DB = REPO_ROOT / "creative_suite" / "database" / "frags_rebuilt.db"
 LOCK = REPO_ROOT / "output" / "demo_v2" / "_capture.lock"
 REPORT = REPO_ROOT / "output" / "demo_v2" / "capture_run_report.json"
@@ -213,9 +218,10 @@ def _qa_and_publish(dconn, c, avi: Path, cmd: str, results: dict) -> None:
     dconn.execute(
         "UPDATE generated_clips SET avi_path=?, qa_status=?, "
         "promotion_status=?, semantic_qa=?, capture_cmd=?, wolfcam_version=?, "
+        "capture_profile_id=?, "
         "source_quality=? WHERE generated_clip_id=?",
         (str(dest), status, promotion, json.dumps(sem), cmd,
-         wc.WOLFCAM_VERSION,
+         wc.WOLFCAM_VERSION, _profile_id(),
          f"{tech.get('width')}x{tech.get('height')}@{tech.get('fps')}",
          c["generated_clip_id"]))
     dconn.commit()

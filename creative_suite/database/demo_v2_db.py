@@ -56,6 +56,7 @@ _MIGRATION_COLUMNS = {
     "capture_cmd": "TEXT",               # full wolfcam invocation + cfg
     "wolfcam_version": "TEXT",
     "semantic_qa": "TEXT",               # JSON list of flags, [] when clean
+    "capture_profile_id": "TEXT",        # frozen master profile hash
 }
 
 _COLUMNS = {

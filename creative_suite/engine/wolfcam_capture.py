@@ -30,7 +30,9 @@ BIN_DIR = REPO_ROOT / "engine" / "engines" / "ghidra" / "binaries"
 CANONICAL_GAMEDIR = (REPO_ROOT / "engine" / "engines" / "_canonical"
                      / "package-files" / "wolfcam-ql")
 STAGING = REPO_ROOT / "output" / "demo_v2" / "_wolfcam_staging"
-CLIPS_DIR = REPO_ROOT / "output" / "demo_v2" / "generated_clips"
+# Masters live on the big drive; provenance rows store absolute paths.
+CLIPS_DIR = Path(os.getenv("QL_MASTERS_DIR",
+                           r"D:\QUAKE_LEGACY_MASTERS\generated_clips"))
 QL_DIR = Path(r"C:\Program Files (x86)\Steam\steamapps\common\Quake Live")
 FFMPEG = REPO_ROOT / "creative_suite" / "tools" / "ffmpeg" / "ffmpeg.exe"
 
@@ -75,6 +77,8 @@ def ensure_install(staging: Path = STAGING) -> Path:
             shutil.copy2(src, dst)
     for dll in ("cgamex86.dll", "uix86.dll", "qagamex86.dll"):
         shutil.copy2(BIN_DIR / f"wolfcamql-11.3_{dll}", gamedir / dll)
+    from creative_suite.engine import master_profile
+    master_profile.write(gamedir)
     (gamedir / "demos").mkdir(exist_ok=True)
     (gamedir / "videos").mkdir(exist_ok=True)
     # QL assets: fs_quakelivedir is ignored by this build (verified in
@@ -107,14 +111,7 @@ def write_capture_cfg(windows: list[dict], staging: Path = STAGING) -> str:
     Executed via cgamepostinit.cfg (the reliable post-init hook the stock
     wolfcam automation scripts use).
     """
-    lines = [
-        f"cl_aviFrameRate {FPS}",
-        "cl_aviCodec mjpeg",      # raw RGB is 376 MB/s; MJPEG matches the
-        "r_jpegCompressionQuality 80",  # ~15 MB/s, matches historical clips
-        "cl_aviAllowLargeFiles 1",
-        "cl_noprint 1",
-        "s_volume 1.0",
-    ]
+    lines = ["exec wolfcam_tr4sh_master_capture.cfg"]
     prev_end = None
     for w in sorted(windows, key=lambda w: w["start_ms"]):
         name = _validate_cfg_token(str(w["clip_name"]))
@@ -152,19 +149,30 @@ def _terminate_cascade(proc: subprocess.Popen) -> None:
             pass
 
 
-def wolfcam_cmd(safe_demo: str, staging: Path = STAGING) -> list[str]:
-    return [
+def wolfcam_cmd(safe_demo: str, staging: Path = STAGING,
+                extra_sets: dict | None = None,
+                width: int = WIDTH, height: int = HEIGHT,
+                use_master_profile: bool = True) -> list[str]:
+    if use_master_profile:
+        from creative_suite.engine import master_profile
+        merged = dict(master_profile.LAUNCH_SETS)
+        merged.update(extra_sets or {})
+        extra_sets = merged
+    cmd = [
         str(staging / "wolfcamql.exe"),
         "+set", "fs_homepath", str(staging),
         "+set", "fs_basepath", str(staging),
         "+set", "fs_quakelivedir", str(QL_DIR),
         "+set", "r_mode", "-1",
-        "+set", "r_customwidth", str(WIDTH),
-        "+set", "r_customheight", str(HEIGHT),
+        "+set", "r_customwidth", str(width),
+        "+set", "r_customheight", str(height),
         "+set", "r_fullscreen", "0",
         "+set", "s_backend", "base",
-        "+demo", safe_demo,
     ]
+    for k, v in (extra_sets or {}).items():
+        cmd += ["+set", str(k), str(v)]
+    cmd += ["+demo", safe_demo]
+    return cmd
 
 
 def _mock_capture(windows: list[dict], staging: Path) -> None:
