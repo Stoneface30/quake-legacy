@@ -39,7 +39,8 @@ RECLASS_MARK = "db_reclass_v2"
 _REASON_RE = re.compile(
     r"^([+-] (extreme-speed p|very-fast p|high-speed p|fast target p|"
     r"stationary target|rapid chain |1v\d clutch |near-death |critical |"
-    r"low hp |survived \d+dmg burst))")
+    r"low hp |survived \d+dmg burst|true flick |extreme flick |clean snap|"
+    r"lg pressure |lg dodge |damage burst ))")
 
 # Legacy weights of the two buggy runs (for the one-time score repair).
 _OLD_HEALTH = {"near": 10, "crit": 6, "low": 3, "ctx": 0.5, "burst": 2}
@@ -206,6 +207,48 @@ def run() -> dict:
                         reasons.append(f"+ 1v{n} clutch (+{6 + 4*(n-2)})")
                         stats["clutch_labeled"] += 1
                     break
+
+        # true-aim quality (targeted view timeseries; complete movement curve)
+        fd = a.get("flick_true_deg")
+        if fd is not None:
+            fms = a.get("flick_true_ms") or 0
+            dps = a.get("flick_peak_dps") or 0
+            settle = a.get("settle_deg")
+            clean = settle is not None and settle < 8.0
+            if fd >= 100 and dps >= 500 and clean:
+                add("EXTREME_FLICK", "CONFIRMED",
+                    f"{fd}deg/{fms}ms peak {dps}dps settle {settle}")
+                add_move += 9
+                reasons.append(f"+ extreme flick {fd}deg @ {dps}dps (+9)")
+            elif fd >= 60 and fms <= 450 and clean:
+                add("TRUE_FLICK", "CONFIRMED",
+                    f"{fd}deg/{fms}ms settle {settle}")
+                add_move += 4
+                reasons.append(f"+ true flick {fd}deg/{fms}ms (+4)")
+            if clean and settle < 3.0 and fd >= 40:
+                add_move += 2
+                reasons.append("+ clean snap (+2)")
+
+        # LG engagement labels (targeted LG extraction; damage-flow model)
+        cr = a.get("lg_contact_rate")
+        if cr is not None:
+            if cr >= 2.0:
+                add("LG_HIGH_PRESSURE", "CONFIRMED", f"{cr}/s contact")
+                add_move += 5
+                reasons.append(f"+ lg pressure {cr}/s (+5)")
+            dr = a.get("lg_dodge_rating") or 0
+            inr = a.get("lg_incoming_hit_ratio")
+            ticks = a.get("lg_incoming_fire_ticks") or 0
+            if dr >= 20 and ticks >= 60 and (inr is not None and inr <= 0.10):
+                add("LG_DODGE_MASTER", "CONFIRMED",
+                    f"rating {dr}, ate {inr:.0%} of {ticks} ticks")
+                add_move += 7
+                reasons.append(f"+ lg dodge {inr:.0%}/{ticks}t (+7)")
+            burst = a.get("lg_damage_burst_3s") or 0
+            if burst >= 150:
+                add("DAMAGE_BURST", "CONFIRMED", f"{burst}dmg/3s")
+                add_move += 4
+                reasons.append(f"+ damage burst {burst}/3s (+4)")
 
         # health drama (targeted extraction; context-weighted: the same HP
         # means more with more enemies alive — mandate: 20HP cleanup != 20HP 1v3)
