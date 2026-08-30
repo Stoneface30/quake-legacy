@@ -41,7 +41,8 @@ _REASON_RE = re.compile(
     r"stationary target|rapid chain |1v\d clutch |near-death |critical |"
     r"low hp |survived \d+dmg burst|true flick |extreme flick |clean flick |"
     r"tracking sweep |aim transition |clean snap|geo direct |geo near-direct |"
-    r"air rocket geo |temporal prediction |rarity |"
+    r"air rocket geo |temporal prediction |rarity|pixel shot |tiny gap |"
+    r"reaction |corner prefire |"
     r"lg pressure |lg dodge |damage burst ))")
 
 # Legacy weights of the two buggy runs (for the one-time score repair).
@@ -90,6 +91,26 @@ def run() -> dict:
             clutches.setdefault(c["canonical_demo_hash"], []).append(c)
 
     samples = load_norm_samples(conn)
+
+    # stage-2 geometric visibility (own table; merged into attributes here)
+    stage2: dict[tuple, dict] = {}
+    try:
+        for row in conn.execute("SELECT * FROM stage2_visibility"):
+            d = dict(zip([c[0] for c in conn.execute(
+                "SELECT * FROM stage2_visibility LIMIT 0").description], row))
+            key = (d.get("demo_name"), d.get("server_time_ms"))
+            stage2[key] = d
+    except sqlite3.OperationalError:
+        pass  # table not built yet
+
+    # label archive frequencies for rarity (first pass, read-only)
+    from collections import Counter
+    label_freq: Counter = Counter()
+    total_rows = 0
+    for (cl,) in conn.execute("SELECT classes FROM recognized_frags"):
+        total_rows += 1
+        for x in json.loads(cl or "[]"):
+            label_freq[x["name"] if isinstance(x, dict) else x] += 1
     rows = [dict(r) for r in conn.execute(
         "SELECT id, demo_name, server_time_ms, classes, attributes, reasons,"
         " speed_score, movement_score, clutch_score, drama_score,"
@@ -302,6 +323,47 @@ def run() -> dict:
                 f"{a.get('projectile_flight_ms')}ms flight")
             add_move += 4
             reasons.append("+ temporal prediction (+4)")
+
+        # stage-2 pixel/visibility evidence
+        s2 = stage2.get((r["demo_name"], r["server_time_ms"]))
+        if s2:
+            for k in ("visible_fraction", "los_open_duration_ms",
+                      "angular_size_deg", "corner_prefire"):
+                if s2.get(k) is not None:
+                    a["los_" + k if not k.startswith("los") else k] = s2[k]
+            vf = s2.get("visible_fraction")
+            ang = s2.get("angular_size_deg")
+            los = s2.get("los_open_duration_ms")
+            if vf is not None and 0 < vf <= 0.25 and (ang or 99) <= 3.0:
+                add("PIXEL_SHOT_CONFIRMED", "CONFIRMED",
+                    f"visible {vf:.0%}, {ang}deg target")
+                add_move += 8
+                reasons.append(f"+ pixel shot {vf:.0%} exposure (+8)")
+                if vf <= 0.12:
+                    add("TINY_GAP_SHOT", "CONFIRMED", f"visible {vf:.0%}")
+                    add_move += 3
+                    reasons.append(f"+ tiny gap {vf:.0%} (+3)")
+            if (los is not None and los <= 250 and (vf or 0) >= 0.5):
+                add("REACTION_SHOT", "CONFIRMED", f"LOS open {los}ms")
+                add_move += 5
+                reasons.append(f"+ reaction {los}ms LOS (+5)")
+            if s2.get("corner_prefire"):
+                add("CORNER_PREFIRE_CONFIRMED", "CONFIRMED",
+                    "hidden at t-200ms, visible at kill")
+                add_move += 4
+                reasons.append("+ corner prefire (+4)")
+
+        # rarity: multi-dimensional archive-relative scarcity (small,
+        # additive; never replaces skill evidence)
+        rare = sum(1 for x in have
+                   if 0 < label_freq.get(x, 0) <= total_rows * 0.002)
+        semi = sum(1 for x in have
+                   if total_rows * 0.002 < label_freq.get(x, 0)
+                   <= total_rows * 0.01)
+        rarity = min(8.0, rare * 3.0 + semi * 1.0)
+        if rarity >= 3.0:
+            add_move += rarity
+            reasons.append(f"+ rarity({rare}x ultra,{semi}x rare) (+{rarity})")
 
         # health drama (targeted extraction; context-weighted: the same HP
         # means more with more enemies alive — mandate: 20HP cleanup != 20HP 1v3)
