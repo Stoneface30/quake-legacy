@@ -168,6 +168,13 @@ def test_adjust_path_noop_when_valid():
 
 
 # ── collision on a real map ──────────────────────────────────────────────────
+# Flake audit 2026-08-30: two one-time failures were reported here during
+# 3-concurrent-agent runs. Determinism audited: no RNG in camera_paths, no
+# pytest ordering plugins installed, load_map lru eviction is benign, and
+# 8 consecutive module runs + full-suite runs (incl. under extraction load)
+# are green. Working hypothesis: transient I/O contention on the shared
+# 962MB pak00.pk3. If this fails again in a QUIET run, capture -ra output
+# and investigate the zipfile read path before touching the math.
 
 @pytest.fixture(scope="module")
 def real_tracer():
