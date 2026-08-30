@@ -632,3 +632,38 @@ def test_reclassify_idempotent_marker():
     assert rv._REASON_RE.match("- stationary target (-3)")
     assert not rv._REASON_RE.match("+ extreme-speed 823 ups p99.0 (+5.0)")  # raw-scan format kept
     assert not rv._REASON_RE.match("+ direct rocket (MOD-confirmed)")
+
+
+def test_canonical_number_one_event():
+    """Regression fixture: the asylum 2011-08-05 direct rocket (mandate 3).
+
+    Canonical final measurements from the current-version feature cache.
+    If an extractor version bump legitimately changes these, update BOTH
+    this test and docs — never silently."""
+    import json
+    import sqlite3
+    from pathlib import Path
+    db = Path(__file__).resolve().parents[2] / "creative_suite" / "database" / "frag_recognition.db"
+    if not db.exists():
+        import pytest
+        pytest.skip("recognition db not present")
+    c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    row = c.execute(
+        "SELECT attributes, classes FROM recognized_frags WHERE"
+        " demo_name='CA-pTnTr4sH-asylum-2011_08_05-22_37_30.dm_73'"
+        " AND server_time_ms=826600").fetchone()
+    if row is None:
+        import pytest
+        pytest.skip("canonical event not in db")
+    a = json.loads(row[0])
+    names = {x["name"] if isinstance(x, dict) else x for x in json.loads(row[1])}
+    assert a["projectile_direct_geometry"] == "DIRECT_CONFIRMED"
+    assert a["projectile_direct_expansion_u"] == 0.0
+    assert a["projectile_flight_ms"] == 300
+    assert abs(a["projectile_distance"] - 318.6) < 1.0
+    assert a["projectile_victim_airborne"] is True
+    assert a["projectile_victim_vertical_speed"] <= -800
+    assert a["attacker_speed_percentile"] >= 99.5
+    assert a["killer_speed"] >= 950
+    assert {"DIRECT_CONFIRMED_GEO", "AIR_ROCKET_GEO",
+            "CLUTCH_1V3", "EXTREME_SPEED"} <= names
