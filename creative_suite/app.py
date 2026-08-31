@@ -59,6 +59,7 @@ def create_app() -> FastAPI:
         editor,
         engine,
         forge,
+        frags,
         md3,
         ollama,
         packs,
@@ -82,6 +83,7 @@ def create_app() -> FastAPI:
     app.include_router(studio.router)
     app.include_router(forge.router)
     app.include_router(engine.router)
+    app.include_router(frags.router)
 
     # Spec §11.3 mitigation: check img2img workflow placeholders at boot.
     # This only logs — it never aborts startup, so a ComfyUI update that
@@ -128,6 +130,10 @@ def create_app() -> FastAPI:
     @app.get("/studio")
     def studio_page() -> FileResponse:  # pyright: ignore[reportUnusedFunction]
         return FileResponse(FRONTEND_ROOT / "studio.html")
+
+    @app.get("/frags")
+    def frags_page() -> FileResponse:  # pyright: ignore[reportUnusedFunction]
+        return FileResponse(FRONTEND_ROOT / "frags.html")
 
     PHOTOREAL_DIR = Path(__file__).parent / "comfy" / "photoreal"
 

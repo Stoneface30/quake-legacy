@@ -159,16 +159,35 @@ _GAMEPLAY_MASTER_V2 = {
     "cg_obituaryStack": 3,
     "cg_obituaryTokens": "%k %i %v",
     "cg_obituaryIconScale": 1.2,
-    # tuned frag confirmation
+    # tuned frag confirmation — MUST run through the SEPARATE draw path:
+    # with Separate=0 the message routes through CENTER PRINT at
+    # cg_drawCenterPrintScale 0.35 and every cg_drawFragMessage* tune is
+    # ignored (cg_event.c:465/490/516 -> cg_draw.c:8340). This was the
+    # "names too big" frag-message half of the defect.
+    "cg_drawFragMessageSeparate": 1,
     "cg_drawFragMessageTime": 2000,
-    "cg_drawFragMessageScale": 0.28,
+    "cg_drawFragMessageScale": 0.22,
     "cg_drawFragMessageFadeTime": 250,
     "cg_drawFragMessageX": 320,
     "cg_drawFragMessageY": 110,
     "cg_drawFragMessageAlign": 1,
     "cg_drawFragMessageStyle": 6,
     "cg_drawFragMessageTokens": "You fragged %v",
+    # medals kept (fragmovie candy) but premium-scaled, brief, spam-capped
     "cg_drawRewards": 1,
+    "cg_drawRewardsImageScale": 0.8,
+    "cg_drawRewardsTime": 2000,
+    "cg_drawRewardsMax": 3,
+    # cinematic gait: wolfcam ships all view bob at 0 (competitive
+    # convention); original Q3 values restore the filmed-from-the-eyes feel
+    "cg_bobup": 0.005,
+    "cg_bobpitch": 0.002,
+    "cg_bobroll": 0.002,
+    # damage felt, never blowing out the grade
+    "cg_screenDamageAlpha": 120,
+    # world reads better on 60fps cuts
+    "cg_railTrailTime": 600,
+    "cg_markTime": 20000,
     # audio: hits audible, kill chime gone (cg_event.c:120-124 separation)
     "cg_hitBeep": 2,
     "cg_killBeep": 0,
@@ -199,6 +218,16 @@ _GAMEPLAY_MASTER_V2 = {
     # consecutive targets overlap into a ghosted jumble)
     "cg_drawCrosshairNames": 0,
     "cg_drawCrosshairTeammateHealth": 0,
+    # scoreboard never pops (auto-shows on death / round end / warmup /
+    # intermission in CA demos) and console notify lines stay dark
+    "cg_scoreBoardWhenDead": 0,
+    "cg_roundScoreBoard": 0,
+    "cg_scoreBoardAtIntermission": 0,
+    "cg_scoreBoardWarmup": 0,
+    "con_notifylines": 0,
+    # wolfcam floats a cyan self/demo-taker icon over the recorder's corpse
+    # while dead (validation frame sb_death2) — off for movie footage
+    "cg_drawSelf": 0,
     # clutter that returns with cg_draw2D 1 (weapon bar seen in fov grid)
     "cg_weaponBar": 0,
     "cg_drawFullWeaponBar": 0,
