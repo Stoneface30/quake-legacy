@@ -173,6 +173,32 @@ _GAMEPLAY_MASTER_V2 = {
     "cg_hitBeep": 2,
     "cg_killBeep": 0,
     "s_killBeepVolume": 0,
+    # MOVIEMAKING de-gaming (user frame review 2026-08-31): authentic
+    # player models instead of forced bright keel, no floating names, no
+    # oversized friend sprites, ad boards neutralized (ad_content textures
+    # are not shipped -> beige panels otherwise)
+    "cg_enemyModel": "",
+    "cg_teamModel": "",
+    "cg_forceModel": 0,
+    "cg_drawPlayerNames": 0,
+    "cg_drawFriend": 0,
+    # ads RENDER — boards carry PANTHEON branding via zzz_pantheon_ads.pk3
+    # (creative_suite/engine/pantheon_ads.py); override stays available as a
+    # kill-switch if a map requests an aspect the pack does not cover
+    "cg_adShaderOverride": 0,
+    "cg_enemyRailColor1": "",
+    "cg_enemyRailColor2": "",
+    # center-screen kill notice ("<killer> <icon> <victim>") was the
+    # oversized floating name in the defect frame; the small top-left obit
+    # feed already carries this information
+    "cg_drawCenterPrint": 0,
+    # top-right follow bar (name/location/health/ammo) is spectator UI
+    "cg_drawTeamOverlay": 0,
+    # names of players passing under the crosshair, drawn center-screen —
+    # THE oversized floating names in the defect frame (fading draws of
+    # consecutive targets overlap into a ghosted jumble)
+    "cg_drawCrosshairNames": 0,
+    "cg_drawCrosshairTeammateHealth": 0,
     # clutter that returns with cg_draw2D 1 (weapon bar seen in fov grid)
     "cg_weaponBar": 0,
     "cg_drawFullWeaponBar": 0,
