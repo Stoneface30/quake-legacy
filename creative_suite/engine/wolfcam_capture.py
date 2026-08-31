@@ -221,7 +221,7 @@ def capture_demo(safe_demo: str, windows: list[dict],
     # Seeks fast-forward-parse the demo (~50x realtime measured; budget 25x).
     max_seek_s = max(int(w["start_ms"]) for w in windows) / 1000.0
     timeout = (LAUNCH_OVERHEAD_S + total_capture_s * CAPTURE_SLOWDOWN
-               + max_seek_s / 25.0)
+               + max_seek_s / 12.0)   # /25 timed out a slow-parsing demo (330)
     t0 = time.time()
 
     if os.getenv("CS_CAPTURE_MOCK"):
