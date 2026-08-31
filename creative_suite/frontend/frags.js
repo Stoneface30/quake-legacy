@@ -4,8 +4,10 @@
 const state = {
   limit: 100, offset: 0, total: 0,
   selectedId: null, detail: null,
+  category: null,
   loopIn: null, loopOut: null,
   pollTimer: null, notesTimer: null,
+  director: null,   // {sessionId, since, count, keybind, recipeId, pollTimer}
 };
 
 const $ = (id) => document.getElementById(id);
@@ -38,6 +40,7 @@ function currentFilters() {
   if (minScore !== "") p.set("min_score", minScore);
   if ($("f-weapon").value) p.set("weapon", $("f-weapon").value);
   if ($("f-class").value) p.set("class", $("f-class").value);
+  if (state.category) p.set("category", state.category);
   const demo = $("f-demo").value.trim();
   if (demo) p.set("demo", demo);
   p.set("mode_pool", $("f-pool").value);
@@ -54,6 +57,13 @@ function masterBadge(master) {
   b.title = `clip #${master.generated_clip_id} · ${master.class || ""} · QA ${qa}` +
     (master.avi_on_disk ? " · AVI on disk" : " · AVI missing");
   return b;
+}
+
+function mapFromDemo(name) {
+  const clean = (name || "").replace(/\.dm_73$/, "");
+  const parts = clean.split("-");
+  if (parts.length < 3) return "UNKNOWN MAP";
+  return parts.slice(2, -2).join("-").replace(/^pTnTr4sH-?/i, "") || "UNKNOWN MAP";
 }
 
 async function loadList() {
@@ -73,24 +83,60 @@ async function loadList() {
     const l1 = el("div", "line1");
     l1.appendChild(el("span", "score", (it.highlight_score ?? 0).toFixed(1)));
     l1.appendChild(el("span", "weapon", it.weapon_name || "–"));
-    l1.appendChild(el("span", "demo-short",
-      `${demoShort(it.demo_name)} · r${it.round ?? "?"} · ${fmtClock(it.server_time_ms)}`));
-    row.appendChild(l1);
-    const l2 = el("div", "line2");
-    (it.classes || []).slice(0, 3).forEach((c) => l2.appendChild(el("span", "chip", c)));
-    if (it.master) l2.appendChild(masterBadge(it.master));
-    if (it.review && it.review.verdict) {
-      l2.appendChild(el("span", `badge verdict-${it.review.verdict}`, it.review.verdict));
-    }
     if (it.review && it.review.user_tier) {
-      l2.appendChild(el("span", "badge qa-other",
+      l1.appendChild(el("span", "badge qa-other",
         it.review.user_tier === "S_PLUS" ? "S+" : it.review.user_tier));
     }
+    row.appendChild(l1);
+    row.appendChild(el("div", "map-line",
+      (it.map_name || mapFromDemo(it.demo_name)) + " · round " +
+      (it.round ?? "?") + " · " + fmtClock(it.server_time_ms)));
+    const l2 = el("div", "line2");
+    (it.classes || []).slice(0, 4).forEach((c) => l2.appendChild(el("span", "chip", c)));
     row.appendChild(l2);
+    const l3 = el("div", "line3");
+    const proxyState = (it.proxy && it.proxy.state) || "MISSING";
+    l3.appendChild(el("span", "media-state " + proxyState,
+      proxyState === "READY" ? "▶ READY" : "● " + proxyState));
+    if (it.master) l3.appendChild(masterBadge(it.master));
+    if (it.review && it.review.verdict) {
+      l3.appendChild(el("span", "badge verdict-" + it.review.verdict, it.review.verdict));
+    }
+    l3.appendChild(el("span", "demo-short", demoShort(it.demo_name)));
+    row.appendChild(l3);
     row.addEventListener("click", () => selectFrag(it.id));
     return row;
   });
   $("list-scroll").replaceChildren(...rows);
+}
+
+async function loadTaxonomy() {
+  const res = await fetch("/api/frags/taxonomy");
+  if (!res.ok) return;
+  const data = await res.json();
+  const groups = data.families.map((family) => {
+    const group = el("section", "tax-family");
+    group.appendChild(el("h2", "", family.label));
+    family.categories.forEach((category) => {
+      const button = el("button", "tax-item");
+      button.dataset.category = category.id;
+      button.appendChild(el("span", "", category.label));
+      button.appendChild(el("span", "tax-count", category.count.toLocaleString()));
+      button.addEventListener("click", () => {
+        const same = state.category === category.id;
+        state.category = same ? null : category.id;
+        state.offset = 0;
+        document.querySelectorAll(".tax-item.active").forEach(
+          (node) => node.classList.remove("active")
+        );
+        if (!same) button.classList.add("active");
+        loadList();
+      });
+      group.appendChild(button);
+    });
+    return group;
+  });
+  $("taxonomy").replaceChildren(...groups);
 }
 
 /* ========================= evidence formatting ========================= */
@@ -154,6 +200,9 @@ function kvGrid(obj) {
 async function selectFrag(id) {
   state.selectedId = id;
   state.loopIn = state.loopOut = null;
+  clearTimeout(state.director && state.director.pollTimer);
+  state.director = null;   // UI-side only; a live backend session (if any)
+                            // keeps running until explicitly stopped
   document.querySelectorAll(".frag-row.selected").forEach((r) => r.classList.remove("selected"));
   const row = document.querySelector(`.frag-row[data-id="${CSS.escape(String(id))}"]`);
   if (row) row.classList.add("selected");
@@ -218,7 +267,7 @@ function renderInspector() {
   });
   frag.appendChild(vRow);
   const tRow = el("div", "tier-btns");
-  [["S_PLUS", "S+"], ["S", "S"], ["A", "A"], ["", "none"]].forEach(([val, label]) => {
+  [["S_PLUS", "S+"], ["S", "S"], ["A", "A"], ["B", "B"], ["", "none"]].forEach(([val, label]) => {
     const b = el("button", "", label);
     if ((review.user_tier || "") === val && review.user_tier != null) b.classList.add("on");
     b.addEventListener("click", () => saveReview({ user_tier: val }));
@@ -245,6 +294,12 @@ function renderInspector() {
   const proxyBox = el("div", "");
   proxyBox.id = "proxy-box";
   frag.appendChild(proxyBox);
+
+  /* --- live director --- */
+  frag.appendChild(el("h3", "", "Live director"));
+  const directorBox = el("div", "");
+  directorBox.id = "director-box";
+  frag.appendChild(directorBox);
 
   /* --- master --- */
   frag.appendChild(el("h3", "", "Master clip"));
@@ -283,6 +338,7 @@ function renderInspector() {
 
   pane.replaceChildren(frag);
   renderProxyBox(d.proxy || { state: "MISSING" });
+  renderDirectorBox();
 }
 
 async function saveReview(patch) {
@@ -372,6 +428,134 @@ async function pollProxy() {
     renderEventStrip();
   }
   schedulePoll();
+}
+
+/* ============================= live director ============================= */
+/* Path A launcher (docs/reference/replay-runtime-feasibility.md): opens a
+ * VISIBLE wolfcamql window seeked to this frag with freecam armed. The user
+ * flies the camera live in that window, at the keyboard — this panel only
+ * shows session status and a captured-keyframe counter, it does not stream
+ * any video. */
+
+function renderDirectorBox() {
+  const box = $("director-box");
+  if (!box) return;
+  const d = state.director;
+  const frag = document.createDocumentFragment();
+
+  if (!d) {
+    const btn = el("button", "", "Fly this live (Director)");
+    btn.id = "btn-director-launch";
+    btn.addEventListener("click", launchDirector);
+    frag.appendChild(btn);
+    frag.appendChild(el("div", "hint",
+      "Opens a real wolfcam window on this machine, seeked to this frag."));
+    box.replaceChildren(frag);
+    return;
+  }
+
+  const status = el("div", "");
+  status.id = "director-status";
+  if (!d.recipeId) {
+    status.classList.add("live");
+    status.textContent =
+      `Live session running — fly in the wolfcam window, press ${d.keybind} to mark a keyframe.`;
+  } else {
+    status.textContent = "Session stopped — recipe saved.";
+  }
+  frag.appendChild(status);
+
+  const countLine = el("div", "");
+  countLine.appendChild(el("span", "", "keyframes captured: "));
+  countLine.appendChild(el("span", "director-count", String(d.count)));
+  frag.appendChild(countLine);
+
+  if (!d.recipeId) {
+    const stopBtn = el("button", "", "Stop & Save Recipe");
+    stopBtn.id = "btn-director-save";
+    stopBtn.disabled = d.saving === true;
+    stopBtn.addEventListener("click", stopAndSaveDirector);
+    frag.appendChild(stopBtn);
+  } else {
+    frag.appendChild(el("h3", "", "scene_recipe_id"));
+    frag.appendChild(el("div", "", d.recipeId)).id = "director-recipe";
+  }
+  box.replaceChildren(frag);
+}
+
+async function launchDirector() {
+  const id = state.selectedId;
+  if (id == null) return;
+  const btn = $("btn-director-launch");
+  if (btn) btn.disabled = true;
+  const res = await fetch(`/api/frags/${id}/director/launch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  if (!res.ok) {
+    if (btn) btn.disabled = false;
+    const err = await res.json().catch(() => ({}));
+    alert(err.detail || "could not launch director session");
+    return;
+  }
+  const data = await res.json();
+  if (state.selectedId !== id) return;   // user moved on before launch returned
+  state.director = {
+    sessionId: data.session_id, keybind: data.keybind,
+    since: 0, count: 0, recipeId: null, pollTimer: null,
+  };
+  renderDirectorBox();
+  scheduleDirectorPoll();
+}
+
+function scheduleDirectorPoll() {
+  const d = state.director;
+  if (!d || d.recipeId) return;
+  clearTimeout(d.pollTimer);
+  d.pollTimer = setTimeout(pollDirectorKeyframes, 2000);
+}
+
+async function pollDirectorKeyframes() {
+  const d = state.director;
+  if (!d || d.recipeId) return;
+  const res = await fetch(
+    `/api/director/${d.sessionId}/keyframes?since=${d.since}`);
+  if (res.ok) {
+    const data = await res.json();
+    if (state.director === d) {
+      d.since = data.next_offset;
+      d.count += data.count;
+      renderDirectorBox();
+    }
+  }
+  scheduleDirectorPoll();
+}
+
+async function stopAndSaveDirector() {
+  const d = state.director;
+  if (!d) return;
+  d.saving = true;
+  renderDirectorBox();
+  clearTimeout(d.pollTimer);
+  await fetch(`/api/director/${d.sessionId}/stop`, { method: "POST" });
+  const res = await fetch(`/api/director/${d.sessionId}/save_recipe`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  if (state.director !== d) return;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    d.saving = false;
+    alert(err.detail || "could not save recipe");
+    renderDirectorBox();
+    return;
+  }
+  const data = await res.json();
+  d.recipeId = data.scene_recipe_id;
+  d.saving = false;
+  renderDirectorBox();
 }
 
 /* ============================= player ============================= */
@@ -475,11 +659,21 @@ document.addEventListener("keydown", (e) => {
   const tag = (e.target && e.target.tagName) || "";
   if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
   if (e.code === "Space") { e.preventDefault(); togglePlay(); }
-  else if (e.key === ",") frameStep(-1);
-  else if (e.key === ".") frameStep(1);
-  else if (e.key === "[") setLoop("in");
-  else if (e.key === "]") setLoop("out");
-  else if (e.key === "l" || e.key === "L") clearLoop();
+  else if ((e.key === "ArrowLeft" || e.key === ",") && e.shiftKey) frameStep(-60);
+  else if ((e.key === "ArrowRight" || e.key === ".") && e.shiftKey) frameStep(60);
+  else if (e.key === "ArrowLeft" || e.key === ",") frameStep(-1);
+  else if (e.key === "ArrowRight" || e.key === ".") frameStep(1);
+  else if (e.key === "i" || e.key === "I") setLoop("in");
+  else if (e.key === "o" || e.key === "O") setLoop("out");
+  else if (e.key === "l" || e.key === "L") {
+    if (state.loopIn != null || state.loopOut != null) clearLoop();
+    else if (!player.hidden) {
+      state.loopIn = 0;
+      state.loopOut = player.duration || null;
+      updateTransport();
+      renderEventStrip();
+    }
+  }
 });
 
 /* ============================= event strip ============================= */
@@ -581,4 +775,5 @@ $("pg-next").addEventListener("click", () => {
 });
 
 loadFilters();
+loadTaxonomy();
 loadList();

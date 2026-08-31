@@ -276,6 +276,20 @@ _ANALYSIS_HEADLESS = {
     "r_jpegCompressionQuality": 60,
 }
 
+# Live-director session (Path A — docs/reference/replay-runtime-feasibility.md):
+# a human physically flies freecam in a VISIBLE wolfcam window. Based on
+# _CLEAN_POV (no HUD clutter — the user is looking at the world, not the
+# game) with no gameplay-feed additions, since nobody is filming a POV kill
+# here. cg_fov is a baseline only: creative_suite.engine.director_session
+# writes an explicit `cg_fov <value>` line into the per-session cgamepostinit
+# hook (after this cfg is exec'd) so the caller's requested fov always wins.
+# freecam itself is armed by that same per-session hook, not by this profile
+# (freecam needs a servertime seek immediately before it, which varies per
+# launch and can't be a frozen cfg).
+_DIRECTOR_SESSION = {
+    **_CLEAN_POV,
+}
+
 PROFILES = {
     "TR4SH_GAMEPLAY_MASTER_V2": {**_QUALITY, **_GAMEPLAY_MASTER_V2},
     "TR4SH_GAMEPLAY_MASTER": {**_QUALITY, **_GAMEPLAY_MASTER},   # historical
@@ -283,6 +297,7 @@ PROFILES = {
     "TR4SH_REFERENCE_POV": {**_QUALITY, **_REFERENCE_POV},
     "TR4SH_CINEMATIC_REPLAY": {**_QUALITY, **_CINEMATIC_REPLAY},
     "TR4SH_ANALYSIS_HEADLESS": {**_QUALITY, **_ANALYSIS_HEADLESS},
+    "TR4SH_DIRECTOR_SESSION": {**_QUALITY, **_DIRECTOR_SESSION},
 }
 
 _CFG_FILES = {
@@ -292,9 +307,11 @@ _CFG_FILES = {
     "TR4SH_REFERENCE_POV": "wolfcam_tr4sh_reference.cfg",
     "TR4SH_CINEMATIC_REPLAY": "wolfcam_tr4sh_cinematic.cfg",
     "TR4SH_ANALYSIS_HEADLESS": "wolfcam_tr4sh_analysis.cfg",
+    "TR4SH_DIRECTOR_SESSION": "wolfcam_tr4sh_director_session.cfg",
 }
 
 PROFILE_NAME = "TR4SH_GAMEPLAY_MASTER_V2"   # weapon visible (display mandate)
+DIRECTOR_PROFILE_NAME = "TR4SH_DIRECTOR_SESSION"
 
 
 def cfg_text(profile: str = PROFILE_NAME) -> str:
