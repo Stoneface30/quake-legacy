@@ -33,6 +33,13 @@ OUT_DIR = REPO_ROOT / "output" / "demo_v2" / "recognition"
 CHAIN_GAP_MS = 3000
 RECLASS_MARK = "db_reclass_v2"
 
+# DODGE_TO_KILL money-shot pacing: matches frag_classify.COMBO_WINDOW_MS
+# (weapon-switch combo window) exactly, per the existing WEAPON_COMBO
+# convention already established for "two notable things this close = one
+# cinematic beat".
+DODGE_TO_KILL_WINDOW_MS = 2000
+DODGE_STRAFE_PCTILE = 90.0   # top-decile recorder velocity swing at a near-miss
+
 # Reasons this module appends (stripped before every recompute so the pass
 # is IDEMPOTENT — running twice must not double scores; the original
 # implementation double-added on rerun, repaired 2026-08-30).
@@ -43,7 +50,8 @@ _REASON_RE = re.compile(
     r"tracking sweep |aim transition |clean snap|geo direct |geo near-direct |"
     r"air rocket geo |temporal prediction |rarity|pixel shot |tiny gap |"
     r"reaction |corner prefire |"
-    r"lg pressure |lg dodge |damage burst ))")
+    r"lg pressure |lg dodge |damage burst |"
+    r"near miss |dodge strafe p|dodge to kill ))")
 
 # Legacy weights of the two buggy runs (for the one-time score repair).
 _OLD_HEALTH = {"near": 10, "crit": 6, "low": 3, "ctx": 0.5, "burst": 2}
@@ -57,14 +65,17 @@ def pctile(sorted_vals: list[float], v: float) -> float:
 
 def load_norm_samples(conn) -> dict[str, list[float]]:
     """Percentile bases from the cached rows themselves (sorted samples)."""
-    ks, vs = [], []
+    ks, vs, dv = [], [], []
     for (attrs,) in conn.execute("SELECT attributes FROM recognized_frags"):
         a = json.loads(attrs or "{}")
         if a.get("killer_speed") is not None:
             ks.append(float(a["killer_speed"]))
         if a.get("victim_speed") is not None:
             vs.append(float(a["victim_speed"]))
-    return {"killer_speed": sorted(ks), "victim_speed": sorted(vs)}
+        if a.get("dodge_max_velocity_change") is not None:
+            dv.append(float(a["dodge_max_velocity_change"]))
+    return {"killer_speed": sorted(ks), "victim_speed": sorted(vs),
+            "dodge_velocity_change": sorted(dv)}
 
 
 def mode_of(gametype: str | None) -> str:
@@ -323,6 +334,49 @@ def run() -> dict:
                 f"{a.get('projectile_flight_ms')}ms flight")
             add_move += 4
             reasons.append("+ temporal prediction (+4)")
+
+        # dodge / near-miss labels (targeted extract_dodge_events.py cache;
+        # the anchor row's attributes already carry the BEST — i.e. closest
+        # approach — near-miss found in its pre-kill window, if any. A kill
+        # anchor with more than one near-miss of different weapon types only
+        # ever surfaces the single closest one here; the full set is still
+        # available in recognition_dodge_events for anyone who needs it.)
+        dodge_scored_this_row = False
+        nm_count = a.get("dodge_near_miss_count") or 0
+        nm_type = a.get("dodge_best_threat_type")
+        nm_dist = a.get("dodge_min_closest_approach_units")
+        if nm_count and nm_type and nm_dist is not None:
+            label = {"RAIL": "NEAR_MISS_RAIL", "ROCKET": "NEAR_MISS_ROCKET",
+                     "GRENADE": "NEAR_MISS_GRENADE"}.get(nm_type)
+            if label:
+                # the extractor only ever writes near-misses under its own
+                # weapon-specific threshold, so any row that reaches here
+                # already qualifies; a tighter-than-usual approach earns a
+                # small extra bonus (a graze reads better than a wide miss).
+                tight = nm_dist <= 40.0
+                bonus = 6.0 if tight else 3.0
+                add(label, "CONFIRMED", f"{nm_dist}u {nm_type.lower()}")
+                add_move += bonus
+                dodge_scored_this_row = True
+                reasons.append(f"+ near miss {nm_dist}u {nm_type.lower()}"
+                               f" (+{bonus})")
+
+        dv = a.get("dodge_max_velocity_change")
+        if dv is not None and samples["dodge_velocity_change"]:
+            pdv = pctile(samples["dodge_velocity_change"], float(dv))
+            if pdv >= DODGE_STRAFE_PCTILE:
+                add("DODGE_STRAFE", "CONFIRMED", f"p{pdv} vel swing")
+                add_move += 4
+                dodge_scored_this_row = True
+                reasons.append(f"+ dodge strafe p{pdv} (+4)")
+
+        gap = a.get("dodge_to_kill_gap_ms")
+        if (dodge_scored_this_row and gap is not None
+                and 0 <= gap <= DODGE_TO_KILL_WINDOW_MS):
+            add("DODGE_TO_KILL", "CONFIRMED", f"{gap}ms to kill")
+            add_move += 8
+            add_drama += 2
+            reasons.append(f"+ dodge to kill {gap}ms (+8)")
 
         # stage-2 pixel/visibility evidence
         s2 = stage2.get((r["demo_name"], r["server_time_ms"]))
