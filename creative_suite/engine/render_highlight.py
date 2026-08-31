@@ -93,7 +93,15 @@ CONSOLE_TRIM_S = 2.00
 # User 2026-08-29: "more game volume". Game is the foreground; music holds a
 # fixed level under it (Rule P1-G v6 -- never ducked).
 MUSIC_VOLUME = 1.24   # user 2026-08-29: "at least twice louder"
-GAME_VOLUME = 2.90   # user 2026-08-31: "x2 in game volume"
+# The mix is normalised as a whole afterwards, so what matters here is the
+# RATIO between the two, not either number on its own.
+#   1.45 / 1.24 = 1.17   original, game barely present
+#   2.90 / 1.24 = 2.34   after "x2 in game volume"
+#   3.60 / 1.24 = 2.90   now -- user 2026-09-01: "game sound a little louder we
+#                        need to be able to hear the game not only the music"
+# +1.9 dB of game against the music. Deliberately not more: past roughly 3x the
+# rail and rocket transients start driving the limiter, which pumps the music.
+GAME_VOLUME = 3.60
 
 # Visible seam. v6 used 0.40 s, which reads as a hard cut across 120 clips.
 # User 2026-08-29: "more transition". Research ceiling is 0.10-0.25 s -- a
@@ -219,7 +227,21 @@ SRC_POST_PEAK_S = 1.6
 
 
 def _load_tail_table():
-    """Per-clip measured end-trim, empty until tail_trim has been run."""
+    """Per-clip measured end-trim.
+
+    Prefers `clip_boundary`, which decides the cut from what actually ENDS a
+    clip -- the player dying, the full scoreboard coming up -- and which
+    refuses any cut with a game event after it, so a frag is never truncated
+    mid-action. Falls back to the older `tail_trim`, which only ever measured
+    silence after the last event, if the boundary scan has not been run.
+    """
+    try:
+        from creative_suite.engine.clip_boundary import load_table
+        t = load_table()
+        if t:
+            return t
+    except Exception:
+        pass
     try:
         from creative_suite.engine.tail_trim import load_table
         return load_table()
@@ -227,7 +249,22 @@ def _load_tail_table():
         return {}
 
 
+def _load_drop_set():
+    """Clips the boundary scan judged not worth showing at all.
+
+    Mis-cuts from the original AVI pass: a clip that opens on a respawn and
+    never gets going (user 2026-09-01: "at 35 we have a respawn and you can
+    remove the following clip ... issue in the initial avi making").
+    """
+    try:
+        from creative_suite.engine.clip_boundary import load_drops
+        return load_drops()
+    except Exception:
+        return set()
+
+
 _TAIL_TABLE = _load_tail_table()
+_DROP_SET = _load_drop_set()
 
 
 def source_window(peak: float, duration: float,
@@ -427,8 +464,18 @@ def frags_from_queue(rows, cfg: Config) -> list[Frag]:
         if not fp.exists():
             print(f"  [queue] MISSING {fp.name} -- skipped")
             continue
-        angles = _dedupe_angles(
-            [Path(a) for a in (r.get("angles") or []) if Path(a).exists()], cfg)
+        # Angles the boundary scan judged empty are dropped here rather than in
+        # the queue: every one of them is a second camera, never a POV, so the
+        # series' clip coverage is untouched and the count still has to reach
+        # 1076. A POV clip is NEVER dropped automatically -- losing a frag
+        # silently is worse than showing a weak one.
+        angles = [Path(a) for a in (r.get("angles") or []) if Path(a).exists()]
+        kept = [a for a in angles
+                if str(a.resolve()).lower() not in _DROP_SET]
+        if len(kept) < len(angles):
+            print(f"  [angle] dropped {len(angles) - len(kept)} empty angle(s) "
+                  f"for {fp.name}")
+        angles = _dedupe_angles(kept, cfg)
         out.append(Frag(fp=fp, tier=r.get("tier", "T1"), fls=angles,
                         is_intro=is_intro(fp)))
     return out
@@ -628,20 +675,22 @@ def music_grid(tracks: list[Path], cfg: Config):
     actually sits: the mix starts at video t=0, under the opener.
     """
     from creative_suite.engine import music_beatmatch as _mb
-    beats, downs, drops = [], [], []
+    beats, downs, drops, accents = [], [], [], []
     at = 0.0
     for q in tracks:
         try:
             b, d = _mb.full_grid(q)
             k = _mb.detect_drops(q)
+            a = _mb.salient_onsets(q)
         except Exception as exc:                       # noqa: BLE001
             print(f"[hl] track grid unavailable for {q.name} ({exc})")
             continue
         beats += [at + x for x in b]
         downs += [at + x for x in d]
         drops += [at + x for x in k]
+        accents += [at + x for x in a]
         at += max(0.0, probe_duration(q, cfg) - MUSIC_XFADE_S)
-    return sorted(beats), sorted(downs), sorted(drops)
+    return sorted(beats), sorted(downs), sorted(drops), sorted(accents)
 
 
 def video_time(timeline: float, seg_index: int) -> float:
@@ -1344,14 +1393,15 @@ def build(part: int, minutes: float, out: Path, cfg: Config,
     # The grid comes from the track this video will actually carry, not from a
     # per-Part beats file written for some earlier run. Drops are the strongest
     # landing points a listener hears, so they are loaded too.
-    beats, downbeats, drops = [], [], []
+    beats, downbeats, drops, accents = [], [], [], []
     if preset_music:
-        beats, downbeats, drops = music_grid(
+        beats, downbeats, drops, accents = music_grid(
             [q for q in preset_music if q.exists()], cfg)
     if not beats:
         beats, downbeats = load_beats(part, cfg)
     print(f"[hl] beat grid: {len(beats)} beats, {len(downbeats)} downbeats, "
-          f"{len(drops)} drops, spans {beats[-1] if beats else 0:.0f}s")
+          f"{len(drops)} drops, {len(accents)} accents, "
+          f"spans {beats[-1] if beats else 0:.0f}s")
 
     segments: list[Path] = []
     used_frags: list[Frag] = []
@@ -1407,8 +1457,8 @@ def build(part: int, minutes: float, out: Path, cfg: Config,
                     and f.duration > SHORT_CLIP_SLOWMO_S
                     and n_accent - last_scratch >= SCRATCH_MIN_GAP):
                 hit = speed_ramp.accent_rate_for_landing(
-                    w0, aw, bw, bw, vt, beats, downbeats, drops,
-                    allowed_kinds=("drop", "downbeat"))
+                    w0, aw, bw, bw, vt, beats, downbeats, drops, accents,
+                    allowed_kinds=("drop", "accent", "downbeat"))
                 if hit:
                     rate, land, kind = hit
                     scratch = True
@@ -1421,7 +1471,7 @@ def build(part: int, minutes: float, out: Path, cfg: Config,
             # one treatment per shot, never both.
             if not scratch and beats and f.duration <= SHORT_CLIP_SLOWMO_S:
                 lock = speed_ramp.accent_rate_for_landing(
-                    w0, aw, bw, w1, vt, beats, downbeats, drops)
+                    w0, aw, bw, w1, vt, beats, downbeats, drops, accents)
                 if lock:
                     rate, land, kind = lock
                     print(f"  [lock] {f.fp.name[:34]:34} slow {rate:.2f}x -> "

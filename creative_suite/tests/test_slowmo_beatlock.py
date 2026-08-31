@@ -137,15 +137,16 @@ class TestProductionTimebase:
         monkeypatch.setattr(MBmod, "full_grid",
                             lambda q, db=None: ([0.0, 1.0, 2.0], [0.0]))
         monkeypatch.setattr(MBmod, "detect_drops", lambda q, **k: [])
+        monkeypatch.setattr(MBmod, "salient_onsets", lambda q, **k: [])
         monkeypatch.setattr(RH, "probe_duration", lambda q, cfg: 100.0)
-        beats, downs, _ = RH.music_grid(["a.mp3", "b.mp3"], cfg=None)
+        beats, downs, _drops, _acc = RH.music_grid(["a.mp3", "b.mp3"], cfg=None)
         # track two starts one crossfade BEFORE track one ends
         start2 = 100.0 - RH.MUSIC_XFADE_S
         assert beats == [0.0, 1.0, 2.0, start2, start2 + 1.0, start2 + 2.0]
         assert max(beats) > 2.0, "grid must extend past the first track"
 
     def test_grid_is_empty_only_when_there_are_no_tracks(self, monkeypatch):
-        assert RH.music_grid([], cfg=None) == ([], [], [])
+        assert RH.music_grid([], cfg=None) == ([], [], [], [])
 
     def test_video_time_accounts_for_opener_and_seams(self):
         # segment 0 starts after the opener, less the one seam joining them

@@ -217,9 +217,9 @@ def snap_to_beat(t: float, beats: list[float], *,
 
 
 def _pick_landing(rate_for, natural_end, timeline_t, beats,
-                  downbeats=None, drops=None,
+                  downbeats=None, drops=None, accents=None,
                   lo: float = SLOW_RATE_MIN, hi: float = SLOW_RATE_MAX,
-                  allowed_kinds=("drop", "downbeat", "beat")):
+                  allowed_kinds=("drop", "accent", "downbeat", "beat")):
     """Choose the musical moment this segment should END on.
 
     `rate_for(target_out_s)` returns the slow rate needed to make the segment
@@ -236,19 +236,44 @@ def _pick_landing(rate_for, natural_end, timeline_t, beats,
         return None
     drops = set(round(x, 2) for x in (drops or []))
     downs = set(round(x, 2) for x in (downbeats or []))
+    accs = sorted(accents or [])
+
+    def near_accent(t, tol=0.09):
+        # an accent rarely sits exactly on a beat, so match by proximity
+        import bisect
+        if not accs:
+            return False
+        i = bisect.bisect_left(accs, t)
+        for j in (i - 1, i):
+            if 0 <= j < len(accs) and abs(accs[j] - t) <= tol:
+                return True
+        return False
+
+    # Landing points are the beat grid PLUS the track's own salient moments --
+    # a bell, a vocal entry, a stab. The user hears those as the sync points
+    # ("the bell at 28 and the bell at 32 land on one"), and several of them do
+    # not fall on a downbeat at all.
+    grid = sorted(set(list(beats) + [a for a in accs if a > timeline_t]))
 
     best = None
-    for b in beats:
+    for b in grid:
         if b <= timeline_t + 0.5:
             continue
         r = rate_for(b - timeline_t)
         if r is None or not (lo <= r <= hi):
             continue
         rb = round(b, 2)
-        kind = "drop" if rb in drops else ("downbeat" if rb in downs else "beat")
+        if rb in drops:
+            kind = "drop"
+        elif near_accent(b):
+            kind = "accent"
+        elif rb in downs:
+            kind = "downbeat"
+        else:
+            kind = "beat"
         if kind not in allowed_kinds:
             continue
-        rank = {"drop": 0, "downbeat": 1, "beat": 2}[kind]
+        rank = {"drop": 0, "accent": 1, "downbeat": 2, "beat": 3}[kind]
         cost = (rank, abs(b - natural_end))
         if best is None or cost < best[0]:
             best = (cost, r, b, kind)
@@ -259,10 +284,11 @@ def _pick_landing(rate_for, natural_end, timeline_t, beats,
 
 def accent_rate_for_landing(w0: float, a: float, b: float, w1: float,
                             timeline_t: float, beats, downbeats=None,
-                            drops=None, default_rate: float = SLOW_RATE,
+                            drops=None, accents=None,
+                            default_rate: float = SLOW_RATE,
                             lo: float = SLOW_RATE_MIN,
                             hi: float = SLOW_RATE_MAX,
-                            allowed_kinds=("drop", "downbeat", "beat")):
+                            allowed_kinds=("drop", "accent", "downbeat", "beat")):
     """Beat-lock an accent expressed as literal segment boundaries.
 
     The renderer builds its accent as three concatenated pieces -- w0->a at
@@ -289,7 +315,7 @@ def accent_rate_for_landing(w0: float, a: float, b: float, w1: float,
 
     natural_end = timeline_t + fixed + window / default_rate
     return _pick_landing(rate_for, natural_end, timeline_t, beats,
-                         downbeats, drops, lo, hi, allowed_kinds)
+                         downbeats, drops, accents, lo, hi, allowed_kinds)
 
 
 def beat_locked_slow_rate(plan: "SpeedPlan", timeline_t: float, beats,
@@ -310,4 +336,4 @@ def beat_locked_slow_rate(plan: "SpeedPlan", timeline_t: float, beats,
     """
     return _pick_landing(plan.rate_for_output,
                          timeline_t + plan.output_duration(),
-                         timeline_t, beats, downbeats, drops, lo, hi)
+                         timeline_t, beats, downbeats, drops, None, lo, hi)

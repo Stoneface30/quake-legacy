@@ -663,6 +663,53 @@ def full_grid(path, db: Path | None = None):
     return beats, downs
 
 
+def salient_onsets(path, max_per_min=14.0):
+    """The moments in a track a listener would actually point at.
+
+    User 2026-09-01: "all the sync with video can be done with vocals beat or
+    any channel/type of match from the music. for example the bell at 28 and
+    the bell at 32 land on one."
+
+    That is the right instinct and the beat grid alone cannot express it. A
+    downbeat is a position in the metre; a bell, a vocal entry or a synth stab
+    is an EVENT, and it is what the ear latches onto. They are found here as
+    the strongest peaks in the onset-strength envelope -- deliberately few, so
+    what comes back is the handful of moments that stand out rather than every
+    note in the track.
+
+    Cached alongside the full beat grid; costs one analysis per track.
+    """
+    import json as _json
+    q = Path(path).resolve()
+    FULL_GRID_DIR.mkdir(parents=True, exist_ok=True)
+    cache = FULL_GRID_DIR / (content_id(q) + "_onsets.json")
+    if cache.exists():
+        try:
+            return _json.loads(cache.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+    try:
+        import numpy as np
+        import librosa
+        y, sr = librosa.load(str(q), sr=SR, mono=True)
+        dur = y.size / sr
+        env = librosa.onset.onset_strength(y=y, sr=sr)
+        frames = librosa.onset.onset_detect(onset_envelope=env, sr=sr,
+                                            backtrack=True)
+        if frames.size == 0:
+            out = []
+        else:
+            times = librosa.frames_to_time(frames, sr=sr)
+            strength = env[np.clip(frames, 0, env.size - 1)]
+            keep = max(4, int(dur / 60.0 * max_per_min))
+            idx = np.argsort(strength)[::-1][:keep]
+            out = sorted(round(float(times[i]), 3) for i in idx)
+    except Exception:                                  # noqa: BLE001
+        out = []
+    cache.write_text(_json.dumps(out), encoding="utf-8")
+    return out
+
+
 def track_grid(path, db: Path | None = None):
     """(beats, downbeats, drops) for one track, from cache plus drop analysis."""
     import json as _json

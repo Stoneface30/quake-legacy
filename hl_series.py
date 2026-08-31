@@ -398,8 +398,18 @@ def action_timeline(rows):
     a segment. That is fine. This picks a song, and the score it produces is
     reported as a percentage precisely because it is not exact.
     """
-    from creative_suite.engine.tail_trim import load_events
-    ev_map = load_events()
+    # Prefer the boundary scan's events: same detector, but it covers the whole
+    # corpus and is the same data the trim decisions were made from, so the
+    # music is matched against exactly the action the edit will contain.
+    ev_map = {}
+    try:
+        from creative_suite.engine.clip_boundary import load_events as _cb_events
+        ev_map = _cb_events()
+    except Exception:
+        ev_map = {}
+    if not ev_map:
+        from creative_suite.engine.tail_trim import load_events
+        ev_map = load_events()
     if not ev_map:
         return []
     out, t = [], 0.0
