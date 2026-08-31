@@ -89,6 +89,13 @@ def build() -> Path:
                          f"{s['skill_labels'].get('PIXEL_SHOT_GEO', 0):,}")],
                        "view-angle timeseries - LG damage flows - projectile"
                        " reconstruction - BSP visibility")),
+        ("rank", card("THE RECORD (archive-verified)",
+                      [("peak world rank, Clan Arena", "#39"),
+                       ("peak Elo, Master ladder", "2326"),
+                       ("France ranking", "#3"),
+                       ("ranked CA games on QLRanks", "2,858")],
+                      "18 Wayback Machine snapshots of qlranks.com,"
+                      " 2012-2015 - numbers verbatim from the archive")),
         ("pipeline", card("THE PIPELINE",
                           [("frags classified", f"{s['recognized_frag_rows']:,}"),
                            ("full re-parses needed per new idea", "0"),
