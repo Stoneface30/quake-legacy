@@ -17,6 +17,8 @@ package-lock.json
 # Database with personal gameplay data
 database/frags.db
 database/*.db
+creative_suite/database/*.db
+creative_suite/database/*.png
 
 # Archives
 *.zip
@@ -90,6 +92,8 @@ docs/visual-record/*/gameplay-frames/*.png
 docs/visual-record/*/render-frames/*.jpg
 docs/visual-record/*/render-frames/*.png
 creative_suite/engine/music/library/
+engine/music/library/
+engine/music/downloaded/
 # Copyrighted music — kept local, never committed to public repo (Rule P1-R assets)
 creative_suite/engine/music/*.mp3
 creative_suite/engine/music/*.ogg
@@ -199,6 +203,12 @@ celshade_wild.py
 creative_suite/comfy/photoreal/celshade_wild/
 creative_suite/comfy/photoreal/twopass_test/
 creative_suite/comfy/photoreal/*.log
+creative_suite/comfy/photoreal/*.err
+creative_suite/comfy/photoreal/check_progress.py
+creative_suite/comfy/photoreal/check_sizes.py
+creative_suite/comfy/photoreal/find_samples.py
+creative_suite/comfy/photoreal/patch_steps.py
+creative_suite/comfy/photoreal/launch.bat
 creative_suite/comfy/batch_overnight.py
 creative_suite/comfy/check_nodes.py
 
@@ -218,3 +228,8 @@ engine/ghidra/_staging_extract/
 !engine/ghidra/symbols/
 !engine/ghidra/README.md
 
+# Parser output — contains player names from demo parses (PII)
+engine/parser/stream.json
+engine/parser/*.json
+
+.mcp.json

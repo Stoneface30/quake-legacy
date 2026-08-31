@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS review_proxies (
 CREATE TABLE IF NOT EXISTS editorial_reviews (
     frag_id INT PRIMARY KEY,
     verdict TEXT CHECK(verdict IN ('LOVE','KEEP','MAYBE','DROP')),
-    user_tier TEXT CHECK(user_tier IN ('S_PLUS','S','A','')),
+    user_tier TEXT CHECK(user_tier IN ('S_PLUS','S','A','B','')),
     notes TEXT,
     updated_at TEXT
 );
@@ -94,6 +94,24 @@ def editorial_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(EDITORIAL_DB_PATH, timeout=15, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
+    table_sql = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' "
+        "AND name='editorial_reviews'"
+    ).fetchone()
+    if table_sql and "'B'" not in str(table_sql[0]):
+        conn.executescript(
+            "ALTER TABLE editorial_reviews RENAME TO editorial_reviews_legacy;"
+            "CREATE TABLE editorial_reviews ("
+            "frag_id INT PRIMARY KEY,"
+            "verdict TEXT CHECK(verdict IN ('LOVE','KEEP','MAYBE','DROP'))," 
+            "user_tier TEXT CHECK(user_tier IN ('S_PLUS','S','A','B',''))," 
+            "notes TEXT, updated_at TEXT);"
+            "INSERT INTO editorial_reviews "
+            "SELECT frag_id, verdict, user_tier, notes, updated_at "
+            "FROM editorial_reviews_legacy;"
+            "DROP TABLE editorial_reviews_legacy;"
+        )
+        conn.commit()
     return conn
 
 
@@ -150,6 +168,35 @@ def get_state(frag_id: int) -> dict[str, Any]:
             d["state"] = "FAILED"
             d["error"] = "cached mp4 missing on disk"
     return d
+
+
+def get_states(frag_ids: list[int]) -> dict[int, dict[str, Any]]:
+    """Latest proxy state for each requested frag, in one database read."""
+    if not frag_ids:
+        return {}
+    conn = editorial_conn()
+    try:
+        marks = ",".join("?" * len(frag_ids))
+        rows = conn.execute(
+            "SELECT * FROM review_proxies WHERE frag_id IN (" + marks + ") "
+            "ORDER BY updated_at DESC, key DESC",
+            frag_ids,
+        ).fetchall()
+    finally:
+        conn.close()
+    out: dict[int, dict[str, Any]] = {}
+    for row in rows:
+        frag_id = int(row["frag_id"])
+        if frag_id in out:
+            continue
+        data = dict(row)
+        if data["state"] == "READY":
+            mp4 = data.get("mp4_path")
+            if not mp4 or not Path(str(mp4)).exists():
+                data["state"] = "FAILED"
+                data["error"] = "cached mp4 missing on disk"
+        out[frag_id] = data
+    return out
 
 
 def request_proxy(
@@ -381,6 +428,26 @@ def get_reviews(frag_ids: list[int]) -> dict[int, dict[str, Any]]:
     finally:
         conn.close()
     return {r["frag_id"]: dict(r) for r in rows}
+
+
+def count_reviews(verdict: str) -> int:
+    conn = editorial_conn()
+    try:
+        return int(conn.execute(
+            "SELECT COUNT(*) FROM editorial_reviews WHERE verdict = ?", (verdict,)
+        ).fetchone()[0])
+    finally:
+        conn.close()
+
+
+def reviewed_frag_ids(verdict: str) -> list[int]:
+    conn = editorial_conn()
+    try:
+        return [int(row[0]) for row in conn.execute(
+            "SELECT frag_id FROM editorial_reviews WHERE verdict = ?", (verdict,)
+        )]
+    finally:
+        conn.close()
 
 
 def put_review(

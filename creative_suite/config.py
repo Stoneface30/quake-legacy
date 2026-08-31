@@ -82,6 +82,10 @@ class Config:
     def wolfcam_baseq3(self) -> Path:
         return TOOLS_ROOT / "wolfcamql" / "baseq3"
 
+    @property
+    def ffprobe_bin(self) -> Path:
+        return CS_ROOT / "tools" / "ffmpeg" / "ffprobe.exe"
+
     def ensure_dirs(self) -> None:
         for p in (
             self.storage_root,

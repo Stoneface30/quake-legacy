@@ -199,6 +199,29 @@ def test_classes_endpoint(client: TestClient) -> None:
     assert names == {"AIRSHOT": 1, "FLICK": 1, "LG_TRACK": 1}
 
 
+def test_taxonomy_endpoint_groups_live_counts(client: TestClient) -> None:
+    r = client.get("/api/frags/taxonomy")
+    assert r.status_code == 200
+    families = {family["id"]: family for family in r.json()["families"]}
+    assert "rocket" in families
+    air = next(c for c in families["rocket"]["categories"] if c["id"] == "air_rocket")
+    assert air["count"] == 1
+    assert air["classes"] == [
+        "AIRSHOT", "AIR_ROCKET", "AIR_ROCKET_GEO", "HIGH_AIR_ROCKET"
+    ]
+
+
+def test_category_filter_uses_taxonomy_class_set(client: TestClient) -> None:
+    data = client.get("/api/frags", params={"category": "air_rocket"}).json()
+    assert data["total"] == 1
+    assert [item["id"] for item in data["items"]] == [1]
+
+
+def test_list_rows_include_proxy_state(client: TestClient) -> None:
+    item = client.get("/api/frags").json()["items"][0]
+    assert item["proxy"] == {"state": "MISSING"}
+
+
 def test_frags_page_served(client: TestClient) -> None:
     r = client.get("/frags")
     assert r.status_code == 200

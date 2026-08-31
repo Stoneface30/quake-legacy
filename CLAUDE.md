@@ -58,8 +58,9 @@ G:\QUAKE_LEGACY\
     editor/                <- OTIO bridge + state
   engine/                  <- engine source trees (was game-dissection/)
     engines/               <- ioquake3, wolfcamql, q3mme, etc. (SHA-256 deduped)
-    wolfcam/               <- WolfcamQL binary + staging (from WOLF WHISPERER)
-    wolfcam-knowledge/     <- protocol-73 docs + cvar inventory
+      wolfcam-knowledge/   <- protocol-73 docs + cvar inventory (moved here 2026-04-19)
+      ghidra/binaries/     <- wolfcamql.exe etc. (gitignored — not committed)
+    wolfcam/               <- WolfcamQL staging dir (binary NOT here; see engines/ghidra/binaries/)
     parser/                <- dm73 C++17 parser scaffold (FT-1)
     ghidra/                <- RE outputs (FT-4)
     graphify-out/          <- combined engine knowledge graph
@@ -115,7 +116,8 @@ python -u creative_suite/comfy/full_overnight.py `
 
 ```
 FFmpeg:      creative_suite/tools/ffmpeg/ffmpeg.exe
-WolfcamQL:   engine/wolfcam/WolfcamQL/wolfcam-ql/wolfcamql.exe (moved from WOLF WHISPERER)
+WolfcamQL:   engine/engines/ghidra/binaries/wolfcamql.exe (gitignored — not in repo)
+WolfWhisperer: WOLF WHISPERER/Wolf Whisperer.rar → extract RAR first; .exe not yet on disk
 UDT:         creative_suite/tools/uberdemotools/UDT_json.exe
 Ghidra:      creative_suite/tools/ghidra/
 MusicLib:    creative_suite/database/MusicLibrary.json
@@ -132,10 +134,16 @@ PANTHEON intro: FRAGMOVIE VIDEOS/IntroPart2.mp4
 
 ### 1. AUDIO
 
-#### P1-G (Music mix) [v5, 2026-04-18]
-- **WHAT** Music volume 0.20. PANTHEON = own audio only; music fades in 0→0.20 over 1.5s at title-card start; body = game 1.0 + music 0.20 sidechain-ducked. Final render MUST pass ebur128 gate: music ≤ −12 LU below game peak, else render is `FAILED_LEVEL_GATE` and not shipped.
-- **WHERE** `cfg.music_volume=0.20`, `cfg.music_fadein_s=1.5` · `render_part_v6.py::final_render` audio graph (3-segment concat: PANTHEON+own-audio | title+music-fadein | body+game+ducked-music) · `creative_suite/engine/audio_levels.py::measure_music_vs_game` · `output/partNN_levels.json`
-- **WHY** Subjective complaints about music loudness repeat every review (v1/v2/v3/v4). Objective gate ends it.
+#### P1-G (Music mix) [v6, 2026-08-28 — SUPERSEDES v5]
+- **WHAT** Music plays at ONE FIXED LEVEL for the whole body. **No sidechain ducking. No level-following of any kind.** The music must not rise and fall with the action. Sync is achieved by matching the ACTION TO THE MUSIC (beat-locked cuts + video speed ramps), never by modulating music gain to the action. Only permitted level moves: a fade-in at the very start and a fade-out at the very end. The ebur128 `FAILED_LEVEL_GATE` is **retired** — it was what forced music down to 8%.
+- **WHERE** `creative_suite/engine/render_highlight.py::mux_music` (`MUSIC_VOLUME` constant, `amix ... normalize=0`, no sidechain) · beat matching in `creative_suite/engine/effects/speed_ramp.py`
+- **WHY** User review 2026-08-28: *"music volume WAS changing not at fixed level not low it was matching action we need to match action with music not the other way around."* v5's sidechain duck + loudness gate were the defect, not the tuning. v5 drove `cfg.music_volume` to 0.08 (8%) purely to satisfy the gate.
+- **PITCH** The music is never time-stretched or resampled. The VIDEO bends to the beat grid, so pitch and tempo are untouched.
+
+#### P1-Q-AUTO (Effects are automatic, not opt-in) [2026-08-28]
+- **WHAT** Every frag receives a speed ramp: dead time before the action compressed, the money shot slowed. No hand-authored per-clip override is required.
+- **WHERE** `creative_suite/engine/effects/speed_ramp.py` · applied in `render_highlight.py::render_frag`
+- **WHY** `render_part_v6` fired slow-mo only for clips carrying an explicit `slow=` line in `partNN_overrides.txt`. Part 4 had **one** such line across 120 clips, so finished Parts had effectively no effects. Rules whose only trigger is a hand-written override file will not fire — verify the trigger, not just the code.
 
 ---
 

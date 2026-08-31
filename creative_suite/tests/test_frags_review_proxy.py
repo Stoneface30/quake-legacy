@@ -193,14 +193,16 @@ def test_review_put_get_roundtrip(client: TestClient) -> None:
 
     # invalid values rejected
     assert client.put("/api/frags/1/review", json={"verdict": "EPIC"}).status_code == 422
-    assert client.put("/api/frags/1/review", json={"user_tier": "B"}).status_code == 422
+    r = client.put("/api/frags/1/review", json={"user_tier": "B"})
+    assert r.status_code == 200
+    assert r.json()["user_tier"] == "B"
     # unknown frag 404
     assert client.put("/api/frags/999/review", json={"verdict": "KEEP"}).status_code == 404
 
     # review surfaces in list rows
     items = client.get("/api/frags").json()["items"]
     row = next(it for it in items if it["id"] == 1)
-    assert row["review"] == {"verdict": "LOVE", "user_tier": "S_PLUS"}
+    assert row["review"] == {"verdict": "LOVE", "user_tier": "B"}
     # detail carries review + proxy + window
     d = client.get("/api/frags/1").json()
     assert d["review"]["verdict"] == "LOVE"
@@ -249,3 +251,16 @@ def test_capture_lock_requeues(client: TestClient, monkeypatch: pytest.MonkeyPat
     assert st["state"] == "QUEUED"  # deferred, not failed
     lock.unlink()
     _wait_state(client, 1, "READY")
+
+
+def test_proxy_video_supports_http_range(client: TestClient) -> None:
+    client.post("/api/frags/1/proxy")
+    _wait_state(client, 1, "READY")
+    r = client.get(
+        "/api/frags/1/proxy/video",
+        headers={"Range": "bytes=0-31"},
+    )
+    assert r.status_code == 206
+    assert r.headers["accept-ranges"] == "bytes"
+    assert r.headers["content-range"].startswith("bytes 0-31/")
+    assert len(r.content) == 32

@@ -16,11 +16,13 @@ Pipelines (all resumable, all stored in assets.db):
   All style workflows: NO internal upscale — use --twopass to feed CNN-upscaled images.
   All style workflows: NO LoRA — style from checkpoint + ControlNet type only.
 
-Category routing (from E2E verdict 2026-04-21):
+Category routing (from E2E verdict 2026-04-21; PH5-7 subdir split 2026-06-04):
   SURFACE (upscale + all style pipelines):
-    players, weapons2, textures, phase5
+    players, weapons2, textures
+    phase5 — weapon/texture subdirs within phase5_png only (PH5-7)
   FX / shape-critical (upscale_only only):
     weaphits, gfx, icons, ui, wolfcam_hud, powerups, mapobjects, sprites
+    phase5/gfx/* and phase5/icons/* — shape-critical even within phase5_png (PH5-7)
   Auto-detected: black-pixel ratio >70% → FX, else SURFACE
 
 Output structure:
@@ -124,6 +126,9 @@ _FX_LABELS = frozenset([
 _SURFACE_LABELS = frozenset([
     "players", "weapons2", "textures", "phase5",
 ])
+# PH5-7: these first-level subdirs inside phase5_png are FX/shape-critical;
+# they must go upscale_only only, never through style pipelines.
+_PHASE5_FX_SUBDIRS = frozenset(["gfx", "icons"])
 
 
 def _is_fx_image(path: Path) -> bool:
@@ -141,6 +146,13 @@ def _is_fx_image(path: Path) -> bool:
 
 def _route(label: str, path: Path) -> Literal["surface", "fx"]:
     if label in _SURFACE_LABELS:
+        if label == "phase5":
+            try:
+                parts = path.relative_to(ASSETS / "phase5_png").parts
+                if parts and parts[0] in _PHASE5_FX_SUBDIRS:
+                    return "fx"
+            except ValueError:
+                pass
         return "surface"
     if label in _FX_LABELS:
         return "fx"

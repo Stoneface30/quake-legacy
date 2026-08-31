@@ -428,11 +428,55 @@ def _ffmpeg_bin() -> str:
     raise FileNotFoundError("ffmpeg binary not found")
 
 
+_CLIP_INDEX: dict[str, Path] | None = None
+_CLIP_INDEX_ROOT: Path | None = None
+
+
+def _clear_clip_index_cache() -> None:
+    """Drop the basename->path index (tests, and after the clip library changes)."""
+    global _CLIP_INDEX, _CLIP_INDEX_ROOT
+    _CLIP_INDEX = None
+    _CLIP_INDEX_ROOT = None
+
+
+def _clip_index(video_root: Path) -> dict[str, Path]:
+    """Lazily build a basename -> absolute path index of the clip library.
+
+    The NLE frontend identifies clips by display name, not by full path, so the
+    clip-* endpoints must be able to map a bare basename back onto disk.
+    First match wins; the index is cached until _clear_clip_index_cache().
+    """
+    global _CLIP_INDEX, _CLIP_INDEX_ROOT
+    if _CLIP_INDEX is not None and _CLIP_INDEX_ROOT == video_root:
+        return _CLIP_INDEX
+    idx: dict[str, Path] = {}
+    if video_root and Path(video_root).is_dir():
+        for f in Path(video_root).rglob("*"):
+            if f.is_file() and f.suffix.lower() in _ALLOWED_EXTS:
+                idx.setdefault(f.name, f)
+    _CLIP_INDEX = idx
+    _CLIP_INDEX_ROOT = video_root
+    return idx
+
+
 def _resolve_clip_path(raw: str, cfg: Any) -> Path:
-    """Resolve and validate a clip path — must be under the QUAKE VIDEO dir or the app root."""
+    """Resolve and validate a clip path — must be under the QUAKE VIDEO dir or the app root.
+
+    Accepts either an absolute path or a bare basename. A basename is looked up in
+    the clip-library index (see _clip_index); anything with path separators must be
+    absolute, so a relative traversal can never escape the library.
+    """
     p = Path(raw)
     if not p.is_absolute():
-        raise HTTPException(status_code=400, detail="Path must be absolute")
+        if p.suffix.lower() not in _ALLOWED_EXTS:
+            raise HTTPException(status_code=400, detail="File type not allowed")
+        if p.name != raw or raw in (".", ".."):
+            # Had separators / traversal segments — refuse rather than guess.
+            raise HTTPException(status_code=403, detail="Path outside allowed directories")
+        hit = _clip_index(getattr(cfg, "quake_video_dir", None)).get(p.name)
+        if hit is None:
+            raise HTTPException(status_code=404, detail="Clip file not found")
+        return hit
     if p.suffix.lower() not in _ALLOWED_EXTS:
         raise HTTPException(status_code=400, detail="File type not allowed")
     if not p.exists():
