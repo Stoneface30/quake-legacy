@@ -25,7 +25,7 @@ from pathlib import Path
 from typing import Optional, Sequence
 import random
 
-from creative_suite.engine.config import Config, ROOT
+from creative_suite.engine.config import Config, REPO_ROOT, ROOT
 
 
 # ---------------------------------------------------------------------------
@@ -66,8 +66,12 @@ def pick_intro_backdrop_fls(
     """Rule P1-T: FL gameplay behind title text. Ordered T3 -> T2 -> T1."""
     rng = random.Random(f"part{part}-titlebg-v10-{seed}")
     candidates: list[Path] = []
+    # The clip corpus sits at the REPO root, not under creative_suite/ (which is
+    # what config.ROOT points at post-restructure). Prefer the configured
+    # clips_root so callers can retarget it; fall back to the repo root.
+    clips_root = Path(getattr(cfg, "clips_root", REPO_ROOT / "QUAKE VIDEO"))
     for tier in ("T3", "T2", "T1"):
-        tier_dir = ROOT / "QUAKE VIDEO" / tier / f"Part{part}"
+        tier_dir = clips_root / tier / f"Part{part}"
         if not tier_dir.exists():
             continue
         found = sorted(tier_dir.rglob("*FL*.avi"))
