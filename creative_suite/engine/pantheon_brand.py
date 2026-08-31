@@ -162,6 +162,80 @@ def mark(size: int = 512, glow: bool = True) -> Image.Image:
     return out
 
 
+def inset_frame(w: int, h: int, emblem: bool = True) -> Image.Image:
+    """A branded bezel for the picture-in-picture window.
+
+    The inset was a plain white rectangle -- readable, but it looked like a
+    debug overlay rather than part of the film. This is the same language as
+    the mark itself: a brushed-silver edge, one gold hairline catching the
+    light, and the temple emblem sitting in the corner. The middle is fully
+    transparent, so the second camera shows through untouched.
+
+    Sized in proportion to the window, so it holds up whether the inset is a
+    quarter of the frame or a tenth of it.
+    """
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+
+    edge = max(2, int(min(w, h) * 0.020))       # silver bezel
+    hair = max(1, int(min(w, h) * 0.005))       # gold hairline inside it
+
+    # drop shadow first, so the window separates from the gameplay behind it
+    sh = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ImageDraw.Draw(sh).rectangle([0, 0, w - 1, h - 1],
+                                 outline=(0, 0, 0, 190), width=edge * 2)
+    img = Image.alpha_composite(
+        img, sh.filter(ImageFilter.GaussianBlur(edge * 0.9)))
+    d = ImageDraw.Draw(img)
+
+    # brushed silver bezel: drawn as a band, then given the metal texture
+    band = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(band).rectangle([0, 0, w - 1, h - 1], outline=255,
+                                   width=edge)
+    metal = _brushed((w, h)).convert("RGBA")
+    metal.putalpha(band)
+    img = Image.alpha_composite(img, metal)
+
+    # one gold hairline, just inside the silver -- a light catching an edge
+    gold = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+    ImageDraw.Draw(gold).rectangle(
+        [edge, edge, w - 1 - edge, h - 1 - edge],
+        outline=GOLD_HI + (215,), width=hair)
+    img = Image.alpha_composite(img, gold)
+
+    if emblem:
+        e = max(16, int(min(w, h) * 0.20))
+        pad = edge * 2 + hair
+
+        # A scrim under the emblem. Without it the mark sits straight on the
+        # gameplay and disappears whenever the second camera happens to be
+        # looking at something bright -- which, in a room lit like Quake, is
+        # most of the time.
+        band_h = e + pad * 2
+        scrim = Image.new("RGBA", (w, band_h), (0, 0, 0, 0))
+        sd = ImageDraw.Draw(scrim)
+        for y in range(band_h):
+            a = int(150 * (y / max(1, band_h - 1)) ** 0.85)
+            sd.line([(0, y), (w, y)], fill=INK + (a,))
+        img.alpha_composite(scrim, (0, h - band_h))
+
+        # redraw the bezel edges the scrim just covered
+        gold = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        ImageDraw.Draw(gold).rectangle(
+            [edge, edge, w - 1 - edge, h - 1 - edge],
+            outline=GOLD_HI + (215,), width=hair)
+        band = Image.new("L", (w, h), 0)
+        ImageDraw.Draw(band).rectangle([0, 0, w - 1, h - 1], outline=255,
+                                       width=edge)
+        metal = _brushed((w, h)).convert("RGBA")
+        metal.putalpha(band)
+        img = Image.alpha_composite(img, metal)
+        img = Image.alpha_composite(img, gold)
+
+        img.alpha_composite(mark(e, glow=False), (pad, h - e - pad))
+    return img
+
+
 def on_ground(img: Image.Image, pad_ratio=0.18) -> Image.Image:
     s = img.size[0]
     pad = int(s * pad_ratio)

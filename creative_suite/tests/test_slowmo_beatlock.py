@@ -115,3 +115,114 @@ class TestNoYoYo:
         head, _, tail = src.partition("else:")
         assert "rate" in head and "slow_rate" in head
         assert "rate" not in tail.split("filt +=")[0]
+
+
+class TestProductionTimebase:
+    """The lock solved correctly in isolation and did nothing in a real render.
+
+    Two mistakes, both invisible to a unit test that supplies its own beat list:
+
+      * the grid was read from the FIRST track only, so a 145 s song left the
+        back two thirds of a 295 s video with no beats at all
+      * the solver was handed BODY time while the beats sit on VIDEO time. The
+        finished video also carries the opener, and every seam crossfade
+        overlaps two segments and removes its own length from the total.
+
+    Both produced silence rather than an error: no landing was reachable, so
+    the default rate was kept and the feature was inert.
+    """
+
+    def test_second_track_is_offset_by_its_predecessor(self, monkeypatch):
+        import creative_suite.engine.music_beatmatch as MBmod
+        monkeypatch.setattr(MBmod, "full_grid",
+                            lambda q, db=None: ([0.0, 1.0, 2.0], [0.0]))
+        monkeypatch.setattr(MBmod, "detect_drops", lambda q, **k: [])
+        monkeypatch.setattr(RH, "probe_duration", lambda q, cfg: 100.0)
+        beats, downs, _ = RH.music_grid(["a.mp3", "b.mp3"], cfg=None)
+        # track two starts one crossfade BEFORE track one ends
+        start2 = 100.0 - RH.MUSIC_XFADE_S
+        assert beats == [0.0, 1.0, 2.0, start2, start2 + 1.0, start2 + 2.0]
+        assert max(beats) > 2.0, "grid must extend past the first track"
+
+    def test_grid_is_empty_only_when_there_are_no_tracks(self, monkeypatch):
+        assert RH.music_grid([], cfg=None) == ([], [], [])
+
+    def test_video_time_accounts_for_opener_and_seams(self):
+        # segment 0 starts after the opener, less the one seam joining them
+        assert RH.video_time(0.0, 0) == pytest.approx(RH.INTRO_S - RH.XFADE_S)
+        # every later seam removes another crossfade from the running total
+        assert RH.video_time(100.0, 5) == pytest.approx(
+            RH.INTRO_S + 100.0 - 6 * RH.XFADE_S)
+
+    def test_video_time_drifts_from_body_time_enough_to_matter(self):
+        # ~7 s by the end of a 19-segment Part -- many beats' worth, which is
+        # why comparing body time against the music grid landed nothing.
+        drift = abs(RH.video_time(280.0, 18) - 280.0)
+        assert drift > 1.0
+
+
+class TestScratchReplay:
+    """The rollback is a musical decision, not a cadence.
+
+    User 2026-08-31: "i also love the kinda scratch effect with video like
+    slowmo frag rollback then frag normal speed", then immediately: "it need to
+    happen when the music fit or do something similar (like downbeat tempo)".
+    An effect this strong on a timer is the thing everyone overused; the moment
+    the picture is pulled back has to be a beat the viewer already feels.
+    """
+
+    def test_only_strong_landings_are_accepted(self):
+        w0, w1 = 0.0, 20.0
+        a, b = RH.accent_window(w0, w1, 10.0)
+        beats = [round(0.25 * i, 3) for i in range(1, 200)]
+        # a grid of plain beats offers nothing a rollback may land on
+        assert SR.accent_rate_for_landing(
+            w0, a, b, b, 0.0, beats,
+            allowed_kinds=("drop", "downbeat")) is None
+        # promoting one reachable beat to a downbeat makes it eligible
+        cand = [t for t in beats
+                if (r := (b - a) / max(1e-9, t - (a - w0)))
+                and SR.SLOW_RATE_MIN <= r <= SR.SLOW_RATE_MAX]
+        assert cand
+        got = SR.accent_rate_for_landing(
+            w0, a, b, b, 0.0, beats, downbeats=[cand[len(cand) // 2]],
+            allowed_kinds=("drop", "downbeat"))
+        assert got and got[2] == "downbeat"
+
+    def test_the_landing_is_where_the_rewind_starts(self):
+        # modelling the segment as ending at `b` makes the solved landing the
+        # END of the slow window -- the instant the picture reverses
+        w0, w1 = 0.0, 20.0
+        a, b = RH.accent_window(w0, w1, 10.0)
+        beats = [round(0.1 * i, 3) for i in range(1, 400)]
+        downs = beats[::4]
+        rate, land, _k = SR.accent_rate_for_landing(
+            w0, a, b, b, 0.0, beats, downbeats=downs,
+            allowed_kinds=("drop", "downbeat"))
+        assert (a - w0) + (b - a) / rate == pytest.approx(land, abs=1e-6)
+
+    def test_rewind_rate_actually_rewinds(self):
+        assert RH.SCRATCH_REWIND_RATE > 1.0
+        assert RH.SCRATCH_MIN_SRC_S > 0
+        assert RH.SCRATCH_MIN_GAP >= 1
+
+    def test_scratch_and_beat_lock_are_disjoint(self):
+        # a shot gets one treatment or the other: scratch needs a clip LONGER
+        # than the short-clip threshold, the lock needs one at or under it
+        assert RH.SCRATCH_MIN_SRC_S < RH.SHORT_CLIP_SLOWMO_S
+
+
+class TestGrenadeInset:
+    def test_detection_threshold_is_far_above_the_library_default(self):
+        # the full family at the default 0.32 fired on 50% of angled clips --
+        # the bounce samples were matching every impact in the game
+        from creative_suite.engine import game_beat as GB
+        assert RH.GRENADE_MIN_CORR > GB.MIN_CORR
+        assert RH.GRENADE_MIN_CORR >= 0.6
+
+    def test_inset_geometry_stays_on_screen(self):
+        assert 0.0 < RH.PIP_WIDTH_FRAC < 0.5
+        assert RH.PIP_MARGIN_PX > 0
+
+    def test_insets_are_spaced_out(self):
+        assert RH.PIP_MIN_GAP >= 2

@@ -174,6 +174,27 @@ DEADTIME_RATE = 2.0        # lead-in only, never the action
 OUTRO_FRAGS = 2            # T3 cinematic tail reserved for the close
 # User 2026-08-29: intro/outro between 5 and 12 s.
 INTRO_S = 8.0              # produced opener: brand + title over T2/T3
+
+# SCRATCH REPLAY (user 2026-08-31: "i also love the kinda scratch effect with
+# video like slowmo frag rollback then frag normal speed"). The money shot plays
+# slowed, rewinds like a record being pulled back, then plays again at natural
+# speed. It is a VARIATION, not a treatment: applied on a cadence to accented
+# T1 shots only, because a rewind on every frag is the effect everyone
+# overused in 2004.
+SCRATCH_REWIND_RATE = 2.2  # how fast the rollback runs
+SCRATCH_MIN_SRC_S = 5.0    # too short and the rewind has nothing to grab
+SCRATCH_MIN_GAP = 3        # accented shots between one scratch and the next
+
+# GRENADE INSET (user 2026-08-31: "FL view could be embeded for nade sometime
+# that could create some variations"). A grenade play is the one case where the
+# POV genuinely cannot show the whole story -- the shell leaves the screen and
+# lands somewhere the shooter is not looking. Inset the follow camera so both
+# are visible at once. Only on grenade shots that HAVE a second angle, and only
+# when the shot is playing straight: overlaying a speed-ramped picture would
+# put the two cameras on different clocks.
+PIP_WIDTH_FRAC = 0.26      # inset width as a share of the frame
+PIP_MARGIN_PX = 48
+PIP_MIN_GAP = 4            # shots between one inset and the next
 OUTRO_S = 10.0             # produced closer: mark + credits (was 14 s)
 SLOW_PRE_S = 0.7
 SLOW_POST_S = 1.1
@@ -297,27 +318,95 @@ def probe_duration(path: Path, cfg: Config) -> float:
         return 0.0
 
 
-def _dedupe_angles(paths):
-    """Drop FL angles that are the same footage under another name.
+_SIG_CACHE: dict = {}
 
-    The corpus stores some third-person captures twice -- "Demo (100FL).avi" and
-    "Demo100FL-0000.avi" are byte-identical exports of one recording. Playing
-    both shows the viewer the same angle twice in a row, which reads as a
-    mistake. Identity is size plus a content hash of the head, not the filename.
+
+def _angle_signature(q: Path, cfg: Config):
+    """A fingerprint of what an angle clip actually SHOWS.
+
+    Byte identity only catches the same file exported twice. The corpus also
+    holds the same recording re-encoded -- different size, different length,
+    same footage -- and those play as the same angle twice in a row just as
+    obviously. A couple of tiny grayscale frames pulled from fixed early
+    timestamps survive re-encoding and are cheap enough to take per clip.
+
+    Returns None when the clip cannot be decoded, which makes it its own group
+    rather than silently collapsing it into someone else's.
     """
-    seen, out = set(), []
+    try:
+        st = q.stat()
+    except OSError:
+        return None
+    ck = (str(q).lower(), st.st_size, int(st.st_mtime))
+    if ck in _SIG_CACHE:
+        return _SIG_CACHE[ck]
+    h = hashlib.sha256()
+    got = 0
+    for t in (0.5, 2.0):
+        r = subprocess.run(
+            [str(cfg.ffmpeg_bin), "-v", "error", "-ss", str(t), "-i", str(q),
+             "-frames:v", "1", "-vf", "scale=32:18,format=gray",
+             "-f", "rawvideo", "-"],
+            capture_output=True)
+        if r.returncode == 0 and r.stdout:
+            h.update(r.stdout)
+            got += 1
+    sig = h.hexdigest()[:16] if got else None
+    _SIG_CACHE[ck] = sig
+    return sig
+
+
+def _dedupe_angles(paths, cfg: Config | None = None):
+    """Collapse FL angles that are the same footage, keeping the FASTEST.
+
+    The corpus stores some third-person captures twice -- "Demo (100FL).avi"
+    and "Demo100FL-0000.avi" are exports of one recording. Playing both shows
+    the viewer the same angle twice in a row, which reads as a mistake.
+
+    Two clips are the same angle when they are byte-identical OR when they show
+    the same thing (matching visual signature) at a comparable length. Within a
+    group the SHORTEST clip wins -- user 2026-08-31: "the duplicate FL you can
+    keep the fastest of the 2 same version only". The tighter export is the one
+    without the dead air, and length is exactly what the viewer feels.
+    """
+    groups: dict = {}
+    order: list = []
     for q in paths:
         try:
             h = hashlib.sha256()
             with q.open("rb") as fh:
                 h.update(fh.read(1 << 20))
-            key = (q.stat().st_size, h.hexdigest()[:16])
+            key = ("exact", q.stat().st_size, h.hexdigest()[:16])
         except OSError:
-            key = (q.name.lower(), 0)
-        if key in seen:
+            key = ("name", q.name.lower(), 0)
+        if cfg is not None:
+            sig = _angle_signature(q, cfg)
+            if sig:
+                key = ("visual", sig, 0)
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(q)
+
+    out = []
+    for key in order:
+        members = groups[key]
+        if len(members) == 1 or cfg is None:
+            out.append(members[0])
             continue
-        seen.add(key)
-        out.append(q)
+        # fastest == shortest playing time
+        best, best_d = members[0], None
+        for q in members:
+            try:
+                d = probe_duration(q, cfg)
+            except Exception:                          # noqa: BLE001
+                continue
+            if best_d is None or d < best_d:
+                best, best_d = q, d
+        if len(members) > 1:
+            print("  [angle] {} duplicate(s) of {} -- keeping the fastest"
+                  .format(len(members) - 1, best.name))
+        out.append(best)
     return out
 
 
@@ -339,7 +428,7 @@ def frags_from_queue(rows, cfg: Config) -> list[Frag]:
             print(f"  [queue] MISSING {fp.name} -- skipped")
             continue
         angles = _dedupe_angles(
-            [Path(a) for a in (r.get("angles") or []) if Path(a).exists()])
+            [Path(a) for a in (r.get("angles") or []) if Path(a).exists()], cfg)
         out.append(Frag(fp=fp, tier=r.get("tier", "T1"), fls=angles,
                         is_intro=is_intro(fp)))
     return out
@@ -522,6 +611,135 @@ def _valid_segment(path: Path, cfg: Config) -> bool:
         return False
 
 
+def music_grid(tracks: list[Path], cfg: Config):
+    """Beats, downbeats and drops for the whole video, in VIDEO time.
+
+    Two corrections over reading one track's grid directly, both found by
+    watching the feature do nothing in a real render rather than in a test:
+
+      * a video is scored by one or two songs, and the second one's beats sit
+        after the first has played out. Reading only the first track leaves the
+        back half of the video with no grid at all -- which is most of it, since
+        the first song here ran 145 s against a 280 s body.
+      * the songs are joined with a crossfade, so song two starts one crossfade
+        BEFORE song one ends, not after it.
+
+    Times are returned on the finished video's clock, which is where the music
+    actually sits: the mix starts at video t=0, under the opener.
+    """
+    from creative_suite.engine import music_beatmatch as _mb
+    beats, downs, drops = [], [], []
+    at = 0.0
+    for q in tracks:
+        try:
+            b, d = _mb.full_grid(q)
+            k = _mb.detect_drops(q)
+        except Exception as exc:                       # noqa: BLE001
+            print(f"[hl] track grid unavailable for {q.name} ({exc})")
+            continue
+        beats += [at + x for x in b]
+        downs += [at + x for x in d]
+        drops += [at + x for x in k]
+        at += max(0.0, probe_duration(q, cfg) - MUSIC_XFADE_S)
+    return sorted(beats), sorted(downs), sorted(drops)
+
+
+def video_time(timeline: float, seg_index: int) -> float:
+    """Where a body segment starts on the FINISHED video's clock.
+
+    `timeline` accumulates body segment durations, but the finished video also
+    carries the opener, and every seam crossfade overlaps two segments and so
+    removes its own length from the running total. Without this the accent
+    solver compares body time against music time and lands nothing.
+    """
+    return INTRO_S + timeline - (seg_index + 1) * XFADE_S
+
+
+_FRAME_ASSETS: dict = {}
+
+
+def inset_frame_asset(w: int, h: int) -> Optional[Path]:
+    """The branded bezel for the inset, rendered once and cached on disk.
+
+    The window used to be a bare white rectangle, which read as a debug
+    overlay. Drawing it in the mark's own language -- brushed silver, one gold
+    hairline, the temple emblem in the corner -- makes the second camera look
+    like part of the film. Falls back to no frame rather than failing a render.
+    """
+    key = (w, h)
+    if key in _FRAME_ASSETS:
+        return _FRAME_ASSETS[key]
+    out = None
+    try:
+        from creative_suite.engine import pantheon_brand as _pb
+        d = REPO_ROOT / "creative_suite" / "generated" / "brand"
+        d.mkdir(parents=True, exist_ok=True)
+        q = d / f"inset_frame_{w}x{h}.png"
+        if not q.exists():
+            _pb.inset_frame(w, h).save(q)
+        out = q
+    except Exception as exc:                           # noqa: BLE001
+        print(f"  [inset] branded frame unavailable ({exc})")
+    _FRAME_ASSETS[key] = out
+    return out
+
+
+def cfg_ffmpeg() -> Path:
+    """ffmpeg path without threading a Config through the audio helpers."""
+    return Config().ffmpeg_bin
+
+
+_GRENADE_CACHE: dict = {}
+
+# Correlation a grenade-launcher shot has to reach to count. Tuned by
+# measurement, not taste: the full family (fire plus both bounce samples) at
+# the library's default 0.32 fired on 50% of angled clips, which is not a
+# grenade rate -- the bounces were matching every other impact in the game.
+# Requiring the LAUNCHER FIRING at 0.65 gives 5%, which is what a grenade play
+# actually is in Clan Arena.
+GRENADE_MIN_CORR = 0.65
+
+
+def has_grenade(clip: Path) -> bool:
+    """Was a grenade launcher fired in this clip?
+
+    The blast itself is no help -- Quake reuses the rocket explosion for it.
+    The launcher's own firing sound is the identifying event, and it is matched
+    against the sample shipped in pak00 rather than inferred from anything.
+    """
+    key = str(clip.resolve()).lower()
+    if key in _GRENADE_CACHE:
+        return _GRENADE_CACHE[key]
+    hit = False
+    tmp = None
+    try:
+        import os
+        import subprocess as _sp
+        import librosa
+        from creative_suite.engine import game_beat as _gb
+
+        tmp = Path(os.environ.get("TEMP", ".")) / f"_gren_{os.getpid()}.wav"
+        r = _sp.run([str(cfg_ffmpeg()), "-y", "-v", "error", "-i", str(clip),
+                     "-vn", "-ac", "1", "-ar", str(_gb.SR), "-f", "wav",
+                     str(tmp)], capture_output=True)
+        if r.returncode == 0 and tmp.exists():
+            y, _ = librosa.load(str(tmp), sr=_gb.SR, mono=True)
+            fire, _ = librosa.load(
+                str(_gb.TROOT / "weapons/grenade/grenlf1a.wav"),
+                sr=_gb.SR, mono=True)
+            hit = bool(_gb._match(y, fire, GRENADE_MIN_CORR))
+    except Exception:                                  # noqa: BLE001
+        hit = False
+    finally:
+        try:
+            if tmp:
+                tmp.unlink()
+        except OSError:
+            pass
+    _GRENADE_CACHE[key] = hit
+    return hit
+
+
 def accent_window(w0: float, w1: float, peak: float) -> tuple[float, float]:
     """Where the slow-mo accent starts and ends inside a clip's play window.
 
@@ -536,7 +754,9 @@ def accent_window(w0: float, w1: float, peak: float) -> tuple[float, float]:
 
 def render_frag(frag: Frag, dst: Path, cfg: Config,
                 slowmo: bool = False,
-                slow_rate: Optional[float] = None) -> float:
+                slow_rate: Optional[float] = None,
+                scratch: bool = False,
+                pip: Optional[Path] = None) -> float:
     """Render one frag -- the WHOLE clip, at natural speed.
 
     The clip is already exactly one frag, so nothing is selected out of it.
@@ -554,20 +774,33 @@ def render_frag(frag: Frag, dst: Path, cfg: Config,
         rate = slow_rate if slow_rate else speed_ramp.SLOW_RATE
         parts_, vl, al, i = [], [], [], 0
 
-        def add(t0: float, t1: float, rate: float, interp: bool) -> None:
+        def add(t0: float, t1: float, rate: float, interp: bool,
+                reverse: bool = False) -> None:
             nonlocal i
             if t1 - t0 <= 0.02:
                 return
-            vf = f"[0:v]trim={t0:.4f}:{t1:.4f},setpts=(PTS-STARTPTS)/{rate:.6f}"
+            vf = f"[0:v]trim={t0:.4f}:{t1:.4f},setpts=PTS-STARTPTS"
+            af = f"[0:a]atrim={t0:.4f}:{t1:.4f},asetpts=PTS-STARTPTS"
+            if reverse:
+                # the rollback: picture and sound both run backwards, which is
+                # what makes it read as a record being pulled back rather than
+                # as a glitch
+                vf += ",reverse"
+                af += ",areverse"
+            vf += f",setpts=(PTS-STARTPTS)/{rate:.6f}"
             if interp:
                 vf += f",{speed_ramp.MINTERP.format(fps=cfg.target_fps)}"
+            af += f",{speed_ramp._atempo_chain(rate)}"
             parts_.append(vf + f"[v{i}]")
-            parts_.append(f"[0:a]atrim={t0:.4f}:{t1:.4f},asetpts=PTS-STARTPTS,"
-                          f"{speed_ramp._atempo_chain(rate)}[a{i}]")
+            parts_.append(af + f"[a{i}]")
             vl.append(f"[v{i}]"); al.append(f"[a{i}]"); i += 1
 
         add(w0, a, 1.0, False)
         add(a, b, rate, speed_ramp.SMOOTH_SLOWMO)
+        if scratch:
+            # pull it back, then play it straight
+            add(a, b, SCRATCH_REWIND_RATE, False, reverse=True)
+            add(a, b, 1.0, False)
         add(b, w1, 1.0, False)
         filt = ";".join(parts_)
         filt += (f";{''.join(vl)}concat=n={len(vl)}:v=1:a=0[vc]"
@@ -577,6 +810,27 @@ def render_frag(frag: Frag, dst: Path, cfg: Config,
     # early and it sped through real frags (user 2026-08-29: "you also sped up a
     # whole clip including frags"). Clips are already cut to their frag, so the
     # only speed change permitted anywhere is slow-mo.
+    elif pip is not None:
+        # Both cameras at once. The inset runs from the same moment as the POV
+        # so the two clocks agree; it is not re-windowed independently, which
+        # is what previously made two angles read as two different frags.
+        pip_dur = probe_duration(pip, cfg)
+        p1 = min(w1 - w0, max(0.5, pip_dur))
+        iw = int(cfg.target_width * PIP_WIDTH_FRAC) // 2 * 2
+        ih = int(iw * cfg.target_height / cfg.target_width) // 2 * 2
+        frame_png = inset_frame_asset(iw, ih)
+        filt = (f"[0:v]trim={w0:.4f}:{w1:.4f},setpts=PTS-STARTPTS[base];"
+                f"[1:v]trim=0:{p1:.4f},setpts=PTS-STARTPTS,"
+                f"scale={iw}:{ih},setsar=1[ins];")
+        if frame_png:
+            filt += (f"[2:v]format=rgba[frm];"
+                     f"[ins][frm]overlay=0:0:format=auto[insf];")
+        else:
+            filt += "[ins]null[insf];"
+        filt += (f"[base][insf]overlay="
+                 f"W-w-{PIP_MARGIN_PX}:H-h-{PIP_MARGIN_PX}"
+                 f":enable='lte(t,{p1:.4f})'[vc];"
+                 f"[0:a]atrim={w0:.4f}:{w1:.4f},asetpts=PTS-STARTPTS[aout]")
     else:
         filt = (f"[0:v]trim={w0:.4f}:{w1:.4f},setpts=PTS-STARTPTS[vc];"
                 f"[0:a]atrim={w0:.4f}:{w1:.4f},asetpts=PTS-STARTPTS[aout]")
@@ -586,8 +840,16 @@ def render_frag(frag: Frag, dst: Path, cfg: Config,
              f"crop={cfg.target_width}:{cfg.target_height},setsar=1,"
              f"fps={cfg.target_fps},format=yuv420p[vfin]")
 
-    cmd = [str(cfg.ffmpeg_bin), "-y", "-v", "error", "-i", str(frag.fp),
-           "-filter_complex", filt, "-map", "[vfin]", "-map", "[aout]",
+    cmd = [str(cfg.ffmpeg_bin), "-y", "-v", "error", "-i", str(frag.fp)]
+    if pip is not None and not slowmo:
+        cmd += ["-i", str(pip)]
+        _fr = inset_frame_asset(
+            int(cfg.target_width * PIP_WIDTH_FRAC) // 2 * 2,
+            int(int(cfg.target_width * PIP_WIDTH_FRAC) // 2 * 2
+                * cfg.target_height / cfg.target_width) // 2 * 2)
+        if _fr:
+            cmd += ["-i", str(_fr)]
+    cmd += ["-filter_complex", filt, "-map", "[vfin]", "-map", "[aout]",
            "-c:v", "libx264", "-crf", "18", "-preset", "veryfast",
            "-pix_fmt", "yuv420p", "-c:a", "pcm_s16le", "-ar", "48000",
            "-f", "mov", str(dst)]
@@ -1084,20 +1346,19 @@ def build(part: int, minutes: float, out: Path, cfg: Config,
     # landing points a listener hears, so they are loaded too.
     beats, downbeats, drops = [], [], []
     if preset_music:
-        try:
-            from creative_suite.engine import music_beatmatch as _mb
-            beats, downbeats, drops = _mb.track_grid(preset_music[0])
-        except Exception as exc:                       # noqa: BLE001
-            print(f"[hl] track grid unavailable ({exc})")
+        beats, downbeats, drops = music_grid(
+            [q for q in preset_music if q.exists()], cfg)
     if not beats:
         beats, downbeats = load_beats(part, cfg)
-    grid = downbeats or beats
     print(f"[hl] beat grid: {len(beats)} beats, {len(downbeats)} downbeats, "
-          f"{len(drops)} drops")
+          f"{len(drops)} drops, spans {beats[-1] if beats else 0:.0f}s")
 
     segments: list[Path] = []
     used_frags: list[Frag] = []
     timeline = 0.0
+    n_accent = 0               # accented shots so far
+    last_scratch = -99         # keeps rollbacks from bunching up
+    last_pip = -99             # ...and insets
     for n, f in enumerate(chosen):
         seg = work / f"seg{n:03d}.mov"
         # There is deliberately no "target duration" here. An earlier version
@@ -1122,20 +1383,65 @@ def build(part: int, minutes: float, out: Path, cfg: Config,
         # already chosen, and only on SHORT single-frag clips so the treatment
         # stays consistent across the video. A long multi-kill keeps the
         # standard rate; stretching those to chase a beat would be obvious.
-        rate = None
-        if slowmo and beats and f.duration <= SHORT_CLIP_SLOWMO_S:
+        # The scratch replay is a VARIATION on the long accented T1 shots --
+        # the ones with enough runway for a rollback to read. It is deliberately
+        # disjoint from the short-clip beat lock below, so a shot gets one
+        # treatment or the other, never both.
+        rate, scratch = None, False
+        if slowmo:
+            n_accent += 1
             w0, w1 = source_window(f.peak, f.duration, f.fp)
             aw, bw = accent_window(w0, w1, f.peak)
-            lock = speed_ramp.accent_rate_for_landing(
-                w0, aw, bw, w1, timeline, beats, downbeats, drops)
-            if lock:
-                rate, land, kind = lock
-                print(f"  [lock] {f.fp.name[:34]:34} slow {rate:.2f}x -> lands "
-                      f"on {kind} at {land:.2f}s")
+            vt = video_time(timeline, n)
+
+            # The rollback has to be MUSICALLY motivated -- user 2026-08-31:
+            # "it need to happen when the music fit or do something similar
+            # (like downbeat tempo)". So the scratch is not a cadence: the
+            # moment the picture is pulled back must land on a drop or a
+            # downbeat, and the slow rate is solved to put it there. Modelling
+            # the segment as ending at `bw` makes the solved landing the START
+            # of the rewind, which is the beat the viewer actually feels. A
+            # plain beat is not reason enough for an effect this strong.
+            if (beats and f.tier == "T1"
+                    and f.duration >= SCRATCH_MIN_SRC_S
+                    and f.duration > SHORT_CLIP_SLOWMO_S
+                    and n_accent - last_scratch >= SCRATCH_MIN_GAP):
+                hit = speed_ramp.accent_rate_for_landing(
+                    w0, aw, bw, bw, vt, beats, downbeats, drops,
+                    allowed_kinds=("drop", "downbeat"))
+                if hit:
+                    rate, land, kind = hit
+                    scratch = True
+                    last_scratch = n_accent
+                    print(f"  [scratch] {f.fp.name[:30]:30} slow {rate:.2f}x, "
+                          f"rollback on {kind} at {land:.2f}s")
+
+            # Short single-frag shots instead get their accent STRENGTH solved
+            # so the cut lands on the music. Disjoint from the scratch above --
+            # one treatment per shot, never both.
+            if not scratch and beats and f.duration <= SHORT_CLIP_SLOWMO_S:
+                lock = speed_ramp.accent_rate_for_landing(
+                    w0, aw, bw, w1, vt, beats, downbeats, drops)
+                if lock:
+                    rate, land, kind = lock
+                    print(f"  [lock] {f.fp.name[:34]:34} slow {rate:.2f}x -> "
+                          f"lands on {kind} at {land:.2f}s")
+
+        # A grenade play with a second camera gets the follow angle inset, so
+        # the shell's flight and its landing are both visible. Only on shots
+        # playing straight -- a speed ramp would put the two cameras on
+        # different clocks.
+        pip = None
+        if (not slowmo and f.fls and n - last_pip >= PIP_MIN_GAP
+                and has_grenade(f.fp)):
+            pip = f.fls[0]
+            last_pip = n
+            print(f"  [inset] {f.fp.name[:34]:34} grenade -- follow camera inset")
 
         if not seg.exists():
             try:
-                render_frag(f, seg, cfg, slowmo=slowmo, slow_rate=rate)
+                render_frag(f, seg, cfg, slowmo=slowmo, slow_rate=rate,
+                            scratch=scratch, pip=pip)
             except RuntimeError as exc:
                 print(f"  [skip] {f.fp.name}: {exc}")
                 continue

@@ -218,7 +218,8 @@ def snap_to_beat(t: float, beats: list[float], *,
 
 def _pick_landing(rate_for, natural_end, timeline_t, beats,
                   downbeats=None, drops=None,
-                  lo: float = SLOW_RATE_MIN, hi: float = SLOW_RATE_MAX):
+                  lo: float = SLOW_RATE_MIN, hi: float = SLOW_RATE_MAX,
+                  allowed_kinds=("drop", "downbeat", "beat")):
     """Choose the musical moment this segment should END on.
 
     `rate_for(target_out_s)` returns the slow rate needed to make the segment
@@ -245,6 +246,8 @@ def _pick_landing(rate_for, natural_end, timeline_t, beats,
             continue
         rb = round(b, 2)
         kind = "drop" if rb in drops else ("downbeat" if rb in downs else "beat")
+        if kind not in allowed_kinds:
+            continue
         rank = {"drop": 0, "downbeat": 1, "beat": 2}[kind]
         cost = (rank, abs(b - natural_end))
         if best is None or cost < best[0]:
@@ -258,7 +261,8 @@ def accent_rate_for_landing(w0: float, a: float, b: float, w1: float,
                             timeline_t: float, beats, downbeats=None,
                             drops=None, default_rate: float = SLOW_RATE,
                             lo: float = SLOW_RATE_MIN,
-                            hi: float = SLOW_RATE_MAX):
+                            hi: float = SLOW_RATE_MAX,
+                            allowed_kinds=("drop", "downbeat", "beat")):
     """Beat-lock an accent expressed as literal segment boundaries.
 
     The renderer builds its accent as three concatenated pieces -- w0->a at
@@ -285,7 +289,7 @@ def accent_rate_for_landing(w0: float, a: float, b: float, w1: float,
 
     natural_end = timeline_t + fixed + window / default_rate
     return _pick_landing(rate_for, natural_end, timeline_t, beats,
-                         downbeats, drops, lo, hi)
+                         downbeats, drops, lo, hi, allowed_kinds)
 
 
 def beat_locked_slow_rate(plan: "SpeedPlan", timeline_t: float, beats,

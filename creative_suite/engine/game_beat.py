@@ -53,6 +53,13 @@ EVENTS = {
     "weapon_swap": ["weapons/change.wav"],
     "jump":       ["player/ranger/jump1.wav", "player/major/jump1.wav"],
     "hitsound":   ["feedback/hit.wav", "feedback/hit1.wav"],
+    # Grenades have no explosion sound of their own -- the blast reuses the
+    # rocket's. The launcher firing and the shell bouncing are what identify a
+    # grenade play, and the bounce is the part that makes a second camera worth
+    # showing: the shell travels, and the POV cannot see where it lands.
+    "grenade":    ["weapons/grenade/grenlf1a.wav",
+                   "weapons/grenade/hgrenb1a.wav",
+                   "weapons/grenade/hgrenb2a.wav"],
 }
 
 # Tempo search range for the implied grid. Wider than the music band on

@@ -618,6 +618,51 @@ def detect_drops(path, sr=22050, max_s=420.0):
     return out
 
 
+FULL_GRID_DIR = REPO_ROOT / "output" / "_beat_grids"
+
+
+def full_grid(path, db: Path | None = None):
+    """Beat and downbeat grid for the WHOLE track.
+
+    The ingest analyses only the first ANALYSE_SECONDS (90 s) of every song --
+    plenty to establish tempo and to rank tracks, and cheap across a 396-track
+    library. It is NOT enough to land an edit: a five-minute video scored by a
+    145 s song has no grid past its first ninety seconds, so every accent in
+    the back two thirds silently found nothing to land on.
+
+    This analyses the file end to end, once, and caches the result. Cost is a
+    few seconds for the one or two tracks a video actually uses, against a
+    render measured in tens of minutes.
+    """
+    import json as _json
+    q = Path(path).resolve()
+    FULL_GRID_DIR.mkdir(parents=True, exist_ok=True)
+    cache = FULL_GRID_DIR / (content_id(q) + ".json")
+    if cache.exists():
+        try:
+            d = _json.loads(cache.read_text(encoding="utf-8"))
+            return d.get("beats") or [], d.get("downbeats") or []
+        except Exception:
+            pass
+    try:
+        import numpy as np
+        import librosa
+        y, sr = librosa.load(str(q), sr=SR, mono=True)
+        onset = librosa.onset.onset_strength(y=y, sr=sr)
+        _tempo, frames = librosa.beat.beat_track(onset_envelope=onset, sr=sr,
+                                                 trim=False)
+        beats = [round(float(t), 4)
+                 for t in librosa.frames_to_time(frames, sr=sr)]
+        downs = beats[::BEATS_PER_BAR]
+    except Exception:                                  # noqa: BLE001
+        # fall back to the truncated cache rather than returning nothing
+        b, d, _ = track_grid(q, db)
+        return b, d
+    cache.write_text(_json.dumps({"beats": beats, "downbeats": downs}),
+                     encoding="utf-8")
+    return beats, downs
+
+
 def track_grid(path, db: Path | None = None):
     """(beats, downbeats, drops) for one track, from cache plus drop analysis."""
     import json as _json
