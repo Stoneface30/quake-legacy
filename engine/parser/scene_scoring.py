@@ -8,6 +8,9 @@ recorder's frags. Components (frag skill first, per standing priority):
   density_bonus   kills/second of the round's kill span
   variety_bonus   distinct weapons + distinct top-level classes
   clutch_bonus    round carries a clutch label
+  fight_intensity ALL-player kill density in the window (user 2026-08-31:
+                  big team fights are usable material even beyond the
+                  recorder's own kills) — from frags_rebuilt, DB-only
   context         low-HP presence (small, secondary)
 Suggested capture window per scene: first kill -5s .. last kill +4s.
 
@@ -24,6 +27,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 RECOG_DB = REPO_ROOT / "creative_suite" / "database" / "frag_recognition.db"
+FRAGS_DB = REPO_ROOT / "creative_suite" / "database" / "frags_rebuilt.db"
 OUT_DIR = REPO_ROOT / "output" / "demo_v2" / "recognition"
 
 PREMIUM = {"CLUTCH_1V2", "CLUTCH_1V3", "CLUTCH_1V4_PLUS"}
@@ -33,6 +37,14 @@ def run(top_n: int = 100) -> dict:
     t0 = time.time()
     conn = sqlite3.connect(RECOG_DB)
     conn.row_factory = sqlite3.Row
+    # all-player kill times per demo (big-fight evidence)
+    fconn = sqlite3.connect(f"file:{FRAGS_DB}?mode=ro", uri=True)
+    all_kills: dict[str, list[int]] = {}
+    for d, t in fconn.execute("SELECT demo_name, server_time_ms FROM frags"):
+        all_kills.setdefault(d, []).append(t)
+    fconn.close()
+    for v in all_kills.values():
+        v.sort()
     scenes: dict[tuple, list[dict]] = {}
     for r in conn.execute(
             "SELECT id, demo_name, round, server_time_ms, weapon_name,"
@@ -66,14 +78,21 @@ def run(top_n: int = 100) -> dict:
             "CLEAN_FLICK", "EXTREME_FLICK", "DIRECT_CONFIRMED_GEO",
             "AIR_ROCKET_GEO", "LG_HIGH_PRESSURE", "RAPID_MULTIKILL"}))
         clutch = 5.0 if all_cls & PREMIUM else 0.0
+        w0, w1 = members[0]["t"] - 5000, members[-1]["t"] + 4000
+        from bisect import bisect_left, bisect_right
+        ak = all_kills.get(demo, [])
+        total_kills = bisect_right(ak, w1) - bisect_left(ak, w0)
+        fight = min(4.0, max(0, total_kills - len(members)) * 0.5)
         context = 1.5 if any(m["low_hp"] for m in members) else 0.0
-        total = round(peak + mass + density + variety + clutch + context, 2)
+        total = round(peak + mass + density + variety + clutch + fight
+                      + context, 2)
         rows.append({
             "scene_score": total, "demo": demo, "round": rnd,
             "kills": len(members), "span_s": round(span_s, 1),
             "peak": peak, "mass": round(mass, 1),
             "density": round(density, 1), "variety": round(variety, 1),
-            "clutch": clutch, "context": context,
+            "clutch": clutch, "fight_intensity": fight,
+            "total_kills_window": total_kills, "context": context,
             "weapons": ",".join(sorted(w or "" for w in weapons)),
             "capture_start_ms": members[0]["t"] - 5000,
             "capture_end_ms": members[-1]["t"] + 4000,
