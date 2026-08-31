@@ -30,6 +30,151 @@ DEMO_V2_DB_PATH = _DB_DIR / "demo_v2.db"
 
 # classes-endpoint cache: {str(db_path): [{"name":..., "count":...}, ...]}
 _classes_cache: dict[str, list[dict[str, Any]]] = {}
+_taxonomy_cache: dict[str, dict[str, Any]] = {}
+
+_TAXONOMY: tuple[dict[str, Any], ...] = (
+    {"id": "best", "label": "BEST", "categories": (
+        ("top_50", "Top 50", ()), ("user_love", "User LOVE", ()),
+        ("user_keep", "User KEEP", ()),)},
+    {"id": "rocket", "label": "ROCKET", "categories": (
+        ("direct_rocket", "Direct", ("DIRECT_CONFIRMED_GEO", "DIRECT_ROCKET", "DIRECT_LIKELY")),
+        ("air_rocket", "Air Rocket", ("AIRSHOT", "AIR_ROCKET", "AIR_ROCKET_GEO", "HIGH_AIR_ROCKET")),
+        ("prediction_rocket", "Prediction", ("PREDICTION_TEMPORAL", "ROCKET_POPUP")),
+        ("rocket_jump", "Rocket Jump", ("ROCKET_JUMP_FRAG", "ROCKET_JUMP_ENTRY")),
+        ("high_speed_rocket", "High-Speed Rocket", ("HIGH_SPEED_ROCKET",)),)},
+    {"id": "rail", "label": "RAIL / AIM", "categories": (
+        ("pixel", "Pixel", ("PIXEL_SHOT_GEO", "PIXEL_SHOT_RENDER_CONFIRMED")),
+        ("tiny_gap", "Tiny Gap", ("TINY_GAP",)), ("reaction", "Reaction", ("REACTION_SHOT",)),
+        ("clean_flick", "Clean Flick", ("CLEAN_FLICK",)),
+        ("extreme_flick", "Extreme Flick", ("EXTREME_FLICK",)),
+        ("tracking_sweep", "Tracking Sweep", ("AGGRESSIVE_TRACKING_SWEEP",)),
+        ("high_speed_aim", "High-Speed Aim", ("HIGH_SPEED_AIM_TRANSITION", "LARGE_AIM_TRANSITION")),
+        ("long_range", "Long Range", ("LONG_RANGE_RAIL",)),
+        ("air_rail", "Air Rail", ("AIR_RAIL", "RAIL_AIR")),)},
+    {"id": "lightning", "label": "LIGHTNING", "categories": (
+        ("lg_tracking", "Tracking", ("LG_TRACK", "LG_TRACKING", "LG_TRACKING_EXCELLENT")),
+        ("lg_pressure", "High Pressure", ("LG_HIGH_PRESSURE",)),
+        ("lg_transfer", "Target Transfer", ("LG_TARGET_TRANSFER",)),
+        ("lg_multitarget", "Multitarget", ("LG_MULTITARGET",)),
+        ("lg_dodge", "Dodge + Frag", ("LG_DODGE_MASTER", "DODGE_AND_FRAG")),
+        ("lg_speed", "High-Speed LG", ("LG_HIGH_SPEED_TRACKING",)),)},
+    {"id": "grenade", "label": "GRENADE", "categories": (
+        ("air_grenade", "Air Grenade", ("AIR_GRENADE",)),
+        ("prediction_grenade", "Prediction", ("PREDICTION_GRENADE",)),
+        ("bounce_grenade", "Bounce", ("BOUNCE_PREDICTION", "MULTI_BOUNCE_FRAG")),
+        ("direct_grenade", "Direct", ("DIRECT_GRENADE",)),)},
+    {"id": "movement", "label": "MOVEMENT", "categories": (
+        ("extreme_speed", "Extreme Speed", ("EXTREME_SPEED", "EXTREME_SPEED_FRAG")),
+        ("high_speed_frag", "High-Speed Frag", ("HIGH_SPEED_FRAG", "VERY_HIGH_SPEED_FRAG", "VERY_FAST_FRAG")),
+        ("high_speed_multikill", "High-Speed Multikill", ("HIGH_SPEED_MULTIKILL",)),
+        ("strafe_chain", "Strafe Chain", ("STRAFE_CHAIN", "STRAFE_CHAIN_FRAG")),
+        ("dodge_kill", "Dodge & Kill", ("DODGE_AND_KILL",)),
+        ("escape_turn", "Escape / Turnaround", ("ESCAPE_TURNAROUND",)),)},
+    {"id": "multikill", "label": "MULTIKILL", "categories": (
+        ("double", "Double", ("DOUBLE", "MULTIKILL_DOUBLE")),
+        ("triple", "Triple", ("TRIPLE", "MULTIKILL_TRIPLE")),
+        ("quad", "Quad", ("QUAD", "MULTIKILL_QUAD")),
+        ("five_plus", "5+", ("MULTIKILL_5_PLUS", "MULTIKILL_6_PLUS", "MULTIKILL_7_PLUS", "MULTIKILL_8_PLUS")),
+        ("rapid_multikill", "Rapid", ("RAPID_MULTIKILL",)),
+        ("high_density_multikill", "High Density", ("HIGH_DENSITY_MULTIKILL",)),
+        ("multi_weapon", "Multi-Weapon", ("MULTI_WEAPON_CHAIN", "WEAPON_COMBO")),)},
+    {"id": "clan_arena", "label": "CLAN ARENA", "categories": (
+        ("clutch_1v2", "1v2", ("CLUTCH_1V2",)),
+        ("clutch_1v3", "1v3", ("CLUTCH_1V3",)),
+        ("clutch_1v4", "1v4+", ("CLUTCH_1V4_PLUS",)),
+        ("last_man", "Last Man", ("LAST_MAN_SEQUENCE",)),
+        ("round_save", "Round Save", ("ROUND_SAVE",)),
+        ("team_wipe", "Team Wipe", ("TEAM_WIPE",)),
+        ("round_comeback", "Round Comeback", ("ROUND_COMEBACK", "OUTNUMBERED_ROUND_WIN")),)},
+)
+
+
+def _category_classes(category_id: str) -> tuple[str, ...] | None:
+    for family in _TAXONOMY:
+        for item_id, _label, classes in family["categories"]:
+            if item_id == category_id:
+                return classes
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Combinable multi-select filter groups.
+#
+# docs/reference/frag-taxonomy-review.md organizes all 62 classes into 8
+# families: Projectile skill, Rail, Aim, LG, Multikill/clutch/fights,
+# Movement, Health drama, Weapon craft. Those 8 are collapsed pairwise into
+# 4 named groups here, each exposed as its own combinable `<id>_group` query
+# param on GET /api/frags:
+#   - "skill"    = Projectile skill + Rail + Aim + LG        -> how hard was
+#                  the shot (every family whose evidence is aim/positioning).
+#   - "context"  = Multikill/clutch/fights + Health drama    -> how much was
+#                  on the line when the kill happened.
+#   - "movement" = Movement/speed (kept standalone — answers a different
+#                  question than either bucket above: raw traversal speed).
+#   - "craft"    = Weapon craft (kept standalone — weapon-swap technique,
+#                  orthogonal to both aim skill and situational stakes).
+# Semantics: within one group's comma-list, OR (frag matches if ANY listed
+# class name is present in its `classes` JSON). Across different groups
+# (and combined with the existing `class`/`weapon`/`category` filters), AND.
+# Filter values are raw class names (e.g. "AIR_ROCKET"), not category ids —
+# the same vocabulary already surfaced by GET /api/frags/classes.
+# ---------------------------------------------------------------------------
+_FILTER_GROUPS: dict[str, tuple[str, ...]] = {
+    "skill": (
+        # Projectile skill (rockets / grenades)
+        "DIRECT_ROCKET", "DIRECT_CONFIRMED_GEO", "NEAR_DIRECT", "AIR_ROCKET",
+        "AIR_ROCKET_GEO", "AIR_GRENADE", "PREDICTION_TEMPORAL",
+        "PREDICTION_CANDIDATE",
+        # Rail
+        "RAIL_FRAG", "RAIL_AIR", "RAIL_CONSECUTIVE", "RAIL_FLICK",
+        "PIXEL_SHOT_GEO", "PIXEL_SHOT_CANDIDATE", "TINY_GAP_SHOT",
+        "REACTION_SHOT", "REACTION_SHOT_CANDIDATE", "CORNER_PREFIRE_CONFIRMED",
+        # Aim
+        "FLICK_SHOT", "CLEAN_FLICK", "EXTREME_FLICK",
+        "HIGH_SPEED_AIM_TRANSITION", "AGGRESSIVE_TRACKING_SWEEP",
+        "LARGE_AIM_TRANSITION", "TARGET_TRANSFER",
+        # LG
+        "LG_TRACKING", "LG_HIGH_ACCURACY", "LG_HIGH_PRESSURE",
+        "LG_DODGE_MASTER", "LG_TRANSFER", "DAMAGE_BURST",
+    ),
+    "context": (
+        # Multikill / clutch / fights
+        "MULTIKILL_DOUBLE", "MULTIKILL_TRIPLE", "MULTIKILL_QUAD",
+        "RAPID_MULTIKILL", "HIGH_SPEED_MULTIKILL", "CLUTCH_1V2", "CLUTCH_1V3",
+        "CLUTCH_1V4_PLUS",
+        # Health drama
+        "LOW_HP_FRAG", "CRITICAL_HP_FRAG", "LAST_HP_FRAG", "LAST_HP_CANDIDATE",
+        "LOW_HEALTH_WIN", "HEAVY_DAMAGE_SURVIVED",
+    ),
+    "movement": (
+        "HIGH_SPEED_FRAG", "VERY_FAST_FRAG", "EXTREME_SPEED",
+        "SPEED_TARGET_FRAG", "HIGH_SPEED_AIR_FRAG", "VERTICAL_ACTION",
+        "STRAFE_CHAIN_FRAG", "ROCKET_JUMP_ENTRY", "ROCKET_JUMP_FRAG",
+        "DODGE_AND_KILL", "ESCAPE_TURNAROUND",
+    ),
+    "craft": (
+        "WEAPON_COMBO", "MULTI_WEAPON_CHAIN", "FAST_WEAPON_SWITCH",
+        "WEAPON_SWITCH_FINISH", "COMBO_KILL", "POPUP_COMBO",
+    ),
+}
+_FILTER_GROUP_LABELS = {
+    "skill": "Skill", "context": "Context", "movement": "Movement",
+    "craft": "Weapon Craft",
+}
+
+
+def _flatten_multi(values: list[str] | None) -> list[str]:
+    """Accept a filter param passed as repeated query params AND/OR a
+    comma-separated list within a single value; flatten to one list."""
+    if not values:
+        return []
+    out: list[str] = []
+    for raw in values:
+        for part in raw.split(","):
+            part = part.strip()
+            if part:
+                out.append(part)
+    return out
 
 _MASTER_SUBQ = (
     "(SELECT gc.generated_clip_id FROM dv.generated_clips gc "
@@ -130,18 +275,108 @@ def list_class_labels() -> list[dict[str, Any]]:
         conn.close()
 
 
+@router.get("/api/frags/taxonomy")
+def frag_taxonomy() -> dict[str, Any]:
+    key = str(FRAG_DB_PATH)
+    cached = _taxonomy_cache.get(key)
+    if cached is not None:
+        return cached
+    conn = _connect()
+    try:
+        class_sets = [set(_class_names(raw)) for (raw,) in conn.execute(
+            "SELECT classes FROM recognized_frags WHERE classes IS NOT NULL"
+        )]
+    finally:
+        conn.close()
+    families: list[dict[str, Any]] = []
+    for family in _TAXONOMY:
+        categories = []
+        for item_id, label, classes in family["categories"]:
+            if item_id == "top_50":
+                count = min(50, len(class_sets))
+            elif item_id == "user_love":
+                count = review_proxy.count_reviews("LOVE")
+            elif item_id == "user_keep":
+                count = review_proxy.count_reviews("KEEP")
+            else:
+                wanted = set(classes)
+                count = sum(bool(names & wanted) for names in class_sets)
+            categories.append({"id": item_id, "label": label,
+                               "count": count, "classes": list(classes)})
+        families.append({"id": family["id"], "label": family["label"],
+                         "categories": categories})
+    result = {"families": families}
+    _taxonomy_cache[key] = result
+    return result
+
+
+@router.get("/api/frags/filter-groups")
+def list_filter_groups() -> dict[str, Any]:
+    """Class names bucketed into the 4 combinable filter groups, with live
+    counts (reuses the /api/frags/classes cache) — feeds the frontend's
+    multi-select checkbox panel."""
+    counts = {c["name"]: c["count"] for c in list_class_labels()}
+    groups = [
+        {
+            "id": gid,
+            "label": _FILTER_GROUP_LABELS.get(gid, gid.title()),
+            "query_param": f"{gid}_group",
+            "classes": [
+                {"name": name, "count": counts.get(name, 0)} for name in classes
+            ],
+        }
+        for gid, classes in _FILTER_GROUPS.items()
+    ]
+    return {"groups": groups}
+
+
 @router.get("/api/frags")
 def list_frags(
     limit: int = Query(default=100, ge=1, le=1000),
     offset: int = Query(default=0, ge=0),
     min_score: float | None = Query(default=None),
+    min_speed: float | None = Query(
+        default=None,
+        description="Filters on the raw recorder movement speed at the kill "
+                     "(attributes.killer_speed, Quake units/sec — NOT the "
+                     "percentile field). Frags with no killer_speed never match.",
+    ),
     weapon: str | None = Query(default=None),
     class_: str | None = Query(default=None, alias="class"),
     demo: str | None = Query(default=None),
     mode_pool: str = Query(default="MAIN_CA"),
     has_master: bool | None = Query(default=None),
-    sort: str = Query(default="score"),
+    sort: str = Query(default="score", description="score | time | speed | custom"),
+    category: str | None = Query(default=None),
+    skill_group: list[str] | None = Query(default=None),
+    context_group: list[str] | None = Query(default=None),
+    movement_group: list[str] | None = Query(default=None),
+    craft_group: list[str] | None = Query(default=None),
+    custom_weights: str | None = Query(
+        default=None,
+        description="JSON object {class_name: weight}. When present, "
+                     "custom_score = highlight_score + sum(weight for each "
+                     "matching class on the frag) is computed per-request "
+                     "only (never persisted) and returned per row. "
+                     "sort=custom re-sorts the whole filtered set by it.",
+    ),
 ) -> dict[str, Any]:
+    weights: dict[str, float] | None = None
+    if custom_weights:
+        try:
+            parsed = json.loads(custom_weights)
+            if not isinstance(parsed, dict):
+                raise ValueError("must be a JSON object")
+            weights = {str(k): float(v) for k, v in parsed.items()}
+        except (ValueError, TypeError) as exc:
+            raise HTTPException(
+                status_code=422, detail=f"invalid custom_weights: {exc}"
+            ) from exc
+    if sort == "custom" and not weights:
+        raise HTTPException(
+            status_code=422, detail="sort=custom requires custom_weights"
+        )
+
     conn = _connect()
     try:
         where: list[str] = []
@@ -149,12 +384,40 @@ def list_frags(
         if min_score is not None:
             where.append("rf.highlight_score >= ?")
             params.append(min_score)
+        if min_speed is not None:
+            where.append("json_extract(rf.attributes, '$.killer_speed') >= ?")
+            params.append(min_speed)
         if weapon:
             where.append("rf.weapon_name = ?")
             params.append(weapon)
         if class_:
             where.append("rf.classes LIKE ?")
             params.append(f"%{class_}%")
+        if category:
+            classes = _category_classes(category)
+            if classes is None:
+                raise HTTPException(status_code=422, detail=f"unknown category: {category}")
+            if classes:
+                where.append("(" + " OR ".join("rf.classes LIKE ?" for _ in classes) + ")")
+                params.extend(f'%"{name}"%' for name in classes)
+            elif category == "top_50":
+                where.append("rf.id IN (SELECT id FROM recognized_frags "
+                             "ORDER BY highlight_score DESC, id ASC LIMIT 50)")
+            elif category in ("user_love", "user_keep"):
+                ids = review_proxy.reviewed_frag_ids(category.removeprefix("user_").upper())
+                if not ids:
+                    where.append("0")
+                else:
+                    where.append("rf.id IN (" + ",".join("?" * len(ids)) + ")")
+                    params.extend(ids)
+        # Combinable multi-select groups: OR within a group, AND across groups
+        # (each populated group contributes its own where-clause item, which
+        # is then AND-joined below with everything else — see _FILTER_GROUPS).
+        for raw_group in (skill_group, context_group, movement_group, craft_group):
+            names = _flatten_multi(raw_group)
+            if names:
+                where.append("(" + " OR ".join("rf.classes LIKE ?" for _ in names) + ")")
+                params.extend(f'%"{name}"%' for name in names)
         if demo:
             where.append("rf.demo_name LIKE ?")
             params.append(f"%{demo}%")
@@ -166,59 +429,120 @@ def list_frags(
         elif has_master is False:
             where.append(f"{_MASTER_SUBQ} IS NULL")
         where_sql = ("WHERE " + " AND ".join(where)) if where else ""
-        order_sql = (
-            "ORDER BY rf.server_time_ms ASC, rf.id ASC"
-            if sort == "time"
-            else "ORDER BY rf.highlight_score DESC, rf.id ASC"
-        )
+
         total = conn.execute(
             f"SELECT COUNT(*) FROM recognized_frags rf {where_sql}", params
         ).fetchone()[0]
-        rows = conn.execute(
-            f"SELECT rf.id, rf.demo_name, rf.round, rf.server_time_ms, "
-            f"       rf.weapon_name, rf.highlight_score, rf.classes, "
-            f"       rf.attributes, {_MASTER_SUBQ} AS master_clip_id "
-            f"FROM recognized_frags rf {where_sql} {order_sql} LIMIT ? OFFSET ?",
-            [*params, limit, offset],
-        ).fetchall()
 
-        reviews = review_proxy.get_reviews([r["id"] for r in rows])
+        custom_score_by_id: dict[int, float] = {}
+        if sort == "custom":
+            # Custom ranking needs the whole filtered set scored before we
+            # can slice a page out of it — fetch just the lightweight
+            # columns needed to score, order in Python, then page.
+            assert weights is not None
+            scoring_rows = conn.execute(
+                f"SELECT rf.id, rf.classes, rf.highlight_score "
+                f"FROM recognized_frags rf {where_sql}",
+                params,
+            ).fetchall()
+            scored: list[tuple[float, int]] = []
+            for srow in scoring_rows:
+                names = _class_names(srow["classes"])
+                cscore = (srow["highlight_score"] or 0.0) + sum(
+                    weights.get(n, 0.0) for n in names
+                )
+                scored.append((cscore, srow["id"]))
+            scored.sort(key=lambda t: (-t[0], t[1]))
+            custom_score_by_id = {fid: cscore for cscore, fid in scored}
+            page_ids = [fid for _, fid in scored[offset:offset + limit]]
+            if page_ids:
+                marks = ",".join("?" * len(page_ids))
+                fetched = conn.execute(
+                    f"SELECT rf.id, rf.demo_name, rf.round, rf.server_time_ms, "
+                    f"       rf.weapon_name, rf.highlight_score, rf.classes, "
+                    f"       rf.attributes, {_MASTER_SUBQ} AS master_clip_id "
+                    f"FROM recognized_frags rf WHERE rf.id IN ({marks})",
+                    page_ids,
+                ).fetchall()
+                rows_by_id = {r["id"]: r for r in fetched}
+                rows = [rows_by_id[i] for i in page_ids if i in rows_by_id]
+            else:
+                rows = []
+        else:
+            if sort == "time":
+                order_sql = "ORDER BY rf.server_time_ms ASC, rf.id ASC"
+            elif sort == "speed":
+                order_sql = (
+                    "ORDER BY json_extract(rf.attributes, '$.killer_speed') DESC,"
+                    " rf.id ASC"
+                )
+            else:
+                order_sql = "ORDER BY rf.highlight_score DESC, rf.id ASC"
+            rows = conn.execute(
+                f"SELECT rf.id, rf.demo_name, rf.round, rf.server_time_ms, "
+                f"       rf.weapon_name, rf.highlight_score, rf.classes, "
+                f"       rf.attributes, {_MASTER_SUBQ} AS master_clip_id "
+                f"FROM recognized_frags rf {where_sql} {order_sql} LIMIT ? OFFSET ?",
+                [*params, limit, offset],
+            ).fetchall()
+
+        row_ids = [r["id"] for r in rows]
+        reviews = review_proxy.get_reviews(row_ids)
+        proxies = review_proxy.get_states(row_ids)
         items: list[dict[str, Any]] = []
         for row in rows:
             attrs = _parse_json(row["attributes"], {})
             master = _master_row(conn, row["master_clip_id"])
-            items.append(
-                {
-                    "id": row["id"],
-                    "demo_name": row["demo_name"],
-                    "round": row["round"],
-                    "server_time_ms": row["server_time_ms"],
-                    "weapon_name": row["weapon_name"],
-                    "highlight_score": row["highlight_score"],
-                    "classes": _class_names(row["classes"])[:5],
-                    "scene_score": attrs.get("scene_score") if isinstance(attrs, dict) else None,
-                    "mode_pool": attrs.get("mode_pool") if isinstance(attrs, dict) else None,
-                    "master": (
-                        {
-                            "generated_clip_id": master["generated_clip_id"],
-                            "tier": master.get("tier"),
-                            "qa_status": master.get("qa_status"),
-                            "class": master.get("class"),
-                            "avi_on_disk": master["avi_on_disk"],
-                        }
-                        if master
-                        else None
-                    ),
-                    "review": (
-                        {
-                            "verdict": reviews[row["id"]].get("verdict"),
-                            "user_tier": reviews[row["id"]].get("user_tier"),
-                        }
-                        if row["id"] in reviews
-                        else None
-                    ),
-                }
-            )
+            full_classes = _class_names(row["classes"])
+            item: dict[str, Any] = {
+                "id": row["id"],
+                "demo_name": row["demo_name"],
+                "round": row["round"],
+                "server_time_ms": row["server_time_ms"],
+                "weapon_name": row["weapon_name"],
+                "highlight_score": row["highlight_score"],
+                "classes": full_classes[:5],
+                "scene_score": attrs.get("scene_score") if isinstance(attrs, dict) else None,
+                "mode_pool": attrs.get("mode_pool") if isinstance(attrs, dict) else None,
+                "killer_speed": attrs.get("killer_speed") if isinstance(attrs, dict) else None,
+                "attacker_speed_percentile": (
+                    attrs.get("attacker_speed_percentile") if isinstance(attrs, dict) else None
+                ),
+                "map_name": (
+                    attrs.get("map_name") or attrs.get("map") or
+                    (master.get("map") if master else None)
+                ) if isinstance(attrs, dict) else (master.get("map") if master else None),
+                "master": (
+                    {
+                        "generated_clip_id": master["generated_clip_id"],
+                        "tier": master.get("tier"),
+                        "qa_status": master.get("qa_status"),
+                        "class": master.get("class"),
+                        "avi_on_disk": master["avi_on_disk"],
+                    }
+                    if master
+                    else None
+                ),
+                "review": (
+                    {
+                        "verdict": reviews[row["id"]].get("verdict"),
+                        "user_tier": reviews[row["id"]].get("user_tier"),
+                    }
+                    if row["id"] in reviews
+                    else None
+                ),
+                "proxy": {
+                    "state": proxies.get(row["id"], {}).get("state", "MISSING")
+                },
+            }
+            if weights is not None:
+                if sort == "custom":
+                    item["custom_score"] = custom_score_by_id.get(row["id"])
+                else:
+                    item["custom_score"] = (row["highlight_score"] or 0.0) + sum(
+                        weights.get(n, 0.0) for n in full_classes
+                    )
+            items.append(item)
         return {"total": total, "limit": limit, "offset": offset, "items": items}
     finally:
         conn.close()
@@ -360,7 +684,7 @@ def proxy_video(frag_id: int):
 # ------------------------------------------------------------ editorial review
 
 _VERDICTS = {"LOVE", "KEEP", "MAYBE", "DROP"}
-_TIERS = {"S_PLUS", "S", "A", ""}
+_TIERS = {"S_PLUS", "S", "A", "B", ""}
 
 
 @router.get("/api/frags/{frag_id}/review")

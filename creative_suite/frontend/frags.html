@@ -67,6 +67,59 @@ header .count { color: var(--text-dim); font-size: 13px; }
   background: var(--gold); color: #111; border: none; border-radius: 3px;
   padding: 7px 17px; font-weight: 700; cursor: pointer; font-size: 13px;
 }
+#group-filters {
+  padding: 8px 18px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+#group-panels { display: flex; flex-wrap: wrap; gap: 16px; }
+.group-panel { min-width: 180px; }
+.group-panel .group-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-bottom: 5px;
+}
+.group-panel h3 {
+  font-size: 11px; color: var(--gold); text-transform: uppercase;
+  letter-spacing: 1px; font-weight: 700;
+}
+.group-all-btn {
+  background: transparent; color: var(--text-dim); border: 1px solid var(--border);
+  border-radius: 3px; padding: 2px 8px; font-size: 10px; cursor: pointer;
+}
+.group-all-btn.active { background: var(--gold); color: #111; border-color: var(--gold); font-weight: 700; }
+.group-checks { display: flex; flex-direction: column; gap: 2px; max-height: 118px; overflow-y: auto; }
+.group-check {
+  display: flex; align-items: center; gap: 6px; font-size: 12px;
+  color: var(--text); cursor: pointer; padding: 1px 2px;
+}
+.group-check input { accent-color: var(--gold); }
+.group-check .gc-count { color: var(--text-dim); font-size: 10px; margin-left: auto; }
+#weights-panel { margin-top: 10px; color: var(--text); }
+#weights-panel summary {
+  cursor: pointer; color: var(--silver); font-size: 12px;
+  text-transform: uppercase; letter-spacing: 0.5px; padding: 4px 0;
+}
+#weights-panel summary:hover { color: var(--gold); }
+.hint-inline { color: var(--text-dim); font-size: 11px; text-transform: none; letter-spacing: 0; margin-left: 6px; }
+#weights-body {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 4px 12px; max-height: 200px; overflow-y: auto; padding: 8px 2px;
+}
+.weight-row { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.weight-row label { flex: 1; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.weight-row input {
+  width: 56px; background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 3px; padding: 3px 5px; font-size: 12px;
+}
+.weight-row input:focus { outline: 1px solid var(--gold); }
+.weight-row.nonzero label { color: var(--gold); font-weight: 700; }
+.weights-actions { display: flex; align-items: center; gap: 8px; padding: 6px 2px 2px; }
+#btn-apply-weights, #btn-clear-weights {
+  background: #26262c; color: var(--silver); border: 1px solid var(--border);
+  border-radius: 3px; padding: 6px 12px; cursor: pointer; font-size: 12px;
+}
+#btn-apply-weights:hover, #btn-clear-weights:hover { border-color: var(--gold); }
+.custom-score { color: var(--gold); font-weight: 700; font-size: 13px; }
 main { flex: 1; display: grid; grid-template-columns: minmax(460px, 31vw) 1fr minmax(370px, 24vw); min-height: 0; }
 
 /* ---- left: frag list ---- */
@@ -271,14 +324,29 @@ pre {
       <option value="all">all</option>
     </select>
   </label>
+  <label>Min speed <input type="number" id="f-min-speed" step="1" placeholder="0"></label>
   <label><input type="checkbox" id="f-master"> has master</label>
   <label>Sort
     <select id="f-sort">
       <option value="score" selected>score desc</option>
       <option value="time">time</option>
+      <option value="speed">speed desc</option>
     </select>
   </label>
   <button class="apply" id="btn-apply">APPLY</button>
+</div>
+
+<div id="group-filters">
+  <div id="group-panels"></div>
+  <details id="weights-panel">
+    <summary>Weights <span class="hint-inline">(boost ranking without touching the machine score)</span></summary>
+    <div id="weights-body"></div>
+    <div class="weights-actions">
+      <button id="btn-apply-weights">Apply weights (sort=custom)</button>
+      <button id="btn-clear-weights">Clear weights</button>
+      <span id="weights-active-hint" class="hint-inline"></span>
+    </div>
+  </details>
 </div>
 
 <main>

@@ -8,6 +8,9 @@ const state = {
   loopIn: null, loopOut: null,
   pollTimer: null, notesTimer: null,
   director: null,   // {sessionId, since, count, keybind, recipeId, pollTimer}
+  groupSelections: { skill: new Set(), context: new Set(), movement: new Set(), craft: new Set() },
+  customWeights: {},       // {CLASS_NAME: nonzero weight}
+  customSortActive: false, // true only right after "Apply weights" was clicked
 };
 
 const $ = (id) => document.getElementById(id);
@@ -38,6 +41,8 @@ function currentFilters() {
   p.set("offset", state.offset);
   const minScore = $("f-min-score").value.trim();
   if (minScore !== "") p.set("min_score", minScore);
+  const minSpeed = $("f-min-speed").value.trim();
+  if (minSpeed !== "") p.set("min_speed", minSpeed);
   if ($("f-weapon").value) p.set("weapon", $("f-weapon").value);
   if ($("f-class").value) p.set("class", $("f-class").value);
   if (state.category) p.set("category", state.category);
@@ -45,7 +50,15 @@ function currentFilters() {
   if (demo) p.set("demo", demo);
   p.set("mode_pool", $("f-pool").value);
   if ($("f-master").checked) p.set("has_master", "true");
-  p.set("sort", $("f-sort").value);
+  Object.entries(state.groupSelections).forEach(([groupId, set]) => {
+    if (set.size) p.set(`${groupId}_group`, [...set].join(","));
+  });
+  const nonzeroWeights = Object.fromEntries(
+    Object.entries(state.customWeights).filter(([, w]) => w !== 0)
+  );
+  const hasWeights = Object.keys(nonzeroWeights).length > 0;
+  if (hasWeights) p.set("custom_weights", JSON.stringify(nonzeroWeights));
+  p.set("sort", state.customSortActive && hasWeights ? "custom" : $("f-sort").value);
   return p;
 }
 
@@ -82,6 +95,9 @@ async function loadList() {
     if (it.id === state.selectedId) row.classList.add("selected");
     const l1 = el("div", "line1");
     l1.appendChild(el("span", "score", (it.highlight_score ?? 0).toFixed(1)));
+    if (it.custom_score != null) {
+      l1.appendChild(el("span", "custom-score", `→ ${it.custom_score.toFixed(1)}`));
+    }
     l1.appendChild(el("span", "weapon", it.weapon_name || "–"));
     if (it.review && it.review.user_tier) {
       l1.appendChild(el("span", "badge qa-other",
@@ -138,6 +154,134 @@ async function loadTaxonomy() {
   });
   $("taxonomy").replaceChildren(...groups);
 }
+
+/* ===================== combinable multi-select groups ===================== */
+/* Each group ("skill"/"context"/"movement"/"craft" — see the grouping
+ * rationale comment on _FILTER_GROUPS in creative_suite/api/frags.py) is
+ * multi-select OR-within; picking from two+ groups ANDs across them.
+ * "All" for a group just means "clear this group's selections" — omitting
+ * the query param entirely is how the backend reads "no constraint". */
+
+async function loadGroupFilters() {
+  let data;
+  try {
+    data = await (await fetch("/api/frags/filter-groups")).json();
+  } catch (e) {
+    return;
+  }
+  const panels = data.groups.map((group) => buildGroupPanel(group));
+  $("group-panels").replaceChildren(...panels);
+  buildWeightsPanel(data.groups);
+}
+
+function buildGroupPanel(group) {
+  const panel = el("div", "group-panel");
+  const head = el("div", "group-head");
+  head.appendChild(el("h3", "", group.label));
+  const allBtn = el("button", "group-all-btn", "All");
+  allBtn.type = "button";
+  const selection = state.groupSelections[group.id];
+  const refreshAllBtn = () => allBtn.classList.toggle("active", selection.size === 0);
+  allBtn.addEventListener("click", () => {
+    if (selection.size === 0) return;
+    selection.clear();
+    checks.forEach((cb) => { cb.checked = false; });
+    refreshAllBtn();
+    state.offset = 0;
+    loadList();
+  });
+  head.appendChild(allBtn);
+  panel.appendChild(head);
+
+  const checksBox = el("div", "group-checks");
+  const checks = group.classes.map((cls) => {
+    const row = el("label", "group-check");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = selection.has(cls.name);
+    cb.addEventListener("change", () => {
+      if (cb.checked) selection.add(cls.name); else selection.delete(cls.name);
+      refreshAllBtn();
+      state.offset = 0;
+      loadList();
+    });
+    row.appendChild(cb);
+    row.appendChild(el("span", "", cls.name));
+    row.appendChild(el("span", "gc-count", cls.count.toLocaleString()));
+    checksBox.appendChild(row);
+    return cb;
+  });
+  refreshAllBtn();
+  panel.appendChild(checksBox);
+  return panel;
+}
+
+/* ================================ weights ================================ */
+/* Lightweight custom-scoring panel: custom_score = highlight_score + sum of
+ * weights for classes present on the frag, computed per-request on the
+ * server (never persisted — the machine highlight_score is immutable). */
+
+function buildWeightsPanel(groups) {
+  const allClasses = [];
+  const seen = new Set();
+  groups.forEach((g) => g.classes.forEach((c) => {
+    if (!seen.has(c.name)) { seen.add(c.name); allClasses.push(c.name); }
+  }));
+  const body = $("weights-body");
+  const rows = allClasses.map((name) => {
+    const row = el("div", "weight-row");
+    row.appendChild(el("label", "", name));
+    const input = document.createElement("input");
+    input.type = "number";
+    input.step = "0.5";
+    input.value = state.customWeights[name] || 0;
+    input.dataset.className = name;
+    input.addEventListener("input", () => {
+      row.classList.toggle("nonzero", Number(input.value) !== 0);
+    });
+    row.classList.toggle("nonzero", Number(input.value) !== 0);
+    row.appendChild(input);
+    return row;
+  });
+  body.replaceChildren(...rows);
+  updateWeightsActiveHint();
+}
+
+function updateWeightsActiveHint() {
+  const n = Object.values(state.customWeights).filter((w) => w !== 0).length;
+  $("weights-active-hint").textContent = n
+    ? `${n} weight${n === 1 ? "" : "s"} active${state.customSortActive ? " · sort=custom" : ""}`
+    : "";
+}
+
+function applyWeights() {
+  const weights = {};
+  $("weights-body").querySelectorAll("input[data-class-name]").forEach((input) => {
+    const w = Number(input.value);
+    if (w) weights[input.dataset.className] = w;
+  });
+  state.customWeights = weights;
+  state.customSortActive = Object.keys(weights).length > 0;
+  updateWeightsActiveHint();
+  state.offset = 0;
+  loadList();
+}
+
+function clearWeights() {
+  state.customWeights = {};
+  state.customSortActive = false;
+  $("weights-body").querySelectorAll("input[data-class-name]").forEach((input) => {
+    input.value = 0;
+    input.closest(".weight-row").classList.remove("nonzero");
+  });
+  updateWeightsActiveHint();
+  state.offset = 0;
+  loadList();
+}
+
+$("btn-apply-weights").addEventListener("click", applyWeights);
+$("btn-clear-weights").addEventListener("click", clearWeights);
+$("f-sort").addEventListener("change", () => { state.customSortActive = false; updateWeightsActiveHint(); });
 
 /* ========================= evidence formatting ========================= */
 
@@ -776,4 +920,5 @@ $("pg-next").addEventListener("click", () => {
 
 loadFilters();
 loadTaxonomy();
+loadGroupFilters();
 loadList();
