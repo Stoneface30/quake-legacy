@@ -162,3 +162,54 @@ def test_side_is_a_cinematic_mode_with_its_controls():
     assert pr.presentation_for("SIDE") == pr.CINEMATIC_CLEAN
     assert "SIDE" in dd.MODE_CONTROLS
     assert set(dd.MODE_CONTROLS["SIDE"]) == {"distance", "height", "side_offset", "fov"}
+
+
+# ── no temporal debt (V3E) ──────────────────────────────────────────────────
+
+def _pieces(rates, measured=None):
+    out, t = [], 0.0
+    for i, r in enumerate(rates):
+        pc = {"label": f"p{i}", "src_in_s": t, "src_out_s": t + 1.0, "rate": r}
+        if measured is not None:
+            pc["out_duration_s"] = measured[i]
+        out.append(pc); t += 1.0
+    return out
+
+
+def test_slow_then_exactly_one_is_clean():
+    assert qa.check_temporal_debt(_pieces([1.0, 0.404, 1.0])) == []
+
+
+def test_implicit_speedup_after_slow_is_an_error():
+    f = qa.check_temporal_debt(_pieces([1.0, 0.404, 1.6]))
+    assert f and f[0].check == qa.UNINTENDED_POST_SLOW_SPEEDUP
+    assert f[0].severity == qa.ERROR
+    assert "repaying slow-motion time" in f[0].reason
+
+
+def test_implicit_speedup_without_a_slow_is_still_an_error():
+    f = qa.check_temporal_debt(_pieces([1.0, 1.5]))
+    assert f and f[0].severity == qa.ERROR
+
+
+def test_authored_speedup_is_allowed():
+    assert qa.check_temporal_debt(_pieces([1.0, 0.404, 1.6]),
+                                  authored_speedups={"p2"}) == []
+
+
+def test_compressed_source_is_caught_even_at_rate_one():
+    """A piece that delivers less time than its source span at 1.0x is
+    catch-up by another name."""
+    f = qa.check_temporal_debt(_pieces([1.0, 0.5, 1.0], measured=[1.0, 2.0, 0.90]))
+    assert f and "compressed" in f[0].reason
+
+
+def test_one_frame_of_rounding_is_not_compression():
+    assert qa.check_temporal_debt(_pieces([1.0, 0.5, 1.0],
+                                          measured=[1.0, 2.0, 1.0 - 1.0 / 60])) == []
+
+
+def test_slow_piece_delivered_short_is_caught():
+    # 1.0 s at 0.404x must deliver ~2.475 s; 2.40 s is 75 ms of debt
+    f = qa.check_temporal_debt(_pieces([1.0, 0.404, 1.0], measured=[1.0, 2.40, 1.0]))
+    assert f and f[0].check == qa.UNINTENDED_POST_SLOW_SPEEDUP

@@ -845,3 +845,37 @@ def test_side_without_a_projectile_falls_back_honestly(env, monkeypatch) -> None
         camera={**dd_mod.DEFAULT_CAMERA, "mode": "SIDE"}))
     assert plan.camera_mode != "SIDE"
     assert plan.camera_fallback
+
+
+def test_orphaned_capturing_row_is_requeued_not_restamped(env, monkeypatch) -> None:
+    """A capturing process died, leaving CAPTURING + a dead-PID lock. The next
+    request must re-queue the job, not re-stamp the corpse forever."""
+    frag, draft = _frag(), _draft()
+    first = dp.request_preview(frag, draft)
+    dp.drain_for_tests()
+    con = dp._conn()
+    con.execute("UPDATE director_previews SET state=?, mp4_path=NULL WHERE preview_key=?",
+                (dp.STATE_CAPTURING, first["preview_key"]))
+    con.commit(); con.close()
+    lock = env["tmp"] / "_capture.lock"
+    monkeypatch.setattr(dp, "LOCK_PATH", lock)
+    lock.write_text("999999")                        # a PID that is not alive
+    assert dp._in_flight_is_orphaned({"updated_at": dp._now()})
+    again = dp.request_preview(frag, draft)
+    assert again["state"] == dp.STATE_QUEUED
+
+
+def test_live_lock_holder_is_not_treated_as_orphaned(env, monkeypatch) -> None:
+    import os
+    lock = env["tmp"] / "_capture.lock"
+    monkeypatch.setattr(dp, "LOCK_PATH", lock)
+    lock.write_text(str(os.getpid()))                # us: alive, and it's our own
+    assert not dp._in_flight_is_orphaned({"updated_at": dp._now()})
+
+
+def test_stale_row_without_any_lock_is_orphaned_after_the_grace(env, monkeypatch) -> None:
+    lock = env["tmp"] / "_capture.lock"
+    monkeypatch.setattr(dp, "LOCK_PATH", lock)     # does not exist
+    assert not dp._in_flight_is_orphaned({"updated_at": dp._now()})
+    old = "2020-01-01 00:00:00"
+    assert dp._in_flight_is_orphaned({"updated_at": old})

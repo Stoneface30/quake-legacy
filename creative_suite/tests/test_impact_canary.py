@@ -190,3 +190,54 @@ def test_no_fpv_return_keeps_the_cinematic_camera_through_the_tail():
 
 def test_return_to_fpv_is_part_of_identity():
     assert ic.ImpactClock().clock_id != ic.ImpactClock(return_to_fpv=False).clock_id
+
+
+# ── V3E hero grammar: the piecewise TimeMap carries no temporal debt ────────
+
+from creative_suite.engine import impact_canary_render as icr  # noqa: E402
+
+
+def _hero(rate=Fraction(2284, 5657)):
+    return icr.HeroCut(scene_in_s=2.0, launch_s=3.375, T_s=4.5,
+                       pass1_out_s=4.894, tail_s=2.0, slow_rate=rate)
+
+
+def test_hero_timemap_is_fpv_replay_fpv():
+    tm = _hero().timemap()
+    assert [p["label"] for p in tm] == ["PASS1_FPV", "REPLAY_SIDE", "TAIL_FPV"]
+    assert [p["rate"] for p in tm] == [1.0, pytest.approx(0.4037, abs=1e-3), 1.0]
+
+
+def test_hero_timemap_is_gapless_and_the_slow_lengthens_the_movie():
+    h = _hero(); tm = h.timemap()
+    for a, b in zip(tm, tm[1:]):
+        assert a["edit_out_s"] == b["edit_in_s"]
+    source_total = sum(p["src_out_s"] - p["src_in_s"] for p in tm)
+    assert h.edit_duration_s > source_total          # longer, never shorter
+    assert tm[1]["edit_duration_s"] == pytest.approx(1.125 / 0.4037, abs=0.01)
+
+
+def test_hero_tail_resumes_the_fpv_timeline_where_pass1_stopped():
+    tm = _hero().timemap()
+    assert tm[2]["src_in_s"] == tm[0]["src_out_s"]
+
+
+def test_hero_timemap_passes_the_temporal_debt_check():
+    from creative_suite.engine import edit_qa
+    assert edit_qa.check_temporal_debt(_hero().timemap()) == []
+
+
+def test_first_impact_is_natural_speed_and_replay_impact_is_later():
+    h = _hero()
+    assert h.first_impact_edit_s == 2.5
+    assert h.replay_impact_edit_s > h.replay_start_edit_s > h.first_impact_edit_s
+
+
+def test_replay_may_keep_the_explosion_past_the_tick():
+    h = icr.HeroCut(scene_in_s=2.0, launch_s=3.375, T_s=4.5, pass1_out_s=4.9,
+                    tail_s=2.0, slow_rate=Fraction(2284, 5657), replay_out_s=4.75)
+    assert h.first_impact_edit_s == 2.5                 # the tick, not the replay end
+    tm = h.timemap()[1]
+    assert tm["src_out_s"] == 4.75
+    assert h.replay_impact_edit_s < h.replay_end_edit_s
+    assert h.replay_impact_edit_s == pytest.approx(tm["edit_in_s"] + 1.125 / 0.4037, abs=0.01)

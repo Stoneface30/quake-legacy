@@ -328,3 +328,34 @@ def report(measurements) -> dict[str, Any]:
         "all_primary_acceptable": all(m.acceptable for m in primaries),
         "lines": [m.describe() for m in ms],
     }
+
+
+# ── human-selected musical cues (directive V3E 1, 24, 25) ──────────────────
+# The catalog carries no vocal labels for some tracks. When a person picks
+# an estimated cue by ear, the record says exactly that: a preferred
+# ESTIMATE, selected by USER, never silently relabelled as a confirmed
+# catalog event.
+CUE_USER_SELECTED_HARMONIC_RISE = "USER_SELECTED_HARMONIC_RISE"
+CUE_CATALOG_EVENT = "CATALOG_EVENT"
+
+
+@dataclass(frozen=True)
+class MusicCueSelection:
+    track_hash: str
+    cue_kind: str                 # CUE_* above
+    music_us: int
+    selected_by: str              # "USER" | "MATCHER"
+    label: str                    # e.g. "voice51"
+    alternatives_us: tuple = ()
+    note: str = ""
+
+    def __post_init__(self) -> None:
+        if self.cue_kind not in (CUE_USER_SELECTED_HARMONIC_RISE, CUE_CATALOG_EVENT):
+            raise ValueError("unknown cue kind: " + str(self.cue_kind))
+        if self.cue_kind == CUE_USER_SELECTED_HARMONIC_RISE and "VOCAL_ENTRY" in self.note.upper():
+            raise ValueError("an estimated rise must not be described as a VOCAL_ENTRY")
+        if not isinstance(self.music_us, int):
+            raise ValueError("music_us must be an int")
+
+    def to_dict(self) -> dict:
+        d = asdict(self); d["alternatives_us"] = list(self.alternatives_us); return d

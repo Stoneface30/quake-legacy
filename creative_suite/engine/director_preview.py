@@ -1615,6 +1615,42 @@ def enforce_visual_budget(budget_bytes: int | None = None) -> list[str]:
 # Public API (continued)
 # ---------------------------------------------------------------------------
 
+# A job may sit in an in-flight state for this long with NO live lock holder
+# before it is considered orphaned. Long enough for a slow capture to be
+# between lock releases; short enough that a dead process is noticed.
+ORPHAN_AFTER_S = 120.0
+
+
+def _in_flight_is_orphaned(existing: dict[str, Any]) -> bool:
+    """True when the row says in-flight but nobody is actually doing it.
+
+    Recovery gap found 2026-09-01: a capturing process died mid-job, left
+    the row CAPTURING and the lock file holding a dead PID, and every later
+    request_preview re-stamped the row instead of re-queuing.
+    """
+    if LOCK_PATH.exists():
+        try:
+            pid = int(LOCK_PATH.read_text().strip() or 0)
+        except (OSError, ValueError):
+            pid = 0
+        if pid and pid != os.getpid():
+            try:
+                os.kill(pid, 0)
+                return False              # a live process holds the lock
+            except OSError:
+                return True               # lock held by a dead PID
+        if pid == os.getpid():
+            return False
+    try:
+        updated = datetime.fromisoformat(str(existing.get("updated_at")))
+        if updated.tzinfo is None:
+            updated = updated.replace(tzinfo=timezone.utc)
+        age = (datetime.now(timezone.utc) - updated).total_seconds()
+    except (TypeError, ValueError):
+        return False
+    return age > ORPHAN_AFTER_S
+
+
 def request_preview(frag: dict[str, Any], draft: dict[str, Any],
                     demo_path: str | None = None) -> dict[str, Any]:
     """POST handler body: queue (or reuse) a preview for this exact draft.
@@ -1647,9 +1683,19 @@ def request_preview(frag: dict[str, Any], draft: dict[str, Any],
                      and _artifact_is_sound(Path(str(existing["mp4_path"])),
                                             edit_us))
         state = STATE_READY if ready else STATE_QUEUED
+        orphaned = bool(existing and not ready
+                        and existing["state"] in (STATE_QUEUED, STATE_CAPTURING,
+                                                  STATE_TRIMMING)
+                        and _in_flight_is_orphaned(existing))
         if existing and not ready and existing["state"] in (
                 STATE_QUEUED, STATE_CAPTURING, STATE_TRIMMING):
-            state = existing["state"]     # already in flight; just re-stamp
+            if orphaned:
+                # The process that was capturing this died (dead lock PID,
+                # or nothing holds the lock and the row is stale). Re-queue
+                # rather than re-stamp forever; the old path never retried.
+                state = STATE_QUEUED
+            else:
+                state = existing["state"]     # already in flight; just re-stamp
         now = _now()
         con.execute(
             "INSERT INTO director_previews (preview_key, frag_id, generation,"
@@ -1680,7 +1726,8 @@ def request_preview(frag: dict[str, Any], draft: dict[str, Any],
                 "visual_capture_key": visual_key,
                 "preview_assembly_key": assembly_key,
                 "visual_reused": True}
-    if existing and existing["state"] in (STATE_CAPTURING, STATE_TRIMMING):
+    if (existing and existing["state"] in (STATE_CAPTURING, STATE_TRIMMING)
+            and not orphaned):
         return {"preview_key": key, "generation": generation,
                 "state": existing["state"], "reused": False,
                 "visual_capture_key": visual_key,

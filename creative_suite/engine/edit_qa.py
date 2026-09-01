@@ -25,6 +25,7 @@ WARN = "WARN"
 CINEMATIC_HUD_VISIBLE = "CINEMATIC_HUD_VISIBLE"
 CINEMATIC_NO_SUBJECT = "CINEMATIC_NO_SUBJECT"
 POST_DEATH_CAMERA_TOO_LONG = "POST_DEATH_CAMERA_TOO_LONG"
+UNINTENDED_POST_SLOW_SPEEDUP = "UNINTENDED_POST_SLOW_SPEEDUP"
 
 NO_SUBJECT_MAX_MS = 250.0
 POST_DEATH_MAX_MS = 350.0
@@ -127,3 +128,50 @@ def summarize(findings: list[Finding]) -> dict[str, Any]:
         "warnings": [f.to_dict() for f in findings if f.severity == WARN],
         "passes": not any(f.severity == ERROR for f in findings),
     }
+
+
+# ── no temporal debt (directive V3E 4-6) ────────────────────────────────────
+# SLOW MOTION NEVER CREATES TEMPORAL DEBT. A gameplay interval D shown at
+# rate R < 1 occupies D / R of edit time and the movie gets longer. Nothing
+# afterwards may run faster than 1.0x to "repay" it unless the editor
+# authored that speed-up explicitly. This is the check that would have
+# caught it, and it is an ERROR for the editorial canaries.
+
+def check_temporal_debt(pieces: list[dict], *,
+                        authored_speedups: set | None = None) -> list[Finding]:
+    """ERROR for any implicit rate > 1.0 after a slow piece, or for a piece
+    whose output duration is shorter than its source span would allow.
+
+    ``pieces`` are the assembly's own piecewise TimeMap: dicts with
+    ``label``, ``src_in_s``, ``src_out_s``, ``rate`` and, when measured,
+    ``out_duration_s``. ``authored_speedups`` names pieces whose rate > 1
+    was requested on purpose.
+    """
+    out: list[Finding] = []
+    authored = set(authored_speedups or ())
+    seen_slow = False
+    for pc in pieces:
+        rate = float(pc["rate"])
+        span = float(pc["src_out_s"]) - float(pc["src_in_s"])
+        expected = span / rate if rate > 0 else 0.0
+        if rate < 1.0:
+            seen_slow = True
+        if rate > 1.0 + 1e-9 and pc.get("label") not in authored:
+            out.append(Finding(
+                UNINTENDED_POST_SLOW_SPEEDUP if seen_slow else UNINTENDED_POST_SLOW_SPEEDUP,
+                ERROR, float(pc["src_in_s"]) * 1000.0, float(pc["src_out_s"]) * 1000.0,
+                f"{pc.get('label', '?')} runs at {rate:.3f}x without an authored "
+                f"speed-up" + (" -- repaying slow-motion time" if seen_slow else ""),
+                1.0))
+        measured = pc.get("out_duration_s")
+        if measured is not None and expected > 0:
+            # more than one frame short at 60 fps is compression, not rounding
+            if float(measured) < expected - (1.5 / 60.0):
+                out.append(Finding(
+                    UNINTENDED_POST_SLOW_SPEEDUP, ERROR,
+                    float(pc["src_in_s"]) * 1000.0, float(pc["src_out_s"]) * 1000.0,
+                    f"{pc.get('label', '?')} delivered {float(measured):.3f}s for "
+                    f"{span:.3f}s of source at {rate:.3f}x (expected "
+                    f"{expected:.3f}s): source footage was compressed",
+                    1.0))
+    return out
