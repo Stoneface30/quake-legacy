@@ -98,8 +98,24 @@ def cuts_for(clock: ic.ImpactClock, T_ms: float) -> CanaryCut:
         T_s=T, scene_in_s=rel(clock.scene_start_us),
         insert_in_s=(rel(clock.insert_start_us) if clock.has_insert else None),
         insert_out_s=(rel(clock.fpv_return_us) if clock.has_insert else None),
-        slow_in_s=rel(clock.attention_us), slow_out_s=rel(clock.fpv_return_us),
+        slow_in_s=rel(clock.slow_span_us[0]), slow_out_s=rel(clock.slow_span_us[1]),
         scene_out_s=rel(clock.tail_us), slow_rate=clock.slow_rate)
+
+
+def _atempo_chain(rate: float) -> str:
+    """ffmpeg's atempo is bounded to [0.5, 100]; slower rates are a chain.
+
+    A beat-locked rate is often below 0.5 (7 beats at 161.5 BPM is 0.433),
+    so 0.433 becomes atempo=0.5,atempo=0.866. Each stage is tempo-only, so
+    pitch is untouched and the product is exact to float precision.
+    """
+    parts = []
+    r = float(rate)
+    while r < 0.5:
+        parts.append(",atempo=0.5")
+        r /= 0.5
+    parts.append(f",atempo={r:.6f}")
+    return "".join(parts)
 
 
 def build_visual_master(fpv_mp4: Path, insert_mp4: Path | None,
@@ -134,7 +150,7 @@ def build_visual_master(fpv_mp4: Path, insert_mp4: Path | None,
         vf = f"[{src}:v]trim={a:.6f}:{b:.6f},setpts=(PTS-STARTPTS)/{r}"
         af = f"[{src}:a]atrim={a:.6f}:{b:.6f},asetpts=PTS-STARTPTS"
         if r != 1.0:
-            af += f",atempo={r}"
+            af += _atempo_chain(r)
         f.append(f"{vf},fps=60,scale=1280:720,setsar=1[v{i}];")
         f.append(f"{af},aresample=48000[a{i}];")
         labels.append(f"[v{i}][a{i}]")
@@ -175,7 +191,7 @@ def mux_music(master: Path, track_path: Path, placement: MusicPlacement,
     flt = (f"[1:a]atrim={ss:.6f}:{ss + duration_s:.6f},asetpts=PTS-STARTPTS,"
            f"volume={dp.MUSIC_VOLUME},volume={music_gain_db:.2f}dB,"
            f"afade=t=in:st=0:d=0.15,"
-           f"afade=t=out:st={max(0.0, duration_s - 0.25):.3f}:d=0.25[m];"
+           f"afade=t=out:st={max(0.0, duration_s - 0.60):.3f}:d=0.60[m];"
            f"[0:a]volume={dp.GAME_AUDIO_VOLUME}[g];"
            f"[g][m]amix=inputs=2:duration=first:normalize=0,"
            f"volume={MIX_TRIM},alimiter=limit={TP_CEILING}:level=disabled[out]")

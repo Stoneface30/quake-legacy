@@ -106,8 +106,68 @@ def test_qa_passes_the_default_clock():
     assert rep["warnings"] == []          # 300 ms tail is inside the 350 allowance
 
 
-def test_qa_warns_on_a_long_tail():
-    rep = ic.qa(ic.ImpactClock(tail_us=900_000))
-    assert rep["passes"]                  # a warning, not an error
-    assert rep["warnings"][0]["check"] == "POST_DEATH_CAMERA_TOO_LONG"
-    assert rep["warnings"][0]["span_ms"] == 900.0
+def test_a_long_fpv_tail_is_not_a_corpse_camera():
+    """Review asked for ~2 s after the frag to hear the music resolve. In FPV
+    the live player is the subject, so POST_DEATH must not fire."""
+    rep = ic.qa(ic.ImpactClock(tail_us=2_000_000))
+    assert rep["passes"] and rep["warnings"] == []
+
+
+def test_a_long_cinematic_tail_still_warns():
+    """Same length, but ending on the cinematic camera: that IS the corpse cam."""
+    c = ic.ImpactClock(tail_us=2_000_000)
+    import dataclasses
+    segs = c.segments()
+    # simulate a programme whose last camera span is cinematic
+    from creative_suite.engine import edit_qa
+    f = edit_qa.check_post_death(c.impact_edit_us / 1000.0, c.duration_us / 1000.0)
+    assert f and f[0].check == "POST_DEATH_CAMERA_TOO_LONG"
+
+
+# ── review iteration: music decides the slow ────────────────────────────────
+
+def test_beat_locked_rate_makes_the_flight_a_whole_number_of_beats():
+    rate, k = ic.beat_locked_rate(1_125_000, 161.5, want=0.43)
+    period = Fraction(60_000_000) / Fraction(161.5).limit_denominator(10_000)
+    assert k == 7
+    assert abs(float(Fraction(1_125_000) / rate / period) - 7) < 1e-6
+    assert 0.40 < float(rate) < 0.47
+
+
+def test_beat_locked_rate_respects_the_range():
+    with pytest.raises(ValueError):
+        ic.beat_locked_rate(1_125_000, 161.5, lo=0.99, hi=1.0)
+    with pytest.raises(ValueError):
+        ic.beat_locked_rate(0, 120.0)
+
+
+def test_slow_span_defaults_to_the_v3_shape():
+    c = ic.ImpactClock()
+    assert c.slow_span_us == (c.attention_us, c.fpv_return_us)
+
+
+def test_slow_span_can_cover_the_whole_flight():
+    c = ic.ImpactClock(slow_start_us=-1_125_000, slow_end_us=0,
+                       slow_rate=Fraction(13, 30), tail_us=2_000_000)
+    t = next(s for s in c.segments() if s["kind"] == "time")
+    assert (t["start_us"], t["end_us"]) == (c.edit(-1_125_000), c.edit(0))
+    assert c.duration_us == 4_500_000
+
+
+def test_slow_span_must_stay_inside_the_scene():
+    with pytest.raises(ValueError, match="inside the scene"):
+        ic.ImpactClock(slow_start_us=-9_000_000, slow_end_us=0)
+
+
+def test_ordering_is_a_choice_not_a_rule():
+    for o in ic.ORDERINGS:
+        ic.ImpactClock(ordering=o)
+    with pytest.raises(ValueError):
+        ic.ImpactClock(ordering="RANDOM")
+
+
+def test_ordering_and_slow_span_are_part_of_identity():
+    base = ic.ImpactClock()
+    assert base.clock_id != ic.ImpactClock(ordering="REPLAY_THEN_FPV").clock_id
+    assert base.clock_id != ic.ImpactClock(slow_start_us=-1_125_000,
+                                           slow_end_us=0).clock_id

@@ -37,6 +37,7 @@ from creative_suite.engine import presentation, edit_qa, sync_contract as sc
 
 CANARY_SCHEMA_VERSION = 3
 CANARY_NAME = "EDITORIAL_CANARY_V3_IMPACT"
+ORDERINGS = ("FPV_THEN_REPLAY", "REPLAY_THEN_FPV", "BOTH")
 
 
 def canonical_json(obj: Any) -> str:
@@ -53,7 +54,15 @@ class ImpactClock:
     attention_us: int = -500_000            # dramatic treatment begins
     fpv_return_us: int = -150_000
     tail_us: int = 300_000
-    slow_rate: Fraction = Fraction(1, 2)    # applied attention_us..fpv_return_us
+    slow_rate: Fraction = Fraction(1, 2)
+    # The slow span is EXPLICIT. By default it is attention..fpv_return (the
+    # V3 canary). Review feedback asked for the whole flight slowed with the
+    # rate decided by the music, so a clock may instead set it to
+    # launch..impact and derive slow_rate with beat_locked_rate().
+    slow_start_us: int | None = None
+    slow_end_us: int | None = None
+    # FPV_THEN_REPLAY / REPLAY_THEN_FPV / BOTH -- decided at lock-in, not a rule
+    ordering: str = "FPV_THEN_REPLAY"
     insert_camera: str = "PROJECTILE"
     insert_distance: float = 60.0
     insert_height: float = 16.0
@@ -86,6 +95,17 @@ class ImpactClock:
             raise ValueError("slow_rate must be in (0, 1]")
         if presentation.presentation_for(self.insert_camera) != presentation.CINEMATIC_CLEAN:
             raise ValueError("the insert must be a cinematic camera")
+        if self.ordering not in ORDERINGS:
+            raise ValueError("unknown ordering: " + str(self.ordering))
+        s, e = self.slow_span_us
+        if not (self.scene_start_us <= s < e <= self.tail_us):
+            raise ValueError("slow span must lie inside the scene")
+
+    @property
+    def slow_span_us(self) -> tuple[int, int]:
+        s = self.attention_us if self.slow_start_us is None else self.slow_start_us
+        e = self.fpv_return_us if self.slow_end_us is None else self.slow_end_us
+        return int(s), int(e)
 
     # -- resolution onto the edit clock (0 = scene start) -------------------
     @property
@@ -126,9 +146,9 @@ class ImpactClock:
             out.append({"kind": "camera", "camera": "FPV",
                         "presentation": presentation.FPV_GAMEPLAY,
                         "start_us": 0, "end_us": self.duration_us})
+        s, e = self.slow_span_us
         out.append({"kind": "time", "rate": str(self.slow_rate),
-                    "start_us": self.edit(self.attention_us),
-                    "end_us": self.edit(self.fpv_return_us)})
+                    "start_us": self.edit(s), "end_us": self.edit(e)})
         return out
 
     def sync_events(self) -> list[tuple[str, int, bool]]:
@@ -183,6 +203,39 @@ def qa(clock: ImpactClock, *, subject_end_rel_us: int = 0) -> dict[str, Any]:
         findings += edit_qa.check_no_subject(
             ins["start_us"] / 1000.0, ins["end_us"] / 1000.0,
             [(ins["start_us"] / 1000.0, ins["end_us"] / 1000.0)])
-    findings += edit_qa.check_post_death(
-        clock.edit(subject_end_rel_us) / 1000.0, clock.duration_us / 1000.0)
+    # The corpse-camera check is about a CINEMATIC camera outliving its
+    # subject. An FPV tail always has one -- the live player -- so it only
+    # applies when the programme ends on a cinematic segment. Review asked
+    # for a 2 s FPV tail so the music can resolve; that is not a corpse cam.
+    last = [s for s in clock.segments() if s["kind"] == "camera"][-1]
+    if last["presentation"] == presentation.CINEMATIC_CLEAN:
+        findings += edit_qa.check_post_death(
+            clock.edit(subject_end_rel_us) / 1000.0,
+            clock.duration_us / 1000.0)
     return edit_qa.summarize(findings)
+
+
+def beat_locked_rate(flight_us: int, bpm: float, *, want: float = 0.5,
+                     lo: float = 0.25, hi: float = 1.0) -> tuple[Fraction, int]:
+    """The slow rate that makes the flight span a whole number of beats.
+
+    MUSIC DECIDES THE SLOW. For a beat period P and flight F, rate r = F /
+    (k * P) stretches the flight to exactly k beats, so launch and impact
+    land on the grid BECAUSE of the slow rather than despite it. ``want``
+    picks which k: the one whose rate is nearest the slowness asked for.
+    Returns (rate, k). The rate is an exact Fraction in microseconds so the
+    TimeMap contract's integer arithmetic holds.
+    """
+    if flight_us <= 0 or bpm <= 0:
+        raise ValueError("flight and bpm must be positive")
+    period_us = Fraction(60_000_000) / Fraction(bpm).limit_denominator(10_000)
+    best = None
+    for k in range(1, 64):
+        r = Fraction(flight_us) / (k * period_us)
+        if not (lo <= r <= hi):
+            continue
+        if best is None or abs(float(r) - want) < abs(float(best[0]) - want):
+            best = (r.limit_denominator(10_000), k)
+    if best is None:
+        raise ValueError("no whole-beat slow rate in range")
+    return best
