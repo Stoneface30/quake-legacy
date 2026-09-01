@@ -128,6 +128,22 @@ def test_to_freecamsetpos_lines_sorted_regardless_of_input_order():
             == cw.to_freecamsetpos_lines(SIMPLE, 0))
 
 
+def test_compile_camera_writes_pure_lf_no_crlf(tmp_path):
+    """Regression guard for the 2026-09-01 finding: Path.write_text()'s
+    default universal-newline translation turns \\n into \\r\\n on Windows,
+    silently corrupting CG_LoadCamera_f's byte-exact line-positional
+    grammar. This is what the earlier "playcamera corrupts the snapshot
+    stream" diagnosis actually traced back to on re-investigation — NOT a
+    confirmed engine defect on the stock binary once written correctly.
+    `.splitlines()`-based tests elsewhere in this file do NOT catch this
+    (splitlines() normalizes both line-ending styles away), hence this
+    dedicated raw-bytes check."""
+    result = cw.compile_camera(SIMPLE, base_servertime=0,
+                               gamedir=tmp_path, camera_name="lftest")
+    raw = result["path"].read_bytes()
+    assert b"\r" not in raw
+
+
 def test_compile_camera_is_overwritable_and_reproducible(tmp_path):
     r1 = cw.compile_camera(SIMPLE, 0, tmp_path, "scene")
     r2 = cw.compile_camera(SIMPLE, 0, tmp_path, "scene")

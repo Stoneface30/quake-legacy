@@ -14,6 +14,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from creative_suite.engine import camera_compiler_v2 as v2
 from creative_suite.engine import camera_paths as cp
+from creative_suite.engine import cam10_writer as cw
 
 PK3 = REPO_ROOT / "output" / "demo_v2" / "_wolfcam_staging" / "baseq3" / "pak00.pk3"
 RECOG_DB = REPO_ROOT / "creative_suite" / "database" / "frag_recognition.db"
@@ -175,16 +176,32 @@ def test_collision_check_dense_real_bsp_orbit_is_clear_or_adjusted():
 
 # ── compile_dense_camera ─────────────────────────────────────────────────────
 
-def test_compile_dense_camera_writes_cam10_and_freecamsetpos(tmp_path):
+def test_compile_dense_camera_defaults_to_native_cam10(tmp_path):
+    """Corrected 2026-09-01: the original "playcamera is buggy" diagnosis
+    was actually a CRLF bug in cam10_writer's own file-write call (fixed).
+    Runtime-proven on the stock binary afterward, so NATIVE_CAM10 -- not
+    FREECAM_SAMPLED -- is compile_dense_camera's default (it also isn't
+    bound by the 128-slot at-command budget). FREECAM_SAMPLED remains
+    available and default at the lower-level cam10_writer.compile_camera
+    call (unchanged, still used by timeline.py::to_wolfcam_script)."""
     result = v2.compile_dense_camera(
         SPARSE, base_servertime=100000, gamedir=tmp_path,
         camera_name="v2test", hz=30.0)
-    assert result["backend"] == v2.BACKEND_FREECAM_SAMPLED
+    assert result["backend"] == cw.BACKEND_NATIVE_CAM10
     assert result["status"] == v2.VALID
     assert result["cam10_path"].exists()
+    assert result["cfg_lines"] == ["freecam", "loadcamera v2test", "playcamera"]
+    assert result["used_sample_count"] == len(result["dense_keyframes"])
+
+
+def test_compile_dense_camera_explicit_freecam_sampled_backend(tmp_path):
+    result = v2.compile_dense_camera(
+        SPARSE, base_servertime=100000, gamedir=tmp_path,
+        camera_name="v2test_fs", hz=30.0,
+        backend=v2.BACKEND_FREECAM_SAMPLED)
+    assert result["backend"] == v2.BACKEND_FREECAM_SAMPLED
     assert result["cfg_lines"][0] == "freecam"
     assert len(result["cfg_lines"]) == 1 + len(result["final_keyframes"])
-    assert result["used_sample_count"] == len(result["dense_keyframes"])
 
 
 def test_clamp_hz_to_budget_no_clamp_when_under_budget():
@@ -193,25 +210,41 @@ def test_clamp_hz_to_budget_no_clamp_when_under_budget():
     assert hz == 10.0
 
 
-def test_clamp_hz_to_budget_clamps_naive_60hz_4s_shot():
-    """The exact scenario that hung real capture 2026-09-01: 60Hz over a
-    4000ms shot wants 241 samples -- MAX_AT_COMMANDS - RESERVED leaves
-    room for 120. Confirmed via qconsole.log: "too many at commands"
-    appeared exactly 114 times for a 242-command cfg (241 freecamsetpos +
-    1 quit) against the real 128-slot array."""
+def test_clamp_hz_to_budget_clamps_naive_60hz_4s_shot_for_freecam_sampled():
+    """The exact scenario that hung real capture 2026-09-01 before the
+    root cause was traced to cam10_writer's CRLF bug (not this budget):
+    60Hz over a 4000ms shot wants 241 samples -- MAX_AT_COMMANDS -
+    RESERVED leaves room for 120 under FREECAM_SAMPLED. Confirmed via
+    qconsole.log: "too many at commands" appeared exactly 114 times for a
+    242-command cfg (241 freecamsetpos + 1 quit) against the real 128-slot
+    array -- this ceiling is real regardless of the separate CRLF finding."""
     long_orbit = [kf(0, (0, 0, 0)), kf(4000, (100, 0, 0))]
-    hz, clamped = v2._clamp_hz_to_budget(long_orbit, hz=60.0)
+    hz, clamped = v2._clamp_hz_to_budget(long_orbit, hz=60.0,
+                                         max_samples=v2.MAX_CAMERA_SAMPLES)
     assert clamped is True
     assert hz < 60.0
     n_samples = int(round(4.0 * hz)) + 1
     assert n_samples <= v2.MAX_CAMERA_SAMPLES
 
 
+def test_clamp_hz_to_budget_native_cam10_has_much_higher_ceiling():
+    """NATIVE_CAM10's ceiling is MAX_CAMERAPOINTS=512 (loadcamera reads
+    the whole file in one shot, bypassing the at-command queue entirely)
+    -- the same 60Hz/4s shot that clamps hard under FREECAM_SAMPLED does
+    NOT need to clamp at all under NATIVE_CAM10."""
+    long_orbit = [kf(0, (0, 0, 0)), kf(4000, (100, 0, 0))]
+    hz, clamped = v2._clamp_hz_to_budget(long_orbit, hz=60.0,
+                                         max_samples=cw.MAX_CAMERAPOINTS)
+    assert clamped is False
+    assert hz == 60.0
+
+
 def test_compile_dense_camera_reports_clamp_honestly(tmp_path):
     long_orbit = [kf(0, (0, 0, 0)), kf(4000, (100, 0, 0))]
     result = v2.compile_dense_camera(
         long_orbit, base_servertime=0, gamedir=tmp_path,
-        camera_name="clamp_test", hz=60.0)
+        camera_name="clamp_test", hz=60.0,
+        backend=v2.BACKEND_FREECAM_SAMPLED)
     assert result["requested_hz"] == 60.0
     assert result["hz_clamped"] is True
     assert result["effective_hz"] < 60.0

@@ -1,5 +1,60 @@
 # `.cam10` runtime contract — source-verified (2026-09-01)
 
+## CORRECTED 2026-09-01 (same day, later) — the "known engine bug" below was ours, not the engine's
+
+Everything in the "Known engine bug" section further down was written
+after 6 reproducible hangs using `loadcamera`/`playcamera`. A subsequent,
+independent engine-patch investigation (real MSVC + mingw rebuilds,
+DWARF ABI diffing against the shipped 11.3 binary — see
+`docs/reference/camera_v2_report.md` and the PANTHEON engine-patch report
+for the full story) traced the actual root cause to **this project's own
+`cam10_writer.py`**: `Path.write_text()`'s default universal-newline
+translation turns every `\n` into `\r\n` on Windows, corrupting the
+byte-exact, line-positional grammar `CG_LoadCamera_f` expects. Every
+`.cam10` file this module wrote all session was silently malformed.
+
+Fixed with `newline=""` on the write call. Re-verified directly
+(personally re-run, not just taken on the investigating agent's word):
+the EXACT original failing scenario — `seekservertime` → `freecam` →
+`loadcamera` → `playcamera` → capture — on the **stock, unmodified**
+wolfcamql 11.3 binary now completes cleanly (`rc 0`), **zero**
+`couldn't get nextsnap` occurrences in `qconsole.log`, and a captured
+frame shows wolfcam's own `debug_camera` overlay confirming every field
+it loaded (`origin: 220 0 60`, `fov: 100.000000`, `camera type: interp`,
+`flags: origin angles fov time`, camera point count `0/8`) matches the
+compiled file exactly. A second frame 2.8s later shows a completely
+different, correctly rotated view consistent with the orbit.
+
+**`NATIVE_CAM10` is therefore a real, working backend on the stock
+binary — no engine patch required.** It also has a materially higher
+capacity than `FREECAM_SAMPLED`: `loadcamera` reads up to
+`MAX_CAMERAPOINTS` (512, `cg_camera.h:8`) points from one file in a
+single command, entirely bypassing the `MAX_AT_COMMANDS` (128) ceiling
+documented in `camera_v2_report.md` that forces `FREECAM_SAMPLED` to
+clamp sample density on anything longer than a few seconds. Per the
+project directive, `FREECAM_SAMPLED` stays available and is not removed
+— both are real, tested backends; `camera_compiler_v2.compile_dense_camera`
+now defaults to `NATIVE_CAM10` and accepts `backend=` to pick either.
+
+**The engine-patch investigation was not wasted work even though its
+premise turned out wrong.** It independently discovered and fixed a
+real, much smaller regression: 12.7-era wolfcamql source (the only
+source in this repo — the shipped binary is 11.3, a version gap nobody
+had noticed) restored the `if (1)` unconditional-reseek code path this
+doc originally described, but on that source alone it costs ~4 dropped
+frames at camera start (measured: stock 11.3 renders 180 frames for a
+fixed window, unpatched-12.7-source mingw build renders 176, patched
+renders 179-180) — real, but nowhere near the "corrupts forever" symptom
+actually caused by the CRLF bug. That patch is not deployed (no custom
+binary is in use); it's documented for whenever a from-source rebuild is
+undertaken for other reasons.
+
+The rest of this document is preserved below largely as originally
+written, since the SOURCE TRACING of the grammar, enums, and the
+`cg.freecam` gate are all still accurate and load-bearing — only the
+"whose bug was it" conclusion was wrong.
+
+
 Traced directly in `engine/engines/_canonical/code/cgame/` (this tree IS the
 wolfcamql source — confirmed by the project-audit dedup manifest; the
 `replay-runtime-feasibility.md` reference to a separate empty
@@ -154,7 +209,11 @@ was found by reading the enclosing function, not by reading the isolated
 playback snippet — exactly the kind of miss "trace the source, not the
 prose" is meant to catch.
 
-## Known engine bug: `playcamera` corrupts the snapshot stream
+## Known engine bug: `playcamera` corrupts the snapshot stream — SUPERSEDED, see the correction at the top of this document
+
+**This section is retained for the investigation trail, not as current
+truth.** The actual cause was a bug in our own file writer, not the
+engine — see "CORRECTED 2026-09-01" above.
 
 The sequence documented in the previous section — `seekservertime` /
 `freecam` / `loadcamera <name>` / `playcamera` — is what a correct

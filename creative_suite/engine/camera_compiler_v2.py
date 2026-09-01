@@ -23,12 +23,19 @@ SceneRecipeV2 camera intent and the backend:
         -> compile_dense_camera()      cam10_writer backend: .cam10 archival
                                         file + FREECAM_SAMPLED execution cfg
 
-Backend naming (do not remove FREECAM_SAMPLED once NATIVE_CAM10 exists —
-see cam10_runtime_contract.md "Known engine bug" and the 2026-09-01
-camera-v2 directive section 2): this module always compiles to
-BACKEND_FREECAM_SAMPLED. A future NATIVE_CAM10_EXPERIMENTAL backend would
-consume the SAME dense, collision-checked keyframe list — the resampling
-and collision logic here is backend-agnostic by construction.
+Backend naming: BOTH ``FREECAM_SAMPLED`` (default) and ``NATIVE_CAM10``
+are real, tested, and runtime-proven on the stock binary as of 2026-09-01
+(see cam10_runtime_contract.md's "Corrected 2026-09-01" section — the
+originally-suspected engine bug in native ``playcamera`` turned out to be
+a CRLF line-ending bug in this project's own file writer, now fixed).
+FREECAM_SAMPLED stays the default per the project directive (keep it as
+an independent fallback even after native camera works). NATIVE_CAM10 is
+the better choice for long/dense shots — it reads up to 512 points from
+one file via ``loadcamera``, entirely bypassing the 128-slot
+``MAX_AT_COMMANDS`` ceiling that forces FREECAM_SAMPLED to clamp Hz on
+anything longer than a few seconds at cinematic density. Both consume
+the SAME dense, collision-checked keyframe list — the resampling and
+collision logic here is backend-agnostic by construction.
 
 Analytic generators (orbit/chase/side_track/projectile_follow/top_down in
 camera_paths.py) are already continuous math — increasing their own
@@ -326,7 +333,9 @@ def compile_dense_camera(keyframes: list[dict], base_servertime: int,
                          gamedir: Path, camera_name: str,
                          hz: float = CINEMATIC_HZ, tracer=None,
                          subject_track: Track | None = None,
-                         min_clearance_u: float = 8.0) -> dict:
+                         min_clearance_u: float = 8.0,
+                         backend: str = cam10_writer.BACKEND_NATIVE_CAM10
+                         ) -> dict:
     """Full pipeline: resample -> collision-check -> compile. Returns a
     debug-friendly dict (directive section 12's diagnostic artifact):
     {"backend", "status", "requested_hz", "effective_hz", "hz_clamped",
@@ -335,19 +344,32 @@ def compile_dense_camera(keyframes: list[dict], base_servertime: int,
     "cfg_lines"}. If status is REJECTED, cam10_path/cfg_lines are None —
     caller must not attempt capture.
 
-    ``hz`` is silently-but-visibly clamped (``hz_clamped`` is reported,
-    never hidden) so the compiled cfg never exceeds MAX_CAMERA_SAMPLES —
-    see the MAX_AT_COMMANDS note above this function. A long/fast shot at
-    a high requested Hz gets sparser sampling rather than an uncapturable
-    cfg; callers that need both long duration AND high density must split
-    the shot across multiple chained capture windows (not yet built).
+    ``backend``: ``"NATIVE_CAM10"`` (default here — reads up to 512 points
+    from one ``.cam10`` file via ``loadcamera``, so it only needs the
+    MAX_AT_COMMANDS budget for capture lifecycle commands, not per-sample)
+    or ``"FREECAM_SAMPLED"`` (one ``at`` command per sample, sharing the
+    128-slot budget with every other scheduled command in the session —
+    use this when you specifically want the independent fallback, e.g.
+    diagnosing whether an issue is backend-specific). Both are real,
+    tested, runtime-proven backends (cam10_runtime_contract.md).
+
+    ``hz`` is silently-but-visibly clamped for FREECAM_SAMPLED
+    (``hz_clamped`` is reported, never hidden) so the compiled cfg never
+    exceeds MAX_CAMERA_SAMPLES; NATIVE_CAM10 is instead clamped against
+    ``cam10_writer.MAX_CAMERAPOINTS`` (512), a ceiling dense cinematic
+    shots are unlikely to hit. A shot needing MORE samples than either
+    backend's ceiling allows still needs a chained multi-window capture
+    (not yet built).
     """
-    effective_hz, clamped = _clamp_hz_to_budget(keyframes, hz)
+    max_samples = (cam10_writer.MAX_CAMERAPOINTS
+                   if backend == cam10_writer.BACKEND_NATIVE_CAM10
+                   else MAX_CAMERA_SAMPLES)
+    effective_hz, clamped = _clamp_hz_to_budget(keyframes, hz, max_samples)
     dense = resample_dense(keyframes, effective_hz)
     collision = collision_check_dense(tracer, dense, subject_track,
                                       min_clearance_u=min_clearance_u)
     result = {
-        "backend": BACKEND_FREECAM_SAMPLED,
+        "backend": backend,
         "status": collision["status"],
         "requested_hz": hz,
         "effective_hz": effective_hz,
@@ -364,7 +386,8 @@ def compile_dense_camera(keyframes: list[dict], base_servertime: int,
     if collision["status"] == REJECTED or not collision["keyframes"]:
         return result
     compiled = cam10_writer.compile_camera(
-        collision["keyframes"], base_servertime, gamedir, camera_name)
+        collision["keyframes"], base_servertime, gamedir, camera_name,
+        backend=backend)
     result["cam10_path"] = compiled["path"]
     result["cam10_hash"] = compiled["file_hash"]
     result["cfg_lines"] = compiled["cfg_lines"]

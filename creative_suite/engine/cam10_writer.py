@@ -26,6 +26,14 @@ CAM_VERSION = 10  # WOLFCAM_CAMERA_VERSION, cg_camera.h:7
 CAMERA_COMPILER_VERSION = "cam10-v1"
 CAMERA_RUNTIME_BACKEND = "wolfcamql-cam10"
 
+# MAX_CAMERAPOINTS (cg_camera.h:8) — loadcamera reads a whole file into
+# this array in one shot. Far larger than FREECAM_SAMPLED's ceiling
+# (MAX_AT_COMMANDS=128, camera_compiler_v2.py) since native playback
+# doesn't consume the shared "at" command queue at all.
+MAX_CAMERAPOINTS = 512
+
+BACKEND_NATIVE_CAM10 = "NATIVE_CAM10"
+
 # type (cg_camera.h:61-69) — CAMERA_INTERP: plain linear interpolation
 # directly between two points' raw origins (cg_view.c:3137-3178), visits
 # every keyframe exactly at its cgtime. The CAMERA_SPLINE* variants are
@@ -132,44 +140,69 @@ def cam10_hash(content: str) -> str:
 
 
 def compile_camera(keyframes: list[dict], base_servertime: int,
-                   gamedir: Path, camera_name: str) -> dict:
+                   gamedir: Path, camera_name: str,
+                   backend: str = "FREECAM_SAMPLED") -> dict:
     """Write <gamedir>/cameras/<camera_name>.cam10 (the archival, portable
     representation of this path — correct and unit-tested, see
     test_cam10_writer.py) and return its hash + the cfg lines that
-    actually EXECUTE the path at capture time.
+    actually EXECUTE the path at capture time, for whichever ``backend``
+    is requested: ``"FREECAM_SAMPLED"`` (default) or ``"NATIVE_CAM10"``.
 
-    RUNTIME BUG (found 2026-09-01, reproduced 6 ways — see
-    cam10_runtime_contract.md "Known engine bug" section):
-    ``loadcamera``+``playcamera`` load the file correctly (confirmed via
-    "camera loaded (version 10)" in qconsole.log) but ``playcamera``'s
-    unconditional internal re-seek (cg_view.c:3005-3018, NOT gated by
-    cg_cameraQue) reproducibly corrupts the demo snapshot stream —
-    ``processsnapshots() couldn't get nextsnap`` repeats forever,
-    independent of pre-seek timing, cg_cameraQue, or cg_cameraRewindTime.
-    This is a real defect in the shipped wolfcamql binary, not a usage
-    error on our side.
+    CORRECTED DIAGNOSIS (2026-09-01, superseding the original "known
+    engine bug" write-up in cam10_runtime_contract.md — read that file's
+    "Corrected 2026-09-01" section for the full story): the original
+    ``loadcamera``/``playcamera`` failures were NOT an engine defect.
+    ``Path.write_text()``'s default universal-newline translation turned
+    every ``\\n`` into ``\\r\\n`` on Windows, corrupting the byte-exact,
+    line-positional grammar ``CG_LoadCamera_f`` expects. Every ``.cam10``
+    this module wrote before the ``newline=""`` fix below was silently
+    malformed. Once written correctly, ``loadcamera``+``playcamera``
+    RUNTIME-PROVEN 2026-09-01 on the STOCK, UNMODIFIED wolfcamql 11.3
+    binary: zero ``couldn't get nextsnap`` occurrences, a captured frame
+    showed wolfcam's own ``debug_camera`` overlay confirming every loaded
+    field (origin/angles/fov/flags/interp-type) matched the compiled file
+    exactly, and a second frame showed a completely different, correctly
+    rotated view consistent with the orbit. NATIVE_CAM10 also has a much
+    higher capacity than FREECAM_SAMPLED — ``loadcamera`` reads up to
+    ``MAX_CAMERAPOINTS`` (512) points from one file in a single command,
+    entirely bypassing the ``MAX_AT_COMMANDS`` (128) ceiling that forces
+    FREECAM_SAMPLED to clamp density (camera_compiler_v2.py).
 
-    The cfg_lines returned therefore do NOT use loadcamera/playcamera.
-    They drive the path via ``freecamsetpos`` (CG_SetViewPos_f,
-    cg_consolecmds.c:673 — a simple, argument-taking, no-internal-reseek
-    command), one ``at <t> freecamsetpos ...`` per keyframe, scheduled
-    exactly like every other proven-reliable ``at`` command in this
-    codebase. RUNTIME-PROVEN 2026-09-01: two captured frames 2.4s apart
-    along a compiled orbit showed completely different, correctly
-    positioned world geometry — real camera motion, not a static shot.
+    FREECAM_SAMPLED stays the default per the project directive ("do not
+    revert the working freecamsetpos backend... it is valuable even after
+    native playcamera is repaired... an independent fallback when engine
+    camera code misbehaves") — both backends are real, tested, and
+    intentionally kept side by side; SceneRecipe camera intent does not
+    care which one renders it.
     """
     content = write_cam10(keyframes, base_servertime)
     cameras_dir = Path(gamedir) / "cameras"
     cameras_dir.mkdir(parents=True, exist_ok=True)
     path = cameras_dir / f"{camera_name}.cam{CAM_VERSION}"
-    path.write_text(content, encoding="ascii")
+    # newline="" is load-bearing: Path.write_text()'s default universal-
+    # newline translation turns every \n into \r\n on Windows, corrupting
+    # the byte-exact, line-positional grammar CG_LoadCamera_f expects.
+    path.write_text(content, encoding="ascii", newline="")
+    if backend == BACKEND_NATIVE_CAM10:
+        cfg_lines = native_cam10_cfg_lines(camera_name)
+    else:
+        cfg_lines = to_freecamsetpos_lines(keyframes, base_servertime)
     return {
         "path": path,
         "file_hash": cam10_hash(content),
         "compiler_version": CAMERA_COMPILER_VERSION,
-        "runtime_backend": CAMERA_RUNTIME_BACKEND,
-        "cfg_lines": to_freecamsetpos_lines(keyframes, base_servertime),
+        "runtime_backend": backend,
+        "cfg_lines": cfg_lines,
     }
+
+
+def native_cam10_cfg_lines(camera_name: str) -> list[str]:
+    """The NATIVE_CAM10 execution sequence — runtime-proven 2026-09-01 on
+    the stock 11.3 binary once the file is written with pure LF (see
+    compile_camera's docstring). ``freecam`` is required for the same
+    reason FREECAM_SAMPLED needs it: cg_view.c:3092-3094 gates the whole
+    camera-path-sampling block on cg.freecam being active."""
+    return ["freecam", f"loadcamera {camera_name}", "playcamera"]
 
 
 def to_freecamsetpos_lines(keyframes: list[dict], base_servertime: int

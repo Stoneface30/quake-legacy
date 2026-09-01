@@ -3,7 +3,18 @@
 Continuation of `cam10_runtime_contract.md`. That doc proved the camera
 CAN move (9 keyframes, FREECAM_SAMPLED backend). This one proves it can
 move SMOOTHLY, with decoupled look-at, on a collision-checked path, and
-documents a second hard engine ceiling found while proving it.
+documents a second hard ceiling found while proving it.
+
+**Note added later the same day**: `cam10_runtime_contract.md` was
+subsequently corrected — the `playcamera` "engine bug" that motivated
+building `FREECAM_SAMPLED` as the only backend turned out to be a CRLF
+line-ending bug in this project's own `cam10_writer.py`, not an engine
+defect. `NATIVE_CAM10` is now a proven-working backend too, and is the
+default in `compile_dense_camera` (see the contract doc's "CORRECTED"
+section). The `MAX_AT_COMMANDS=128` finding below is unaffected by that
+correction — it's a real, independently-confirmed ceiling specific to
+`FREECAM_SAMPLED`'s per-sample `at` commands, and doesn't apply to
+`NATIVE_CAM10` (which reads up to 512 points from one file instead).
 
 ## New module: `creative_suite/engine/camera_compiler_v2.py`
 
