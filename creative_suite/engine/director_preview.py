@@ -72,6 +72,7 @@ from pathlib import Path
 from typing import Any
 
 from creative_suite.engine import (cam10_writer, camera_compiler_v2,
+                                   presentation,
                                    camera_paths, master_profile,
                                    pantheon_fx, pantheon_grade,
                                    pantheon_runtime, review_proxy,
@@ -91,7 +92,10 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 #   v2 -> v3: ...and the guard margin too. v2 produced a correct-LENGTH file
 #             with the hero frag 500 ms early — the exact failure that
 #             total-duration matching cannot catch.
-PREVIEW_PIPELINE_VERSION = "director-preview-v3"
+#   v3 -> v4: the capture profile is now a FUNCTION of the camera mode
+#             (presentation.py). Every non-FPV capture before this exec'd the
+#             gameplay-HUD profile, so "You fragged" is burned into them.
+PREVIEW_PIPELINE_VERSION = "director-preview-v4"
 
 # The two halves of preview identity (§12, split 2026-09-01).
 #
@@ -336,7 +340,7 @@ def canonical_music(music: dict[str, Any] | None) -> dict[str, Any] | None:
     }
 
 
-def code_versions(look: str, fx_levels: tuple[str, ...]) -> dict[str, Any]:
+def code_versions(look: str, fx_levels: tuple[str, ...], camera_mode: str = "FPV") -> dict[str, Any]:
     """Every code artifact that can change a pixel, hashed.
 
     Recorded rather than assumed: the canary proved a scene can be identical
@@ -345,12 +349,15 @@ def code_versions(look: str, fx_levels: tuple[str, ...]) -> dict[str, Any]:
     baseline IS a different picture, so the baseline hash is part of identity.
     """
     grade, _packs = LOOK_POLICY[look]
+    profile = presentation.profile_for(camera_mode)
     return {
         "pipeline": PREVIEW_PIPELINE_VERSION,
         "camera_compiler": cam10_writer.CAMERA_COMPILER_VERSION,
         "runtime_baseline": pantheon_runtime.baseline_hash(),
-        "master_profile": master_profile.profile_id(
-            master_profile.PROFILE_NAME),
+        # The profile the CAMERA MODE resolves to, not a global constant: the
+        # same camera under a different HUD is a different frame.
+        "master_profile": master_profile.profile_id(profile),
+        "presentation": presentation.presentation_for(camera_mode),
         "grade": pantheon_grade.grade_hash(grade),
         "fx": {level: pantheon_fx.script_hash(level)
                for level in sorted(set(fx_levels))},
@@ -389,7 +396,8 @@ def compute_visual_capture_key(*, frag_id: int, demo_sha256: str,
         "recipe_id": str(recipe_id),
         "edit_duration_us": int(edit_duration_us),
         "draft": canon,
-        "versions": code_versions(canon["look"]["look"], fx_levels),
+        "versions": code_versions(canon["look"]["look"], fx_levels,
+                                  camera_mode=canon["camera"]["mode"]),
     }
     return hashlib.sha256(_canonical(payload).encode("utf-8")).hexdigest()
 
@@ -1034,7 +1042,9 @@ def build_capture_cfg(plan: PreviewPlan, camera_cfg_lines: list[str],
         # captures; turning it on is how a failed capture gets investigated.
         overrides["logfile"] = "2"
     lines = list(pantheon_runtime.baseline_lines(overrides))
-    lines.append(f"exec {master_profile._CFG_FILES[master_profile.PROFILE_NAME]}")
+    profile = presentation.validate(plan.camera_mode,
+                                    presentation.profile_for(plan.camera_mode))
+    lines.append(f"exec {master_profile._CFG_FILES[profile]}")
     fov = plan.draft["camera"].get("fov")
     if fov is not None:
         lines.append(f"seta cg_fov {float(fov):.1f}")

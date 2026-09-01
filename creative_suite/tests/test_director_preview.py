@@ -491,7 +491,13 @@ def test_capture_cfg_starts_with_the_runtime_baseline(env) -> None:
         {"cg_fxfile": dp.pantheon_fx.SCRIPT_NAME, "mme_saveDepth": "0"})
     assert lines[:len(baseline)] == baseline
     body = "\n".join(lines[len(baseline):])
-    assert "exec wolfcam_tr4sh_master_capture.cfg" in body
+    # The profile is RESOLVED from the camera mode (presentation.py); the
+    # old assertion pinned the gameplay-HUD cfg for a cinematic camera,
+    # which was the defect itself.
+    from creative_suite.engine import presentation
+    assert f"exec {presentation.cfg_file_for(plan.camera_mode)}" in body
+    if plan.camera_mode != "FPV":
+        assert "exec wolfcam_tr4sh_master_capture.cfg" not in body
     assert 'seta cg_drawCameraPath 0' in cfg
     assert cfg.index("seta cg_drawCameraPath") < cfg.index("video avi name")
     assert cfg.isascii(), "capture cfgs are written encoding='ascii'"
