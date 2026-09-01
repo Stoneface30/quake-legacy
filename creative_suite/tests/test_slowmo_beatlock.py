@@ -62,7 +62,7 @@ class TestLanding:
         rate, _land, _k = SR.accent_rate_for_landing(w0, a, b, w1, 0.0, beats)
         assert SR.SLOW_RATE_MIN <= rate <= SR.SLOW_RATE_MAX
 
-    def test_prefers_a_drop_over_a_downbeat_over_a_plain_beat(self):
+    def test_prefers_a_drop_over_the_bar_grid_over_a_plain_beat(self):
         w0, w1 = 0.0, 7.0
         a, b = RH.accent_window(w0, w1, 3.5)
         beats = [round(0.25 * i, 3) for i in range(1, 200)]
@@ -75,7 +75,7 @@ class TestLanding:
         assert cand, "fixture must offer a reachable landing"
         pick = cand[len(cand) // 2]
         assert SR.accent_rate_for_landing(
-            w0, a, b, w1, 0.0, beats, downbeats=[pick])[2] == "downbeat"
+            w0, a, b, w1, 0.0, beats, downbeats=[pick])[2] == "bar_grid"
         assert SR.accent_rate_for_landing(
             w0, a, b, w1, 0.0, beats, downbeats=[pick], drops=[pick])[2] == "drop"
 
@@ -108,13 +108,19 @@ class TestNoYoYo:
         assert SR.SLOW_RATE_MIN < SR.SLOW_RATE < SR.SLOW_RATE_MAX
 
     def test_a_rate_never_creates_an_accent(self):
-        # slow_rate is inert unless slowmo was already chosen: the renderer's
-        # non-slowmo branch has no rate term at all.
+        # slow_rate is inert unless slowmo was already chosen. Asserted on the
+        # SPEED-CHANGE token rather than the word "rate", which an earlier
+        # version of this test matched inside a comment -- a test that breaks
+        # when prose changes is testing the prose.
         import inspect
         src = inspect.getsource(RH.render_frag)
-        head, _, tail = src.partition("else:")
-        assert "rate" in head and "slow_rate" in head
-        assert "rate" not in tail.split("filt +=")[0]
+        # anchor on the plain branch's own filter, not on an `else:` -- the
+        # function grew more than one of those
+        marker = "[0:v]trim={w0:.4f}:{w1:.4f},setpts=PTS-STARTPTS[vc]"
+        assert marker in src, "plain branch not found"
+        plain = src.split(marker)[1].split("filt +=")[0]
+        assert "setpts=(PTS-STARTPTS)/" not in plain, (
+            "the non-slowmo branch must never apply a speed change")
 
 
 class TestProductionTimebase:
@@ -179,7 +185,7 @@ class TestScratchReplay:
         # a grid of plain beats offers nothing a rollback may land on
         assert SR.accent_rate_for_landing(
             w0, a, b, b, 0.0, beats,
-            allowed_kinds=("drop", "downbeat")) is None
+            allowed_kinds=("drop", "bar_grid")) is None
         # promoting one reachable beat to a downbeat makes it eligible
         cand = [t for t in beats
                 if (r := (b - a) / max(1e-9, t - (a - w0)))
@@ -187,8 +193,8 @@ class TestScratchReplay:
         assert cand
         got = SR.accent_rate_for_landing(
             w0, a, b, b, 0.0, beats, downbeats=[cand[len(cand) // 2]],
-            allowed_kinds=("drop", "downbeat"))
-        assert got and got[2] == "downbeat"
+            allowed_kinds=("drop", "bar_grid"))
+        assert got and got[2] == "bar_grid"
 
     def test_the_landing_is_where_the_rewind_starts(self):
         # modelling the segment as ending at `b` makes the solved landing the
@@ -199,7 +205,7 @@ class TestScratchReplay:
         downs = beats[::4]
         rate, land, _k = SR.accent_rate_for_landing(
             w0, a, b, b, 0.0, beats, downbeats=downs,
-            allowed_kinds=("drop", "downbeat"))
+            allowed_kinds=("drop", "bar_grid"))
         assert (a - w0) + (b - a) / rate == pytest.approx(land, abs=1e-6)
 
     def test_rewind_rate_actually_rewinds(self):

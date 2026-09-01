@@ -106,16 +106,25 @@ def test_fov_curve():
 
 # ── script emission ──────────────────────────────────────────────────────────
 
-def test_script_emission_ordering():
+def test_script_emission_ordering(tmp_path):
     script = tl.to_wolfcam_script(sample_timeline(), sample_keyframes(),
-                                  base_servertime=100000)
+                                  base_servertime=100000, gamedir=tmp_path)
     lines = script.splitlines()
     at_times = [int(ln.split()[1]) for ln in lines if ln.startswith("at ")]
     assert at_times == sorted(at_times)
-    cam_lines = [ln for ln in lines if ln.startswith("camera add ")]
-    assert len(cam_lines) == 5
-    assert cam_lines[0].split()[2] == "100000"
-    assert any("playq3mmecamera" in ln for ln in lines)
+    # camera path compiles to a real .cam10 file, loaded via the
+    # source-verified sequence — see cam10_runtime_contract.md. No more
+    # "camera add"/bare "playq3mmecamera" lines for the path itself.
+    assert any(ln.startswith("seekservertime ") for ln in lines)
+    assert "freecam" in lines
+    assert "loadcamera scene" in lines
+    assert "playcamera" in lines
+    cam10_path = tmp_path / "cameras" / "scene.cam10"
+    assert cam10_path.exists()
+    assert cam10_path.read_text().startswith("WolfcamCamera 10")
+    # cut_to_camera is a distinct, still-unverified feature (see module
+    # docstring) — it keeps emitting playq3mmecamera <name>.
+    assert any("playq3mmecamera q3mme" in ln for ln in lines)
     assert any("cl_freezeDemo 1" in ln for ln in lines)
     assert any("cl_freezeDemo 0" in ln for ln in lines)
     assert any("timescale 0.5000" in ln for ln in lines)
@@ -139,20 +148,28 @@ def test_script_reverse_emits_comment_only():
     assert not any(ln.startswith("at ") for ln in script.splitlines())
 
 
-def test_script_injection_rejected():
+def test_script_injection_rejected(tmp_path):
     with pytest.raises(CfgInjectionError):
         tl.Timeline().cut_to_camera(100, "evil; quit")
-    bad_kf = [{"t_ms": 0, "pos": (0, 0, 0), "angles": (0, 0, 0), "fov": 90.0}]
+    bad_kf = [{"t_ms": 0, "pos": (0, 0, 0), "angles": (0, 0, 0), "fov": 90.0},
+              {"t_ms": 100, "pos": (1, 0, 0), "angles": (0, 0, 0), "fov": 90.0}]
     t = tl.Timeline()
     t.steps.append({"type": "cut_to_camera", "t_ms": 10,
                     "camera": "x\nquit", "seq": 0})
     with pytest.raises(CfgInjectionError):
-        tl.to_wolfcam_script(t, bad_kf, 0)
+        tl.to_wolfcam_script(t, bad_kf, 0, gamedir=tmp_path)
 
 
-def test_script_deterministic():
-    a = tl.to_wolfcam_script(sample_timeline(), sample_keyframes(), 42000)
-    b = tl.to_wolfcam_script(sample_timeline(), sample_keyframes(), 42000)
+def test_script_requires_gamedir_for_camera_path():
+    with pytest.raises(ValueError):
+        tl.to_wolfcam_script(sample_timeline(), sample_keyframes(), 42000)
+
+
+def test_script_deterministic(tmp_path):
+    a = tl.to_wolfcam_script(sample_timeline(), sample_keyframes(), 42000,
+                             gamedir=tmp_path)
+    b = tl.to_wolfcam_script(sample_timeline(), sample_keyframes(), 42000,
+                             gamedir=tmp_path)
     assert a == b
 
 

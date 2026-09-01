@@ -226,3 +226,52 @@ def test_frags_page_served(client: TestClient) -> None:
     r = client.get("/frags")
     assert r.status_code == 200
     assert b"FRAG CONTROL ROOM" in r.content
+
+
+def test_music_auditions_are_sanitized_and_review_persists(
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audition_dir = tmp_path / "auditions"
+    audition_dir.mkdir()
+    (audition_dir / "1_A.mp4").write_bytes(b"media")
+    (audition_dir / "manifest.json").write_text(json.dumps({"items": [{
+        "frag_id": 1, "audition_id": "A", "track_hash": "a" * 64,
+        "track_label": "safe-label", "region_kind": "DROP_CANDIDATE",
+        "region_start_us": 10_000_000, "music_source_start_us": 7_000_000,
+        "anchor_edit_us": 3_000_000, "action_edit_us": [3_000_000],
+        "score": .8, "video": "1_A.mp4", "source_path": "must-not-leak",
+    }]}), encoding="utf-8")
+    monkeypatch.setattr(frags_mod, "MUSIC_AUDITION_DIR", audition_dir)
+    monkeypatch.setattr(frags_mod, "MUSIC_FEATURE_DB_PATH", tmp_path / "music.db")
+
+    payload = client.get("/api/frags/1/music-auditions").json()
+    assert payload["items"][0]["video_url"].endswith("/A/video")
+    assert "source_path" not in json.dumps(payload)
+    saved = client.put("/api/frags/1/music-auditions/A/review", json={
+        "decision": "favorite", "notes": "impact fits",
+    })
+    assert saved.status_code == 200
+    again = client.get("/api/frags/1/music-auditions").json()
+    assert again["reviews"][0]["decision"] == "favorite"
+    assert again["reviews"][0]["notes"] == "impact fits"
+
+
+def test_music_auditions_skip_unsafe_ids_and_cap_three_per_frag(
+    client: TestClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    audition_dir = tmp_path / "auditions"
+    audition_dir.mkdir()
+    base = {"frag_id": 1, "track_hash": "a" * 64, "track_label": "safe",
+            "region_kind": "DROP_CANDIDATE", "region_start_us": 1,
+            "music_source_start_us": 1, "anchor_edit_us": 1,
+            "action_edit_us": [1], "score": .5}
+    items = [{**base, "audition_id": value} for value in ("A", "B", "C", "D", "../x")]
+    (audition_dir / "manifest.json").write_text(json.dumps({"items": items}), encoding="utf-8")
+    monkeypatch.setattr(frags_mod, "MUSIC_AUDITION_DIR", audition_dir)
+    monkeypatch.setattr(frags_mod, "MUSIC_FEATURE_DB_PATH", tmp_path / "music.db")
+    payload = client.get("/api/frags/1/music-auditions").json()
+    assert [item["audition_id"] for item in payload["items"]] == ["A", "B", "C"]
+    assert client.get("/api/frags/1/music-auditions/..%5Cx/video").status_code == 404
+
+    (audition_dir / "manifest.json").write_text('{"items":null}', encoding="utf-8")
+    assert client.get("/api/frags/1/music-auditions").json()["items"] == []

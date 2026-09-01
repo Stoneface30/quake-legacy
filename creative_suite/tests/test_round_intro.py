@@ -166,16 +166,22 @@ def test_build_camera_plan_slowmo_treatments_add_timeline_steps():
         assert len(plan["timeline"].steps) == 0
 
 
-def test_build_camera_plan_feeds_to_wolfcam_script():
+def test_build_camera_plan_feeds_to_wolfcam_script(tmp_path):
     t = ri.BY_NAME["vertical_arc_dramatic"]
     plan = ri.build_camera_plan(t, 55000.0, 59000.0, SPAWN)
     script = tl.to_wolfcam_script(plan["timeline"], plan["keyframes"],
-                                   plan["base_servertime"])
-    assert "camera add" in script
-    assert "playq3mmecamera" in script
-    # camera add lines are anchored at base_servertime + relative t_ms
-    first_line = next(l for l in script.splitlines() if l.startswith("camera add"))
-    assert first_line.split()[2] == "55000"
+                                   plan["base_servertime"], gamedir=tmp_path)
+    # source-verified sequence (cam10_runtime_contract.md) — no more bare
+    # "camera add"/"playq3mmecamera" no-ops for the path itself.
+    assert "freecam" in script
+    assert "loadcamera scene" in script
+    assert "playcamera" in script
+    cam10 = tmp_path / "cameras" / "scene.cam10"
+    assert cam10.exists()
+    # the compiled path is anchored at base_servertime + relative t_ms
+    seek_line = next(l for l in script.splitlines()
+                     if l.startswith("seekservertime"))
+    assert int(seek_line.split()[1]) <= 55000
 
 
 def test_build_camera_plan_deterministic():

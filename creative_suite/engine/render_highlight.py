@@ -172,6 +172,11 @@ END_TRIM_S = 0.25   # FP tail stays 0.25 (user 2026-08-29)
 # (user 2026-08-29: "the console is always shown on the end of the Follow POV").
 # Rule P1-L already put FL tail at 2.0 s; the highlight path was ignoring it.
 FL_TAIL_TRIM_S = 0.90
+# First-person guard, used only where the boundary scan has no measurement for
+# a clip. Small on purpose: an FP capture is cut clean, so this is a guard
+# against a ragged last frame, not a trim (V1 directive S14 -- "do not regress
+# to the historical chopped endings").
+FP_TAIL_TRIM_S = 0.25
 # Was 2.00, which chopped nearly a second of real frag off angle clips
 # (user: "some clips where chopped nearly 1 sec too"). Enough to clear the
 # console at the end of a follow capture, not enough to eat the aftermath.
@@ -189,6 +194,13 @@ INTRO_S = 8.0              # produced opener: brand + title over T2/T3
 # speed. It is a VARIATION, not a treatment: applied on a cadence to accented
 # T1 shots only, because a rewind on every frag is the effect everyone
 # overused in 2004.
+# OFF. Measured on a real 27 s T1 clip: an ordinary accent segment costs 193 s,
+# the same segment with the rollback costs 365 s. At ~3 scratches per Part that
+# is roughly eight hours added across the series, for a variation -- and long
+# enough to risk tripping the stall watchdog. The effect itself works and is
+# kept behind this flag; it is the cost that rules it out, not the result.
+# User 2026-09-01: "if scratch to hard ignore and start generating everything".
+SCRATCH_ENABLED = False
 SCRATCH_REWIND_RATE = 2.2  # how fast the rollback runs
 SCRATCH_MIN_SRC_S = 5.0    # too short and the rewind has nothing to grab
 SCRATCH_MIN_GAP = 3        # accented shots between one scratch and the next
@@ -298,17 +310,22 @@ def source_window(peak: float, duration: float,
     # keeps rolling past the frag into the respawn or the next round -- measured
     # across the library the dead tail after the last game event runs a median
     # of 0.94 s and up to 3.2 s, which is the "1.3 second of next round" the
-    # user reported. `tail_trim` finds the last rail / shaft / rocket / jump /
-    # weapon-swap sound in each clip and cuts only what follows a 1.6 s
-    # aftermath hold, so the impact, the kill feed and the beat after it all
-    # survive. Clips with no recognised game audio are left alone.
+    # user reported. `clip_boundary` decides the cut from what actually ENDS a
+    # clip -- the full scoreboard, the player dying -- and REFUSES any cut with
+    # a game event after it, so a frag is never truncated mid-action. The
+    # round-win announcement and the 3-2-1 countdown are deliberately not cut
+    # on: they are part of the gameplay the user wants kept.
     measured = _TAIL_TABLE.get(str(clip.resolve()).lower()) if clip else None
     if measured:
         tail_trim = measured
     else:
-        # fallback: FL captures end on the console or the recorder stopping
+        # No measurement for this clip: fall back to a per-kind guard. An FL
+        # (third-person) capture ends on the console or the recorder stopping,
+        # so it gets the larger one; an FP capture only needs its last frame
+        # protected.
         is_fl = bool(clip and is_angle(clip))
-        tail_trim = min(FL_TAIL_TRIM_S, duration * 0.10) if is_fl else 0.0
+        guard = FL_TAIL_TRIM_S if is_fl else FP_TAIL_TRIM_S
+        tail_trim = min(guard, duration * 0.10)
     tail = max(head + 0.5, duration - tail_trim)
     return head, tail
 
@@ -816,6 +833,7 @@ def render_frag(frag: Frag, dst: Path, cfg: Config,
     """
     w0, w1 = source_window(frag.peak, frag.duration, frag.fp)
     span = w1 - w0
+    extra_input: Optional[Path] = None
 
     if slowmo:
         # Accent: hold the clip at natural speed, slow the money shot, resume.
@@ -854,6 +872,48 @@ def render_frag(frag: Frag, dst: Path, cfg: Config,
         filt = ";".join(parts_)
         filt += (f";{''.join(vl)}concat=n={len(vl)}:v=1:a=0[vc]"
                  f";{''.join(al)}concat=n={len(al)}:v=0:a=1[aout]")
+
+        if scratch:
+            # The scratch graph reads the SAME window three times -- slowed,
+            # reversed, then straight. Built with `trim` off one input that is
+            # what it looks like: five branches each decoding the whole clip
+            # from frame zero, with `reverse` buffering on top. Measured at
+            # over three minutes for one 27 s segment, against seconds for an
+            # ordinary accent. Across a 54-Part run that is hours, and long
+            # enough to trip the stall watchdog.
+            #
+            # Seeking instead of decoding fixes it: the window is cut ONCE to a
+            # small intermediate, and the three passes read that.
+            win = dst.with_name(dst.stem + "_win.mov")
+            rw = subprocess.run(
+                [str(cfg.ffmpeg_bin), "-y", "-v", "error",
+                 "-ss", f"{a:.4f}", "-to", f"{b:.4f}", "-i", str(frag.fp),
+                 "-c:v", "libx264", "-crf", "14", "-preset", "veryfast",
+                 "-pix_fmt", "yuv420p", "-c:a", "pcm_s16le", "-ar", "48000",
+                 str(win)], capture_output=True, text=True)
+            if rw.returncode == 0 and win.exists():
+                wd = b - a
+                mi = speed_ramp.MINTERP.format(fps=cfg.target_fps)
+                at = speed_ramp._atempo_chain(rate)
+                rt = speed_ramp._atempo_chain(SCRATCH_REWIND_RATE)
+                filt = (
+                    f"[0:v]trim={w0:.4f}:{a:.4f},setpts=PTS-STARTPTS[v0];"
+                    f"[0:a]atrim={w0:.4f}:{a:.4f},asetpts=PTS-STARTPTS[a0];"
+                    f"[1:v]split=3[s1][s2][s3];[1:a]asplit=3[t1][t2][t3];"
+                    f"[s1]setpts=(PTS-STARTPTS)/{rate:.6f},{mi}[v1];"
+                    f"[t1]{at}[a1];"
+                    f"[s2]reverse,setpts=(PTS-STARTPTS)/"
+                    f"{SCRATCH_REWIND_RATE:.6f}[v2];"
+                    f"[t2]areverse,{rt}[a2];"
+                    f"[s3]setpts=PTS-STARTPTS[v3];[t3]anull[a3];"
+                    f"[0:v]trim={b:.4f}:{w1:.4f},setpts=PTS-STARTPTS[v4];"
+                    f"[0:a]atrim={b:.4f}:{w1:.4f},asetpts=PTS-STARTPTS[a4];"
+                    f"[v0][v1][v2][v3][v4]concat=n=5:v=1:a=0[vc];"
+                    f"[a0][a1][a2][a3][a4]concat=n=5:v=0:a=1[aout]")
+                extra_input = win
+            else:
+                print(f"  [scratch] window cut failed, playing it straight")
+                scratch = False
     # NOTE: there is deliberately no speed-up branch. An earlier version
     # compressed the "quiet lead-in" of long clips, but the action often starts
     # early and it sped through real frags (user 2026-08-29: "you also sped up a
@@ -890,6 +950,8 @@ def render_frag(frag: Frag, dst: Path, cfg: Config,
              f"fps={cfg.target_fps},format=yuv420p[vfin]")
 
     cmd = [str(cfg.ffmpeg_bin), "-y", "-v", "error", "-i", str(frag.fp)]
+    if extra_input is not None:
+        cmd += ["-i", str(extra_input)]
     if pip is not None and not slowmo:
         cmd += ["-i", str(pip)]
         _fr = inset_frame_asset(
@@ -1399,7 +1461,7 @@ def build(part: int, minutes: float, out: Path, cfg: Config,
             [q for q in preset_music if q.exists()], cfg)
     if not beats:
         beats, downbeats = load_beats(part, cfg)
-    print(f"[hl] beat grid: {len(beats)} beats, {len(downbeats)} downbeats, "
+    print(f"[hl] beat grid: {len(beats)} beats, {len(downbeats)} bar-grid, "
           f"{len(drops)} drops, {len(accents)} accents, "
           f"spans {beats[-1] if beats else 0:.0f}s")
 
@@ -1452,13 +1514,13 @@ def build(part: int, minutes: float, out: Path, cfg: Config,
             # the segment as ending at `bw` makes the solved landing the START
             # of the rewind, which is the beat the viewer actually feels. A
             # plain beat is not reason enough for an effect this strong.
-            if (beats and f.tier == "T1"
+            if (SCRATCH_ENABLED and beats and f.tier == "T1"
                     and f.duration >= SCRATCH_MIN_SRC_S
                     and f.duration > SHORT_CLIP_SLOWMO_S
                     and n_accent - last_scratch >= SCRATCH_MIN_GAP):
                 hit = speed_ramp.accent_rate_for_landing(
                     w0, aw, bw, bw, vt, beats, downbeats, drops, accents,
-                    allowed_kinds=("drop", "accent", "downbeat"))
+                    allowed_kinds=("drop", "accent", "bar_grid"))
                 if hit:
                     rate, land, kind = hit
                     scratch = True

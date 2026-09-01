@@ -219,7 +219,7 @@ def snap_to_beat(t: float, beats: list[float], *,
 def _pick_landing(rate_for, natural_end, timeline_t, beats,
                   downbeats=None, drops=None, accents=None,
                   lo: float = SLOW_RATE_MIN, hi: float = SLOW_RATE_MAX,
-                  allowed_kinds=("drop", "accent", "downbeat", "beat")):
+                  allowed_kinds=("drop", "accent", "bar_grid", "beat")):
     """Choose the musical moment this segment should END on.
 
     `rate_for(target_out_s)` returns the slow rate needed to make the segment
@@ -268,12 +268,17 @@ def _pick_landing(rate_for, natural_end, timeline_t, beats,
         elif near_accent(b):
             kind = "accent"
         elif rb in downs:
-            kind = "downbeat"
+            # NOT a downbeat. The cache stores every fourth detected beat,
+            # which is a guess at the bar line, not metre anyone measured
+            # (V1 directive S22). Naming it honestly keeps the ranking
+            # meaningful: real structural evidence -- a drop, a salient onset
+            # -- outranks it, and should.
+            kind = "bar_grid"
         else:
             kind = "beat"
         if kind not in allowed_kinds:
             continue
-        rank = {"drop": 0, "accent": 1, "downbeat": 2, "beat": 3}[kind]
+        rank = {"drop": 0, "accent": 1, "bar_grid": 2, "beat": 3}[kind]
         cost = (rank, abs(b - natural_end))
         if best is None or cost < best[0]:
             best = (cost, r, b, kind)
@@ -288,7 +293,7 @@ def accent_rate_for_landing(w0: float, a: float, b: float, w1: float,
                             default_rate: float = SLOW_RATE,
                             lo: float = SLOW_RATE_MIN,
                             hi: float = SLOW_RATE_MAX,
-                            allowed_kinds=("drop", "accent", "downbeat", "beat")):
+                            allowed_kinds=("drop", "accent", "bar_grid", "beat")):
     """Beat-lock an accent expressed as literal segment boundaries.
 
     The renderer builds its accent as three concatenated pieces -- w0->a at
