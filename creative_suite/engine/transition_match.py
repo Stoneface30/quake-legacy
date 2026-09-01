@@ -52,6 +52,24 @@ MIN_RUNWAY_MS = 600
 # Below this, a "flight" is a point-blank shot with no ride-along value.
 MIN_FLIGHT_MS = 400
 
+# A Quake Live rocket travels at 900 u/s (g_missile.c). Cached paths that
+# measure far off that are not rockets we can ride: a camera flown along
+# them tracks something that was never there.
+#
+# Measured across all 2,706 rideable cached paths (2026-09-01), median arc
+# speed by flight duration:
+#
+#     200-700 ms   n=1847   1076 u/s     <- consistent with 900 nominal
+#     700-1200 ms  n= 376    993 u/s     <- consistent
+#     1200 ms +    n= 288    306 u/s     <- not a rocket
+#
+# 225 of the 288 paths over 1200 ms (78%) measure under 600 u/s. The band
+# below is deliberately wide — +/-45% around nominal — because sampling at
+# the 25 ms snapshot tick makes short flights noisy, and the goal is to
+# exclude the physically impossible, not to police the merely unusual.
+PLAUSIBLE_SPEED_MIN = 600.0
+PLAUSIBLE_SPEED_MAX = 1400.0
+
 
 def _unit(v: tuple[float, float, float]) -> tuple[float, float, float]:
     n = math.sqrt(sum(c * c for c in v))
@@ -75,6 +93,15 @@ def path_metrics(path_json: dict) -> dict[str, Any] | None:
     length = math.dist(p0, p1)
     speed_ups = length / (duration_ms / 1000.0) if duration_ms else 0.0
 
+    # Arc length, not just the chord. A bouncing grenade covers real ground
+    # while its endpoints sit close together, so chord speed alone would
+    # call it implausibly slow; path speed does not. (Measured: of 632
+    # paths under 600 u/s by chord, 627 are also under 600 by arc — they
+    # are not bouncing projectiles, they are bad data. Only 5 bounce.)
+    arc = sum(math.dist((a[1], a[2], a[3]), (b[1], b[2], b[3]))
+              for a, b in zip(pts, pts[1:]))
+    path_speed_ups = arc / (duration_ms / 1000.0) if duration_ms else 0.0
+
     # terminal direction: last ~25% of the flight, the vector the camera
     # is travelling along at the moment of the cut.
     tail_start = max(0, int(len(pts) * 0.75))
@@ -93,6 +120,9 @@ def path_metrics(path_json: dict) -> dict[str, Any] | None:
         "duration_ms": duration_ms,
         "length_u": round(length, 1),
         "speed_ups": round(speed_ups, 1),
+        "path_speed_ups": round(path_speed_ups, 1),
+        "speed_plausible": PLAUSIBLE_SPEED_MIN <= path_speed_ups
+                           <= PLAUSIBLE_SPEED_MAX,
         "terminal_dir": terminal,
         "launch_dir": launch_dir,
         # vertical component == sin(pitch); level flight ~0, dive negative
@@ -157,8 +187,12 @@ def load_map_names(db_path: Path | str = FRAGS_DB) -> dict[str, str]:
     except sqlite3.Error:
         return {}
     try:
-        return {name: (map_name or "?") for name, map_name in con.execute(
-            "SELECT name, map_name FROM demos")}
+        # Case-folded: the corpus records 61 distinct map strings for 54
+        # actual maps (asylum / Asylum / AsyLUm, quarantine / Quarantine /
+        # qUARanTINe, ...). Compared raw, the same arena reads as two, and
+        # a same-arena cut gets scored — and bonused — as cross-arena.
+        return {name: (map_name or "?").lower() for name, map_name
+                in con.execute("SELECT name, map_name FROM demos")}
     except sqlite3.Error:
         return {}
     finally:
@@ -171,6 +205,23 @@ def _class_names(classes_json: str | None) -> list[str]:
                 for c in json.loads(classes_json or "[]")]
     except json.JSONDecodeError:
         return []
+
+
+def event_signature(cand: dict) -> tuple:
+    """Identity of the MOMENT, independent of which file recorded it.
+
+    The corpus contains the same kill saved under two filenames with two
+    different content hashes, so neither the name nor the hash dedupes
+    them. Frags 19639 and 34346 are one overkill rocket at server_time
+    465350; unguarded, ``score_pair`` rates that pair 0.875 with a perfect
+    speed match and the shortlister offers a frag a cut to itself.
+
+    ``duplicate_of`` in frags_rebuilt.demos would be the natural source,
+    but it is unpopulated (0 of 4,292 rows), so the moment is identified
+    positionally instead: same arena, same server clock, same flight.
+    """
+    return (cand.get("map"), cand.get("server_time_ms"),
+            cand.get("duration_ms"), round(cand.get("length_u") or 0.0))
 
 
 def score_pair(scene_a: dict, scene_b: dict, *,
@@ -216,13 +267,17 @@ def shortlist_scene_b(scene_a: dict, candidates: list[dict], *,
                       prefer_different_map: float = 0.15) -> list[dict]:
     """Rank candidates as the Scene B for a given Scene A.
 
-    Excludes scene_a itself and anything from the same demo (cutting
-    within one demo is a jump cut, not a bridge), and anything without
+    Excludes scene_a itself, anything from the same demo (cutting within
+    one demo is a jump cut, not a bridge), anything that is the SAME
+    MOMENT re-saved under a different filename, and anything without
     enough runway.
     """
+    a_sig = event_signature(scene_a)
     ranked = []
     for cand in candidates:
         if cand["demo_name"] == scene_a["demo_name"]:
+            continue
+        if event_signature(cand) == a_sig:
             continue
         if cand["duration_ms"] < MIN_RUNWAY_MS:
             continue
@@ -232,10 +287,23 @@ def shortlist_scene_b(scene_a: dict, candidates: list[dict], *,
     return ranked[:top_n]
 
 
-def pick_scene_a(candidates: list[dict], *, min_duration_ms: int = 1200
-                 ) -> dict | None:
-    """The strongest ride-along Scene A: long flight, high payoff."""
+def pick_scene_a(candidates: list[dict], *, min_duration_ms: int = 1200,
+                 require_plausible_speed: bool = True) -> dict | None:
+    """The strongest ride-along Scene A: long flight, high payoff.
+
+    The duration floor alone is actively harmful, which is why the speed
+    filter defaults on. Long flights in this corpus are mostly *not* long
+    rocket flights — 78% of paths over 1200 ms measure under 600 u/s,
+    against a nominal rocket speed of 900. Selecting purely for duration
+    therefore selects almost exclusively for bad data, and the camera then
+    rides an arc no projectile ever flew.
+
+    Pass ``require_plausible_speed=False`` only to reproduce the old,
+    unfiltered ranking.
+    """
     pool = [c for c in candidates if c["duration_ms"] >= min_duration_ms]
+    if require_plausible_speed:
+        pool = [c for c in pool if c.get("speed_plausible")]
     if not pool:
         return None
     return max(pool, key=lambda c: (c["highlight_score"] or 0.0,

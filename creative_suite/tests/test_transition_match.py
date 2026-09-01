@@ -136,3 +136,80 @@ def test_real_shortlist_produces_manageable_list():
     assert a is not None
     out = tm.shortlist_scene_b(a, cands, top_n=20)
     assert 0 < len(out) <= 20
+
+
+# ── projectile speed plausibility ───────────────────────────────────────────
+
+def test_path_speed_uses_arc_not_chord():
+    """A bouncing projectile covers ground its endpoints do not show."""
+    # out 400u and back to 100u: chord 100u, arc 700u, over 1s
+    pts = [[0, 0.0, 0.0, 0.0], [250, 200.0, 0.0, 0.0], [500, 400.0, 0.0, 0.0],
+           [750, 250.0, 0.0, 0.0], [1000, 100.0, 0.0, 0.0]]
+    m = tm.path_metrics({"points": pts, "confidence": "CONFIRMED",
+                         "launch": {}, "impact": {}})
+    assert m["speed_ups"] == pytest.approx(100.0, abs=1.0)      # chord
+    assert m["path_speed_ups"] == pytest.approx(700.0, abs=1.0)  # arc
+    assert m["speed_plausible"], "arc speed is in band; chord alone would fail"
+
+
+@pytest.mark.parametrize("speed,expect", [
+    (233.0, False),    # the observed synthetic-path speed
+    (599.0, False),
+    (900.0, True),     # QL rocket nominal
+    (1076.0, True),    # measured corpus median for real flights
+    (1401.0, False),
+])
+def test_speed_plausibility_band(speed, expect):
+    m = tm.path_metrics(mkpath(duration_ms=1000, speed=speed))
+    assert m["speed_plausible"] is expect
+
+
+def test_pick_scene_a_rejects_implausible_speed_by_default():
+    """The defect this guards: selecting on duration alone selects almost
+    exclusively for bad data, because 78% of paths over 1200 ms are too
+    slow to be projectiles."""
+    fake = scene(demo="fake.dm_73", score=99.0, duration_ms=2900, speed=233.0)
+    real = scene(demo="real.dm_73", score=40.0, duration_ms=1400, speed=950.0)
+    assert tm.pick_scene_a([fake, real])["demo_name"] == "real.dm_73"
+    # the old behaviour is still reachable, and still picks the fake
+    assert tm.pick_scene_a(
+        [fake, real], require_plausible_speed=False)["demo_name"] == "fake.dm_73"
+
+
+def test_pick_scene_a_returns_none_when_all_implausible():
+    fake = scene(demo="f.dm_73", duration_ms=2900, speed=233.0)
+    assert tm.pick_scene_a([fake]) is None
+
+
+# ── near-duplicate suppression ──────────────────────────────────────────────
+
+def test_shortlist_excludes_same_moment_from_a_different_file():
+    """Frags 19639/34346 are one overkill rocket at server_time 465350 saved
+    under two filenames with two different content hashes, so neither name
+    nor hash dedupes them. Unguarded, a frag is offered a cut to itself."""
+    a = scene(map_name="overkill", demo="original.dm_73",
+              duration_ms=800, speed=900.0)
+    twin = scene(map_name="overkill", demo="Demo (51) - 230;.dm_73",
+                 duration_ms=800, speed=900.0)
+    other = scene(map_name="asylum", demo="other.dm_73",
+                  duration_ms=800, speed=900.0)
+    assert tm.event_signature(a) == tm.event_signature(twin)
+    names = [c["demo_name"] for c in tm.shortlist_scene_b(a, [twin, other])]
+    assert "Demo (51) - 230;.dm_73" not in names
+    assert "other.dm_73" in names
+
+
+def test_map_names_are_case_folded():
+    """The corpus stores 61 map strings for 54 maps (asylum/Asylum/AsyLUm).
+    Compared raw, one arena reads as two and earns the cross-arena bonus."""
+    names = tm.load_map_names()
+    if not names:
+        pytest.skip("frags_rebuilt.db absent")
+    assert all(m == m.lower() for m in names.values())
+
+
+def test_same_arena_differing_case_gets_no_cross_map_bonus():
+    a = scene(map_name="quarantine", demo="d1.dm_73", speed=900.0)
+    b = scene(map_name="quarantine", demo="d2.dm_73", speed=900.0,
+              duration_ms=1900)
+    assert tm.score_pair(a, b)["different_map"] is False
