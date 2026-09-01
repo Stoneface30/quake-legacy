@@ -173,7 +173,7 @@ parser commit `5a1f08ddb4d84134124d78e9158c56dbfc5f8c59`, profile
 `output/seek_list_master.csv` · `.json` — **214,466 ranked candidates** from
 4,260 contributing demos, carrying parser commit and schema for provenance.
 Top entries are airshot + air_rocket + big_flick + shaft_rocket + multikill
-chains, e.g. `CA-pTnTr4sH-overkill-2011_06_28` @ 3:36 r5 ROCKET (34.0).
+chains, e.g. `CA-<player>-overkill-2011_06_28` @ 3:36 r5 ROCKET (34.0).
 
 ## 12 · CLUTCH_ROUND_WIN
 

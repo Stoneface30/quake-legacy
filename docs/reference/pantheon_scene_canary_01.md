@@ -49,7 +49,7 @@ frag 5979  launch t=553075 pos [-355.6, 175.3, 684.1]
 A 2-point, 25 ms, 38-unit path is a point-blank rocket. There is no flight
 to follow.
 
-The other suggestion — `CA-pTntr4sh-overkill-2012_12_06-19_31_30.dm_73`
+The other suggestion — `CA-<player>-overkill-2012_12_06-19_31_30.dm_73`
 @ 523875, "161 points, 4000 ms" — was also rejected, for a subtler reason:
 316u over 4000 ms is **79 u/s**. A QL rocket travels ~900 u/s. Surveying
 all 4,391 cached paths, the median implied speed is 1079 u/s (correct), so
@@ -64,7 +64,7 @@ LIKE `ROCKET%`, `confidence = CONFIRMED`, `>= 8` points, implied speed in
 ### Chosen: frag 24326
 
 ```
-demo          CA-pTnTr4sH-qUARanTINe-2011_09_22-18_43_52.dm_73   (map: quarantine)
+demo          CA-<player>-qUARanTINe-2011_09_22-18_43_52.dm_73   (map: quarantine)
 content_hash  0bbddb724288cb78d15884fe88fc9f40209a16c26c7a6ebf03ac3d42d285d55c
 server_time   291650 ms   round 8   recognition_version 2
 highlight     40.9

@@ -67,7 +67,7 @@ driver coexist correctly at this density.
 
 **Projectile-follow, real cached trajectory**: pulled a genuine `CONFIRMED`
 rocket path from `recognition_projectile_paths`
-(`CA-pTntr4sh-overkill-2012_12_06-19_31_30.dm_73`, launch 519875ms,
+(`CA-<player>-overkill-2012_12_06-19_31_30.dm_73`, launch 519875ms,
 impact 523875ms, 161 cached points, 4000ms flight) via the new
 `projectile_track_from_recognition()` adapter, fed it into the EXISTING
 `camera_paths.projectile_follow()` generator (unmodified — no new

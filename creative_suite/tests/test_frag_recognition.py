@@ -648,10 +648,12 @@ def test_canonical_number_one_event():
         import pytest
         pytest.skip("recognition db not present")
     c = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    # Addressed by frag id, not demo filename: filenames embed a player
+    # nickname and this repo is public. Frag 4121 is the canonical #1
+    # direct rocket (asylum, server_time 826600).
     row = c.execute(
-        "SELECT attributes, classes FROM recognized_frags WHERE"
-        " demo_name='CA-pTnTr4sH-asylum-2011_08_05-22_37_30.dm_73'"
-        " AND server_time_ms=826600").fetchone()
+        "SELECT attributes, classes FROM recognized_frags"
+        " WHERE id=? AND server_time_ms=?", (4121, 826600)).fetchone()
     if row is None:
         import pytest
         pytest.skip("canonical event not in db")

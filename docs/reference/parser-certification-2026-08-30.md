@@ -234,7 +234,7 @@ the corpus itself rather than from a recoverable old test.
 **1. Was 117 from the same demo bytes?** Cannot be established — nothing records
 which fixture or commit produced it. But 117 is not exotic: **six demos in the
 corpus yield exactly 117 raw obituaries**, all late-2012
-(`CA-pTnTR4SH-hiddenfortress-2012_11_02`, `CA-pTnTr4sH-overkill-2012_07_28`,
+(`CA-<player>-hiddenfortress-2012_11_02`, `CA-<player>-overkill-2012_07_28`,
 `CTF-falloutbunker-2012_01_29`, and three others). The named fixture yields 101.
 So 117 most likely came from a *different* demo.
 
@@ -251,7 +251,7 @@ snapshot-repeat defect (below), but it collapses only 1 row on this fixture.
 **4. Did the definition of an accepted kill change?** **Yes, and this is the
 answer.** `frag_classify.classify()` drops obituaries where `killer == victim` —
 suicides and world deaths are not frags. Corpus-wide that is **1,365 of 215,831
-(0.63%)**, verified directly: `CA-pTnTr4sH-overkill-2011_07_04` has 65 raw
+(0.63%)**, verified directly: `CA-<player>-overkill-2011_07_04` has 65 raw
 obituaries, 8 self-inflicted, 57 accepted — exactly 65 − 8.
 
 That single filter is far too small to turn 117 into 63 (a 46% cut), so the old

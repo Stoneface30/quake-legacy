@@ -1,19 +1,22 @@
 """Projectile evidence contract + the Frag 5979 / Frag 4121 reconciliation.
 
-Two frags on asylum, both ROCKET, both ``DIRECT_CONFIRMED``, and easy to
-conflate — a mix-up that once looked like the recognition data contradicting
-itself:
+Two frags on asylum, both ROCKET, both ``DIRECT_CONFIRMED``, from different
+demos — easy to conflate, and a mix-up that once looked like the recognition
+data contradicting itself:
 
-| frag | demo                              | server_time | flight | distance |
-|------|-----------------------------------|-------------|--------|----------|
-| 5979 | CA-...-asylum-2011_12_20-19_00_41 |     553 075 |  25 ms |   38.7 u |
-| 4121 | CA-...-asylum-2011_08_05-22_37_30 |     826 600 | 300 ms |  318.6 u |
+| frag | server_time | flight | distance |
+|------|-------------|--------|----------|
+| 5979 |     553 075 |  25 ms |   38.7 u |
+| 4121 |     826 600 | 300 ms |  318.6 u |
 
 Frag 4121 is the canonical "#1 direct rocket". Frag 5979 is a point-blank
 shot with no arc. Only 4121 can carry a projectile camera; the preview
 correctly falls back for 5979. The synthetic tests pin the contract, and
 the corpus tests (skip-if-unavailable, mirroring test_camera_paths.py) pin
 the real measurements so the reconciliation cannot silently rot.
+
+Frags are addressed by numeric id and resolved to a demo at run time. Demo
+filenames embed player nicknames, and this repo is public.
 """
 from __future__ import annotations
 
@@ -112,20 +115,30 @@ def corpus():
     con.close()
 
 
-def _path_for(con, demo_name, server_time_ms):
+POINT_BLANK_FRAG = 5979      # asylum, 25 ms, no arc
+CANONICAL_FRAG = 4121        # asylum, ~300 ms direct rocket
+
+
+def _path_for_frag(con, frag_id):
+    """Resolve a frag id to its cached projectile path.
+
+    Goes through ``recognized_frags`` rather than hard-coding a demo
+    filename, which would put a player nickname in a public repo.
+    """
+    frag = con.execute(
+        "SELECT demo_name, server_time_ms FROM recognized_frags WHERE id = ?",
+        (frag_id,)).fetchone()
+    if frag is None:
+        return None
     row = con.execute(
         "SELECT path FROM recognition_projectile_paths "
         "WHERE demo_name = ? AND server_time_ms = ? ORDER BY version DESC "
-        "LIMIT 1", (demo_name, server_time_ms)).fetchone()
+        "LIMIT 1", frag).fetchone()
     return json.loads(row[0]) if row else None
 
 
-ASYLUM_5979 = ("CA-pTnTr4sH-asylum-2011_12_20-19_00_41.dm_73", 553075)
-ASYLUM_4121 = ("CA-pTnTr4sH-asylum-2011_08_05-22_37_30.dm_73", 826600)
-
-
 def test_frag_5979_is_point_blank_and_unusable(corpus):
-    path = _path_for(corpus, *ASYLUM_5979)
+    path = _path_for_frag(corpus, POINT_BLANK_FRAG)
     if path is None:
         pytest.skip("frag 5979 path not in this database build")
     ev = projectile_evidence(path)
@@ -143,7 +156,7 @@ def test_frag_5979_is_point_blank_and_unusable(corpus):
 
 def test_frag_4121_is_the_canonical_direct_rocket(corpus):
     """The ~300 ms / 318.6 u evidence belongs here, not to Frag 5979."""
-    path = _path_for(corpus, *ASYLUM_4121)
+    path = _path_for_frag(corpus, CANONICAL_FRAG)
     if path is None:
         pytest.skip("frag 4121 path not in this database build")
     ev = projectile_evidence(path)
@@ -153,10 +166,14 @@ def test_frag_4121_is_the_canonical_direct_rocket(corpus):
 
 
 def test_the_two_asylum_rockets_are_distinct_events(corpus):
-    a, b = _path_for(corpus, *ASYLUM_5979), _path_for(corpus, *ASYLUM_4121)
+    a = _path_for_frag(corpus, POINT_BLANK_FRAG)
+    b = _path_for_frag(corpus, CANONICAL_FRAG)
     if a is None or b is None:
         pytest.skip("both asylum paths required")
-    assert ASYLUM_5979[0] != ASYLUM_4121[0]
+    demos = corpus.execute(
+        "SELECT id, demo_name FROM recognized_frags WHERE id IN (?, ?)",
+        (POINT_BLANK_FRAG, CANONICAL_FRAG)).fetchall()
+    assert len({d for _, d in demos}) == 2, "must be two different demos"
     assert projectile_evidence(a)["usable"] is False
     assert projectile_evidence(b)["usable"] is True
 

@@ -169,7 +169,7 @@ animFrame, model, team, clientnum, enemy, teammate, ineyes, pw*`).
 ### What was run
 
 DB-sourced moment (`creative_suite/database/frag_recognition.db`,
-`recognized_frags`): `CA-pTnTr4sH-trinity-2012_01_28-14_26_22.dm_73`
+`recognized_frags`): `CA-<player>-trinity-2012_01_28-14_26_22.dm_73`
 @ `server_time_ms = 954950` — `EXTREME_SPEED p99.5`, `DODGE_STRAFE p99.5`,
 `AIR_ROCKET_GEO (victim vz 755)`, `highlight_score 66.66`. Window
 `954700 → 956700`; the airborne, dodging victim is in frame from t ≈ 0.1 s.
@@ -380,7 +380,7 @@ Read the Q3 BSP texture lump (lump 1, 72-byte entries) straight out of
 
 ### What was run
 
-Demo `CA-pTnTr4sH-trinity-2012_01_28-14_26_22.dm_73`, window
+Demo `CA-<player>-trinity-2012_01_28-14_26_22.dm_73`, window
 `954700 → 956700`. **One capture, one running session** — the swap and the
 revert both happen inside it, no restart:
 
