@@ -12,6 +12,7 @@ HARD RULES honored here:
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,7 @@ from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import FileResponse, JSONResponse
 
 from creative_suite.engine import review_proxy
+from creative_suite.engine.music_features_v2 import MusicFeatureStore
 
 router = APIRouter()
 
@@ -27,6 +29,8 @@ _DB_DIR = Path(__file__).parent.parent / "database"
 # Module-level so tests can monkeypatch them.
 FRAG_DB_PATH = _DB_DIR / "frag_recognition.db"
 DEMO_V2_DB_PATH = _DB_DIR / "demo_v2.db"
+MUSIC_FEATURE_DB_PATH = _DB_DIR / "music_features_v2.db"
+MUSIC_AUDITION_DIR = Path(__file__).parents[2] / "output" / "demo_v2" / "music_auditions"
 
 # classes-endpoint cache: {str(db_path): [{"name":..., "count":...}, ...]}
 _classes_cache: dict[str, list[dict[str, Any]]] = {}
@@ -151,6 +155,11 @@ _FILTER_GROUPS: dict[str, tuple[str, ...]] = {
         "SPEED_TARGET_FRAG", "HIGH_SPEED_AIR_FRAG", "VERTICAL_ACTION",
         "STRAFE_CHAIN_FRAG", "ROCKET_JUMP_ENTRY", "ROCKET_JUMP_FRAG",
         "DODGE_AND_KILL", "ESCAPE_TURNAROUND",
+        # Dodge / near-miss (engine/parser/extract_dodge_events.py,
+        # 2026-09-01 — incoming rail/rocket/grenade fire that passed close
+        # and missed, plus the composite "dodge then frag" moment)
+        "NEAR_MISS_RAIL", "NEAR_MISS_ROCKET", "NEAR_MISS_GRENADE",
+        "DODGE_STRAFE", "DODGE_TO_KILL",
     ),
     "craft": (
         "WEAPON_COMBO", "MULTI_WEAPON_CHAIN", "FAST_WEAPON_SWITCH",
@@ -679,6 +688,76 @@ def proxy_video(frag_id: int):
         )
     mp4 = Path(str(st["mp4_path"]))
     return FileResponse(str(mp4), media_type="video/mp4", filename=mp4.name)
+
+
+def _music_auditions(frag_id: int) -> list[dict[str, Any]]:
+    manifest = MUSIC_AUDITION_DIR / "manifest.json"
+    if not manifest.exists():
+        return []
+    try:
+        items = json.loads(manifest.read_text(encoding="utf-8")).get("items", [])
+    except (OSError, ValueError, AttributeError):
+        return []
+    if not isinstance(items, list):
+        return []
+    safe = []
+    for item in items:
+        if not isinstance(item, dict) or item.get("frag_id") != frag_id:
+            continue
+        audition_id = item.get("audition_id")
+        track_hash = item.get("track_hash")
+        if audition_id not in {"A", "B", "C"}:
+            continue
+        if not isinstance(track_hash, str) or re.fullmatch(r"[0-9a-f]{64}", track_hash) is None:
+            continue
+        required = (
+            "audition_id", "track_hash", "track_label", "region_kind",
+            "region_start_us", "music_source_start_us", "anchor_edit_us",
+            "action_edit_us", "score")
+        if any(k not in item for k in required):
+            continue
+        safe.append({k: item[k] for k in required})
+        safe[-1]["video_url"] = f"/api/frags/{frag_id}/music-auditions/{item['audition_id']}/video"
+        if len(safe) == 3:
+            break
+    return safe
+
+
+@router.get("/api/frags/{frag_id}/music-auditions")
+def list_music_auditions(frag_id: int) -> dict[str, Any]:
+    _load_frag_with_master(frag_id)
+    store = MusicFeatureStore(MUSIC_FEATURE_DB_PATH)
+    return {"frag_id": frag_id, "items": _music_auditions(frag_id),
+            "reviews": store.get_reviews(frag_id)}
+
+
+@router.get("/api/frags/{frag_id}/music-auditions/{audition_id}/video")
+def music_audition_video(frag_id: int, audition_id: str):
+    item = next((x for x in _music_auditions(frag_id)
+                 if x["audition_id"] == audition_id), None)
+    if item is None:
+        raise HTTPException(status_code=404, detail="music audition not found")
+    path = MUSIC_AUDITION_DIR / f"{frag_id}_{audition_id}.mp4"
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="music audition media missing")
+    return FileResponse(str(path), media_type="video/mp4", filename=path.name)
+
+
+@router.put("/api/frags/{frag_id}/music-auditions/{audition_id}/review")
+def write_music_audition_review(frag_id: int, audition_id: str,
+                                body: dict[str, Any] = Body(...)) -> dict[str, Any]:
+    item = next((x for x in _music_auditions(frag_id)
+                 if x["audition_id"] == audition_id), None)
+    if item is None:
+        raise HTTPException(status_code=404, detail="music audition not found")
+    decision = body.get("decision", "undecided")
+    notes = body.get("notes", "")
+    if decision not in {"favorite", "reject", "undecided"} or not isinstance(notes, str):
+        raise HTTPException(status_code=422, detail="invalid music review")
+    store = MusicFeatureStore(MUSIC_FEATURE_DB_PATH)
+    store.save_review(frag_id, item["track_hash"], item["region_start_us"], decision, notes)
+    return {"frag_id": frag_id, "audition_id": audition_id,
+            "decision": decision, "notes": notes}
 
 
 # ------------------------------------------------------------ editorial review

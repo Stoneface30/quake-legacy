@@ -96,18 +96,36 @@ def test_fov_per_keyframe_preserved():
     assert fovs == ["90.0000", "100.0000"]
 
 
-def test_compile_camera_writes_file_and_returns_correct_cfg_sequence(tmp_path):
+def test_compile_camera_writes_file_and_returns_working_cfg_sequence(tmp_path):
     result = cw.compile_camera(SIMPLE, base_servertime=0,
                                gamedir=tmp_path, camera_name="testcam")
     expected_path = tmp_path / "cameras" / "testcam.cam10"
     assert result["path"] == expected_path
     assert expected_path.exists()
     assert result["file_hash"] == cw.cam10_hash(expected_path.read_text())
-    # freecam MUST precede playcamera: cg_view.c:3092-3094 gates the whole
-    # path-sampling block on cg.freecam being active, independent of
-    # whether playcamera was called.
-    assert result["cfg_lines"] == [
-        "freecam", "loadcamera testcam", "playcamera"]
+    # RUNTIME-PROVEN 2026-09-01: loadcamera/playcamera loads the file
+    # correctly but playcamera has a reproducible engine bug (unconditional
+    # internal re-seek corrupts the snapshot stream — cam10_runtime_contract
+    # .md "Known engine bug"). Execution uses freecamsetpos instead, one
+    # per keyframe, which real captures proved actually moves the camera.
+    assert result["cfg_lines"][0] == "freecam"
+    assert "loadcamera" not in " ".join(result["cfg_lines"])
+    assert "playcamera" not in " ".join(result["cfg_lines"])
+    assert len(result["cfg_lines"]) == 1 + len(SIMPLE)  # freecam + 1/keyframe
+
+
+def test_to_freecamsetpos_lines_one_per_keyframe_absolute_time():
+    lines = cw.to_freecamsetpos_lines(SIMPLE, base_servertime=42000)
+    assert lines[0] == "freecam"
+    assert lines[1] == "at 42000 freecamsetpos 0.00 0.00 0.00 0.00 0.00 0.00"
+    assert lines[2] == ("at 43000 freecamsetpos 100.00 0.00 0.00 "
+                        "0.00 90.00 0.00")
+
+
+def test_to_freecamsetpos_lines_sorted_regardless_of_input_order():
+    reordered = [SIMPLE[1], SIMPLE[0]]
+    assert (cw.to_freecamsetpos_lines(reordered, 0)
+            == cw.to_freecamsetpos_lines(SIMPLE, 0))
 
 
 def test_compile_camera_is_overwritable_and_reproducible(tmp_path):

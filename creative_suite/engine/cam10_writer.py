@@ -133,10 +133,31 @@ def cam10_hash(content: str) -> str:
 
 def compile_camera(keyframes: list[dict], base_servertime: int,
                    gamedir: Path, camera_name: str) -> dict:
-    """Write <gamedir>/cameras/<camera_name>.cam10 and return its hash +
-    the exact cfg lines needed to load and play it. Overwrites any
-    existing file of the same name (compilation is deterministic, so an
-    identical input reproduces identical bytes)."""
+    """Write <gamedir>/cameras/<camera_name>.cam10 (the archival, portable
+    representation of this path — correct and unit-tested, see
+    test_cam10_writer.py) and return its hash + the cfg lines that
+    actually EXECUTE the path at capture time.
+
+    RUNTIME BUG (found 2026-09-01, reproduced 6 ways — see
+    cam10_runtime_contract.md "Known engine bug" section):
+    ``loadcamera``+``playcamera`` load the file correctly (confirmed via
+    "camera loaded (version 10)" in qconsole.log) but ``playcamera``'s
+    unconditional internal re-seek (cg_view.c:3005-3018, NOT gated by
+    cg_cameraQue) reproducibly corrupts the demo snapshot stream —
+    ``processsnapshots() couldn't get nextsnap`` repeats forever,
+    independent of pre-seek timing, cg_cameraQue, or cg_cameraRewindTime.
+    This is a real defect in the shipped wolfcamql binary, not a usage
+    error on our side.
+
+    The cfg_lines returned therefore do NOT use loadcamera/playcamera.
+    They drive the path via ``freecamsetpos`` (CG_SetViewPos_f,
+    cg_consolecmds.c:673 — a simple, argument-taking, no-internal-reseek
+    command), one ``at <t> freecamsetpos ...`` per keyframe, scheduled
+    exactly like every other proven-reliable ``at`` command in this
+    codebase. RUNTIME-PROVEN 2026-09-01: two captured frames 2.4s apart
+    along a compiled orbit showed completely different, correctly
+    positioned world geometry — real camera motion, not a static shot.
+    """
     content = write_cam10(keyframes, base_servertime)
     cameras_dir = Path(gamedir) / "cameras"
     cameras_dir.mkdir(parents=True, exist_ok=True)
@@ -147,12 +168,26 @@ def compile_camera(keyframes: list[dict], base_servertime: int,
         "file_hash": cam10_hash(content),
         "compiler_version": CAMERA_COMPILER_VERSION,
         "runtime_backend": CAMERA_RUNTIME_BACKEND,
-        "cfg_lines": [
-            "freecam",
-            f"loadcamera {camera_name}",
-            "playcamera",
-        ],
+        "cfg_lines": to_freecamsetpos_lines(keyframes, base_servertime),
     }
+
+
+def to_freecamsetpos_lines(keyframes: list[dict], base_servertime: int
+                           ) -> list[str]:
+    """The PROVEN-WORKING execution primitive: one ``at <t> freecamsetpos
+    x y z pitch yaw roll`` per keyframe (plus an initial ``freecam``),
+    sidestepping playcamera's engine bug entirely. Sorted by time;
+    duplicate/out-of-order input is normalized the same way write_cam10
+    is, so both artifacts always agree on ordering."""
+    base = int(base_servertime)
+    lines = ["freecam"]
+    for kf in sorted(keyframes, key=lambda k: k["t_ms"]):
+        t = base + int(kf["t_ms"])
+        p, a = kf["pos"], kf["angles"]
+        lines.append(
+            "at {} freecamsetpos {:.2f} {:.2f} {:.2f} {:.2f} {:.2f} {:.2f}"
+            .format(t, p[0], p[1], p[2], a[0], a[1], a[2]))
+    return lines
 
 
 # ---------------------------------------------------------------------------

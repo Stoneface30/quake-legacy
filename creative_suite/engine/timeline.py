@@ -238,17 +238,20 @@ def to_wolfcam_script(timeline: Timeline, keyframes: list[dict],
                       camera_name: str = "scene") -> str:
     """Emit a wolfcam cfg for one shot.
 
-    If ``keyframes`` is non-empty, compiles a real ``.cam10`` file into
-    ``<gamedir>/cameras/<camera_name>.cam10`` (``gamedir`` is then
-    required) and emits ``seekservertime`` / ``freecam`` / ``loadcamera``
-    / ``playcamera`` — the source-verified sequence documented in
-    docs/reference/cam10_runtime_contract.md. ``playcamera`` alone does
-    NOT move the view; ``cg_view.c:3092-3094`` gates the entire path-
-    sampling block on ``cg.freecam`` being active, which is why
-    ``freecam`` is unconditionally part of this sequence.
+    If ``keyframes`` is non-empty, compiles a real ``.cam10`` archival
+    file into ``<gamedir>/cameras/<camera_name>.cam10`` (``gamedir`` is
+    then required) AND emits ``seekservertime`` / ``freecam`` / one
+    ``at <t> freecamsetpos ...`` per keyframe — the RUNTIME-PROVEN
+    execution path (docs/reference/cam10_runtime_contract.md). The
+    "obvious" ``loadcamera``/``playcamera`` sequence loads the .cam10
+    file correctly but hits a real engine bug (playcamera's unconditional
+    internal re-seek corrupts the snapshot stream, reproduced 6 ways,
+    independent of any of our settings) — so it is NOT used for
+    execution; the .cam10 file is still written and hashed as a correct,
+    portable, versioned artifact for archival/future use.
 
     The remaining timed ``at <servertime> ...`` commands (freeze/
-    impact_hold/timescale/fov ramps) are unaffected by this fix — they
+    impact_hold/timescale/fov ramps) are unrelated to this fix — they
     were already real, registered commands. Post-production steps
     (reverse) emit comments only — they never reach the engine.
     """
@@ -260,6 +263,14 @@ def to_wolfcam_script(timeline: Timeline, keyframes: list[dict],
               "// post-production steps below are comments, not commands"]
     cam_lines: list[str] = []
     compiled = None
+    timed: list[tuple[int, int, str]] = []
+    order = 0
+
+    def at(t_ms: int, cmd: str) -> None:
+        nonlocal order
+        _emit(timed, base + t_ms, order, f"at {base + t_ms} {cmd}")
+        order += 1
+
     if keyframes:
         if gamedir is None:
             raise ValueError(
@@ -268,17 +279,16 @@ def to_wolfcam_script(timeline: Timeline, keyframes: list[dict],
             keyframes, base, Path(gamedir), camera_name)
         seek_ms = base + int(keyframes[0]["t_ms"]) - SEEK_SETTLE_MS
         cam_lines.append(f"seekservertime {seek_ms}")
-        cam_lines.extend(compiled["cfg_lines"])
+        for line in compiled["cfg_lines"]:
+            if line.startswith("at "):
+                # already absolute-time "at <t> <cmd...>" from cam10_writer
+                _, t_str, cmd = line.split(" ", 2)
+                _emit(timed, int(t_str), order, line)
+                order += 1
+            else:
+                cam_lines.append(line)
     for line in cam_lines:
         _validate_cfg_token(line)
-
-    timed: list[tuple[int, int, str]] = []
-    order = 0
-
-    def at(t_ms: int, cmd: str) -> None:
-        nonlocal order
-        _emit(timed, base + t_ms, order, f"at {base + t_ms} {cmd}")
-        order += 1
 
     post_comments: list[str] = []
     if compiled is not None:
