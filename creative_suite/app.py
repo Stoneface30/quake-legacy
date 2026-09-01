@@ -67,6 +67,7 @@ def create_app() -> FastAPI:
         packs,
         parts,
         phase1,
+        scene_editor,
         studio,
         variants,
     )
@@ -88,6 +89,7 @@ def create_app() -> FastAPI:
     app.include_router(frags.router)
     app.include_router(director.router)
     app.include_router(director_draft.router)
+    app.include_router(scene_editor.router)
 
     # Spec §11.3 mitigation: check img2img workflow placeholders at boot.
     # This only logs — it never aborts startup, so a ComfyUI update that
@@ -138,6 +140,14 @@ def create_app() -> FastAPI:
     @app.get("/frags")
     def frags_page() -> FileResponse:  # pyright: ignore[reportUnusedFunction]
         return FileResponse(FRONTEND_ROOT / "frags.html")
+
+    @app.get("/scene-editor/{scene_key}")
+    def scene_editor_page(scene_key: str) -> FileResponse:  # pyright: ignore[reportUnusedFunction]
+        # scene_key is stable IDENTITY only ("frag-5979" / "recipe-<sha>") —
+        # the page fetches its own state, so no editor state ever rides in
+        # the URL. The parameter is read by the client, not the server.
+        del scene_key
+        return FileResponse(FRONTEND_ROOT / "scene-editor.html")
 
     PHOTOREAL_DIR = Path(__file__).parent / "comfy" / "photoreal"
 

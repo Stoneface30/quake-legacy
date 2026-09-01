@@ -10,6 +10,7 @@ const state = {
   director: null,   // {sessionId, since, count, keybind, recipeId, pollTimer}
   schema: null,     // GET /api/director/schema — camera/fx/look vocabulary
   draft: null,      // unsaved DIRECTOR recipe draft for the selected frag
+  preview: null,    // {fragId, key, generation, state, mediaUrl, error, timer}
   devMode: false,   // developer toggles (backend override, SHOW DEPTH)
   groupSelections: { skill: new Set(), context: new Set(), movement: new Set(), craft: new Set() },
   customWeights: {},       // {CLASS_NAME: nonzero weight}
@@ -350,6 +351,9 @@ async function selectFrag(id) {
   clearTimeout(state.director && state.director.pollTimer);
   state.director = null;   // UI-side only; a live backend session (if any)
                             // keeps running until explicitly stopped
+  clearTimeout(state.preview && state.preview.timer);
+  state.preview = null;    // a running preview job keeps going server side;
+                            // we simply stop watching it for the old frag
   document.querySelectorAll(".frag-row.selected").forEach((r) => r.classList.remove("selected"));
   const row = document.querySelector(`.frag-row[data-id="${CSS.escape(String(id))}"]`);
   if (row) row.classList.add("selected");
@@ -379,6 +383,24 @@ function renderInspector() {
     pool: (d.attributes || {}).mode_pool,
     scene: (d.attributes || {}).scene_score,
   }));
+
+  /* --- OPEN IN EDITOR ---------------------------------------------------
+     /frags stays discovery: filter, audition, quick draft. The deep
+     timeline workspace is its own route. Only stable IDENTITY travels in
+     the URL — the editor loads its own state, so nothing large or
+     stateful rides in a query string. */
+  const openRow = el("div", "verdict-btns");
+  const openBtn = el("button", "open-editor", "OPEN IN EDITOR →");
+  openBtn.title = "Open the full Scene Editor: three clocks, unified timeline";
+  openBtn.addEventListener("click", () => {
+    // /frags holds a DIRECTOR draft (a shot_plan id), which is a different
+    // identity from a SceneRecipeV2 hash — so the frag id plus the editor's
+    // own draft basis is the honest key from here. A saved scene links
+    // itself as recipe-<sha> from inside the editor.
+    window.open(`/scene-editor/frag-${d.id}`, "_blank", "noopener");
+  });
+  openRow.appendChild(openBtn);
+  frag.appendChild(openRow);
 
   /* --- DIRECTOR (§31) --- */
   frag.appendChild(el("h3", "", "Director"));
@@ -711,6 +733,11 @@ async function patchDraft(patch) {
     return;
   }
   state.draft = await res.json();
+  /* The draft moved, so the preview on screen is no longer this draft.
+   * Forget it (the video keeps playing) and let the capture-refresh notice
+   * come back — never claim the picture already reflects a change. */
+  clearTimeout(state.preview && state.preview.timer);
+  state.preview = null;
   renderDirectorPanel();
 }
 
@@ -724,6 +751,8 @@ async function resetDraft(section) {
   });
   if (!res.ok || state.selectedId !== id) return;
   state.draft = await res.json();
+  clearTimeout(state.preview && state.preview.timer);
+  state.preview = null;
   renderDirectorPanel();
 }
 
@@ -811,10 +840,36 @@ function renderDirectorPanel() {
       `saved ${String(d.saved_recipe_id).slice(0, 12)}…`));
   }
   frag.appendChild(status);
-  if (d.dirty) {
+
+  /* --- REFRESH PREVIEW (§12-13) ---
+   * The honesty notice stays, but it is now a WAITING state rather than a
+   * dead end: REFRESH PREVIEW runs a real capture of this exact draft and
+   * swaps the video above when it is READY. */
+  const p = state.preview;
+  const inFlight = !!(p && p.fragId === state.selectedId &&
+                      (p.state === "QUEUED" || p.state === "CAPTURING" ||
+                       p.state === "TRIMMING"));
+  const refresh = el("button", "refresh-preview", "REFRESH PREVIEW");
+  refresh.type = "button";
+  refresh.disabled = inFlight;
+  refresh.addEventListener("click", requestPreview);
+  frag.appendChild(refresh);
+  if (inFlight) {
+    frag.appendChild(el("div", "preview-note",
+      `UPDATING PREVIEW — ${p.state.toLowerCase()}. The video above still ` +
+      "shows the LAST CAPTURE; it swaps automatically when this finishes."));
+  } else if (p && p.fragId === state.selectedId && p.state === "FAILED") {
+    frag.appendChild(el("div", "preview-note err",
+      `PREVIEW FAILED — ${p.error || "unknown error"}`));
+  } else if (p && p.fragId === state.selectedId && p.state === "READY") {
+    /* The video above IS this draft — say so, instead of leaving the
+     * capture-refresh warning up after the refresh has happened. */
+    frag.appendChild(el("div", "preview-note ok",
+      "PREVIEW CURRENT — the video above is this draft."));
+  } else if (d.dirty) {
     frag.appendChild(el("div", "preview-note",
       "UPDATING PREVIEW — the video above still shows the LAST CAPTURE. " +
-      "These settings need a capture refresh before you can see them."));
+      "Hit REFRESH PREVIEW to render these settings."));
   }
   const msg = el("div", "director-msg");
   msg.id = "director-msg";
@@ -911,6 +966,104 @@ function renderDirectorPanel() {
   frag.appendChild(actions);
 
   box.replaceChildren(frag);
+}
+
+/* =========================== preview refresh ============================ */
+/* CHANGE IT -> REFRESH IT -> SEE IT (§12-13). POST starts (or reuses) a
+ * capture for the current draft and returns {preview_key, generation, state};
+ * we then poll that key until READY and swap the centre video.
+ *
+ * The generation guard is the reason this is not just "poll until done": the
+ * server may still be finishing an OLDER request whose artifact is perfectly
+ * valid but no longer what the user is asking to see. `stale` tells us that
+ * happened, and a stale result is dropped rather than shown. */
+
+const PREVIEW_POLL_MS = 1200;
+
+async function requestPreview() {
+  const id = state.selectedId;
+  if (id == null) return;
+  clearTimeout(state.preview && state.preview.timer);
+  setDirectorStatus("requesting preview…", false);
+  let res;
+  try {
+    res = await fetch(`/api/frags/${id}/director/preview`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+  } catch (e) {
+    setDirectorStatus("preview request failed", true);
+    return;
+  }
+  if (state.selectedId !== id) return;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    setDirectorStatus(err.detail || "preview rejected", true);
+    return;
+  }
+  const body = await res.json();
+  state.preview = {
+    fragId: id, key: body.preview_key, generation: body.generation,
+    state: body.state, mediaUrl: null, error: null, timer: null,
+  };
+  setDirectorStatus("", false);
+  renderDirectorPanel();
+  if (body.state === "READY") applyPreview(body.preview_key);
+  else pollPreview();
+}
+
+function pollPreview() {
+  const p = state.preview;
+  if (!p) return;
+  p.timer = setTimeout(async () => {
+    if (state.preview !== p || state.selectedId !== p.fragId) return;
+    let res;
+    try {
+      res = await fetch(`/api/director/preview/${encodeURIComponent(p.key)}`);
+    } catch (e) { pollPreview(); return; }
+    if (state.preview !== p) return;
+    if (!res.ok) {
+      p.state = "FAILED";
+      p.error = "preview state unavailable";
+      renderDirectorPanel();
+      return;
+    }
+    const s = await res.json();
+    if (state.preview !== p) return;
+    p.state = s.state;
+    p.error = s.error;
+    p.generation = s.generation;
+    if (s.stale) {
+      /* A newer refresh has superseded this one — stop watching it and let
+       * the newer job's own poll drive the picture. */
+      p.state = "SUPERSEDED";
+      renderDirectorPanel();
+      return;
+    }
+    if (s.state === "READY" && s.media_url) {
+      p.mediaUrl = s.media_url;
+      renderDirectorPanel();
+      applyPreview(p.key, s.media_url);
+      return;
+    }
+    if (s.state === "FAILED") { renderDirectorPanel(); return; }
+    renderDirectorPanel();
+    pollPreview();
+  }, PREVIEW_POLL_MS);
+}
+
+function applyPreview(key, mediaUrl) {
+  const src = mediaUrl || `/api/director/preview/${encodeURIComponent(key)}/media`;
+  const placeholder = $("video-placeholder");
+  player.pause();
+  player.hidden = false;
+  placeholder.hidden = true;
+  player.src = src;
+  player.playbackRate = Number($("rate-sel").value);
+  player.load();
+  setDirectorStatus("preview updated", false);
+  updateTransport();
 }
 
 /* ============================= live director ============================= */

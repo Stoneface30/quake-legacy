@@ -243,6 +243,12 @@ pre {
 .kv .k { color: var(--text-dim); }
 .kv .v { color: var(--silver); word-break: break-all; }
 .verdict-btns { display: flex; gap: 4px; }
+button.open-editor {
+  background: var(--gold); color: #111; border: 1px solid var(--gold);
+  font-weight: 700; letter-spacing: 1.4px; padding: 7px 14px; width: 100%;
+  cursor: pointer; border-radius: 3px; font-size: 12px;
+}
+button.open-editor:hover { background: #e6c150; }
 .verdict-btns button, .tier-btns button {
   flex: 1; background: #26262c; color: var(--silver); border: 1px solid var(--border);
   border-radius: 3px; padding: 9px 0; cursor: pointer; font-size: 12px; font-weight: 700;
@@ -341,6 +347,18 @@ pre {
   color: var(--amber); background: #221d10; border-left: 2px solid var(--amber);
   border-radius: 2px;
 }
+.preview-note.err {
+  color: var(--red); background: #231515; border-left-color: var(--red);
+}
+.preview-note.ok {
+  color: var(--green); background: #14201a; border-left-color: var(--green);
+}
+.refresh-preview {
+  width: 100%; margin-top: 6px; background: var(--green, #2f7d4f); color: #fff;
+  border: none; border-radius: 3px; padding: 8px 0; font-weight: 800;
+  font-size: 12px; letter-spacing: 1px; cursor: pointer;
+}
+.refresh-preview:disabled { opacity: 0.35; cursor: default; }
 .director-msg { font-size: 11px; color: var(--text-dim); min-height: 13px; }
 .director-msg.err { color: var(--red); }
 .sub-note { font-size: 10px; color: var(--text-dim); margin-top: 5px; line-height: 1.35; }
