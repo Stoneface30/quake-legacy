@@ -38,6 +38,8 @@ import hashlib
 import json
 from pathlib import Path
 
+from creative_suite.engine.wolfcam_capture import write_engine_file
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 WOLFCAM_VERSION = "wolfcamql-11.3+laa"
@@ -330,8 +332,9 @@ def profile_id(profile: str = PROFILE_NAME) -> str:
 def write(staging_gamedir: Path) -> str:
     """Write all four cfgs + the JSON record; returns the master profile id."""
     for profile, fname in _CFG_FILES.items():
-        (staging_gamedir / fname).write_text(cfg_text(profile),
-                                             encoding="ascii")
+        # LF-only: see wolfcam_capture.write_engine_file for why every
+        # engine-parsed file goes through one writer.
+        write_engine_file(staging_gamedir / fname, cfg_text(profile))
     record = {
         "wolfcam_version": WOLFCAM_VERSION,
         "resolution": f"{RESOLUTION[0]}x{RESOLUTION[1]}",

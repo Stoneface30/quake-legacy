@@ -207,9 +207,11 @@ def native_cam10_cfg_lines(camera_name: str) -> list[str]:
 
 def to_freecamsetpos_lines(keyframes: list[dict], base_servertime: int
                            ) -> list[str]:
-    """The PROVEN-WORKING execution primitive: one ``at <t> freecamsetpos
-    x y z pitch yaw roll`` per keyframe (plus an initial ``freecam``),
-    sidestepping playcamera's engine bug entirely. Sorted by time;
+    """The FREECAM_SAMPLED execution primitive: one ``at <t> freecamsetpos
+    x y z pitch yaw roll`` per keyframe (plus an initial ``freecam``).
+    Runtime-proven, and retained as an independent fallback backend --
+    NOT because playcamera is broken (that reading was our own CRLF bug;
+    see compile_camera's CORRECTED DIAGNOSIS). Sorted by time;
     duplicate/out-of-order input is normalized the same way write_cam10
     is, so both artifacts always agree on ordering."""
     base = int(base_servertime)

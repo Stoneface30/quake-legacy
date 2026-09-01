@@ -104,7 +104,7 @@ def _write_director_cfg(gamedir: Path, seek_target_ms: int, fov: float) -> str:
         f"bind {bind_key} viewpos",
     ]
     cfg = "\n".join(lines) + "\n"
-    (gamedir / "cgamepostinit.cfg").write_text(cfg, encoding="ascii")
+    wc.write_engine_file(gamedir / "cgamepostinit.cfg", cfg)
     return cfg
 
 

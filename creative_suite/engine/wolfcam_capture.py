@@ -49,6 +49,34 @@ class CfgInjectionError(ValueError):
     pass
 
 
+def write_engine_file(path: Path, text: str, encoding: str = "ascii") -> None:
+    """Write a file the Quake engine will parse, with LF line endings.
+
+    ALWAYS use this instead of ``Path.write_text`` for anything the engine
+    reads. On Windows ``write_text`` applies universal-newline translation
+    and silently turns every ``\\n`` into ``\\r\\n``.
+
+    How much that matters depends on the reader, and both cases are now
+    established empirically rather than assumed:
+
+    * ``.cam10`` camera files — FATAL. ``CG_LoadCamera_f``
+      (cg_consolecmds.c:2401) is a line-positional ``sscanf`` reader; a
+      trailing ``\\r`` corrupts the parse and the engine loads 0 points,
+      reporting ``^1ERROR corrupt camera file``. This cost real
+      investigation time on 2026-09-01 and was initially misdiagnosed as
+      an engine bug in ``playcamera``.
+    * ``.cfg`` scripts — HARMLESS in practice. The Cbuf tokenizer treats
+      ``\\r`` as whitespace. Proof: the frozen master profile cfg
+      (``wolfcam_tr4sh_master_capture.cfg``) contained 96 CRLF pairs while
+      driving every successful capture of this session.
+
+    So this helper is hardening, not a bug fix, for cfg writers — but the
+    cost is zero and the failure mode, when a line-positional format does
+    appear, is silent and expensive. One code path, one guarantee.
+    """
+    path.write_text(text, encoding=encoding, newline="")
+
+
 def _validate_cfg_token(token: str) -> str:
     """CS-5: any string entering a cfg must not smuggle commands."""
     if any(c in token for c in (";", "\n", "\r", '"')):
@@ -140,9 +168,8 @@ def write_capture_cfg(windows: list[dict], staging: Path = STAGING) -> str:
     lines.append(f"at {prev_end + INTER_WINDOW_MS} quit")
     cfg = "\n".join(lines) + "\n"
     gamedir = staging / "wolfcam-ql"
-    (gamedir / "capture.cfg").write_text(cfg, encoding="ascii")
-    (gamedir / "cgamepostinit.cfg").write_text("exec capture.cfg\n",
-                                               encoding="ascii")
+    write_engine_file(gamedir / "capture.cfg", cfg)
+    write_engine_file(gamedir / "cgamepostinit.cfg", "exec capture.cfg\n")
     return cfg
 
 

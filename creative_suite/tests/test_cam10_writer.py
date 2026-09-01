@@ -103,11 +103,14 @@ def test_compile_camera_writes_file_and_returns_working_cfg_sequence(tmp_path):
     assert result["path"] == expected_path
     assert expected_path.exists()
     assert result["file_hash"] == cw.cam10_hash(expected_path.read_text())
-    # RUNTIME-PROVEN 2026-09-01: loadcamera/playcamera loads the file
-    # correctly but playcamera has a reproducible engine bug (unconditional
-    # internal re-seek corrupts the snapshot stream — cam10_runtime_contract
-    # .md "Known engine bug"). Execution uses freecamsetpos instead, one
-    # per keyframe, which real captures proved actually moves the camera.
+    # compile_camera's DEFAULT backend is FREECAM_SAMPLED, so cfg_lines
+    # are freecamsetpos commands, not loadcamera/playcamera. That default
+    # is a backend-contract choice, NOT evidence of an engine defect:
+    # native loadcamera/playcamera is proven working on the stock binary
+    # once the file is written LF-only (see the CORRECTED section of
+    # cam10_runtime_contract.md — the original "playcamera corrupts the
+    # snapshot stream" reading was our own CRLF bug). Pass
+    # backend=BACKEND_NATIVE_CAM10 for the native sequence.
     assert result["cfg_lines"][0] == "freecam"
     assert "loadcamera" not in " ".join(result["cfg_lines"])
     assert "playcamera" not in " ".join(result["cfg_lines"])
@@ -175,3 +178,37 @@ def test_compilation_ledger_never_touches_shot_plans_table(tmp_path):
 def test_get_compilation_missing_returns_none(tmp_path):
     db = tmp_path / "cinematic.db"
     assert cw.get_compilation("nope", db_path=db) is None
+
+
+# ── engine-file newline contract (2026-09-01 audit) ──────────────────────────
+
+def test_write_engine_file_helper_is_lf_only(tmp_path):
+    """The shared writer every engine-parsed file must go through."""
+    from creative_suite.engine.wolfcam_capture import write_engine_file
+    p = tmp_path / "x.cfg"
+    write_engine_file(p, "line one\nline two\n")
+    assert b"\r" not in p.read_bytes()
+
+
+def test_capture_cfg_writer_is_lf_only(tmp_path):
+    """write_capture_cfg drives every real capture; CRLF is tolerated by
+    the Cbuf tokenizer (the frozen profile cfg ran all session with 96
+    CRLF pairs) but the writer is normalised so no engine-parsed file in
+    this codebase can differ."""
+    from creative_suite.engine import wolfcam_capture as wc
+    gamedir = tmp_path / "wolfcam-ql"
+    gamedir.mkdir()
+    wc.write_capture_cfg([{"clip_name": "c", "start_ms": 1000,
+                           "end_ms": 2000}], staging=tmp_path)
+    for name in ("capture.cfg", "cgamepostinit.cfg"):
+        assert b"\r" not in (gamedir / name).read_bytes(), name
+
+
+def test_master_profile_cfgs_are_lf_only(tmp_path):
+    """The frozen capture profile — the file that defines every master."""
+    from creative_suite.engine import master_profile
+    master_profile.write(tmp_path)
+    cfgs = list(tmp_path.glob("*.cfg"))
+    assert cfgs, "no profile cfgs written"
+    for cfg in cfgs:
+        assert b"\r" not in cfg.read_bytes(), cfg.name

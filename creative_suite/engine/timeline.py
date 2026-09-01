@@ -19,12 +19,16 @@ Step types
 
 Script emission (:func:`to_wolfcam_script`) produces ``at <servertime> ...``
 timing lines. Camera PATHS are compiled to a real ``.cam10`` file via
-:mod:`creative_suite.engine.cam10_writer` and loaded with
-``freecam``/``loadcamera``/``playcamera`` — see
-docs/reference/cam10_runtime_contract.md for why the previous ``camera
-add``/``playq3mmecamera`` emission was a silent no-op on the engine we run
-(2026-09-01 camera-pipeline-recovery finding) and why this sequence is the
-source-verified correct one. Every token passes CS-5 validation via
+:mod:`creative_suite.engine.cam10_writer` and executed here through the
+FREECAM_SAMPLED backend (``freecam`` + one ``at <t> freecamsetpos`` per
+sample) — see docs/reference/cam10_runtime_contract.md for why the
+original ``camera add``/``playq3mmecamera`` emission was a silent no-op
+on the engine we run (2026-09-01 camera-pipeline-recovery finding). The
+native ``loadcamera``/``playcamera`` sequence also works and is the
+default in :mod:`creative_suite.engine.camera_compiler_v2`; this module
+stays on the sampled backend because the project's backend contract
+requires keeping an independent fallback. Every token passes CS-5
+validation via
 :func:`creative_suite.engine.wolfcam_capture._validate_cfg_token`.
 
 NOTE: the ``cut_to_camera`` step still emits ``playq3mmecamera <name>`` and
@@ -243,12 +247,14 @@ def to_wolfcam_script(timeline: Timeline, keyframes: list[dict],
     then required) AND emits ``seekservertime`` / ``freecam`` / one
     ``at <t> freecamsetpos ...`` per keyframe — the RUNTIME-PROVEN
     execution path (docs/reference/cam10_runtime_contract.md). The
-    "obvious" ``loadcamera``/``playcamera`` sequence loads the .cam10
-    file correctly but hits a real engine bug (playcamera's unconditional
-    internal re-seek corrupts the snapshot stream, reproduced 6 ways,
-    independent of any of our settings) — so it is NOT used for
-    execution; the .cam10 file is still written and hashed as a correct,
-    portable, versioned artifact for archival/future use.
+    ``loadcamera``/``playcamera`` sequence also works (proven on the
+    stock binary once the file is written LF-only -- the earlier "engine
+    bug" reading was our own CRLF bug, see the CORRECTED section of
+    cam10_runtime_contract.md). This function stays on FREECAM_SAMPLED
+    because it is the independent fallback backend the project's
+    backend-contract directive requires be kept; callers wanting the
+    native sequence use camera_compiler_v2.compile_dense_camera, which
+    defaults to NATIVE_CAM10.
 
     The remaining timed ``at <servertime> ...`` commands (freeze/
     impact_hold/timescale/fov ramps) are unrelated to this fix — they

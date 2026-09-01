@@ -171,10 +171,10 @@ def test_build_camera_plan_feeds_to_wolfcam_script(tmp_path):
     plan = ri.build_camera_plan(t, 55000.0, 59000.0, SPAWN)
     script = tl.to_wolfcam_script(plan["timeline"], plan["keyframes"],
                                    plan["base_servertime"], gamedir=tmp_path)
-    # runtime-proven sequence (cam10_runtime_contract.md "Known engine
-    # bug") — playcamera itself has a reproducible engine bug, so
-    # execution uses freecamsetpos instead; the .cam10 archival file is
-    # still compiled and hashed.
+    # to_wolfcam_script uses the FREECAM_SAMPLED backend (the retained
+    # independent fallback), so execution is freecamsetpos and the .cam10
+    # file is still compiled and hashed. Native loadcamera/playcamera
+    # also works -- see cam10_runtime_contract.md's CORRECTED section.
     assert "freecam" in script
     assert "freecamsetpos" in script
     cam10 = tmp_path / "cameras" / "scene.cam10"

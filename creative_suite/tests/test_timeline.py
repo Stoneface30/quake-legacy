@@ -112,10 +112,10 @@ def test_script_emission_ordering(tmp_path):
     lines = script.splitlines()
     at_times = [int(ln.split()[1]) for ln in lines if ln.startswith("at ")]
     assert at_times == sorted(at_times)
-    # camera path compiles to a real .cam10 archival file AND executes via
-    # the runtime-proven freecamsetpos sequence (loadcamera/playcamera
-    # loads correctly but playcamera itself has a reproducible engine bug
-    # — see cam10_runtime_contract.md "Known engine bug").
+    # camera path compiles to a real .cam10 file AND executes via the
+    # FREECAM_SAMPLED freecamsetpos sequence (the retained fallback
+    # backend). Native loadcamera/playcamera works too -- see
+    # cam10_runtime_contract.md's CORRECTED section.
     assert any(ln.startswith("seekservertime ") for ln in lines)
     assert "freecam" in lines
     assert any("freecamsetpos" in ln for ln in lines)
