@@ -73,8 +73,13 @@ G:\QUAKE_LEGACY\
 
 ```powershell
 # 1. ComfyUI (required for any texture generation)
-Start-Process "E:\PersonalAI\run_comfyui_api.bat" -WorkingDirectory "E:\PersonalAI"
-# Wait ~30s, then verify:
+# run_comfyui_api.bat is NOT a reliable fire-and-forget launcher — it
+# returns before the server actually binds, and custom-node import alone
+# takes several minutes (found 2026-09-01 running the free-wins ComfyUI
+# mini-loop proof: the .bat "succeeded" while the server wasn't up yet).
+# Launch main.py directly instead and wait for the real bind:
+E:\PersonalAI\venv\Scripts\python.exe E:\PersonalAI\ComfyUI\main.py --listen
+# Wait for "Starting server" / port 8188 responding, then verify:
 python -u creative_suite/comfy/verify_comfyui.py
 
 # 2. Creative Suite (FastAPI — port 8765)
