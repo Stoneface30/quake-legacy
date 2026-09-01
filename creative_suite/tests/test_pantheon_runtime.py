@@ -86,3 +86,15 @@ def test_runtime_manifest_hashes_cfg_text():
     assert m["cfg_sha256"] is not None
     m2 = pr.runtime_manifest(cfg_text="seta timescale 0.5\n")
     assert m["cfg_sha256"] != m2["cfg_sha256"]
+
+
+def test_baseline_lines_are_pure_ascii():
+    """Capture cfgs are written with encoding="ascii" (the engine tokenizer
+    is byte-oriented). A non-ASCII char anywhere in the baseline raises
+    UnicodeEncodeError at write time, so these lines could never reach a
+    real capture cfg. That was true of the original em-dash header until
+    2026-09-01 — this test is why it cannot regress."""
+    for line in pr.baseline_lines():
+        line.encode("ascii")
+    for line in pr.baseline_lines({"timescale": "0.5"}):
+        line.encode("ascii")

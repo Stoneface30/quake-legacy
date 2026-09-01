@@ -8,6 +8,9 @@ const state = {
   loopIn: null, loopOut: null,
   pollTimer: null, notesTimer: null,
   director: null,   // {sessionId, since, count, keybind, recipeId, pollTimer}
+  schema: null,     // GET /api/director/schema — camera/fx/look vocabulary
+  draft: null,      // unsaved DIRECTOR recipe draft for the selected frag
+  devMode: false,   // developer toggles (backend override, SHOW DEPTH)
   groupSelections: { skill: new Set(), context: new Set(), movement: new Set(), craft: new Set() },
   customWeights: {},       // {CLASS_NAME: nonzero weight}
   customSortActive: false, // true only right after "Apply weights" was clicked
@@ -353,10 +356,13 @@ async function selectFrag(id) {
   const res = await fetch(`/api/frags/${id}`);
   if (!res.ok) return;
   state.detail = await res.json();
+  state.draft = null;
   renderInspector();
   setupVideo();
   renderEventStrip();
   schedulePoll();
+  await loadDirectorSchema();
+  loadDraft(id);
 }
 
 function renderInspector() {
@@ -373,6 +379,12 @@ function renderInspector() {
     pool: (d.attributes || {}).mode_pool,
     scene: (d.attributes || {}).scene_score,
   }));
+
+  /* --- DIRECTOR (§31) --- */
+  frag.appendChild(el("h3", "", "Director"));
+  const directorPanel = el("div", "");
+  directorPanel.id = "director-panel";
+  frag.appendChild(directorPanel);
 
   /* --- evidence --- */
   frag.appendChild(el("h3", "", "Evidence"));
@@ -486,6 +498,7 @@ function renderInspector() {
   frag.appendChild(el("pre", "", JSON.stringify(d.attributes || {}, null, 1)));
 
   pane.replaceChildren(frag);
+  renderDirectorPanel();
   renderProxyBox(d.proxy || { state: "MISSING" });
   loadMusicAuditions(d.id);
   renderDirectorBox();
@@ -658,6 +671,246 @@ async function pollProxy() {
     renderEventStrip();
   }
   schedulePoll();
+}
+
+/* =============================== DIRECTOR =============================== */
+/* Directive §31-40. Every control here edits an UNSAVED DRAFT held server
+ * side (in memory); only SAVE RECIPE commits. Nothing renders an MP4 per
+ * parameter change (§40), and nothing pretends the picture on screen already
+ * reflects the draft (§39) — the panel says CAPTURE REFRESH REQUIRED when a
+ * change can only be realized by a new wolfcam capture. */
+
+async function loadDirectorSchema() {
+  if (state.schema) return state.schema;
+  try {
+    const res = await fetch("/api/director/schema");
+    if (res.ok) state.schema = await res.json();
+  } catch (e) { /* panel degrades to a hint */ }
+  return state.schema;
+}
+
+async function loadDraft(id) {
+  const res = await fetch(`/api/frags/${id}/director/draft`);
+  if (!res.ok || state.selectedId !== id) return;
+  state.draft = await res.json();
+  renderDirectorPanel();
+}
+
+async function patchDraft(patch) {
+  const id = state.selectedId;
+  if (id == null) return;
+  const res = await fetch(`/api/frags/${id}/director/draft`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patch),
+  });
+  if (state.selectedId !== id) return;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    setDirectorStatus(err.detail || "draft rejected", true);
+    return;
+  }
+  state.draft = await res.json();
+  renderDirectorPanel();
+}
+
+async function resetDraft(section) {
+  const id = state.selectedId;
+  if (id == null) return;
+  const res = await fetch(`/api/frags/${id}/director/draft/reset`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ section }),
+  });
+  if (!res.ok || state.selectedId !== id) return;
+  state.draft = await res.json();
+  renderDirectorPanel();
+}
+
+async function saveRecipe() {
+  const id = state.selectedId;
+  if (id == null) return;
+  setDirectorStatus("saving recipe…", false);
+  const res = await fetch(`/api/frags/${id}/director/draft/save`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  if (state.selectedId !== id) return;
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    setDirectorStatus(err.detail || "save failed", true);
+    return;
+  }
+  state.draft = await res.json();
+  renderDirectorPanel();
+}
+
+function setDirectorStatus(text, isError) {
+  const node = $("director-msg");
+  if (!node) return;
+  node.textContent = text;
+  node.classList.toggle("err", !!isError);
+}
+
+function segmentedRow(values, current, onPick, labelFor) {
+  const row = el("div", "seg-row");
+  values.forEach((v) => {
+    const b = el("button", "seg-btn", labelFor ? labelFor(v) : v);
+    b.type = "button";
+    if (v === current) b.classList.add("on");
+    b.addEventListener("click", () => onPick(v));
+    row.appendChild(b);
+  });
+  return row;
+}
+
+function controlSlider(spec, value, onCommit) {
+  const wrap = el("div", "ctl");
+  const head = el("div", "ctl-head");
+  head.appendChild(el("span", "ctl-label", spec.label));
+  const readout = el("span", "ctl-value",
+    `${Number(value).toFixed(spec.step < 1 ? 2 : 0)}${spec.unit ? " " + spec.unit : ""}`);
+  head.appendChild(readout);
+  wrap.appendChild(head);
+  const input = document.createElement("input");
+  input.type = "range";
+  input.min = spec.min;
+  input.max = spec.max;
+  input.step = spec.step;
+  input.value = value;
+  input.className = "ctl-range";
+  input.addEventListener("input", () => {
+    readout.textContent =
+      `${Number(input.value).toFixed(spec.step < 1 ? 2 : 0)}${spec.unit ? " " + spec.unit : ""}`;
+  });
+  // Commit on release only — a PUT per pixel of drag would be draft spam.
+  input.addEventListener("change", () => onCommit(Number(input.value)));
+  wrap.appendChild(input);
+  return wrap;
+}
+
+function renderDirectorPanel() {
+  const box = $("director-panel");
+  if (!box) return;
+  const schema = state.schema;
+  const d = state.draft;
+  const frag = document.createDocumentFragment();
+
+  if (!schema || !d) {
+    box.replaceChildren(el("div", "hint", "Director panel unavailable."));
+    return;
+  }
+
+  /* --- draft status: honesty first (§39) --- */
+  const status = el("div", "draft-status");
+  status.appendChild(el("span", d.dirty ? "draft-flag dirty" : "draft-flag clean",
+    d.dirty ? "DRAFT · UNSAVED" : "DRAFT · CLEAN"));
+  if (d.saved_recipe_id) {
+    status.appendChild(el("span", "draft-saved",
+      `saved ${String(d.saved_recipe_id).slice(0, 12)}…`));
+  }
+  frag.appendChild(status);
+  if (d.dirty) {
+    frag.appendChild(el("div", "preview-note",
+      "UPDATING PREVIEW — the video above still shows the LAST CAPTURE. " +
+      "These settings need a capture refresh before you can see them."));
+  }
+  const msg = el("div", "director-msg");
+  msg.id = "director-msg";
+  frag.appendChild(msg);
+
+  /* --- camera (§32) --- */
+  const cam = el("section", "dir-section");
+  cam.appendChild(el("h4", "", "Camera"));
+  cam.appendChild(segmentedRow(schema.camera_modes, d.camera.mode,
+    (mode) => patchDraft({ camera: { mode } })));
+  const specByName = {};
+  schema.controls.forEach((c) => { specByName[c.name] = c; });
+  (d.controls || []).forEach((name) => {
+    const spec = specByName[name];
+    if (!spec) return;
+    cam.appendChild(controlSlider(spec, d.camera[name],
+      (v) => patchDraft({ camera: { [name]: v } })));
+  });
+  frag.appendChild(cam);
+
+  /* --- fx (§34) --- */
+  const fx = el("section", "dir-section");
+  fx.appendChild(el("h4", "", "FX"));
+  schema.fx_controls.forEach((c) => {
+    const row = el("div", "ctl");
+    row.appendChild(el("div", "ctl-label", c.label));
+    row.appendChild(segmentedRow(schema.fx_levels, d.fx[c.name],
+      (lvl) => patchDraft({ fx: { [c.name]: lvl } })));
+    fx.appendChild(row);
+  });
+  frag.appendChild(fx);
+
+  /* --- look (§35) --- */
+  const look = el("section", "dir-section");
+  look.appendChild(el("h4", "", "Look"));
+  look.appendChild(segmentedRow(schema.looks, d.look.look,
+    (v) => patchDraft({ look: { look: v } })));
+  const lookNote = (d.refresh && d.refresh.look) || {};
+  look.appendChild(el("div", "sub-note",
+    lookNote.mode === "LIVE"
+      ? "Live hot-swap — applies to the current view."
+      : `Capture refresh required. ${lookNote.note || ""}`));
+  frag.appendChild(look);
+
+  /* --- camera backend (§33) + developer toggles (§36) --- */
+  const runtime = el("section", "dir-section");
+  runtime.appendChild(el("h4", "", "Runtime"));
+  const beRow = el("div", "kv");
+  beRow.appendChild(el("span", "k", "camera backend"));
+  beRow.appendChild(el("span", "v backend-name", d.backend));
+  runtime.appendChild(beRow);
+  if (!d.backend_is_default) {
+    runtime.appendChild(el("div", "sub-note warn",
+      "Developer override active — normal renders use " + schema.default_backend + "."));
+  }
+  const dev = document.createElement("details");
+  dev.className = "dev-block";
+  if (state.devMode) dev.open = true;
+  dev.addEventListener("toggle", () => { state.devMode = dev.open; });
+  const sum = document.createElement("summary");
+  sum.textContent = "Developer";
+  dev.appendChild(sum);
+  dev.appendChild(el("div", "sub-note", "Debug only — not movie settings."));
+  dev.appendChild(segmentedRow(schema.backends, d.backend,
+    (b) => patchDraft({ backend: b })));
+  const depth = el("label", "dev-check");
+  const depthCb = document.createElement("input");
+  depthCb.type = "checkbox";
+  depthCb.checked = !!d.look.show_depth;
+  depthCb.addEventListener("change",
+    () => patchDraft({ look: { show_depth: depthCb.checked } }));
+  depth.appendChild(depthCb);
+  depth.appendChild(el("span", "", "SHOW DEPTH (debug overlay)"));
+  dev.appendChild(depth);
+  runtime.appendChild(dev);
+  frag.appendChild(runtime);
+
+  /* --- draft actions (§37-38) --- */
+  const actions = el("section", "dir-section");
+  const saveBtn = el("button", "save-recipe", "SAVE RECIPE");
+  saveBtn.type = "button";
+  saveBtn.disabled = !d.dirty;
+  saveBtn.addEventListener("click", saveRecipe);
+  actions.appendChild(saveBtn);
+  const resets = el("div", "reset-row");
+  [["camera", "RESET CAMERA"], ["fx", "RESET FX"],
+   ["look", "RESET LOOK"], ["scene", "RESET SCENE"]].forEach(([section, label]) => {
+    const b = el("button", "reset-btn", label);
+    b.type = "button";
+    b.addEventListener("click", () => resetDraft(section));
+    resets.appendChild(b);
+  });
+  actions.appendChild(resets);
+  frag.appendChild(actions);
+
+  box.replaceChildren(frag);
 }
 
 /* ============================= live director ============================= */
@@ -1005,6 +1258,7 @@ $("pg-next").addEventListener("click", () => {
 });
 
 loadFilters();
+loadDirectorSchema();
 loadTaxonomy();
 loadGroupFilters();
 loadList();

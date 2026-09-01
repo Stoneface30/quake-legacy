@@ -101,7 +101,12 @@ def baseline_lines(overrides: dict[str, str] | None = None) -> list[str]:
                 f"{name!r} is a structural baseline cvar and is not overridable")
     merged = dict(RUNTIME_BASELINE)
     merged.update(overrides)
-    lines = [f"// {BASELINE_VERSION} — explicit reset, do not rely on q3config"]
+    # ASCII ONLY. Capture cfgs are written with encoding="ascii" (the engine
+    # tokenizer is byte-oriented), so a non-ASCII character anywhere in this
+    # list raises UnicodeEncodeError at write time. The original text used an
+    # em dash here, which meant these baseline lines had never once reached a
+    # real capture cfg. Found 2026-09-01 by the scene canary.
+    lines = [f"// {BASELINE_VERSION} - explicit reset, do not rely on q3config"]
     for name in sorted(merged):
         value = merged[name]
         lines.append(f'seta {name} "{value}"' if value == "" else

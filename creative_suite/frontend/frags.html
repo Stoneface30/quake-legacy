@@ -311,6 +311,62 @@ pre {
   font-size: 11px; color: var(--silver); word-break: break-all;
   user-select: all;
 }
+/* ---- DIRECTOR panel (directive §31-40) ---- */
+#director-panel { margin-top: 4px; }
+.dir-section { margin: 9px 0 11px; }
+.dir-section h4 {
+  font-size: 11px; color: var(--gold); text-transform: uppercase;
+  letter-spacing: 1.1px; font-weight: 700; margin-bottom: 5px;
+}
+.seg-row { display: flex; gap: 3px; flex-wrap: wrap; }
+.seg-btn {
+  flex: 1 1 auto; min-width: 52px; background: #26262c; color: var(--silver);
+  border: 1px solid var(--border); border-radius: 3px; padding: 6px 5px;
+  font-size: 11px; font-weight: 700; cursor: pointer; letter-spacing: .4px;
+}
+.seg-btn:hover { border-color: var(--gold); }
+.seg-btn.on { background: var(--gold); color: #111; border-color: var(--gold); }
+.ctl { margin-top: 7px; }
+.ctl-head { display: flex; justify-content: space-between; align-items: baseline; }
+.ctl-label { color: var(--text-dim); font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
+.ctl-value { color: var(--gold); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ctl-range { width: 100%; accent-color: var(--gold); background: transparent; margin-top: 2px; }
+.draft-status { display: flex; align-items: center; gap: 8px; }
+.draft-flag { font-size: 11px; font-weight: 700; letter-spacing: 1px; padding: 2px 7px; border-radius: 3px; }
+.draft-flag.dirty { background: #3a331d; color: var(--amber); }
+.draft-flag.clean { background: #1d3a2a; color: var(--green); }
+.draft-saved { color: var(--text-dim); font-size: 10px; }
+.preview-note {
+  margin-top: 5px; padding: 6px 7px; font-size: 11px; line-height: 1.35;
+  color: var(--amber); background: #221d10; border-left: 2px solid var(--amber);
+  border-radius: 2px;
+}
+.director-msg { font-size: 11px; color: var(--text-dim); min-height: 13px; }
+.director-msg.err { color: var(--red); }
+.sub-note { font-size: 10px; color: var(--text-dim); margin-top: 5px; line-height: 1.35; }
+.sub-note.warn { color: var(--amber); }
+.backend-name { color: var(--gold); font-weight: 700; letter-spacing: .5px; }
+.dev-block { margin-top: 8px; border-top: 1px solid var(--border); padding-top: 6px; }
+.dev-block summary {
+  cursor: pointer; color: var(--text-dim); font-size: 10px;
+  text-transform: uppercase; letter-spacing: 1px;
+}
+.dev-block summary:hover { color: var(--silver); }
+.dev-check { display: flex; align-items: center; gap: 6px; margin-top: 7px; font-size: 11px; color: var(--text); }
+.dev-check input { accent-color: var(--gold); }
+.save-recipe {
+  width: 100%; background: var(--gold); color: #111; border: none;
+  border-radius: 3px; padding: 9px 0; font-weight: 800; font-size: 12px;
+  letter-spacing: 1px; cursor: pointer;
+}
+.save-recipe:disabled { opacity: 0.35; cursor: default; }
+.reset-row { display: flex; gap: 3px; margin-top: 5px; flex-wrap: wrap; }
+.reset-btn {
+  flex: 1 1 45%; background: transparent; color: var(--text-dim);
+  border: 1px solid var(--border); border-radius: 3px; padding: 5px 4px;
+  font-size: 10px; letter-spacing: .5px; cursor: pointer;
+}
+.reset-btn:hover { border-color: var(--red); color: var(--red); }
 @media (min-width: 2400px) {
   main { grid-template-columns: 700px 1fr 500px; }
   #library-body { grid-template-columns: 205px 1fr; }
