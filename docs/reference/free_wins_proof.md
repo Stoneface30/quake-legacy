@@ -461,8 +461,11 @@ repo venv; the `Start-Process run_comfyui_api.bat` form exits before the
 server binds, and full custom-node import takes several minutes).
 `comfyui_version 0.3.76`, torch 2.8.0+cu129. Several optional API nodes
 (`nodes_runway`, `nodes_sora`, `nodes_gemini`, …) fail to import for missing
-deps — unrelated to this workflow, which ran fine. **ComfyUI was left
-running.**
+deps — unrelated to this workflow, which ran fine. **ComfyUI is no longer
+running** — it was started only for this proof and its process was stopped
+afterwards. All three variants had already been generated and written to
+disk, so nothing here depends on it still being up; re-running this proof
+requires starting ComfyUI again.
 
 | Item | Value |
 |---|---|

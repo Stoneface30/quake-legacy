@@ -113,7 +113,7 @@ def test_schema_exposes_panel_vocabulary(client: TestClient) -> None:
     assert s["fx_levels"] == ["OFF", "SUBTLE", "HERO"]
     assert [c["name"] for c in s["fx_controls"]] == ["rocket_fx", "ghost"]
     assert s["looks"] == ["ORIGINAL", "UHD", "PANTHEON"]
-    assert s["sections"] == ["camera", "fx", "look", "scene"]
+    assert s["sections"] == ["camera", "fx", "look", "music", "scene"]
 
 
 def test_schema_exposes_no_engine_command_strings(client: TestClient) -> None:
