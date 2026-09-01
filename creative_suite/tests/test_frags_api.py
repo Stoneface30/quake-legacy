@@ -240,6 +240,8 @@ def test_music_auditions_are_sanitized_and_review_persists(
         "region_start_us": 10_000_000, "music_source_start_us": 7_000_000,
         "anchor_edit_us": 3_000_000, "action_edit_us": [3_000_000],
         "score": .8, "video": "1_A.mp4", "source_path": "must-not-leak",
+        "matcher_version": "semantic-region-matcher@2.0.0",
+        "scene_recipe_id": "recipe-proof",
     }]}), encoding="utf-8")
     monkeypatch.setattr(frags_mod, "MUSIC_AUDITION_DIR", audition_dir)
     monkeypatch.setattr(frags_mod, "MUSIC_FEATURE_DB_PATH", tmp_path / "music.db")
@@ -254,6 +256,8 @@ def test_music_auditions_are_sanitized_and_review_persists(
     again = client.get("/api/frags/1/music-auditions").json()
     assert again["reviews"][0]["decision"] == "favorite"
     assert again["reviews"][0]["notes"] == "impact fits"
+    assert again["reviews"][0]["matcher_version"] == "semantic-region-matcher@2.0.0"
+    assert again["reviews"][0]["scene_recipe_id"] == "recipe-proof"
 
 
 def test_music_auditions_skip_unsafe_ids_and_cap_three_per_frag(

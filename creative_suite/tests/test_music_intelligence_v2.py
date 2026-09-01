@@ -7,7 +7,9 @@ from creative_suite.engine.music_intelligence_v2 import (
     energy_shape_fit,
     score_region,
     select_diverse_matches,
+    match_catalog,
 )
+from creative_suite.engine.music_enrichment_v2 import enrich_feature
 
 
 def scene(weapon: str, classes: list[str], anchors: list[dict], **extra):
@@ -92,3 +94,47 @@ def test_diversity_prefers_different_tracks_when_close():
          {"track_hash": "c", "region_start_us": 1, "total": .91}]
     selected = select_diverse_matches(matches, limit=3, tolerance=.06)
     assert [m["track_hash"] for m in selected] == ["a", "b", "c"]
+
+
+def test_enrichment_never_fabricates_migrated_confidence(monkeypatch, tmp_path):
+    """Missing confidence remains missing when BPM/beats are deliberately reused."""
+    import numpy as np
+    import librosa
+    import soundfile
+
+    source = feature("d", (), (), (), ())
+    source = source.__class__(**{
+        **source.to_dict(), "bpm_confidence": None, "beat_confidence": None,
+        "sample_rate": None, "channels": None,
+    })
+    decode_calls = []
+    monkeypatch.setattr(librosa, "load", lambda *_a, **_k:
+                        (decode_calls.append(1) or np.zeros(44_100), 22_050))
+    monkeypatch.setattr(soundfile, "info", lambda *_a, **_k:
+                        type("Info", (), {"samplerate": 48_000, "channels": 2})())
+    monkeypatch.setattr(librosa.segment, "agglomerative", lambda *_a, **_k: np.array([0]))
+
+    enriched = enrich_feature(source, tmp_path / "fixture.wav")
+
+    assert len(decode_calls) == 1
+    assert enriched.bpm == source.bpm
+    assert enriched.beats_us == source.beats_us
+    assert enriched.bpm_confidence is None
+    assert enriched.beat_confidence is None
+
+
+def test_catalog_alignment_is_bounded_costed_and_not_forced_perfect():
+    region = MusicRegionV2("DROP_CANDIDATE", 10_000_000, 24_000_000, .9)
+    music = feature("e", [(10_000_000,.2),(15_000_000,1.0),(24_000_000,.3)],
+                    [(18_000_000,1.0)],
+                    [MusicEventV2("ACCENT",18_000_000,1.0,.9)], [region])
+    profile = derive_scene_music_profile(scene("ROCKET", ["DIRECT_ROCKET"],
+        [{"kind":"PROJECTILE_IMPACT","edit_us":5_000_000}]))
+    row = match_catalog(profile, [music], top_n=1)[0]
+    expected = {"anchor_fit", "rhythm_fit", "cadence_fit", "energy_shape_fit",
+                "phrase_fit", "structure_fit", "duration_fit",
+                "diversity_adjustment", "alignment_cost"}
+    assert set(row["components"]) == expected
+    assert abs(row["alignment_shift_us"]) <= 750_000
+    assert row["alignment_cost"] > 0
+    assert row["aligned_delta_us"] != 0

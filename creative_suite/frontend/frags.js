@@ -439,6 +439,11 @@ function renderInspector() {
   proxyBox.id = "proxy-box";
   frag.appendChild(proxyBox);
 
+  frag.appendChild(el("h3", "", "Music auditions · edit-time sync"));
+  const musicBox = el("div", "music-auditions");
+  musicBox.id = "music-auditions";
+  frag.appendChild(musicBox);
+
   /* --- live director --- */
   frag.appendChild(el("h3", "", "Live director"));
   const directorBox = el("div", "");
@@ -482,7 +487,88 @@ function renderInspector() {
 
   pane.replaceChildren(frag);
   renderProxyBox(d.proxy || { state: "MISSING" });
+  loadMusicAuditions(d.id);
   renderDirectorBox();
+}
+
+async function loadMusicAuditions(id) {
+  const box = $("music-auditions");
+  if (!box) return;
+  box.replaceChildren(el("div", "hint", "loading A/B/C…"));
+  const res = await fetch(`/api/frags/${id}/music-auditions`);
+  if (!res.ok || state.selectedId !== id) return;
+  const data = await res.json();
+  box.replaceChildren();
+  data.items.forEach((item) => {
+    const saved = data.reviews.find((r) => r.track_hash === item.track_hash &&
+      r.region_start_us === item.region_start_us &&
+      (!item.matcher_version || r.matcher_version === item.matcher_version) &&
+      (!item.scene_recipe_id || r.scene_recipe_id === item.scene_recipe_id)) || {};
+    const card = el("div", "music-card");
+    const play = el("button", "music-play", `${item.audition_id} · ${item.track_label}`);
+    play.addEventListener("click", () => {
+      const video = $("player");
+      video.src = item.video_url;
+      video.load(); video.play();
+    });
+    card.appendChild(play);
+    card.appendChild(el("div", "music-meta",
+      `${item.region_kind} ${(item.region_start_us / 1e6).toFixed(2)}s · edit anchor ${(item.anchor_edit_us / 1e6).toFixed(3)}s`));
+    if (item.components && typeof item.components === "object") {
+      const why = el("div", "music-why");
+      why.appendChild(el("div", "music-why-title", `WHY THIS MATCHES · ${item.profile_type || "SCENE"}`));
+      Object.entries(item.components).sort((a, b) => b[1] - a[1]).forEach(([name, value]) => {
+        const row = el("div", "music-why-row");
+        row.appendChild(el("span", "", name.replaceAll("_", " ").toUpperCase()));
+        row.appendChild(el("span", "music-why-value", Number(value).toFixed(2)));
+        why.appendChild(row);
+      });
+      if (Number.isFinite(item.signed_delta_us)) {
+        const delta = item.signed_delta_us >= 0 ? `+${item.signed_delta_us}` : String(item.signed_delta_us);
+        why.appendChild(el("div", "music-clock-proof", `HERO → MUSIC EVENT ${delta} µs`));
+      }
+      card.appendChild(why);
+    }
+    const actions = el("div", "music-review-actions");
+    let desiredDecision = saved.decision || "undecided";
+    let saveChain = Promise.resolve();
+    const enqueueSave = () => {
+      const decision = desiredDecision;
+      const notes = note.value;
+      saveChain = saveChain.then(async () => {
+        const response = await fetch(`/api/frags/${id}/music-auditions/${item.audition_id}/review`, {
+          method: "PUT", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ decision, notes }),
+        });
+        if (!response.ok || desiredDecision !== decision) return;
+        saved.decision = decision;
+        saved.notes = notes;
+        actions.querySelectorAll("button").forEach((button) => button.classList.remove("on"));
+        const active = Array.from(actions.querySelectorAll("button"))
+          .find((button) => button.dataset.decision === decision);
+        if (active) active.classList.add("on");
+      });
+    };
+    [["favorite", "FAVORITE"], ["reject", "REJECT"]].forEach(([decision, label]) => {
+      const b = el("button", "", label);
+      b.dataset.decision = decision;
+      if (saved.decision === decision) b.classList.add("on");
+      b.addEventListener("click", () => {
+        desiredDecision = decision;
+        enqueueSave();
+      });
+      actions.appendChild(b);
+    });
+    card.appendChild(actions);
+    const note = document.createElement("textarea");
+    note.className = "music-notes";
+    note.placeholder = "Why this region works or fails…";
+    note.value = saved.notes || "";
+    note.addEventListener("change", enqueueSave);
+    card.appendChild(note);
+    box.appendChild(card);
+  });
+  if (!data.items.length) box.appendChild(el("div", "hint", "No audition set for this frag."));
 }
 
 async function saveReview(patch) {

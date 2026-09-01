@@ -722,7 +722,8 @@ def _music_auditions(frag_id: int) -> list[dict[str, Any]]:
             continue
         safe.append({k: item[k] for k in required})
         for key in ("profile_type", "components", "music_anchor_us",
-                    "signed_delta_us", "structure"):
+                    "signed_delta_us", "structure", "matcher_version",
+                    "scene_recipe_id", "review_identity"):
             if key in item:
                 safe[-1][key] = item[key]
         safe[-1]["video_url"] = f"/api/frags/{frag_id}/music-auditions/{item['audition_id']}/video"
@@ -763,7 +764,11 @@ def write_music_audition_review(frag_id: int, audition_id: str,
     if decision not in {"favorite", "reject", "undecided"} or not isinstance(notes, str):
         raise HTTPException(status_code=422, detail="invalid music review")
     store = MusicFeatureStore(MUSIC_FEATURE_DB_PATH)
-    store.save_review(frag_id, item["track_hash"], item["region_start_us"], decision, notes)
+    store.save_review(
+        frag_id, item["track_hash"], item["region_start_us"], decision, notes,
+        scene_recipe_id=item.get("scene_recipe_id"),
+        matcher_version=item.get("matcher_version"),
+    )
     return {"frag_id": frag_id, "audition_id": audition_id,
             "decision": decision, "notes": notes}
 

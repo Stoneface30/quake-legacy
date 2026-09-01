@@ -21,6 +21,14 @@ class MusicRegionV2:
 
 
 @dataclass(frozen=True)
+class MusicEventV2:
+    event_type: str
+    music_us: int
+    strength: float
+    confidence: float | None
+
+
+@dataclass(frozen=True)
 class MusicFeatureV2:
     track_hash: str
     path: str
@@ -42,6 +50,8 @@ class MusicFeatureV2:
     section_boundary_estimates_us: tuple[int, ...]
     phrase_boundary_estimates_us: tuple[int, ...]
     regions: tuple[MusicRegionV2, ...]
+    salient_events: tuple[MusicEventV2, ...] = ()
+    analysis_provenance: tuple[tuple[str, str], ...] = ()
 
     def __post_init__(self) -> None:
         if self.schema_version != 2:
@@ -64,6 +74,13 @@ class MusicFeatureV2:
         data["regions"] = tuple(
             x if isinstance(x, MusicRegionV2) else MusicRegionV2(**x)
             for x in data.get("regions", ())
+        )
+        data["salient_events"] = tuple(
+            x if isinstance(x, MusicEventV2) else MusicEventV2(**x)
+            for x in data.get("salient_events", ())
+        )
+        data["analysis_provenance"] = tuple(
+            tuple(x) for x in data.get("analysis_provenance", ())
         )
         return cls(**data)
 
@@ -113,6 +130,21 @@ class MusicFeatureStore:
               region_start_us INTEGER NOT NULL, decision TEXT NOT NULL,
               notes TEXT NOT NULL DEFAULT '',
               PRIMARY KEY(frag_id, track_hash, region_start_us));
+            CREATE TABLE IF NOT EXISTS music_region_reviews_v2(
+              frag_id INTEGER NOT NULL, track_hash TEXT NOT NULL,
+              region_start_us INTEGER NOT NULL, scene_recipe_id TEXT NOT NULL,
+              matcher_version TEXT NOT NULL, decision TEXT NOT NULL,
+              notes TEXT NOT NULL DEFAULT '',
+              PRIMARY KEY(frag_id, track_hash, region_start_us,
+                          scene_recipe_id, matcher_version));
+            CREATE TABLE IF NOT EXISTS scene_music_profiles(
+              frag_id INTEGER PRIMARY KEY, profile_json TEXT NOT NULL,
+              derivation_version TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS music_track_usage(
+              track_hash TEXT NOT NULL, context_id TEXT NOT NULL,
+              used_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+              texture_label TEXT, artist_key TEXT,
+              PRIMARY KEY(track_hash, context_id));
             """)
 
     @staticmethod
@@ -136,21 +168,52 @@ class MusicFeatureStore:
                              (track_hash,)).fetchone()
         return None if row is None else MusicFeatureV2.from_dict(json.loads(row[0]))
 
+    def all_features(self) -> list[MusicFeatureV2]:
+        with sqlite3.connect(self.path) as db:
+            rows = db.execute("SELECT canonical_json FROM music_features_v2 ORDER BY track_hash").fetchall()
+        return [MusicFeatureV2.from_dict(json.loads(row[0])) for row in rows]
+
     def save_review(self, frag_id: int, track_hash: str, region_start_us: int,
-                    decision: str, notes: str = "") -> None:
+                    decision: str, notes: str = "", *,
+                    scene_recipe_id: str | None = None,
+                    matcher_version: str | None = None) -> None:
         if decision not in {"favorite", "reject", "undecided"}:
             raise ValueError("unsupported music region decision")
         with sqlite3.connect(self.path) as db:
-            db.execute("INSERT OR REPLACE INTO music_region_reviews VALUES (?,?,?,?,?)",
-                       (frag_id, track_hash, region_start_us, decision, notes))
+            if scene_recipe_id and matcher_version:
+                db.execute("INSERT OR REPLACE INTO music_region_reviews_v2 VALUES (?,?,?,?,?,?,?)",
+                           (frag_id, track_hash, region_start_us, scene_recipe_id,
+                            matcher_version, decision, notes))
+            else:
+                db.execute("INSERT OR REPLACE INTO music_region_reviews VALUES (?,?,?,?,?)",
+                           (frag_id, track_hash, region_start_us, decision, notes))
 
     def get_reviews(self, frag_id: int) -> list[dict[str, Any]]:
         with sqlite3.connect(self.path) as db:
+            rows_v2 = db.execute(
+                "SELECT frag_id,track_hash,region_start_us,decision,notes,"
+                "scene_recipe_id,matcher_version FROM music_region_reviews_v2 "
+                "WHERE frag_id=? ORDER BY region_start_us", (frag_id,)).fetchall()
             rows = db.execute("SELECT frag_id,track_hash,region_start_us,decision,notes "
                               "FROM music_region_reviews WHERE frag_id=? ORDER BY region_start_us",
                               (frag_id,)).fetchall()
         keys = ("frag_id", "track_hash", "region_start_us", "decision", "notes")
-        return [dict(zip(keys, row)) for row in rows]
+        keys_v2 = (*keys, "scene_recipe_id", "matcher_version")
+        return ([dict(zip(keys_v2, row)) for row in rows_v2] +
+                [dict(zip(keys, row)) for row in rows])
+
+    def put_scene_profile(self, frag_id: int, profile: dict[str, Any],
+                          derivation_version: str) -> None:
+        payload = json.dumps(profile, sort_keys=True, separators=(",", ":"))
+        with sqlite3.connect(self.path) as db:
+            db.execute("INSERT OR REPLACE INTO scene_music_profiles VALUES (?,?,?)",
+                       (frag_id, payload, derivation_version))
+
+    def get_scene_profile(self, frag_id: int) -> dict[str, Any] | None:
+        with sqlite3.connect(self.path) as db:
+            row = db.execute("SELECT profile_json FROM scene_music_profiles WHERE frag_id=?",
+                             (frag_id,)).fetchone()
+        return None if row is None else json.loads(row[0])
 
 
 def migrate_legacy_cache(legacy_db: Path, store: MusicFeatureStore, *,
