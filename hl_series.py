@@ -77,6 +77,10 @@ TP_CEILING_DBTP = -1.0
 # more than a tidy running time.
 BODY_TARGET_S = 245.0
 # The hard finished-duration window. Enforced at commit, not hoped for.
+# Windows exit codes that mean "the OS is shutting you down", not "the render
+# failed": STATUS_CONTROL_C_EXIT and STATUS_DLL_INIT_FAILED_LOGOFF.
+SHUTDOWN_EXITS = frozenset({0xC000013A - (1 << 32), 0xC000026B - (1 << 32),
+                            3221225786, 3221226091})
 PART_MIN_S = 300.0
 PART_MAX_S = 360.0
 BODY_FLOOR = 0.88
@@ -571,6 +575,17 @@ def render_part(part: int, rows, music, run_id: str):
                            stderr=subprocess.STDOUT)
     took = (time.time() - t0) / 60.0
     if p.returncode != 0 or not out.exists() or not raw.exists():
+        if p.returncode in SHUTDOWN_EXITS:
+            # The OS is tearing this process tree down -- a logoff, a restart,
+            # a console interrupt. Nothing is wrong with the render, and
+            # spending a retry on it just burns the budget and declares the
+            # series INCOMPLETE for no reason. Seen 2026-09-01: a machine
+            # restart killed Part18 twice with 0xC000013A then 0xC000026B, and
+            # the run stopped at 17 of 51 Parts with nothing actually broken.
+            print("  RENDER INTERRUPTED BY SHUTDOWN (exit 0x{:08X}) -- not a "
+                  "render failure; resume picks this Part up again"
+                  .format(p.returncode & 0xFFFFFFFF), flush=True)
+            raise SystemExit(0)
         print("  RENDER FAILED (exit {}) -- see {}".format(p.returncode,
                                                            log.name), flush=True)
         return False, out, None, took, work
