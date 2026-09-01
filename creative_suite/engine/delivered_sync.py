@@ -39,6 +39,9 @@ ANALYSIS_SR = 22050
 # we care about (so a genuine miss is visible) but narrow enough that an
 # unrelated musical onset is unlikely to be mistaken for the event.
 DEFAULT_WINDOW_MS = 250.0
+# Decode padding either side of the search window; must exceed the ~50 ms
+# edge artifact by a comfortable margin.
+PAD_MS = 300.0
 
 
 @dataclass(frozen=True)
@@ -83,7 +86,16 @@ def find_transient(path: Path | str, expected_us: int, *,
     """
     half = int(window_ms * 1000)
     lo, hi = max(0, expected_us - half), expected_us + half
-    y = decode_window(path, lo, hi, sr)
+    # Decode WIDER than the window and search only the interior. Spectral
+    # flux on a hard-cut window produces a spurious rise ~50 ms after the
+    # cut (the flux compares the first frames against nothing), and that
+    # artifact reported itself as a real onset at a constant offset from
+    # the window start -- observed as -67.8 ms at arbitrary times on both
+    # mp3 and mp4, and as -7.8 ms with a 60 ms window. The padding keeps
+    # the cut well outside the region that is allowed to win.
+    pad = int(PAD_MS * 1000)
+    dlo = max(0, lo - pad)
+    y = decode_window(path, dlo, hi + pad, sr)
     if y.size < sr // 100:
         return DeliveredOnset(False, None, 0.0, (lo, hi), "window decoded empty")
     import librosa
@@ -91,15 +103,19 @@ def find_transient(path: Path | str, expected_us: int, *,
     env = librosa.onset.onset_strength(y=y, sr=sr, hop_length=hop)
     if env.size == 0 or float(np.max(env)) <= 0.0:
         return DeliveredOnset(False, None, 0.0, (lo, hi), "no onset energy")
-    peak = int(np.argmax(env))
+    times_us = dlo + (librosa.frames_to_time(np.arange(env.size), sr=sr,
+                                             hop_length=hop) * 1e6)
+    inside = (times_us >= lo) & (times_us <= hi)
+    if not np.any(inside):
+        return DeliveredOnset(False, None, 0.0, (lo, hi), "window too narrow")
+    interior = np.where(inside, env, -np.inf)
+    peak = int(np.argmax(interior))
     strength = float(env[peak])
-    median = float(np.median(env))
+    median = float(np.median(env[inside]))
     if strength < median * 2.0:
         return DeliveredOnset(False, None, strength, (lo, hi),
                               "no transient stands out from the bed")
-    onset_us = lo + int(librosa.frames_to_time(peak, sr=sr,
-                                               hop_length=hop) * 1e6)
-    return DeliveredOnset(True, onset_us, strength, (lo, hi))
+    return DeliveredOnset(True, int(times_us[peak]), strength, (lo, hi))
 
 
 @dataclass(frozen=True)

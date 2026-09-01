@@ -307,3 +307,38 @@ def test_transient_search_on_a_missing_file_reports_why(tmp_path):
     assert out.found is False
     assert out.onset_us is None
     assert out.reason
+
+
+def test_find_transient_reports_a_click_where_it_is_not_at_the_window_edge(tmp_path):
+    """Regression for a window-edge artifact: spectral flux on a hard-cut
+    window produced a spurious onset ~50 ms after the cut, which reported
+    itself as a real transient at a CONSTANT offset from the window start
+    (-67.8 ms with a 120 ms window, -7.8 ms with a 60 ms window). A padded
+    decode with an interior-only search must find the real click instead."""
+    import numpy as np, soundfile as sf
+    sr = 22050
+    y = np.zeros(sr * 4, dtype=np.float32)
+    click_s = 2.137
+    i = int(click_s * sr)
+    y[i:i + 40] = np.linspace(1.0, 0.0, 40, dtype=np.float32)     # a sharp click
+    wav = tmp_path / "click.wav"
+    sf.write(str(wav), y, sr)
+    for window in (60.0, 120.0, 250.0):
+        # ask slightly OFF the click so a lazy detector cannot echo the input
+        out = dsy.find_transient(wav, int((click_s - 0.020) * 1e6), window_ms=window)
+        assert out.found, out.reason
+        err_ms = (out.onset_us - click_s * 1e6) / 1000.0
+        assert abs(err_ms) <= 12.0, (window, err_ms)        # within ~2 hops
+        # and specifically NOT the old artifact position
+        lo = (click_s - 0.020) * 1e6 - window * 1000
+        assert abs((out.onset_us - lo) / 1000.0 - 52.0) > 5.0
+
+
+def test_find_transient_on_silence_does_not_invent_an_onset(tmp_path):
+    import numpy as np, soundfile as sf
+    sr = 22050
+    wav = tmp_path / "silence.wav"
+    sf.write(str(wav), np.zeros(sr * 2, dtype=np.float32), sr)
+    out = dsy.find_transient(wav, 1_000_000, window_ms=120)
+    assert out.found is False
+    assert out.onset_us is None
