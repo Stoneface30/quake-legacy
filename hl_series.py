@@ -76,6 +76,9 @@ TP_CEILING_DBTP = -1.0
 # or 6:30 is expected and is not a defect, because a whole clip is always worth
 # more than a tidy running time.
 BODY_TARGET_S = 245.0
+# The hard finished-duration window. Enforced at commit, not hoped for.
+PART_MIN_S = 300.0
+PART_MAX_S = 360.0
 BODY_FLOOR = 0.88
 BODY_CEIL = 1.12
 
@@ -366,6 +369,41 @@ def slowmo_aware_estimate(r, index_in_part: int) -> float:
     return (base - win) + win / SLOW_RATE
 
 
+PLAN = OUT / "part_plan.json"
+_PLAN_CACHE = None
+
+
+def plan_rows(part_no, queue, used):
+    """The clips this Part is supposed to contain, from the global plan.
+
+    The greedy walk this replaces is what produced 8:02 Parts: it stepped
+    through the queue in order and stopped at a threshold computed from an
+    estimate that was wrong by up to 78%. The plan is solved GLOBALLY instead --
+    all 1076 clips as one pool, each in exactly one Part, every Part predicted
+    inside 5:00-6:00 before a frame is rendered. Historical T1/T2 folders are
+    provenance only; a planned Part draws from six to twelve of them.
+
+    Returns (rows, predicted_seconds), or (None, 0.0) when there is no plan.
+    """
+    global _PLAN_CACHE
+    if _PLAN_CACHE is None:
+        try:
+            _PLAN_CACHE = {r["part"]: r for r in
+                           json.loads(PLAN.read_text(encoding="utf-8"))["parts"]}
+        except Exception as exc:                       # noqa: BLE001
+            print("  [plan] unavailable ({}) -- greedy fallback".format(exc))
+            _PLAN_CACHE = {}
+    entry = _PLAN_CACHE.get(part_no)
+    if not entry:
+        return None, 0.0
+    by_key = {canonical(r["canonical_avi_path"]): r for r in queue}
+    rows = [by_key[canonical(x)] for x in entry["paths"]
+            if canonical(x) in by_key and canonical(x) not in used]
+    if not rows:
+        return None, 0.0
+    return rows, float(entry.get("pred_s") or 0.0)
+
+
 def pack(remaining):
     """Take complete clips until the Part sits near five minutes.
 
@@ -558,7 +596,14 @@ def commit(part, out: Path, rec, rows, music, run_id, took, already):
         "PASS" if ok_d else "FAIL: " + err,
         "" if not repeats else " | REPEATS {}".format(len(repeats))), flush=True)
 
-    ok = ok_a and ok_d and not repeats
+    # HARD EDITORIAL WINDOW (user 2026-09-01: "5-6 minutes is now
+    # a HARD editorial constraint ... NO >6:00 OUTPUT MAY COMMIT").
+    # A Part outside it is not consumed, so its clips return to the
+    # pool instead of shipping in a video that breaks the rule.
+    ok_dur = PART_MIN_S <= dur <= PART_MAX_S
+    if not ok_dur:
+        print("    DURATION GATE: {:.2f} min outside 5:00-6:00 -- NOT COMMITTED".format(dur / 60.0), flush=True)
+    ok = ok_a and ok_d and ok_dur and not repeats
     by_path = {canonical(r["canonical_avi_path"]): r for r in rows}
     man = {
         "run_id": run_id, "part": part,
@@ -723,8 +768,11 @@ def main() -> int:
                 incomplete = True
                 break
 
-            rows, est = pack(remaining)
-            print("\n[run] Part{:02d}: {} clip(s), est body {:.2f} min, "
+            rows, est = plan_rows(part_no, queue, used)
+            if rows is None:
+                rows, est = pack(remaining)
+                print("[run] Part{:02d}: NO PLAN ENTRY -- greedy fallback".format(part_no), flush=True)
+            print("\n[run] Part{:02d}: {} clip(s), predicted {:.2f} min, "
                   "{} remaining after".format(part_no, len(rows), est / 60.0,
                                               len(remaining) - len(rows)),
                   flush=True)

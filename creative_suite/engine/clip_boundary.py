@@ -80,7 +80,13 @@ TAIL_LOUD_RATIO = 0.75
 # Correlation an end marker must reach. Higher than the action threshold on
 # purpose -- a false end marker truncates a frag, which is the one outcome
 # worth being conservative about.
-MARKER_MIN_CORR = 0.62
+# Lowered from 0.62. Recall was the problem, not precision: at 0.62 only 43 of
+# 1419 clips showed a death and just 3 were cut, so the user was still seeing
+# deaths (2026-09-01: "asked to remove dead and start round and is still here
+# on part 1"). A false marker is now cheap -- nothing cuts without surviving
+# the event veto, and a real death ends the action, so a true death cut has
+# nothing after it to veto.
+MARKER_MIN_CORR = 0.52
 
 END_MARKERS = {
     "round_end": ["world/buzzer.wav", "world/klaxon1.wav", "world/klaxon2.wav"],
@@ -89,13 +95,15 @@ END_MARKERS = {
 
 # Death is model-specific, so a handful of the common ones stand in for all of
 # them: the samples share an envelope and the matcher is normalised.
-DEATH_MODELS = ["sarge", "major", "visor", "xaero", "keel", "anarki"]
+DEATH_MODELS = ["sarge", "major", "visor", "xaero", "keel", "anarki",
+                "doom", "ranger", "bitterman", "grunt", "hunter", "orbb",
+                "razor", "sorlag", "tankjr", "uriel"]
 
 
 def death_templates():
     out = []
     for m in DEATH_MODELS:
-        for n in ("death1.wav", "death2.wav"):
+        for n in ("death1.wav", "death2.wav", "death3.wav"):
             q = TROOT / "player" / m / n
             if q.exists():
                 out.append("player/{}/{}".format(m, n))
@@ -366,7 +374,7 @@ def analyse(clip_path: str, action_tmpl, marker_tmpl) -> dict:
         # round text and the buzzer are detected and stored, because they are
         # useful for choosing where to place things, but they do not truncate a
         # clip.
-        CUTTING = ("death",)
+        CUTTING = ("death", "respawn")
         cands = []
         for fam, ts in rec["markers"].items():
             if fam not in CUTTING:
@@ -386,8 +394,20 @@ def analyse(clip_path: str, action_tmpl, marker_tmpl) -> dict:
             cut = max(marker_t - MARKER_LEAD_S, hold)
             why = "cut at {} marker".format(why)
         else:
-            cut = min(dur, last_act + AFTERMATH_HOLD_S)
-            why = "dead tail after last action"
+            # NO CUT WITHOUT POSITIVE EVIDENCE.
+            #
+            # This used to cut at "last recognised sound + a hold", which is an
+            # argument from ABSENCE: nothing was detected, therefore nothing is
+            # happening. The detector only knows nine sounds. Footsteps, a jump
+            # landing, an item pickup, a shot that missed -- none of it
+            # registers, and all of it is worth watching. User 2026-09-01: "lot
+            # of clip are trimmed way to much in the end".
+            #
+            # 114 of 141 accepted trims came from this branch. It is removed:
+            # a clip is now shortened only when something UNWANTED was actually
+            # found in it.
+            rec["reason"] = "no end marker -- left at full length"
+            return rec
 
         # ---- the safety rule ----
         # First and strongest: if a recognised game EVENT happens after the
