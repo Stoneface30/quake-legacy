@@ -216,8 +216,19 @@ def analyze_dodges(parsed: dict, kill_times: list[int], recorder_client: int,
     shooter_ent: dict[int, list[tuple[int, tuple, float, float]]] = {}
     for en in parsed.get("entities", []):
         cn = en.get("client_num")
-        if (cn is None or cn == recorder_client or en.get("origin_x") is None
-                or en.get("angle_yaw") is None or en.get("angle_pitch") is None):
+        # ALL THREE origin components must be present. Delta-compressed
+        # entity rows can carry a partially-decoded origin (e.g. origin_x
+        # and origin_y set, origin_z still None) — ~5 rows in 50k on the
+        # demos where it happens. Checking only origin_x (the original
+        # filter) let such a row become the nearest angle sample, whose
+        # None coordinate then propagated into straight_line_samples() and
+        # raised TypeError, killing the whole demo (2 of 3,997 in the
+        # 2026-08-31 full-corpus run). Same None-coordinate caveat
+        # extract_projectile_paths.ray_point_perp already documents.
+        if (cn is None or cn == recorder_client
+                or en.get("angle_yaw") is None or en.get("angle_pitch") is None
+                or en.get("origin_x") is None or en.get("origin_y") is None
+                or en.get("origin_z") is None):
             continue
         shooter_ent.setdefault(cn, []).append((
             en["server_time_ms"],
@@ -258,6 +269,12 @@ def analyze_dodges(parsed: dict, kill_times: list[int], recorder_client: int,
         samp = nearest(shooter_ent.get(shooter, []), t0, ANGLE_TOL_MS)
         origin = fallback_pos if None not in fallback_pos else (
             samp[1] if samp else None)
+        # belt-and-braces: no caller may ever receive a partially-None
+        # origin. shooter_ent is already filtered to fully-decoded origins
+        # above, so this can only fire if a future edit reintroduces one —
+        # in which case the candidate is skipped, never crashed on.
+        if origin is not None and any(v is None for v in origin[:3]):
+            origin = None
         direction = angles_to_dir(samp[2], samp[3]) if samp else None
         return origin, direction
 

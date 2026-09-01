@@ -160,6 +160,10 @@ _FILTER_GROUPS: dict[str, tuple[str, ...]] = {
         # and missed, plus the composite "dodge then frag" moment)
         "NEAR_MISS_RAIL", "NEAR_MISS_ROCKET", "NEAR_MISS_GRENADE",
         "DODGE_STRAFE", "DODGE_TO_KILL",
+        # Dodge QUALITY tier (reclassify_v2 DODGE QUALITY SCORE, 2026-09-01)
+        # — the rare hero-grade subset of the broad evidence above.
+        # DODGE_HERO is a strict subset of the two weapon-specific labels.
+        "DODGE_HERO", "RAIL_DODGE_HERO", "PROJECTILE_DODGE_HERO",
     ),
     "craft": (
         "WEAPON_COMBO", "MULTI_WEAPON_CHAIN", "FAST_WEAPON_SWITCH",
@@ -717,6 +721,10 @@ def _music_auditions(frag_id: int) -> list[dict[str, Any]]:
         if any(k not in item for k in required):
             continue
         safe.append({k: item[k] for k in required})
+        for key in ("profile_type", "components", "music_anchor_us",
+                    "signed_delta_us", "structure"):
+            if key in item:
+                safe[-1][key] = item[key]
         safe[-1]["video_url"] = f"/api/frags/{frag_id}/music-auditions/{item['audition_id']}/video"
         if len(safe) == 3:
             break

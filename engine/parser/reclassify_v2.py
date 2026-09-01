@@ -40,6 +40,91 @@ RECLASS_MARK = "db_reclass_v2"
 DODGE_TO_KILL_WINDOW_MS = 2000
 DODGE_STRAFE_PCTILE = 90.0   # top-decile recorder velocity swing at a near-miss
 
+# ── DODGE QUALITY SCORE (hero tier) ─────────────────────────────────────────
+# The broad NEAR_MISS_*/DODGE_TO_KILL labels above are DISCOVERY evidence:
+# "a threat weapon passed inside its near-miss threshold and I lived". At
+# corpus scale that fires on ~38% of recognized recorder frags, which is far
+# too common to mean "hero-quality cinematic dodge" — a CA player is nearly
+# always moving and is nearly always being shot at, so mere proximity plus
+# mere motion is the base rate, not a highlight. This block scores the
+# UNDERLYING per-event rows in recognition_dodge_events (DB-only, no demo IO)
+# to separate genuine evasive movement from coincidental proximity.
+#
+# Score = weighted blend of three percentile-normalised components, times a
+# per-method geometric-confidence factor. Percentile-normalised for the same
+# reason the speed/flick labels are: absolute unit thresholds do not transfer
+# across weapons (a 120u rail near-miss and a 120u rocket near-miss are not
+# the same event), while "closer than 90% of this weapon's near-misses" does.
+#
+#   proximity  how close the threat actually came, ranked WITHIN its own
+#              threat_type pool (rail threshold is 120u, splash is 160u).
+#   evasion    percentile of recorder_velocity_change — the vector-difference
+#              magnitude of the recorder's own horizontal velocity sampled
+#              +/-450ms around the shot. This is the component that answers
+#              the actual question: a player travelling in an unrelated
+#              straight line when a shot happens near them has a LOW velocity
+#              delta; a player who genuinely broke trajectory has a high one.
+#   immediacy  how tightly the near-miss leads into the kill (the user's
+#              cinematic brief: "jumping a rail and hitting something after").
+#
+# HONEST LIMIT, stated rather than hidden: velocity change proves the recorder
+# changed trajectory around the shot, NOT that the change was CAUSED by the
+# shot. A player who happened to turn a corner at that instant scores the same
+# as one who reacted. Resolving intent needs the view-angle/threat-bearing
+# correlation this DB does not carry. The gates below suppress the bulk of
+# the coincidental cases; they do not eliminate them.
+DODGE_WEIGHT_PROXIMITY = 0.40
+DODGE_WEIGHT_EVASION = 0.40
+DODGE_WEIGHT_IMMEDIACY = 0.20
+
+# Geometric confidence per extractor `method`. NOT a tuning knob — it encodes
+# how much of each path is MEASURED vs RECONSTRUCTED, per that module's own
+# docstring:
+#   segment       real rail beam: observed fire_weapon origin -> observed
+#                 railtrail endpoint. closest_approach_units is then the true
+#                 orthogonal displacement of the recorder from the actual
+#                 beam. Nothing is simulated. Full confidence.
+#   sim_straight  rocket: launch point and time are OBSERVED directly, and a
+#                 rocket really does fly straight at constant speed, but no
+#                 BSP is consulted, so the sim can pass through a wall that
+#                 would have stopped the real rocket.
+#   ray_angle     rail fallback: no railtrail matched, so the beam direction
+#                 is reconstructed from the shooter's view angles sampled
+#                 within +/-200ms. Direction is inferred, not observed.
+#   sim_ballistic grenade: gravity-only, bounces NOT simulated, and the fuse
+#                 constant is provisional. Weakest of the four.
+DODGE_GEOM_CONFIDENCE = {
+    "segment": 1.00,
+    "sim_straight": 0.80,
+    "ray_angle": 0.70,
+    "sim_ballistic": 0.60,
+}
+DODGE_UNKNOWN_METHOD_CONFIDENCE = 0.50   # a future method scores conservatively
+
+# Gates. An event must clear ALL of these before it is hero-ELIGIBLE. They are
+# a conjunction on purpose: the failure mode being removed is "one component
+# carried a row on its own" (very close but stone-still = not a dodge; wild
+# strafing but the shot was 150u away = not a dodge).
+DODGE_GATE_PROXIMITY_PCTILE = 50.0   # closer than the median for its weapon
+DODGE_GATE_EVASION_PCTILE = 60.0     # demonstrably broke trajectory
+DODGE_GATE_PROJECTILE_FLIGHT_MS = 100
+# ^ a projectile whose closest approach is essentially at the muzzle was
+# point-blank: there was no flight time in which a dodge could exist. Rail is
+# exempt because it is hitscan (flight is always 0) — a rail is dodged
+# PRE-emptively, which is exactly what the evasion component already measures.
+
+# Cuts. Ranked within each weapon pool, not globally, because the confidence
+# factor deliberately depresses projectile scores — a single global cut made
+# DODGE_HERO a pure duplicate of RAIL_DODGE_HERO (measured: 191/191 rows),
+# which would have been a renaming, not a tier.
+DODGE_WEAPON_HERO_PCTILE = 90.0   # top decile of its own weapon pool
+DODGE_ELITE_HERO_PCTILE = 98.0    # top 2% — DODGE_HERO, cross-weapon by
+                                  # construction since each pool is ranked
+                                  # against itself
+# Label contract (mirrors CLEAN_FLICK/EXTREME_FLICK below): DODGE_HERO is a
+# strict SUBSET of RAIL_DODGE_HERO | PROJECTILE_DODGE_HERO — it is never
+# applied without the weapon-specific label that qualified it.
+
 # Reasons this module appends (stripped before every recompute so the pass
 # is IDEMPOTENT — running twice must not double scores; the original
 # implementation double-added on rerun, repaired 2026-08-30).
@@ -51,7 +136,8 @@ _REASON_RE = re.compile(
     r"air rocket geo |temporal prediction |rarity|pixel shot |tiny gap |"
     r"reaction |corner prefire |"
     r"lg pressure |lg dodge |damage burst |"
-    r"near miss |dodge strafe p|dodge to kill ))")
+    r"near miss |dodge strafe p|dodge to kill |"
+    r"rail dodge hero |projectile dodge hero |dodge hero ))")
 
 # Legacy weights of the two buggy runs (for the one-time score repair).
 _OLD_HEALTH = {"near": 10, "crit": 6, "low": 3, "ctx": 0.5, "burst": 2}
@@ -61,6 +147,140 @@ def pctile(sorted_vals: list[float], v: float) -> float:
     if not sorted_vals:
         return 0.0
     return round(100.0 * bisect_left(sorted_vals, v) / len(sorted_vals), 1)
+
+
+def score_dodge_event(ev: dict, prox_pools: dict[str, list[float]],
+                      vel_pool: list[float]) -> dict:
+    """Quality score (0-100) for ONE recognition_dodge_events row.
+
+    Pure: takes the row plus the two percentile bases, returns the score and
+    every component that produced it (so the evidence is inspectable in
+    /frags and in the manual-validation sample, not a black box).
+    """
+    threat = ev.get("threat_type")
+    dist = ev.get("closest_approach_units")
+    prox_p = (100.0 - pctile(prox_pools.get(threat) or [], float(dist))
+              if dist is not None else 0.0)
+
+    vc = ev.get("recorder_velocity_change")
+    ev_p = pctile(vel_pool, float(vc)) if vc is not None else 0.0
+
+    gap = (ev.get("kill_anchor_ms") or 0) - (ev.get("closest_time_ms") or 0)
+    imm = (100.0 * (1.0 - gap / DODGE_TO_KILL_WINDOW_MS)
+           if 0 <= gap <= DODGE_TO_KILL_WINDOW_MS else 0.0)
+
+    flight = (ev.get("closest_time_ms") or 0) - (ev.get("server_time_ms") or 0)
+    conf = DODGE_GEOM_CONFIDENCE.get(ev.get("method"),
+                                     DODGE_UNKNOWN_METHOD_CONFIDENCE)
+    raw = (DODGE_WEIGHT_PROXIMITY * prox_p + DODGE_WEIGHT_EVASION * ev_p
+           + DODGE_WEIGHT_IMMEDIACY * imm)
+
+    gated = bool(
+        ev.get("survived") == 1
+        and prox_p >= DODGE_GATE_PROXIMITY_PCTILE
+        and ev_p >= DODGE_GATE_EVASION_PCTILE
+        and (threat == "RAIL" or flight >= DODGE_GATE_PROJECTILE_FLIGHT_MS))
+
+    return {"score": round(raw * conf, 1), "proximity_pctile": round(prox_p, 1),
+            "evasion_pctile": round(ev_p, 1), "immediacy": round(imm, 1),
+            "flight_ms": flight, "geom_confidence": conf, "gated": gated,
+            "threat_type": threat, "method": ev.get("method"),
+            "closest_approach_units": dist, "recorder_velocity_change": vc,
+            "kill_to_dodge_gap_ms": gap}
+
+
+def _pool_cut(pool: list[float], p: float) -> float:
+    """Value at percentile p of an already-sorted pool (inf if empty, so an
+    empty pool can never award a label)."""
+    if not pool:
+        return float("inf")
+    return pool[min(len(pool) - 1, int(len(pool) * p / 100.0))]
+
+
+def load_dodge_quality(conn) -> tuple[dict[tuple, dict], dict]:
+    """(demo_name, kill_anchor_ms) -> best-scoring near-miss for that kill,
+    plus the percentile cuts derived from the corpus itself.
+
+    One SELECT over recognition_dodge_events (~36k rows) + two sorts. No
+    demo IO — the DB-only performance contract in this module's docstring
+    holds. Missing table (fresh/synthetic DB) degrades to "no hero labels".
+    """
+    try:
+        cur = conn.execute(
+            "SELECT demo_name, server_time_ms, kill_anchor_ms, threat_type,"
+            " closest_approach_units, closest_time_ms,"
+            " recorder_velocity_change, survived, method"
+            " FROM recognition_dodge_events")
+    except sqlite3.OperationalError:
+        return {}, {}
+    cols = [c[0] for c in cur.description]
+    events = [dict(zip(cols, row)) for row in cur.fetchall()]
+    if not events:
+        return {}, {}
+
+    prox_pools: dict[str, list[float]] = {}
+    vel_pool: list[float] = []
+    for e in events:
+        if e.get("closest_approach_units") is not None:
+            prox_pools.setdefault(e.get("threat_type"), []).append(
+                float(e["closest_approach_units"]))
+        if e.get("recorder_velocity_change") is not None:
+            vel_pool.append(float(e["recorder_velocity_change"]))
+    for v in prox_pools.values():
+        v.sort()
+    vel_pool.sort()
+
+    scored = [dict(e, **score_dodge_event(e, prox_pools, vel_pool))
+              for e in events]
+
+    # weapon pools: only GATED events rank, so the cut is "top decile of the
+    # plausible dodges", not "top decile of everything including the noise".
+    # ray_angle rail rows are excluded from the rail pool entirely — the rail
+    # hero tier is reserved for measured beam geometry (23 such rows corpus-
+    # wide, so nothing meaningful is lost).
+    rail_pool = sorted(s["score"] for s in scored if s["gated"]
+                       and s["threat_type"] == "RAIL"
+                       and s["method"] == "segment")
+    proj_pool = sorted(s["score"] for s in scored if s["gated"]
+                       and s["threat_type"] in ("ROCKET", "GRENADE"))
+    cuts = {
+        "rail_hero": _pool_cut(rail_pool, DODGE_WEAPON_HERO_PCTILE),
+        "rail_elite": _pool_cut(rail_pool, DODGE_ELITE_HERO_PCTILE),
+        "proj_hero": _pool_cut(proj_pool, DODGE_WEAPON_HERO_PCTILE),
+        "proj_elite": _pool_cut(proj_pool, DODGE_ELITE_HERO_PCTILE),
+        "rail_pool_n": len(rail_pool), "proj_pool_n": len(proj_pool),
+        "events": len(scored),
+    }
+
+    for s in scored:
+        s["rail_hero"] = bool(
+            s["gated"] and s["threat_type"] == "RAIL"
+            and s["method"] == "segment" and s["score"] >= cuts["rail_hero"])
+        s["proj_hero"] = bool(
+            s["gated"] and s["threat_type"] in ("ROCKET", "GRENADE")
+            and s["score"] >= cuts["proj_hero"])
+        s["elite"] = bool(
+            (s["rail_hero"] and s["score"] >= cuts["rail_elite"])
+            or (s["proj_hero"] and s["score"] >= cuts["proj_elite"]))
+
+    # one anchor can carry several near-misses (different weapons/shooters).
+    # Keep the best-scoring one for the score/attributes, but OR the label
+    # flags across all of them: a kill preceded by a hero rail dodge AND a
+    # weaker rocket near-miss is still a hero rail dodge.
+    best: dict[tuple, dict] = {}
+    for s in scored:
+        key = (s["demo_name"], s["kill_anchor_ms"])
+        cur_best = best.get(key)
+        if cur_best is None or s["score"] > cur_best["score"]:
+            merged = dict(s)
+            if cur_best is not None:
+                for flag in ("rail_hero", "proj_hero", "elite"):
+                    merged[flag] = merged[flag] or cur_best[flag]
+            best[key] = merged
+        else:
+            for flag in ("rail_hero", "proj_hero", "elite"):
+                cur_best[flag] = cur_best[flag] or s[flag]
+    return best, cuts
 
 
 def load_norm_samples(conn) -> dict[str, list[float]]:
@@ -102,6 +322,7 @@ def run() -> dict:
             clutches.setdefault(c["canonical_demo_hash"], []).append(c)
 
     samples = load_norm_samples(conn)
+    dodge_best, dodge_cuts = load_dodge_quality(conn)
 
     # stage-2 geometric visibility (own table; merged into attributes here)
     stage2: dict[tuple, dict] = {}
@@ -152,7 +373,10 @@ def run() -> dict:
             i = j + 1
 
     stats = {"reused": len(rows), "labels_added": 0, "ca": 0, "duel": 0,
-             "other": 0, "clutch_labeled": 0, "repaired_legacy": 0}
+             "other": 0, "clutch_labeled": 0, "repaired_legacy": 0,
+             "dodge_hero": 0, "rail_dodge_hero": 0, "projectile_dodge_hero": 0,
+             "dodge_cuts": {k: (round(v, 1) if isinstance(v, float) else v)
+                            for k, v in dodge_cuts.items()}}
     up = []
     for r in rows:
         a = json.loads(r["attributes"] or "{}")
@@ -377,6 +601,45 @@ def run() -> dict:
             add_move += 8
             add_drama += 2
             reasons.append(f"+ dodge to kill {gap}ms (+8)")
+
+        # ── dodge QUALITY tier (hero) — see the DODGE QUALITY SCORE block at
+        # the top of this module. Scored off the per-event rows rather than
+        # the anchor's flattened summary, because the summary keeps only the
+        # closest near-miss and drops the geometry method + timing that
+        # decide whether the proximity was evidence of anything.
+        dq = dodge_best.get((r["demo_name"], r["server_time_ms"]))
+        if dq is not None:
+            a["dodge_quality_score"] = dq["score"]
+            a["dodge_quality_threat"] = dq["threat_type"]
+            a["dodge_quality_method"] = dq["method"]
+            a["dodge_proximity_pctile"] = dq["proximity_pctile"]
+            a["dodge_evasion_pctile"] = dq["evasion_pctile"]
+            a["dodge_immediacy"] = dq["immediacy"]
+            a["dodge_geom_confidence"] = dq["geom_confidence"]
+            if dq["rail_hero"]:
+                add("RAIL_DODGE_HERO", "CONFIRMED",
+                    f"{dq['closest_approach_units']}u off a measured beam,"
+                    f" q{dq['score']}")
+                add_move += 9
+                stats["rail_dodge_hero"] += 1
+                reasons.append(f"+ rail dodge hero q{dq['score']} (+9)")
+            if dq["proj_hero"]:
+                # HIGH not CONFIRMED: the path was forward-simulated, so the
+                # proximity is a physics estimate, not a measurement.
+                add("PROJECTILE_DODGE_HERO", "HIGH",
+                    f"{dq['threat_type'].lower()} {dq['closest_approach_units']}u"
+                    f" simulated, q{dq['score']}")
+                add_move += 6
+                stats["projectile_dodge_hero"] += 1
+                reasons.append(f"+ projectile dodge hero q{dq['score']} (+6)")
+            if dq["elite"]:
+                add("DODGE_HERO", "CONFIRMED",
+                    f"top-{100 - DODGE_ELITE_HERO_PCTILE:.0f}% dodge evidence,"
+                    f" q{dq['score']}")
+                add_move += 5
+                add_drama += 3
+                stats["dodge_hero"] += 1
+                reasons.append(f"+ dodge hero q{dq['score']} (+5)")
 
         # stage-2 pixel/visibility evidence
         s2 = stage2.get((r["demo_name"], r["server_time_ms"]))
