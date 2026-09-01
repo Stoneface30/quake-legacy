@@ -255,3 +255,20 @@ def test_evidence_gate_can_be_disabled_and_admits_more():
 def test_no_zero_duration_record_reaches_the_ranker():
     for cand in tm.load_candidates():
         assert cand["duration_ms"] >= tm.MIN_FLIGHT_MS
+
+
+def test_shortlist_collapses_duplicate_moments_within_itself():
+    """Excluding scene_a's own signature is not enough -- the same kill is
+    stored under several filenames, so a naive top-N spends slots twice."""
+    a = scene(map_name="overkill", demo="a.dm_73", speed=900.0)
+    twin1 = scene(map_name="trinity", demo="t1.dm_73", speed=950.0,
+                  duration_ms=1350, score=40.0)
+    twin2 = scene(map_name="trinity", demo="t2.dm_73", speed=950.0,
+                  duration_ms=1350, score=40.0)
+    other = scene(map_name="asylum", demo="o.dm_73", speed=930.0,
+                  duration_ms=1200, score=35.0)
+    assert tm.event_signature(twin1) == tm.event_signature(twin2)
+    out = tm.shortlist_scene_b(a, [twin1, twin2, other], top_n=10)
+    sigs = [tm.event_signature(x) for x in out]
+    assert len(sigs) == len(set(sigs)), "duplicate moments in shortlist"
+    assert len(out) == 2

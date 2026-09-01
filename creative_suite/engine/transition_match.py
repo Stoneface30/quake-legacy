@@ -318,7 +318,24 @@ def shortlist_scene_b(scene_a: dict, candidates: list[dict], *,
         s = score_pair(scene_a, cand, prefer_different_map=prefer_different_map)
         ranked.append({**cand, "match": s})
     ranked.sort(key=lambda r: -r["match"]["total"])
-    return ranked[:top_n]
+
+    # Collapse duplicate MOMENTS within the shortlist, keeping the
+    # best-scoring representative. Excluding scene_a's own signature is not
+    # enough: the corpus stores the same kill under several filenames, so a
+    # naive top-10 spends slots on the same shot twice (measured: 2 of 10
+    # for the top Scene A -- Frags 27622/34632 are one trinity rocket at
+    # server_time 165975, as are 7491/34699 on asylum at 886150).
+    seen: set[tuple] = set()
+    unique = []
+    for r in ranked:
+        sig = event_signature(r)
+        if sig in seen:
+            continue
+        seen.add(sig)
+        unique.append(r)
+        if len(unique) >= top_n:
+            break
+    return unique
 
 
 def pick_scene_a(candidates: list[dict], *, min_duration_ms: int = 1200,
