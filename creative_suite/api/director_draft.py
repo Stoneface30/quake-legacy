@@ -22,14 +22,17 @@ this module — they are read-only by project hard rule.
 from __future__ import annotations
 
 import copy
+import re
 from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Body, HTTPException
+from fastapi.responses import FileResponse
 
-from creative_suite.api.frags import _load_frag_with_master
+from creative_suite.api.frags import _frag_window, _load_frag_with_master
 from creative_suite.engine import (cam10_writer, camera_compiler_v2,
-                                   master_profile, review_proxy, shot_plan)
+                                   director_preview, master_profile,
+                                   review_proxy, shot_plan)
 from creative_suite.engine.timeline import Timeline
 
 router = APIRouter()
@@ -79,7 +82,11 @@ DEFAULT_CAMERA: dict[str, Any] = {
 DEFAULT_FX: dict[str, Any] = {"rocket_fx": "OFF", "ghost": "OFF"}
 DEFAULT_LOOK: dict[str, Any] = {"look": "ORIGINAL", "show_depth": False}
 
-SECTIONS: tuple[str, ...] = ("camera", "fx", "look", "scene")
+DEFAULT_MUSIC: dict[str, Any] | None = None   # game audio only
+
+SECTIONS: tuple[str, ...] = ("camera", "fx", "look", "music", "scene")
+
+_HASH_RE = re.compile(r"^[0-9a-f]{64}$")
 
 # §39 honesty map: what actually happens when a section changes. Nothing in
 # the current pipeline hot-swaps — a wolfcam capture is the only renderer —
@@ -93,6 +100,8 @@ REFRESH_MODEL: dict[str, dict[str, str]] = {
            "note": "Rocket FX / ghost are baked at capture time."},
     "look": {"mode": "CAPTURE_REFRESH",
              "note": "Look packs are pk3 overrides — engine reload + capture."},
+    "music": {"mode": "CAPTURE_REFRESH",
+              "note": "Music is muxed into the preview render."},
 }
 
 
@@ -102,6 +111,7 @@ def _default_draft(frag_id: int) -> dict[str, Any]:
         "camera": dict(DEFAULT_CAMERA),
         "fx": dict(DEFAULT_FX),
         "look": dict(DEFAULT_LOOK),
+        "music": DEFAULT_MUSIC,
         "backend": DEFAULT_BACKEND,
         "dirty": False,
         "saved_recipe_id": None,
@@ -181,6 +191,43 @@ def _apply_look(look: dict[str, Any], patch: dict[str, Any]) -> None:
             _fail(f"unknown look control: {key}")
 
 
+def _apply_music(draft: dict[str, Any], patch: Any) -> None:
+    """Select a MusicPlacement region from Music Intelligence V2 (§13).
+
+    ``null`` clears it back to game audio only. Nothing here analyses,
+    caches or re-derives music: the payload names a track by its existing
+    ``track_hash`` and a source offset, which is exactly what
+    ``scene_recipe.MusicPlacement`` already models.
+    """
+    if patch is None:
+        draft["music"] = None
+        return
+    if not isinstance(patch, dict):
+        _fail("music patch must be an object or null")
+    unknown = set(patch) - {"track_hash", "source_start_us",
+                            "program_edit_start_us", "source_end_us"}
+    if unknown:
+        _fail(f"unknown music field(s): {sorted(unknown)}")
+    track_hash = str(patch.get("track_hash") or "")
+    if _HASH_RE.match(track_hash) is None:
+        _fail("music track_hash must be a lowercase sha256 digest")
+    out: dict[str, Any] = {"track_hash": track_hash}
+    for key, default in (("source_start_us", 0),
+                         ("program_edit_start_us", 0)):
+        value = patch.get(key, default)
+        if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+            _fail(f"music {key} must be a non-negative integer")
+        out[key] = value
+    end = patch.get("source_end_us")
+    if end is not None:
+        if isinstance(end, bool) or not isinstance(end, int):
+            _fail("music source_end_us must be an integer or null")
+        if end <= out["source_start_us"]:
+            _fail("music source region must have positive duration")
+    out["source_end_us"] = end
+    draft["music"] = out
+
+
 def _public(draft: dict[str, Any]) -> dict[str, Any]:
     out = copy.deepcopy(draft)
     out["controls"] = list(MODE_CONTROLS.get(draft["camera"]["mode"], ()))
@@ -232,7 +279,7 @@ def put_draft(frag_id: int,
     draft = _get_or_create(frag_id)
     if not isinstance(body, dict):
         _fail("draft patch must be an object")
-    unknown = set(body) - {"camera", "fx", "look", "backend"}
+    unknown = set(body) - {"camera", "fx", "look", "music", "backend"}
     if unknown:
         _fail(f"unknown draft section(s): {sorted(unknown)}")
     # Validate against a copy first so a rejected patch leaves the draft
@@ -244,6 +291,8 @@ def put_draft(frag_id: int,
         _apply_fx(staged["fx"], body["fx"])
     if "look" in body:
         _apply_look(staged["look"], body["look"])
+    if "music" in body:
+        _apply_music(staged, body["music"])
     if "backend" in body:
         if body["backend"] not in BACKENDS:
             _fail(f"unknown camera backend: {body['backend']}")
@@ -269,8 +318,12 @@ def reset_draft(frag_id: int,
         fresh["saved_recipe_id"] = draft.get("saved_recipe_id")
         _DRAFTS[frag_id] = fresh
         return _public(fresh)
-    draft[section] = dict(
-        {"camera": DEFAULT_CAMERA, "fx": DEFAULT_FX, "look": DEFAULT_LOOK}[section])
+    if section == "music":
+        draft["music"] = DEFAULT_MUSIC
+    else:
+        draft[section] = dict(
+            {"camera": DEFAULT_CAMERA, "fx": DEFAULT_FX,
+             "look": DEFAULT_LOOK}[section])
     draft["dirty"] = True
     draft["preview"] = "STALE"
     return _public(draft)
@@ -331,3 +384,83 @@ def save_draft(frag_id: int,
     out = _public(draft)
     out["scene_recipe_id"] = recipe_id
     return out
+
+
+# --------------------------------------------------------------- preview
+# CHANGE IT -> REFRESH IT -> SEE IT (§12-13). These three endpoints are the
+# contract the panel is written against; the engine work lives in
+# creative_suite/engine/director_preview.py.
+#
+# §11 still holds: NOTHING here persists a recipe. Previewing writes an mp4
+# and a row in editorial.db's director_previews; only SAVE RECIPE above
+# commits a SceneRecipe.
+
+def _preview_frag(frag_id: int) -> dict[str, Any]:
+    """The frag record the preview pipeline needs, read-only."""
+    from creative_suite.api.frags import _connect
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT id, demo_name, content_hash, server_time_ms, weapon_name,"
+            " attributes, recognition_version FROM recognized_frags "
+            "WHERE id = ?", (frag_id,)).fetchone()
+    finally:
+        conn.close()
+    if row is None:
+        raise HTTPException(status_code=404, detail="frag not found")
+    frag = dict(row)
+    import json as _json
+    try:
+        frag["attributes"] = _json.loads(frag.get("attributes") or "{}")
+    except (TypeError, ValueError):
+        frag["attributes"] = {}
+    frag["master"] = _load_frag_with_master(frag_id).get("master")
+    frag["window"] = _frag_window(frag)
+    # The map name lives on the master clip row for captured frags and in the
+    # recognition attributes otherwise; it is only used to load a BSP tracer
+    # for collision checking, so an empty string degrades to "no check".
+    frag["map"] = ((frag["attributes"] or {}).get("map")
+                   or (frag["master"] or {}).get("map") or "")
+    return frag
+
+
+@router.post("/api/frags/{frag_id}/director/preview")
+def request_preview(frag_id: int,
+                    body: dict[str, Any] = Body(default={})) -> dict[str, Any]:
+    """REFRESH PREVIEW. Returns {preview_key, generation, state}.
+
+    ``generation`` is the guard (§12): the caller polls its own key and must
+    ignore a result whose generation is no longer the frag's latest. A cached
+    READY artifact for this exact key comes straight back as READY without
+    touching the engine.
+    """
+    frag = _preview_frag(frag_id)
+    draft = _get_or_create(frag_id)
+    demo_path, _hash = review_proxy.demo_source(str(frag["demo_name"]))
+    try:
+        result = director_preview.request_preview(
+            frag, draft, demo_path=str(demo_path) if demo_path else None)
+    except director_preview.PreviewBuildError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    return {"preview_key": result["preview_key"],
+            "generation": result["generation"], "state": result["state"]}
+
+
+@router.get("/api/director/preview/{preview_key}")
+def preview_state(preview_key: str) -> dict[str, Any]:
+    state = director_preview.get_preview(preview_key)
+    if state is None:
+        raise HTTPException(status_code=404, detail="unknown preview key")
+    return {"state": state["state"], "generation": state["generation"],
+            "media_url": state["media_url"], "error": state["error"],
+            "stale": state["stale"]}
+
+
+@router.get("/api/director/preview/{preview_key}/media")
+def preview_media(preview_key: str):
+    path = director_preview.media_path(preview_key)
+    if path is None:
+        raise HTTPException(status_code=404, detail="preview media not ready")
+    # FileResponse serves Range requests, which is what lets the browser
+    # scrub the preview instead of re-downloading it.
+    return FileResponse(str(path), media_type="video/mp4", filename=path.name)
