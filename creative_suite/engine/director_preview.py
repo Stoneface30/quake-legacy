@@ -353,21 +353,76 @@ def _projectile_path(demo_name: str, server_time_ms: int) -> dict | None:
         return None
 
 
-def _usable_projectile(path: dict | None) -> bool:
-    """A path with real flight to photograph.
+# Evidence contract for choosing a projectile path to photograph.
+#
+# The POINT SERIES is the primary evidence; the launch/impact scalars are
+# corroborating only. Both were audited across all 4,391 cached paths
+# (2026-09-01): 4,135 agree exactly, 0 disagree, and 256 carry
+# ``launch.t == impact.t``. All 256 of those have a point span of exactly
+# 25 ms — one server snapshot tick — so the equal timestamps are the
+# engine's time quantization, not corrupted data. A flight that lasts a
+# single tick cannot resolve launch and impact to different ticks.
+#
+# The scalars are nonetheless not load-bearing here: deriving flight from
+# the series makes the rule independent of that quantization floor.
+MIN_FLIGHT_MS = 200      # below this there is no arc to fly a camera along
+MIN_POINTS = 8           # enough samples for a smooth Catmull-Rom retarget
+MIN_DISPLACEMENT_U = 64.0  # a path that never leaves the muzzle films nothing
 
-    Frag 5979 is the cautionary case: highest-scoring rocket in the corpus,
-    but its cached path is 2 points / 0 ms / 38.7 u — a point-blank shot with
-    no flight at all. A projectile camera built on it films nothing.
+
+def projectile_evidence(path: dict | None) -> dict:
+    """Grade a cached projectile path against the evidence contract.
+
+    Returns the measured quantities plus ``usable`` and, when unusable, a
+    ``reason``. Measurement comes from ``points`` — see the contract note
+    above for why the launch/impact scalars are corroborating only.
     """
     if not path:
-        return False
+        return {"usable": False, "reason": "no_path"}
     points = path.get("points") or []
     launch, impact = path.get("launch") or {}, path.get("impact") or {}
-    if len(points) < 8:
-        return False
-    flight_ms = int(impact.get("t", 0)) - int(launch.get("t", 0))
-    return flight_ms >= 200
+    ev: dict[str, Any] = {
+        "points": len(points),
+        "scalar_flight_ms": (None if launch.get("t") is None
+                             or impact.get("t") is None
+                             else int(impact["t"]) - int(launch["t"])),
+    }
+    if len(points) < 2:
+        return {**ev, "usable": False, "reason": "too_few_points"}
+    try:
+        coords = [tuple(float(v) for v in p[1:4]) for p in points]
+        span_ms = int(points[-1][0]) - int(points[0][0])
+    except (TypeError, ValueError, IndexError):
+        return {**ev, "usable": False, "reason": "malformed_points"}
+    if not all(math.isfinite(v) for xyz in coords for v in xyz):
+        return {**ev, "usable": False, "reason": "non_finite_coords"}
+    displacement = math.dist(coords[0], coords[-1])
+    ev.update(flight_ms=span_ms, displacement_u=round(displacement, 1))
+    if span_ms <= 0:
+        return {**ev, "usable": False, "reason": "non_positive_flight"}
+    if len(points) < MIN_POINTS:
+        return {**ev, "usable": False, "reason": "too_few_points"}
+    if span_ms < MIN_FLIGHT_MS:
+        return {**ev, "usable": False, "reason": "flight_too_short"}
+    if displacement < MIN_DISPLACEMENT_U:
+        return {**ev, "usable": False, "reason": "displacement_too_small"}
+    return {**ev, "usable": True, "reason": None}
+
+
+def _usable_projectile(path: dict | None) -> bool:
+    """Whether this path has real flight to photograph.
+
+    Frag 5979 is the cautionary case: one of the highest-scoring rockets in
+    the corpus, but its cached path spans 25 ms / 38.7 u across 2 points — a
+    point-blank shot with no arc. A projectile camera built on it films
+    nothing, so the preview falls back rather than pretending otherwise.
+
+    Note that the ~300 ms / 318.6 u direct rocket sometimes quoted alongside
+    Frag 5979 is a *different* event: Frag 4121, also on asylum and also
+    DIRECT_CONFIRMED, from the 2011-08-05 demo rather than 2011-12-20. The
+    two are easy to conflate; only 4121 has an arc worth photographing.
+    """
+    return projectile_evidence(path)["usable"]
 
 
 def build_preview_recipe(frag: dict[str, Any]) -> SceneRecipeV2:
