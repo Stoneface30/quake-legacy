@@ -372,34 +372,49 @@ def pick_pair_for_episode(mean_clip_s: float, min_duration_s: float,
     return out
 
 
-def action_match_pct(beat_times, action_times, tol_s=0.12):
-    """Share of ACTION moments that land on one of the song's beats.
+def extend_beats(beat_times, upto_s, track_dur=None):
+    """Continue a truncated beat grid to the length actually needed.
 
-    This is the real matching criterion, replacing the bar-fit prior. Bar fit
-    asked "does the average clip length divide into bars" -- a statement about
-    an average, not about this footage. This asks the direct question: taking
-    the rail shots, shaft hits, rocket blasts and jumps where they actually
-    occur, what fraction of them fall on a beat of THIS song?
+    The ingest analyses only the first ANALYSE_SECONDS (90 s) of a track, which
+    is ample for establishing tempo but covers a median of just 41% of the
+    song. Scoring a five-and-a-half minute Part against that meant roughly
+    three quarters of the action was compared with NOTHING and counted as a
+    miss -- every candidate scored badly, and the ranking between them was
+    close to arbitrary. That is the "music match is shit" the user reported.
 
-    The song is never re-timed. Its beat grid is fixed; the score simply
-    measures how much of the action already coincides with it, so a video's
-    match is a percentage and not a promise of 100%. Slow-motion shifts the
-    game audio's rate, so those stretches naturally match less -- that is
-    expected, not a defect.
+    The library is constant-tempo electronic music, so the grid continues at
+    the measured median interval. This is an extrapolation and is treated as
+    one: it is used for CHOOSING a track, while the render's own landing
+    decisions use the real full-length analysis.
     """
+    import numpy as np
+    if not beat_times or len(beat_times) < 4:
+        return list(beat_times or [])
+    bt = list(beat_times)
+    step = float(np.median(np.diff(bt)))
+    if step <= 0.02:
+        return bt
+    limit = upto_s if track_dur is None else min(upto_s, track_dur)
+    t = bt[-1]
+    while t < limit:
+        t += step
+        bt.append(t)
+    return bt
+
+
+def action_match_pct(beat_times, action_times, tol_s=0.12):
+    """Fraction of the action landing within `tol_s` of a beat."""
     import bisect
     if not beat_times or not action_times:
         return 0.0
-    b = sorted(beat_times)
+    bt = sorted(beat_times)
     hit = 0
     for t in action_times:
-        i = bisect.bisect_left(b, t)
-        best = 1e9
-        for j in (i - 1, i, i + 1):
-            if 0 <= j < len(b):
-                best = min(best, abs(b[j] - t))
-        if best <= tol_s:
-            hit += 1
+        i = bisect.bisect_left(bt, t)
+        for j in (i - 1, i):
+            if 0 <= j < len(bt) and abs(bt[j] - t) <= tol_s:
+                hit += 1
+                break
     return hit / float(len(action_times))
 
 
@@ -436,9 +451,11 @@ def rank_by_action_match(action_times, min_duration_s, used_ids,
             continue
         if not bt:
             continue
+        span = max(action_times) if action_times else 0.0
         cand.append({"content_id": cid, "path": path, "name": name,
                      "duration_s": dur, "bpm": bpm, "rms_p90": rms,
-                     "match_pct": round(action_match_pct(bt, action_times, tol_s), 4)})
+                     "match_pct": round(action_match_pct(
+                         extend_beats(bt, span, dur), action_times, tol_s), 4)})
     cand.sort(key=lambda c: -c["match_pct"])
     return cand
 
@@ -553,7 +570,8 @@ def pick_by_action_match(action_times, min_duration_s, used_ids, count=2,
             continue
         if not bt:
             continue
-        pct = action_match_pct(bt, action_times, tol_s)
+        span = max(action_times) if action_times else 0.0
+        pct = action_match_pct(extend_beats(bt, span, dur), action_times, tol_s)
         cand.append({"content_id": cid, "path": path, "name": name,
                      "duration_s": dur, "bpm": bpm, "rms_p90": rms,
                      "match_pct": round(pct, 4)})

@@ -44,7 +44,7 @@ SLOW_POST_S = 1.10
 SLOW_RATE = 0.45
 SLOWMO_EVERY_N = 3
 SHORT_CLIP_SLOWMO_S = 7.0
-FL_LEADS_IN = True
+FL_LEADS_IN = False        # alternate views are insets now, not segments
 FL_LEAD_RATE = 0.55            # render_fl_angle(which=0, slow=0.55)
 FL_SECOND_RATE = 0.50          # render_fl_angle(which=1, slow=0.50)
 
@@ -91,16 +91,12 @@ def clip_contribution(dur: float, trim: float, is_fl: bool, slowmo: bool,
         win = max(0.0, b - a)
         out = w + win * (1.0 / slow_rate - 1.0)
 
-    segs = 1
-    angles = [x for x in angle_durs if x and (x[0] if isinstance(x, tuple) else x) >= 1.0]
-    norm = [(x if isinstance(x, tuple) else (x, 0.0)) for x in angles]
-    if norm and FL_LEADS_IN:
-        out += _angle_out(norm[0][0], FL_LEAD_RATE, norm[0][1])
-        segs += 1
-    if len(norm) > 1:
-        out += _angle_out(norm[1][0], FL_SECOND_RATE, norm[1][1])
-        segs += 1
-    return out, segs
+    # Alternate cameras add NO duration any more. They are composited into
+    # this segment as an inset cut to the action, not concatenated as extra
+    # video (user 2026-09-01: "all the FL ... need to be all picture in
+    # picture"). This also removes the term that made the old packer wrong by
+    # up to 78%: nothing about a second camera changes how long a Part runs.
+    return out, 1
 
 
 def part_duration(contribs) -> float:

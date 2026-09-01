@@ -142,7 +142,7 @@ MAX_FRAG_OUT_S = 13.0
 # (ESReality moviemaking interviews): mccormic -- "If you play something in third
 # person first, then show the same thing in first person, that explains a lot to
 # the viewer." No Quake source describes a killcam-style replay after the kill.
-FL_LEADS_IN = True
+FL_LEADS_IN = False        # superseded: alternate views are insets now
 FL_LEAD_PRE_S = 1.1
 FL_LEAD_POST_S = 0.9
 FL_LEAD_MAX_S = 3.0
@@ -177,6 +177,10 @@ FL_TAIL_TRIM_S = 0.90
 # against a ragged last frame, not a trim (V1 directive S14 -- "do not regress
 # to the historical chopped endings").
 FP_TAIL_TRIM_S = 0.25
+# Where the slow-motion accent sits relative to the action peak. Mirrored in
+# creative_suite/engine/pack_model.py, which has to predict the same expansion.
+SLOW_PRE_S = 0.70
+SLOW_POST_S = 1.10
 # Was 2.00, which chopped nearly a second of real frag off angle clips
 # (user: "some clips where chopped nearly 1 sec too"). Enough to clear the
 # console at the end of a follow capture, not enough to eat the aftermath.
@@ -215,28 +219,115 @@ SCRATCH_MIN_GAP = 3        # accented shots between one scratch and the next
 PIP_WIDTH_FRAC = 0.26      # inset width as a share of the frame
 PIP_MARGIN_PX = 48
 PIP_MIN_GAP = 4            # shots between one inset and the next
-OUTRO_S = 10.0             # produced closer: mark + credits (was 14 s)
-SLOW_PRE_S = 0.7
-SLOW_POST_S = 1.1
-# The action itself is capped by TRIMMING to the densest window, never by
-# speeding it up.
-ACTION_MAX_S = 8.0
 
-# Transitions must be invisible, not absent. Kaneco: fades "0.10-0.25 max";
-# eee: transitions "shouldnt be noticeable to the average viewer on the first
-# viewing". The earlier 0.75 s dissolve smeared two rooms together.
-SEAM_FADE_S = 0.18
+# ALTERNATE CAMERAS ARE NOW INSETS, NOT SEGMENTS.
+# User 2026-09-01: "all the FL (other view folder actions) need to be all
+# picture in picture with action match/cut to alternate use sound of clips to
+# match (dont use FL that are longer than 10seconds)".
+#
+# Playing the second camera as its own segment was also what wrecked packing:
+# render_fl_angle ran it at 0.55x, so an 8 s angle became 14.5 s of extra
+# video the packer never modelled. As an inset it adds no duration at all.
+FL_MAX_S = 10.0            # a longer alternate view is not a cut-in, it is a clip
+PIP_PRE_S = 0.55           # inset opens this far before the event
+PIP_POST_S = 1.25          # ...and closes this far after
+PIP_CLUSTER_S = 1.2        # events this close belong to one moment
+PIP_SEPARATION_S = 3.0     # two insets must be this far apart
+PIP_MAX_WINDOWS = 4        # it cuts in and out; it does not sit there
+PIP_MAX_COVERAGE = 0.55    # never on screen for more than this share of a shot
 
-# A highlight reel shows the approach into the kill and a short settle -- not
-# the whole round. Without this window a clip whose peak lands late keeps a long
-# uncompressible tail (only the approach is speed-ramped), and a single frag can
-# swallow 25 s of a 5-minute reel.
-# wolfcam /fragforward captures 5.0 s pre-kill / 3.0 s post, but that is a
-# REVIEW window. Kaneco names both edges as the classic error: clips
-# "ending too long after the frag, or starting too early into the frag".
-SRC_PRE_PEAK_S = 3.4
-SRC_POST_PEAK_S = 1.6
 
+_ACTION_EVENTS: dict = {}
+
+
+def action_events(clip: Path) -> list:
+    """Times of recognised game events in a clip, from the boundary scan."""
+    global _ACTION_EVENTS
+    if not _ACTION_EVENTS:
+        try:
+            from creative_suite.engine.clip_boundary import load_events
+            _ACTION_EVENTS = load_events() or {"": []}
+        except Exception:                              # noqa: BLE001
+            _ACTION_EVENTS = {"": []}
+    return _ACTION_EVENTS.get(str(clip.resolve()).lower(), [])
+
+
+def eligible_angles(fls, cfg: Config) -> list:
+    """Alternate views short enough to cut in as an inset."""
+    out = []
+    for q in fls:
+        try:
+            d = probe_duration(q, cfg)
+        except Exception:                              # noqa: BLE001
+            continue
+        if 1.0 <= d <= FL_MAX_S:
+            out.append(q)
+    return out
+
+
+def pip_windows(clip: Path, w0: float, w1: float, to_output,
+                fl_dur: float = 1e9) -> list:
+    """When the inset should be on screen, in OUTPUT seconds.
+
+    Driven by the clip's own game audio -- the rail shots, hits and explosions
+    the boundary scan already found (user: "use sound of clips to match").
+
+    The events are DENSE: a busy shot has one every few hundred milliseconds.
+    Opening a window at each of them and merging the overlaps produced a single
+    window covering the whole shot, which is a split screen rather than a cut.
+    So the events are clustered first and only the BUSIEST few clusters earn a
+    window -- the moments with the most happening at once, which is what a
+    second camera is worth showing.
+    """
+    ev = [t for t in action_events(clip) if w0 + 0.2 <= t <= w1 - 0.2]
+    span = max(0.1, w1 - w0)
+    if not ev:
+        mid = (w0 + w1) / 2.0
+        clusters = [(mid, 1)]
+    else:
+        clusters, cur = [], [ev[0]]
+        for t in ev[1:]:
+            if t - cur[-1] <= PIP_CLUSTER_S:
+                cur.append(t)
+            else:
+                clusters.append((sum(cur) / len(cur), len(cur)))
+                cur = [t]
+        clusters.append((sum(cur) / len(cur), len(cur)))
+
+    # busiest first, then keep only clusters that are properly separated
+    clusters.sort(key=lambda c: -c[1])
+    picked = []
+    for centre, _n in clusters:
+        if len(picked) >= PIP_MAX_WINDOWS:
+            break
+        if all(abs(centre - c) >= PIP_SEPARATION_S for c in picked):
+            picked.append(centre)
+    picked.sort()
+
+    budget = span * PIP_MAX_COVERAGE
+    wins, used = [], 0.0
+    for c in picked:
+        a = max(w0, c - PIP_PRE_S)
+        b = min(w1, c + PIP_POST_S)
+        if b - a < 0.4 or used + (b - a) > budget:
+            continue
+        wins.append((a, b))
+        used += b - a
+    if not wins and picked:
+        c = picked[0]
+        wins = [(max(w0, c - PIP_PRE_S), min(w1, c + PIP_POST_S))]
+    # The alternate camera is usually SHORTER than the POV (median 6.5 s
+    # against 13 s), and it plays from its own start. Past its end there is
+    # nothing to composite, so a window there would simply not appear -- which
+    # is what happened before this bound existed. Windows are therefore clipped
+    # to the footage that actually exists.
+    out = []
+    for a, b in wins:
+        oa, ob = to_output(a), to_output(b)
+        ob = min(ob, fl_dur - 0.05)
+        if ob - oa >= 0.4:
+            out.append((oa, ob))
+    return out
 
 def _load_tail_table():
     """Per-clip measured end-trim.
@@ -919,27 +1010,6 @@ def render_frag(frag: Frag, dst: Path, cfg: Config,
     # early and it sped through real frags (user 2026-08-29: "you also sped up a
     # whole clip including frags"). Clips are already cut to their frag, so the
     # only speed change permitted anywhere is slow-mo.
-    elif pip is not None:
-        # Both cameras at once. The inset runs from the same moment as the POV
-        # so the two clocks agree; it is not re-windowed independently, which
-        # is what previously made two angles read as two different frags.
-        pip_dur = probe_duration(pip, cfg)
-        p1 = min(w1 - w0, max(0.5, pip_dur))
-        iw = int(cfg.target_width * PIP_WIDTH_FRAC) // 2 * 2
-        ih = int(iw * cfg.target_height / cfg.target_width) // 2 * 2
-        frame_png = inset_frame_asset(iw, ih)
-        filt = (f"[0:v]trim={w0:.4f}:{w1:.4f},setpts=PTS-STARTPTS[base];"
-                f"[1:v]trim=0:{p1:.4f},setpts=PTS-STARTPTS,"
-                f"scale={iw}:{ih},setsar=1[ins];")
-        if frame_png:
-            filt += (f"[2:v]format=rgba[frm];"
-                     f"[ins][frm]overlay=0:0:format=auto[insf];")
-        else:
-            filt += "[ins]null[insf];"
-        filt += (f"[base][insf]overlay="
-                 f"W-w-{PIP_MARGIN_PX}:H-h-{PIP_MARGIN_PX}"
-                 f":enable='lte(t,{p1:.4f})'[vc];"
-                 f"[0:a]atrim={w0:.4f}:{w1:.4f},asetpts=PTS-STARTPTS[aout]")
     else:
         filt = (f"[0:v]trim={w0:.4f}:{w1:.4f},setpts=PTS-STARTPTS[vc];"
                 f"[0:a]atrim={w0:.4f}:{w1:.4f},asetpts=PTS-STARTPTS[aout]")
@@ -947,19 +1017,59 @@ def render_frag(frag: Frag, dst: Path, cfg: Config,
     filt += (f";[vc]scale={cfg.target_width}:{cfg.target_height}"
              f":force_original_aspect_ratio=increase,"
              f"crop={cfg.target_width}:{cfg.target_height},setsar=1,"
-             f"fps={cfg.target_fps},format=yuv420p[vfin]")
+             f"fps={cfg.target_fps},format=yuv420p[vbase]")
+
+    # ---- alternate camera as an INSET, cut to the action -------------------
+    pip_input = None
+    if pip is not None:
+        # Where a source moment ends up once the speed ramp has been applied.
+        # Without this the inset would be timed against the source clock while
+        # the picture runs on the output clock, and it would appear late.
+        if slowmo:
+            _a, _b = accent_window(w0, w1, frag.peak)
+            _r = slow_rate if slow_rate else speed_ramp.SLOW_RATE
+
+            def to_output(t):
+                if t <= _a:
+                    return max(0.0, t - w0)
+                if t <= _b:
+                    return (_a - w0) + (t - _a) / _r
+                return (_a - w0) + (_b - _a) / _r + (t - _b)
+        else:
+            def to_output(t):
+                return max(0.0, t - w0)
+
+        wins = pip_windows(frag.fp, w0, w1, to_output,
+                           probe_duration(pip, cfg))
+        if wins:
+            iw = int(cfg.target_width * PIP_WIDTH_FRAC) // 2 * 2
+            ih = int(iw * cfg.target_height / cfg.target_width) // 2 * 2
+            frame_png = inset_frame_asset(iw, ih)
+            idx = 2 if extra_input is not None else 1
+            fl_dur = probe_duration(pip, cfg)
+            filt += (f";[{idx}:v]trim=0:{fl_dur:.4f},setpts=PTS-STARTPTS,"
+                     f"scale={iw}:{ih},setsar=1,fps={cfg.target_fps}[insr]")
+            if frame_png:
+                filt += (f";[{idx + 1}:v]format=rgba[frm]"
+                         f";[insr][frm]overlay=0:0:format=auto[ins]")
+            else:
+                filt += ";[insr]null[ins]"
+            expr = "+".join("between(t,{:.3f},{:.3f})".format(a, b)
+                            for a, b in wins)
+            filt += (f";[vbase][ins]overlay=W-w-{PIP_MARGIN_PX}:"
+                     f"H-h-{PIP_MARGIN_PX}:enable='{expr}'"
+                     f":eof_action=pass:format=auto[vfin]")
+            pip_input = (pip, frame_png)
+    if pip_input is None:
+        filt += ";[vbase]null[vfin]"
 
     cmd = [str(cfg.ffmpeg_bin), "-y", "-v", "error", "-i", str(frag.fp)]
     if extra_input is not None:
         cmd += ["-i", str(extra_input)]
-    if pip is not None and not slowmo:
-        cmd += ["-i", str(pip)]
-        _fr = inset_frame_asset(
-            int(cfg.target_width * PIP_WIDTH_FRAC) // 2 * 2,
-            int(int(cfg.target_width * PIP_WIDTH_FRAC) // 2 * 2
-                * cfg.target_height / cfg.target_width) // 2 * 2)
-        if _fr:
-            cmd += ["-i", str(_fr)]
+    if pip_input is not None:
+        cmd += ["-i", str(pip_input[0])]
+        if pip_input[1]:
+            cmd += ["-i", str(pip_input[1])]
     cmd += ["-filter_complex", filt, "-map", "[vfin]", "-map", "[aout]",
            "-c:v", "libx264", "-crf", "18", "-preset", "veryfast",
            "-pix_fmt", "yuv420p", "-c:a", "pcm_s16le", "-ar", "48000",
@@ -1539,16 +1649,17 @@ def build(part: int, minutes: float, out: Path, cfg: Config,
                     print(f"  [lock] {f.fp.name[:34]:34} slow {rate:.2f}x -> "
                           f"lands on {kind} at {land:.2f}s")
 
-        # A grenade play with a second camera gets the follow angle inset, so
-        # the shell's flight and its landing are both visible. Only on shots
-        # playing straight -- a speed ramp would put the two cameras on
-        # different clocks.
+        # EVERY clip with a short alternate view gets it as an inset, cut to
+        # the action. It used to be grenades only, and only on shots playing
+        # straight; the ramp problem is solved by mapping window times through
+        # the speed ramp instead of avoiding it.
         pip = None
-        if (not slowmo and f.fls and n - last_pip >= PIP_MIN_GAP
-                and has_grenade(f.fp)):
-            pip = f.fls[0]
-            last_pip = n
-            print(f"  [inset] {f.fp.name[:34]:34} grenade -- follow camera inset")
+        elig = eligible_angles(f.fls, cfg)
+        if elig:
+            pip = elig[0]
+            skipped = len(f.fls) - len(elig)
+            print(f"  [inset] {f.fp.name[:30]:30} + {pip.name[:24]}"
+                  + (f"  ({skipped} over {FL_MAX_S:.0f}s skipped)" if skipped else ""))
 
         if not seg.exists():
             try:
@@ -1558,30 +1669,17 @@ def build(part: int, minutes: float, out: Path, cfg: Config,
                 print(f"  [skip] {f.fp.name}: {exc}")
                 continue
 
-        # MULTIPLE angles on the same frag (user 2026-08-29: "multiple pov for
-        # same frag"). Angle 1 leads IN to the POV so the viewer reads the
-        # geometry first; any further angle plays after as a second look. Every
-        # angle comes from this frag's own folder, so they cannot cross frags.
-        lead = work / f"seg{n:03d}_fl.mov"
-        has_lead = False
-        if f.fls and FL_LEADS_IN:
-            if not lead.exists():
-                render_fl_angle(f, lead, cfg, which=0, slow=0.55)
-            if _valid_segment(lead, cfg):
-                segments.append(lead)
-                timeline += probe_duration(lead, cfg)
-                has_lead = True
-
+        # NOTE: the alternate camera is no longer concatenated as its own
+        # segment. It is composited into this one as an inset (see `pip`
+        # above). Playing it separately ran it at 0.55x, which turned an 8 s
+        # angle into 14.5 s of unmodelled video and was the single largest
+        # cause of the 8-minute Parts.
         if not _valid_segment(seg, cfg):
             print(f"  [drop] {f.fp.name}: segment unreadable, skipping frag")
             try:
                 seg.unlink()
             except OSError:
                 pass
-            if has_lead and segments and segments[-1] == lead:
-                # Its lead-in would otherwise dangle with no POV to lead into.
-                segments.pop()
-                timeline -= probe_duration(lead, cfg)
             continue
 
         d = probe_duration(seg, cfg)
@@ -1590,15 +1688,7 @@ def build(part: int, minutes: float, out: Path, cfg: Config,
         used_frags.append(f)
         timeline += d
 
-        n_angles = 1 + int(has_lead)
-        if len(f.fls) > 1:
-            second = work / f"seg{n:03d}_fl2.mov"
-            if not second.exists():
-                render_fl_angle(f, second, cfg, which=1, slow=0.5)
-            if _valid_segment(second, cfg):
-                segments.append(second)
-                timeline += probe_duration(second, cfg)
-                n_angles += 1
+        n_angles = 1 + int(bool(pip))
 
         print(f"  [{n+1}/{len(chosen)}] {f.tier} {f.fp.name} "
               f"-> {d:.2f}s{f' [{n_angles} angles]' if n_angles > 1 else ''}"
