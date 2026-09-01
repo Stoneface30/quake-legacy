@@ -54,6 +54,22 @@ RUNTIME_BASELINE: dict[str, str] = {
     "cg_cameraRewindTime": "0",
     "cg_enableAtCommands": "1",   # the whole `at` scheduler depends on it
     "debug_camera": "0",
+    # THE CAMERA-AUTHORING OVERLAY. Both default to "1" and both are
+    # CVAR_ARCHIVE (cg_main.c:2316, :2319). They exist for hand-authoring a
+    # path in a live wolfcam session and they are ON out of the box, so a
+    # NATIVE_CAM10 capture renders wolfcam's own editing UI into the movie:
+    # cg_drawCameraPath draws every camera point as a giant world-space
+    # numeral along the path (cg_view.c:4827) — at 128 points that is a
+    # ribbon of glowing cyan digits through the shot, and a point the
+    # camera passes close to fills the entire frame. cg_drawCameraPointInfo
+    # adds a 2D readout on top (cg_draw.c:139).
+    # Measured 2026-09-01 by the scene canary: with these at their defaults
+    # every frame of an otherwise-correct hero shot was ruined, with a clean
+    # rc=0 and nothing in any log. This is the single most important entry
+    # in this table for anyone using the native camera backend.
+    "cg_drawCameraPath": "0",
+    "cg_drawCameraPathAngles": "0",
+    "cg_drawCameraPointInfo": "0",
     # --- capture output ---
     "cl_aviFrameRate": "60",
     "cl_aviCodec": "mjpeg",
