@@ -22,6 +22,7 @@ wolfcam — so the state machine, the trim and the mux are exercised for real.
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import sqlite3
 import subprocess
@@ -34,6 +35,7 @@ from fastapi.testclient import TestClient
 from creative_suite.api import director_draft as dd_mod
 from creative_suite.api import frags as frags_mod
 from creative_suite.app import create_app
+from creative_suite.engine import camera_compiler_v2
 from creative_suite.engine import director_preview as dp
 from creative_suite.engine import review_proxy
 
@@ -571,3 +573,244 @@ def test_every_capture_cfg_resets_the_overlay_before_the_camera(env) -> None:
             assert f"seta {cvar} 0" in cfg
             assert cfg.index(f"seta {cvar} 0") < cfg.index("loadcamera")
             assert cfg.index(f"seta {cvar} 0") < cfg.index("video avi name")
+
+
+# ------------------------------------------------- the split preview key
+
+def _keys(draft: dict, *, edit_duration_us: int = 7_000_000) -> tuple[str, str]:
+    recipe = dp.build_preview_recipe(_frag())
+    return dp.compute_preview_keys(
+        frag_id=1, demo_sha256="a" * 64, demo_name=DEMO,
+        recipe_id=recipe.recipe_id, edit_duration_us=edit_duration_us,
+        draft=draft)
+
+
+def test_music_only_change_keeps_the_visual_capture_key(env) -> None:
+    """The point of the split: music cannot reach a rendered frame, so it must
+    not be able to invalidate a capture."""
+    a_visual, a_assembly = _keys(_draft(music=_music("a" * 64, 0)))
+    b_visual, b_assembly = _keys(_draft(music=_music("b" * 64, 30_000_000)))
+    none_visual, none_assembly = _keys(_draft(music=None))
+    assert a_visual == b_visual == none_visual
+    assert len({a_assembly, b_assembly, none_assembly}) == 3
+
+
+@pytest.mark.parametrize("patch", [
+    {"look": {"look": "PANTHEON", "show_depth": False}},
+    {"look": {"look": "ORIGINAL", "show_depth": True}},      # mme_saveDepth
+    {"fx": {"rocket_fx": "HERO", "ghost": "OFF"}},
+    {"camera": {**dd_mod.DEFAULT_CAMERA, "distance": 400.0}},
+    {"camera": {**dd_mod.DEFAULT_CAMERA, "fov": 100.0}},     # seta cg_fov
+    {"backend": camera_compiler_v2.BACKEND_FREECAM_SAMPLED},
+])
+def test_pixel_inputs_change_the_visual_capture_key(env, patch) -> None:
+    base, _ = _keys(_draft())
+    changed, _ = _keys(_draft(**patch))
+    assert changed != base
+
+
+def test_timemap_duration_is_a_visual_input_not_a_post_input(env) -> None:
+    """It LOOKS like a trim and is not: the window drives seekservertime, the
+    video/stopvideo schedule and _cover_window's guard-inclusive path."""
+    short, _ = _keys(_draft(), edit_duration_us=7_000_000)
+    long_, _ = _keys(_draft(), edit_duration_us=9_000_000)
+    assert short != long_
+
+
+def test_runtime_baseline_is_a_visual_input(env, monkeypatch) -> None:
+    before, _ = _keys(_draft())
+    from creative_suite.engine import pantheon_runtime
+    monkeypatch.setitem(pantheon_runtime.RUNTIME_BASELINE,
+                        "cg_drawCameraPath", "1")
+    assert _keys(_draft())[0] != before
+
+
+def test_preview_key_is_derived_from_both_halves(env) -> None:
+    visual, assembly = _keys(_draft())
+    recipe = dp.build_preview_recipe(_frag())
+    assert dp.compute_preview_key(
+        frag_id=1, demo_sha256="a" * 64, demo_name=DEMO,
+        recipe_id=recipe.recipe_id, edit_duration_us=7_000_000,
+        draft=_draft()) == hashlib.sha256(
+            f"{visual}:{assembly}".encode("ascii")).hexdigest()
+
+
+def test_music_only_change_does_not_recapture(env, tmp_path) -> None:
+    """END TO END: change ONLY the music and the expensive capture is reused.
+
+    The visual artifact's mtime is the evidence — if the capture had re-run,
+    the file would have been replaced."""
+    track = _sine_track(tmp_path)
+    frag = _frag()
+    first = dp.request_preview(frag, _draft())
+    dp.drain_for_tests()
+    visuals = sorted(dp.visual_dir().glob("*.mp4"))
+    assert len(visuals) == 1
+    stamp = visuals[0].stat().st_mtime_ns
+
+    second = dp.request_preview(frag, _draft(music=_music(track, 2_000_000)))
+    dp.drain_for_tests()
+    assert second["preview_key"] != first["preview_key"]
+    assert (second["visual_capture_key"] == first["visual_capture_key"])
+    assert sorted(dp.visual_dir().glob("*.mp4")) == visuals
+    assert visuals[0].stat().st_mtime_ns == stamp, "the capture was re-run"
+    assert dp.media_path(second["preview_key"]) is not None
+    assert dp.visual_cache_usage()["artifacts"] == 1
+
+
+def test_a_pixel_change_does_capture_again(env) -> None:
+    frag = _frag()
+    dp.request_preview(frag, _draft())
+    dp.drain_for_tests()
+    dp.request_preview(frag, _draft(look={"look": "PANTHEON",
+                                          "show_depth": False}))
+    dp.drain_for_tests()
+    assert len(sorted(dp.visual_dir().glob("*.mp4"))) == 2
+
+
+def _sine_track(tmp_path: Path) -> str:
+    """Register a real audio file in a real MusicFeatureStore; return its hash."""
+    from creative_suite.engine.music_features_v2 import (MusicFeatureStore,
+                                                         MusicFeatureV2)
+    track = tmp_path / "lru_track.wav"
+    subprocess.run([str(dp.FFMPEG), "-y", "-loglevel", "error",
+                    "-f", "lavfi", "-i", "sine=frequency=660",
+                    "-t", "40", str(track)], check=True, timeout=180)
+    track_hash = MusicFeatureStore.full_content_hash(track)
+    MusicFeatureStore(dp.MUSIC_FEATURE_DB_PATH).put(MusicFeatureV2(
+        track_hash=track_hash, path=str(track), duration_us=40_000_000,
+        sample_rate=44100, channels=1, extractor_version="test",
+        schema_version=2, status="OK", bpm=None, bpm_confidence=None,
+        beats_us=(), beat_confidence=None, onset_curve=(), energy_curve=(),
+        loudness_curve=(), spectral_curve=(), bar_grid_estimate_us=(),
+        section_boundary_estimates_us=(), phrase_boundary_estimates_us=(),
+        regions=()))
+    return track_hash
+
+
+# --------------------------------------------- bounded visual artifact cache
+
+def _fake_artifact(key: str, size: int = 4096, edit_us: int = 7_000_000) -> Path:
+    """A registered cache entry whose file is real but whose bytes are not.
+
+    ``visual_hit`` probes duration, so these are only used for the budget /
+    eviction arithmetic, never read back as captures."""
+    dp.visual_dir().mkdir(parents=True, exist_ok=True)
+    path = dp.visual_dir() / f"{key}.mp4"
+    path.write_bytes(b"\0" * size)
+    dp.register_visual(key, path, edit_us)
+    return path
+
+
+def _touch_used(key: str, when: str) -> None:
+    con = dp._conn()
+    try:
+        con.execute("UPDATE director_visual_artifacts SET last_used_at = ? "
+                    "WHERE visual_key = ?", (when, key))
+        con.commit()
+    finally:
+        con.close()
+
+
+def test_budget_evicts_least_recently_USED_not_oldest(env) -> None:
+    """The whole reason to keep a used-at column: the OLDEST artifact is very
+    often the one the user keeps coming back to."""
+    old_but_hot, young_but_cold = "a" * 64, "b" * 64
+    _fake_artifact(old_but_hot, 4096)
+    _fake_artifact(young_but_cold, 4096)
+    _touch_used(old_but_hot, "2026-09-01 12:00:00")     # created first, used last
+    _touch_used(young_but_cold, "2026-08-01 12:00:00")
+
+    evicted = dp.enforce_visual_budget(budget_bytes=5000)
+    assert evicted == [young_but_cold]
+    assert not (dp.visual_dir() / f"{young_but_cold}.mp4").exists()
+    assert (dp.visual_dir() / f"{old_but_hot}.mp4").exists()
+    assert dp.visual_cache_usage()["artifacts"] == 1
+
+
+def test_budget_is_a_no_op_when_the_cache_fits(env) -> None:
+    _fake_artifact("c" * 64, 4096)
+    assert dp.enforce_visual_budget(budget_bytes=1_000_000) == []
+    assert dp.visual_cache_usage()["artifacts"] == 1
+
+
+def test_an_in_flight_artifact_is_never_evicted(env) -> None:
+    """§12's generation guard means an older job can still be capturing while
+    a newer one runs. Evicting its artifact would delete the file out from
+    under a running job."""
+    pinned, evictable = "d" * 64, "e" * 64
+    _fake_artifact(pinned, 8192)
+    _fake_artifact(evictable, 4096)
+    _touch_used(pinned, "2026-01-01 00:00:00")          # by LRU it goes FIRST
+    _touch_used(evictable, "2026-09-01 00:00:00")
+
+    dp._pin_visual(pinned)
+    try:
+        evicted = dp.enforce_visual_budget(budget_bytes=1)
+    finally:
+        dp._unpin_visual(pinned)
+    assert evicted == [evictable]
+    assert (dp.visual_dir() / f"{pinned}.mp4").exists()
+
+
+def test_a_queued_job_pins_its_artifact_through_the_database(env) -> None:
+    """The in-process pin only covers a job already running. A job waiting on
+    the capture lock is in flight too, and says so in director_previews."""
+    key = "f" * 64
+    _fake_artifact(key, 8192)
+    con = dp._conn()
+    try:
+        con.execute(
+            "INSERT INTO director_previews (preview_key, frag_id, generation,"
+            " state, visual_key) VALUES (?,?,?,?,?)",
+            ("9" * 64, 1, 1, dp.STATE_CAPTURING, key))
+        con.commit()
+    finally:
+        con.close()
+    assert dp.enforce_visual_budget(budget_bytes=1) == []
+    assert (dp.visual_dir() / f"{key}.mp4").exists()
+
+
+def test_a_partially_evicted_artifact_never_reads_as_ready(env) -> None:
+    """CRASH SAFETY. The row flips to EVICTING and commits BEFORE the file is
+    unlinked, so every crash window leaves an artifact that is unusable rather
+    than one that is half-deleted and still advertised as READY."""
+    key = "1" * 64
+    path = _fake_artifact(key)
+    con = dp._conn()
+    try:                                    # simulate: crashed after step 1
+        con.execute("UPDATE director_visual_artifacts SET state = ? "
+                    "WHERE visual_key = ?", (dp.STATE_EVICTING, key))
+        con.commit()
+    finally:
+        con.close()
+    assert dp.visual_hit(key, 7_000_000) is None
+    assert dp.visual_cache_usage()["bytes"] == 0
+    dp.enforce_visual_budget()              # the sweep finishes the job
+    assert not path.exists()
+
+
+def test_sweep_removes_files_no_row_claims(env) -> None:
+    """A capture that died mid-transcode leaves a tmp file; a hand-deleted row
+    leaves an orphan. Neither may sit in the cache forever, and nothing
+    outside the cache directory is ever touched."""
+    dp.visual_dir().mkdir(parents=True, exist_ok=True)
+    orphan = dp.visual_dir() / ("2" * 64 + ".mp4")
+    orphan.write_bytes(b"\0" * 512)
+    keeper = _fake_artifact("3" * 64)
+    outsider = dp.PREVIEW_DIR / "not_the_cache.mp4"
+    outsider.write_bytes(b"\0" * 16)
+
+    dp.enforce_visual_budget(budget_bytes=1_000_000)
+    assert not orphan.exists()
+    assert keeper.exists()
+    assert outsider.exists(), "eviction must never leave the cache directory"
+
+
+def test_visual_hit_rejects_a_wrong_length_artifact(env) -> None:
+    """Same rule the delivered mp4 already lives by: the TimeMap is the
+    authority for duration, so a cached capture of the wrong length is not a
+    hit no matter what the key says."""
+    key = "4" * 64
+    _fake_artifact(key, 4096, edit_us=7_000_000)
+    assert dp.visual_hit(key, 7_000_000) is None    # not even a real mp4

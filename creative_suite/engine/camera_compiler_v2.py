@@ -92,6 +92,55 @@ PUSHED_OUT = "PUSHED_OUT"
 SHORTENED = "SHORTENED"
 REJECTED = "REJECTED"
 
+# ---------------------------------------------------------------------------
+# Coverage — does the compiled path actually supply motion for the whole
+# scene, or does the camera run out of path and sit still?
+#
+# THE DEFECT THIS MEASURES. `collision_check_dense` may return SHORTENED: a
+# clean PREFIX of the path survives and everything after the first offending
+# sample is discarded. Nothing downstream shortens the CAPTURE, so the engine
+# reaches the last camera point and holds that pose for the rest of the
+# window. A cinematic shot that stops moving mid-take and stares is a visible
+# failure, and until now the only trace of it was a `SHORTENED` string.
+#
+# THRESHOLDS — chosen from constants this project already measured, not
+# invented here:
+#
+#   COVERAGE_FULL_TOLERANCE_MS = 1000/60 (16.67 ms) — one frame at the
+#   capture rate (`wolfcam_capture.FPS` is 60 and every preview/master render
+#   is CFR 60). A hold shorter than one frame cannot be displayed at all, so
+#   it is FULL, not "nearly full". This is a float/rounding tolerance, not an
+#   aesthetic judgement.
+#
+#   ACCEPTABLE_HOLD_MS = 550 — `clip_boundary.MIN_HOLD_AFTER_ACTION_S = 0.55`.
+#   That constant is the SHORTEST hold this project deliberately ships: it is
+#   what `clip_boundary` keeps after the last piece of action when an end
+#   marker decides the cut, i.e. the project has already asserted (against
+#   measured clips) that ~0.55 s of held picture reads as a deliberate settle
+#   rather than as dead air. Two corroborating points from the same codebase:
+#   `frag_vision_config.json` ships intentional holds of 180 ms
+#   (`impact_hold`) and 350 ms (`freeze`), both comfortably under this bar; and
+#   `clip_boundary.AFTERMATH_HOLD_S = 1.60` is documented as long enough for a
+#   round-end ANNOUNCEMENT TO BE READ on screen — a hold of that order is
+#   unarguably perceptible as the picture having stopped. 0.55 s is therefore
+#   the highest hold in this codebase with evidence behind it that a viewer
+#   reads it as intent; anything longer is a dead hold and is classified BAD.
+#
+# The classification is on the ABSOLUTE hold duration, not on the covered
+# fraction, because what a viewer perceives is "the camera stopped for N
+# seconds" — a 600 ms dead hold is a 600 ms dead hold whether the shot is 3 s
+# or 30 s long. `covered_fraction` is reported anyway so a caller can apply
+# its own extra policy (the recovery ladder in director_preview.py does
+# exactly that: it uses the fraction to decide whether retiming is viable).
+# ---------------------------------------------------------------------------
+COVERAGE_FULL = "FULL"
+COVERAGE_PARTIAL_OK = "PARTIAL_OK"
+COVERAGE_PARTIAL_BAD = "PARTIAL_BAD"
+COVERAGE_INVALID = "INVALID"
+
+COVERAGE_FULL_TOLERANCE_MS = 1000.0 / 60.0
+ACCEPTABLE_HOLD_MS = 550.0
+
 
 # ---------------------------------------------------------------------------
 # Dense resampling — Catmull-Rom on position, shortest-path-angle lerp on
@@ -301,6 +350,75 @@ def _min_clearance(tracer, keyframes: list[dict], probe_u: float) -> float:
     return best
 
 
+def classify_coverage(final_keyframes: list[dict], scene_start_ms: float,
+                      scene_end_ms: float) -> dict:
+    """How much of ``[scene_start_ms, scene_end_ms]`` this path actually moves
+    through, and whether the shortfall is survivable.
+
+    ``scene_start_ms``/``scene_end_ms`` are in the SAME (shot-relative or
+    absolute) clock as ``final_keyframes[*]["t_ms"]``, and should be the
+    EDIT-time window — the part of the capture the viewer will actually see.
+    Guard margin outside that window is trimmed away, so a path that does not
+    reach into the guard costs nothing and must not be scored as a dead hold.
+
+    Returns ``{"coverage", "covered_ms", "scene_ms", "hold_ms",
+    "covered_fraction"}``. ``hold_ms`` is ALL uncovered scene time (a late
+    start counts as well as an early stop — both are a frozen camera).
+    """
+    scene_ms = float(scene_end_ms) - float(scene_start_ms)
+    if scene_ms <= 0:
+        # Degenerate window: nothing to cover, nothing to hold. Report it as
+        # FULL when there is a path at all rather than inventing a failure.
+        return {"coverage": COVERAGE_FULL if final_keyframes
+                else COVERAGE_INVALID,
+                "covered_ms": 0.0, "scene_ms": 0.0, "hold_ms": 0.0,
+                "covered_fraction": 1.0 if final_keyframes else 0.0}
+    if len(final_keyframes) < 2:
+        return {"coverage": COVERAGE_INVALID, "covered_ms": 0.0,
+                "scene_ms": scene_ms, "hold_ms": scene_ms,
+                "covered_fraction": 0.0}
+    times = [float(k["t_ms"]) for k in final_keyframes]
+    lo = max(min(times), float(scene_start_ms))
+    hi = min(max(times), float(scene_end_ms))
+    covered_ms = max(0.0, hi - lo)
+    hold_ms = max(0.0, scene_ms - covered_ms)
+    fraction = covered_ms / scene_ms
+    if hold_ms <= COVERAGE_FULL_TOLERANCE_MS:
+        coverage = COVERAGE_FULL
+    elif covered_ms <= COVERAGE_FULL_TOLERANCE_MS:
+        # The path exists but supplies no motion inside the scene at all.
+        coverage = COVERAGE_INVALID
+    elif hold_ms <= ACCEPTABLE_HOLD_MS:
+        coverage = COVERAGE_PARTIAL_OK
+    else:
+        coverage = COVERAGE_PARTIAL_BAD
+    return {"coverage": coverage, "covered_ms": covered_ms,
+            "scene_ms": scene_ms, "hold_ms": hold_ms,
+            "covered_fraction": fraction}
+
+
+def retime_to_span(keyframes: list[dict], t0_ms: float, t1_ms: float
+                   ) -> list[dict]:
+    """Linearly rescale a path's TIMES onto ``[t0_ms, t1_ms]``, positions and
+    angles untouched.
+
+    This is the cheap recovery for a SHORTENED path: the surviving prefix is
+    already proven collision-clear at every one of its positions, and moving
+    only the clock cannot make a clear position solid. The shot becomes the
+    same move performed more slowly across the whole scene instead of the
+    authored move followed by a dead hold.
+    """
+    if len(keyframes) < 2:
+        return list(keyframes)
+    kfs = sorted(keyframes, key=lambda k: k["t_ms"])
+    src0, src1 = float(kfs[0]["t_ms"]), float(kfs[-1]["t_ms"])
+    if src1 <= src0:
+        return list(kfs)
+    scale = (float(t1_ms) - float(t0_ms)) / (src1 - src0)
+    return [{**k, "t_ms": float(t0_ms)
+             + (float(k["t_ms"]) - src0) * scale} for k in kfs]
+
+
 # ---------------------------------------------------------------------------
 # Compilation entrypoint — backend-agnostic dense/collision-checked
 # keyframes, compiled today onto FREECAM_SAMPLED.
@@ -334,14 +452,16 @@ def compile_dense_camera(keyframes: list[dict], base_servertime: int,
                          hz: float = CINEMATIC_HZ, tracer=None,
                          subject_track: Track | None = None,
                          min_clearance_u: float = 8.0,
-                         backend: str = cam10_writer.BACKEND_NATIVE_CAM10
-                         ) -> dict:
+                         backend: str = cam10_writer.BACKEND_NATIVE_CAM10,
+                         scene_start_ms: float | None = None,
+                         scene_end_ms: float | None = None) -> dict:
     """Full pipeline: resample -> collision-check -> compile. Returns a
     debug-friendly dict (directive section 12's diagnostic artifact):
     {"backend", "status", "requested_hz", "effective_hz", "hz_clamped",
     "authored_keyframes", "dense_keyframes", "final_keyframes",
     "min_clearance_u", "collision_report", "cam10_path", "cam10_hash",
-    "cfg_lines"}. If status is REJECTED, cam10_path/cfg_lines are None —
+    "cfg_lines", "coverage", "covered_ms", "scene_ms", "hold_ms",
+    "covered_fraction"}. If status is REJECTED, cam10_path/cfg_lines are None —
     caller must not attempt capture.
 
     ``backend``: ``"NATIVE_CAM10"`` (default here — reads up to 512 points
@@ -352,6 +472,13 @@ def compile_dense_camera(keyframes: list[dict], base_servertime: int,
     use this when you specifically want the independent fallback, e.g.
     diagnosing whether an issue is backend-specific). Both are real,
     tested, runtime-proven backends (cam10_runtime_contract.md).
+
+    ``scene_start_ms`` / ``scene_end_ms`` describe the EDIT-time window the
+    shot must supply motion for, in the same (shot-relative) clock as
+    ``keyframes``. They default to the authored path's own span, which makes
+    coverage self-referential (always FULL unless collision shortened it) —
+    a caller that knows the real edit window (director_preview does) should
+    pass it, so that a path authored too short is also caught.
 
     ``hz`` is silently-but-visibly clamped for FREECAM_SAMPLED
     (``hz_clamped`` is reported, never hidden) so the compiled cfg never
@@ -368,6 +495,15 @@ def compile_dense_camera(keyframes: list[dict], base_servertime: int,
     dense = resample_dense(keyframes, effective_hz)
     collision = collision_check_dense(tracer, dense, subject_track,
                                       min_clearance_u=min_clearance_u)
+    if dense:
+        span_lo = min(k["t_ms"] for k in dense)
+        span_hi = max(k["t_ms"] for k in dense)
+    else:
+        span_lo = span_hi = 0.0
+    cov = classify_coverage(
+        collision["keyframes"],
+        span_lo if scene_start_ms is None else scene_start_ms,
+        span_hi if scene_end_ms is None else scene_end_ms)
     result = {
         "backend": backend,
         "status": collision["status"],
@@ -381,6 +517,15 @@ def compile_dense_camera(keyframes: list[dict], base_servertime: int,
         "collision_report": collision["report"],
         "original_sample_count": collision["original_count"],
         "used_sample_count": collision["used_count"],
+        # Coverage (ITEM A) — the fraction of the scene's edit-time duration
+        # for which this path actually supplies motion. A SHORTENED path that
+        # still covers the scene is harmless; one that does not leaves the
+        # camera holding a pose, which is what these numbers surface.
+        "coverage": cov["coverage"],
+        "covered_ms": cov["covered_ms"],
+        "scene_ms": cov["scene_ms"],
+        "hold_ms": cov["hold_ms"],
+        "covered_fraction": cov["covered_fraction"],
         "cam10_path": None, "cam10_hash": None, "cfg_lines": None,
     }
     if collision["status"] == REJECTED or not collision["keyframes"]:
