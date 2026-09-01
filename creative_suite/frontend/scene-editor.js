@@ -21,7 +21,7 @@
 /* ============================== constants ============================== */
 
 const LANE_H = {
-  GAME_EVENTS: 52, TIME: 34, CAMERA: 26, FX: 26, LOOK: 18,
+  GAME_EVENTS: 52, TIME: 34, CAMERA: 26, FX: 26, LOOK: 18, TRANSITION: 24,
   MUSIC_WAVEFORM: 56, MUSIC_EVENTS: 30, MUSIC_STRUCTURE: 22,
 };
 const MUSIC_LANES = new Set(["MUSIC_WAVEFORM", "MUSIC_EVENTS", "MUSIC_STRUCTURE"]);
@@ -278,6 +278,7 @@ function laneCount(lane) {
     case "CAMERA": return (lanes.CAMERA.stages || []).length;
     case "FX": return (lanes.FX.cues || []).length;
     case "LOOK": return 1;
+    case "TRANSITION": return state.projection.lanes.TRANSITION ? 1 : 0;
     case "MUSIC_WAVEFORM": return lanes.MUSIC_WAVEFORM ? 1 : 0;
     case "MUSIC_EVENTS": return (lanes.MUSIC_EVENTS || []).length;
     case "MUSIC_STRUCTURE": return (lanes.MUSIC_STRUCTURE || []).length;
@@ -376,6 +377,7 @@ function drawLane(ctx, lane, top, h, m) {
       (lanes.FX.cues || []).filter((c) => c.resolved),
       (c) => `${c.effect_type} · ${c.intensity_level}`, "#8a6fc0");
     case "LOOK": return drawLook(ctx, top, h, m);
+    case "TRANSITION": return drawTransition(ctx, top, h, m);
     case "MUSIC_WAVEFORM": return drawWaveform(ctx, top, h, m);
     case "MUSIC_EVENTS": return drawMusicEvents(ctx, top, h, m);
     case "MUSIC_STRUCTURE": return drawStructure(ctx, top, h, m);
@@ -483,6 +485,34 @@ function drawSpans(ctx, top, h, m, lane, items, labelOf, color) {
       ctx.fillText(labelOf(item), x + 5, top + h - 9);
     }
   }
+  ctx.restore();
+}
+
+function drawTransition(ctx, top, h, m) {
+  // A real block, not a music marker: it spans from where the outgoing
+  // scene starts handing over to the cut itself, and the cut is drawn as a
+  // hard edge because that is what the viewer sees.
+  const tr = state.projection.lanes.TRANSITION;
+  if (!tr) return;
+  const x0 = xOf(tr.start_edit_us, m);
+  const xc = xOf(tr.cut_edit_us, m);
+  ctx.save();
+  const w = Math.max(2, xc - x0);
+  ctx.fillStyle = "#3b2f18";
+  ctx.fillRect(x0, top + 3, w, h - 7);
+  ctx.strokeStyle = "#d4af37";
+  ctx.lineWidth = 1;
+  ctx.strokeRect(x0 + 0.5, top + 3.5, w, h - 7);
+  ctx.beginPath();                       // the cut
+  ctx.moveTo(xc + 0.5, top + 1);
+  ctx.lineTo(xc + 0.5, top + h - 2);
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#e8c451";
+  ctx.stroke();
+  ctx.font = "9px Consolas, monospace";
+  ctx.fillStyle = "#e8c451";
+  const label = `${tr.type} → ${tr.visual_variant}`;
+  ctx.fillText(label, Math.max(x0 + 5, 5), top + h - 7);
   ctx.restore();
 }
 
@@ -871,6 +901,14 @@ async function patchRecipe(patch, label) {
   }
 }
 
+async function setTransition(patch) {
+  // The transition lives in the draft alongside camera/fx/look, so it takes
+  // the same patch path and the same undo stack. Only fields that reach
+  // transition_id are sent; selection and scroll never are.
+  await patchRecipe({ transition: patch },
+                    `TRANSITION · ${Object.values(patch)[0]}`);
+}
+
 async function saveRecipe() {
   try {
     const draft = await api(`/api/scene-editor/${state.fragId}/draft/save`, postBody());
@@ -1005,12 +1043,13 @@ function renderInspector() {
   const sel = state.selection;
   $("insp-title").textContent = sel ? `INSPECTOR · ${sel.lane.replace(/_/g, " ")}`
                                     : "INSPECTOR";
-  if (!sel) body.appendChild(sceneSection());
+  if (!sel) { body.appendChild(sceneSection()); body.appendChild(transitionSection()); }
   else if (sel.lane === "TIME") body.appendChild(timeSection(sel));
   else if (sel.lane === "GAME_EVENTS") body.appendChild(eventSection(sel));
   else if (sel.lane === "CAMERA") body.appendChild(cameraSection(sel));
   else if (sel.lane === "FX") body.appendChild(fxSection());
   else if (sel.lane === "LOOK") body.appendChild(lookSection());
+  else if (sel.lane === "TRANSITION") body.appendChild(transitionSection());
   else body.appendChild(musicSection());
 
   body.appendChild(musicPlacementSection());
@@ -1241,6 +1280,40 @@ function lookSection() {
     (visualLook) => patchRecipe({ visual_look: visualLook }, `LOOK · ${visualLook}`)));
   box.appendChild(el("div", "hint",
     "Look is recipe state: it changes the scene identity, not the timing."));
+  return box;
+}
+
+function transitionSection() {
+  const box = section("TRANSITION");
+  const tr = state.projection.lanes.TRANSITION;
+  if (!tr) {
+    box.appendChild(el("div", "hint",
+      "No outgoing transition. This scene ends on a straight cut."));
+    return box;
+  }
+  box.appendChild(kv([
+    ["type", tr.type],
+    ["scene B", tr.scene_b_recipe_id.slice(0, 12)],
+    ["A anchor", tr.scene_a_anchor.replace(/_/g, " ")],
+    ["B anchor", tr.scene_b_anchor.replace(/_/g, " ")],
+    ["cut", (tr.cut_edit_us / 1e6).toFixed(3) + " s"],
+    ["B entry", (tr.scene_b_entry_us / 1e6).toFixed(3) + " s"],
+    ["duration", tr.duration_us ? (tr.duration_us / 1e6).toFixed(3) + " s"
+                                : "hard cut"],
+  ]));
+  box.appendChild(el("h3", "", "VISUAL VARIANT"));
+  box.appendChild(buttonRow(
+    [["HARD_CUT", "HARD"], ["IMPACT_FLASH", "FLASH"], ["GRADE_LERP", "GRADE"]],
+    tr.visual_variant, (v) => setTransition({ visual_variant: v })));
+  box.appendChild(el("h3", "", "MUSIC STRATEGY"));
+  box.appendChild(buttonRow(
+    [["CONTINUOUS", "CONTINUOUS"], ["STRUCTURED", "STRUCTURED"],
+     ["SAME_TRACK_REGION", "SAME TRACK"]],
+    tr.music_strategy, (v) => setTransition({ music_strategy: v })));
+  box.appendChild(el("div", "hint",
+    "Anchors are recognition evidence, not timestamps: the cut follows the " +
+    "projectile impact if the evidence improves. transition_id " +
+    tr.transition_id.slice(0, 12) + " covers everything above."));
   return box;
 }
 

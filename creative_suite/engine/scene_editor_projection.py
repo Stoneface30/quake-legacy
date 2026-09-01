@@ -64,7 +64,9 @@ LANE_LOOK = "LOOK"
 LANE_MUSIC_WAVEFORM = "MUSIC_WAVEFORM"
 LANE_MUSIC_EVENTS = "MUSIC_EVENTS"
 LANE_MUSIC_STRUCTURE = "MUSIC_STRUCTURE"
+LANE_TRANSITION = "TRANSITION"
 LANE_ORDER = (LANE_GAME_EVENTS, LANE_TIME, LANE_CAMERA, LANE_FX, LANE_LOOK,
+              LANE_TRANSITION,
               LANE_MUSIC_WAVEFORM, LANE_MUSIC_EVENTS, LANE_MUSIC_STRUCTURE)
 
 # Game-event kinds the lane can show. Each one names the evidence that
@@ -938,6 +940,35 @@ def review_identity(*, frag_id: int, track_hash: str, region_start_us: int,
 # the whole projection
 # ===========================================================================
 
+def transition_lane(transition, recipe: SceneRecipeV2) -> dict | None:
+    """The outgoing transition as a real timeline block (directive 13).
+
+    A transition is NOT a music structure marker: it owns a span in the
+    scene's own edit clock, from the moment the outgoing scene stops being
+    the only thing on screen (``cut_edit_us - duration_us``) to the cut
+    itself. A hard cut has zero duration and still renders as a marker, so
+    the editor can always show WHERE the scene ends.
+    """
+    if transition is None:
+        return None
+    cut_us = int(transition.cut_edit_us)
+    dur = int(transition.duration_us)
+    return {
+        "transition_id": transition.transition_id,
+        "type": transition.type,
+        "scene_a_anchor": transition.scene_a_anchor,
+        "scene_b_anchor": transition.scene_b_anchor,
+        "scene_b_recipe_id": transition.scene_b_recipe_id,
+        "cut_edit_us": cut_us,
+        "start_edit_us": max(0, cut_us - dur),
+        "duration_us": dur,
+        "visual_variant": transition.visual_variant,
+        "music_strategy": transition.music_strategy,
+        "scene_b_entry_us": int(transition.scene_b_entry_us),
+        "fx": list(transition.fx),
+    }
+
+
 def build_projection(
     frag_id: int, *, frag_db: Path, demo_v2_db: Path,
     music_db: Path | None = None,
@@ -947,6 +978,7 @@ def build_projection(
     camera_intent: CameraIntent | None = None,
     fx_cues: Sequence[FxCue] = (),
     visual_look: str = "ORIGINAL",
+    transition: Any | None = None,
     envelope_buckets: int = DEFAULT_ENVELOPE_BUCKETS,
 ) -> dict[str, Any]:
     """Every lane for one scene, all projected onto ``edit_us``.
@@ -1003,6 +1035,7 @@ def build_projection(
                           "stages": camera_lane(intent, recipe, time_map)},
             LANE_FX: {"cues": fx_lane(scene.fx_stack, recipe, time_map)},
             LANE_LOOK: {"visual_look": visual_look},
+            LANE_TRANSITION: transition_lane(transition, recipe),
             LANE_MUSIC_WAVEFORM: music,
             LANE_MUSIC_EVENTS: None if music is None else music["events"],
             LANE_MUSIC_STRUCTURE: None if music is None else music["structure"],

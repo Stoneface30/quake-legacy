@@ -213,3 +213,41 @@ def test_placement_maps_edit_to_music_affinely(catalog, segs):
     assert place.edit_to_music(0) == int(row["music_source_start_us"])
     step = place.edit_to_music(1_000_000) - place.edit_to_music(0)
     assert step == 1_000_000        # no time-stretch; music is never resampled
+
+
+# ── timeline lane (directive 13) ────────────────────────────────────────────
+
+from creative_suite.engine import scene_editor_projection as sp  # noqa: E402
+
+
+def test_transition_is_a_lane_in_the_documented_order():
+    assert sp.LANE_TRANSITION in sp.LANE_ORDER
+    # it belongs with the scene lanes, ahead of the music lanes -- a
+    # transition is not a music structure marker
+    order = list(sp.LANE_ORDER)
+    assert order.index(sp.LANE_TRANSITION) < order.index(sp.LANE_MUSIC_WAVEFORM)
+
+
+def test_transition_lane_spans_from_handover_to_the_cut():
+    t = _bridge(visual_variant=tr.VISUAL_IMPACT_FLASH, duration_us=200_000)
+    lane = sp.transition_lane(t, None)
+    assert lane["cut_edit_us"] == 4_000_000
+    assert lane["start_edit_us"] == 3_800_000
+    assert lane["duration_us"] == 200_000
+    assert lane["type"] == tr.TYPE_PROJECTILE_BRIDGE
+    assert lane["visual_variant"] == tr.VISUAL_IMPACT_FLASH
+
+
+def test_hard_cut_lane_is_a_zero_width_marker_not_a_hole():
+    lane = sp.transition_lane(_bridge(), None)
+    assert lane["duration_us"] == 0
+    assert lane["start_edit_us"] == lane["cut_edit_us"]
+
+
+def test_no_transition_projects_as_none_rather_than_an_empty_block():
+    assert sp.transition_lane(None, None) is None
+
+
+def test_lane_exposes_the_identity_the_inspector_shows():
+    t = _bridge()
+    assert sp.transition_lane(t, None)["transition_id"] == t.transition_id
