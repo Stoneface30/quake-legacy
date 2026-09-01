@@ -97,7 +97,8 @@ def cuts_for(clock: ic.ImpactClock, T_ms: float) -> CanaryCut:
     return CanaryCut(
         T_s=T, scene_in_s=rel(clock.scene_start_us),
         insert_in_s=(rel(clock.insert_start_us) if clock.has_insert else None),
-        insert_out_s=(rel(clock.fpv_return_us) if clock.has_insert else None),
+        insert_out_s=((rel(clock.fpv_return_us) if clock.return_to_fpv
+                       else rel(clock.tail_us)) if clock.has_insert else None),
         slow_in_s=rel(clock.slow_span_us[0]), slow_out_s=rel(clock.slow_span_us[1]),
         scene_out_s=rel(clock.tail_us), slow_rate=clock.slow_rate)
 

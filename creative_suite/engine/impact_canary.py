@@ -63,6 +63,10 @@ class ImpactClock:
     slow_end_us: int | None = None
     # FPV_THEN_REPLAY / REPLAY_THEN_FPV / BOTH -- decided at lock-in, not a rule
     ordering: str = "FPV_THEN_REPLAY"
+    # Review (V3B): cutting back to FPV before impact read as messy and
+    # harsh. With return_to_fpv=False the cinematic camera keeps the shooter
+    # in view through the impact and the tail; fpv_return_us is then unused.
+    return_to_fpv: bool = True
     insert_camera: str = "PROJECTILE"
     insert_distance: float = 60.0
     insert_height: float = 16.0
@@ -78,7 +82,7 @@ class ImpactClock:
             raise ValueError("insert_start_us must be an int or None")
         if not (self.scene_start_us < self.launch_us < 0):
             raise ValueError("launch must sit between scene start and impact")
-        if self.insert_start_us is not None:
+        if self.insert_start_us is not None and self.return_to_fpv:
             if not (self.launch_us <= self.insert_start_us < self.fpv_return_us):
                 raise ValueError(
                     "the insert must start at or after launch and end before "
@@ -134,14 +138,17 @@ class ImpactClock:
             out.append({"kind": "camera", "camera": "FPV",
                         "presentation": presentation.FPV_GAMEPLAY,
                         "start_us": 0, "end_us": self.edit(self.insert_start_us)})
+            insert_end = (self.edit(self.fpv_return_us) if self.return_to_fpv
+                          else self.duration_us)
             out.append({"kind": "camera", "camera": self.insert_camera,
                         "presentation": presentation.CINEMATIC_CLEAN,
                         "start_us": self.edit(self.insert_start_us),
-                        "end_us": self.edit(self.fpv_return_us)})
-            out.append({"kind": "camera", "camera": "FPV",
-                        "presentation": presentation.FPV_GAMEPLAY,
-                        "start_us": self.edit(self.fpv_return_us),
-                        "end_us": self.duration_us})
+                        "end_us": insert_end})
+            if self.return_to_fpv:
+                out.append({"kind": "camera", "camera": "FPV",
+                            "presentation": presentation.FPV_GAMEPLAY,
+                            "start_us": self.edit(self.fpv_return_us),
+                            "end_us": self.duration_us})
         else:
             out.append({"kind": "camera", "camera": "FPV",
                         "presentation": presentation.FPV_GAMEPLAY,

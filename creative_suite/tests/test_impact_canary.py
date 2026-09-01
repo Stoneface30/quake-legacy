@@ -171,3 +171,22 @@ def test_ordering_and_slow_span_are_part_of_identity():
     assert base.clock_id != ic.ImpactClock(ordering="REPLAY_THEN_FPV").clock_id
     assert base.clock_id != ic.ImpactClock(slow_start_us=-1_125_000,
                                            slow_end_us=0).clock_id
+
+
+def test_no_fpv_return_keeps_the_cinematic_camera_through_the_tail():
+    """Review: the FPV return before impact was messy; the camera should keep
+    the shooter in view through impact and the tail."""
+    c = ic.ImpactClock(return_to_fpv=False, insert_camera="CHASE",
+                       tail_us=2_000_000)
+    cams = [s for s in c.segments() if s["kind"] == "camera"]
+    assert [s["camera"] for s in cams] == ["FPV", "CHASE"]
+    assert cams[-1]["end_us"] == c.duration_us
+    assert cams[-1]["presentation"] == pr.CINEMATIC_CLEAN
+    # and a corpse-camera check now applies, since the tail IS cinematic
+    rep = ic.qa(c)
+    assert rep["passes"]
+    assert rep["warnings"] and rep["warnings"][0]["check"] == "POST_DEATH_CAMERA_TOO_LONG"
+
+
+def test_return_to_fpv_is_part_of_identity():
+    assert ic.ImpactClock().clock_id != ic.ImpactClock(return_to_fpv=False).clock_id
