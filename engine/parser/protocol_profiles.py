@@ -26,7 +26,7 @@ Obituary recognition (QLDT old-dm_73 semantics):
 
 For the 2012-era profile ET_EVENTS=13 and EV_OBITUARY=58, so the obituary
 entity's base eType is 71 -- verified: 117 such entities in
-CA-Gr0sTR4SH-asylum-2012_11_11, each carrying MOD/victim/attacker with
+CA-<player>-asylum-2012_11_11, each carrying MOD/victim/attacker with
 lastField=32 and changed ordinals [1,2,5,12,14,19,31].
 
 STATUS OF THE 2010-2011 PROFILE: PROVEN (2026-08-30). See RESOLVED below.
@@ -108,7 +108,7 @@ QL_2012 = Profile(
         "otherEntityNum2": 31,
         "origin2[2]": 34, "origin2[0]": 35, "origin2[1]": 36,
     },
-    verified_on=("CA-Gr0sTR4SH-asylum-2012_11_11-19_54_18.dm_73",),
+    verified_on=("CA-<player>-asylum-2012_11_11-19_54_18.dm_73",),
     proven=True,
 )
 

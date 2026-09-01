@@ -41,7 +41,7 @@ ships `q3mme.fx` (61 effects), `dirtest.fx` (11 impact effects),
 
 ### What was run
 
-Demo `CA-Gr0str4sh-overkill-2013_01_08-21_42_32.dm_73`, window
+Demo `CA-<player>-overkill-2013_01_08-21_42_32.dm_73`, window
 `381575 → 383575` (raw serverTime), fx fired at `382225` (t = 0.65 s into
 the clip). Shipped effect used: **`weapon/rocket/impact` from
 `scripts/dirtest.fx`** — no authored content.
@@ -283,7 +283,7 @@ exactly one file, `scripts/colorcorrect.fs` — the same override mechanism
 baseq3; `zzz_zz_` sorts after the `zzz_uhd_*` packs). Builder:
 `scratchpad/build_grade_pk3.py` (uncommitted).
 
-Demo `CA-Gr0str4sh-overkill-2013_01_08-21_42_32.dm_73`, window
+Demo `CA-<player>-overkill-2013_01_08-21_42_32.dm_73`, window
 `381575 → 382775`, identical cfg for all three runs; the only variable is
 whether the pk3 is present and which variant it holds.
 
@@ -583,7 +583,7 @@ at 382875 quit
 ```
 
 launched with `+set mme_saveDepth 1 +set mme_depthRange 2000 +set mme_depthFocus 0`.
-Demo `CA-Gr0str4sh-overkill-2013_01_08-21_42_32.dm_73`.
+Demo `CA-<player>-overkill-2013_01_08-21_42_32.dm_73`.
 
 ### Result — PASS
 

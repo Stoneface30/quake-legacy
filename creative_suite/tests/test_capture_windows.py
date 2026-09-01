@@ -107,8 +107,8 @@ def test_match_groups_need_min_shared():
 
 def test_dedupe_same_match_shared_kill_collapses():
     w1 = _win("Demo (788) - 341;.dm_73", 380000, [5000], score=40.0)
-    w2 = _win("CA-Gr0str4sh-overkill.dm_73", 379000, [6000], score=46.0)  # same kill @385000
-    groups = {"Demo (788) - 341;.dm_73": 7, "CA-Gr0str4sh-overkill.dm_73": 7}
+    w2 = _win("CA-<player>-overkill.dm_73", 379000, [6000], score=46.0)  # same kill @385000
+    groups = {"Demo (788) - 341;.dm_73": 7, "CA-<player>-overkill.dm_73": 7}
     out = cw.dedupe_windows([w1, w2], groups)
     assert len(out) == 1
     assert out[0]["demo"].startswith("CA-")  # higher score wins

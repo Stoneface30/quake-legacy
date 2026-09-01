@@ -42,7 +42,7 @@ it never silently discards.
 ## D1 — 2012 tinfo calibration · PASS
 
 `engine/parser/tinfo_calibrate.py` · artifact `output/tinfo_calibration_2012.json`
-Fixture: `CA-Gr0sTR4SH-asylum-2012_11_11-19_54_18.dm_73`
+Fixture: `CA-<player>-asylum-2012_11_11-19_54_18.dm_73`
 
 `tinfo` is a teammate-status servercommand (count, then groups of six:
 clientNum, location, health, armor, weapon, powerup). A teammate's health
@@ -205,7 +205,7 @@ current evidence that it is anything at all.
 ### The late-2012 regression baseline — RESOLVED
 
 The stated baseline was **117 raw obituary entities → 63 filtered kills**.
-Measured now on `CA-Gr0sTR4SH-asylum-2012_11_11-19_54_18.dm_73`:
+Measured now on `CA-<player>-asylum-2012_11_11-19_54_18.dm_73`:
 
 - base-71 entity rows observed: **101**
 - decoded obituary events: **101**

@@ -8,7 +8,7 @@ Two data realities shape the implementation.
 
 ROUND BOUNDARIES ARE OFF BY ONE KILL. The parser's round counter increments
 before the round-ending obituary is recorded, so every round's final kill lands
-in the NEXT bucket. Measured on CA-Gr0sTR4SH-asylum-2012_11_11: kills per round
+in the NEXT bucket. Measured on CA-<player>-asylum-2012_11_11: kills per round
 alternate 4,1,3,1,5,1,4,1... -- the odd buckets are real rounds and each even
 bucket holds exactly the trailing kill of the round before it. Buckets are
 merged back before any clutch logic runs; without that, every round would look

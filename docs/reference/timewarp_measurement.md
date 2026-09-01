@@ -1,7 +1,7 @@
 # Timewarp / A-V drift measurement (2026-09-01)
 
 Directive §7-10. Measured, not assumed. Fixed 2000 ms demo span
-(380575→382575) on `CA-Gr0str4sh-overkill-2013_01_08-21_42_32.dm_73`,
+(380575→382575) on `CA-<player>-overkill-2013_01_08-21_42_32.dm_73`,
 captured at four timescales, then repeated to test reproducibility.
 
 Audio duration is computed as `nb_frames / sample_rate` — ffprobe does
