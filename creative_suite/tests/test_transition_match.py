@@ -142,19 +142,20 @@ def test_real_shortlist_produces_manageable_list():
 
 def test_path_speed_uses_arc_not_chord():
     """A bouncing projectile covers ground its endpoints do not show."""
-    # out 400u and back to 100u: chord 100u, arc 700u, over 1s
-    pts = [[0, 0.0, 0.0, 0.0], [250, 200.0, 0.0, 0.0], [500, 400.0, 0.0, 0.0],
-           [750, 250.0, 0.0, 0.0], [1000, 100.0, 0.0, 0.0]]
+    # out 500u and back to 100u: chord 100u, arc 900u, over 1s
+    pts = [[0, 0.0, 0.0, 0.0], [250, 250.0, 0.0, 0.0], [500, 500.0, 0.0, 0.0],
+           [750, 300.0, 0.0, 0.0], [1000, 100.0, 0.0, 0.0]]
     m = tm.path_metrics({"points": pts, "confidence": "CONFIRMED",
                          "launch": {}, "impact": {}})
     assert m["speed_ups"] == pytest.approx(100.0, abs=1.0)      # chord
-    assert m["path_speed_ups"] == pytest.approx(700.0, abs=1.0)  # arc
+    assert m["path_speed_ups"] == pytest.approx(900.0, abs=1.0)  # arc
     assert m["speed_plausible"], "arc speed is in band; chord alone would fail"
 
 
 @pytest.mark.parametrize("speed,expect", [
     (233.0, False),    # the observed synthetic-path speed
     (599.0, False),
+    (799.0, False),    # inside the histogram trough
     (900.0, True),     # QL rocket nominal
     (1076.0, True),    # measured corpus median for real flights
     (1401.0, False),

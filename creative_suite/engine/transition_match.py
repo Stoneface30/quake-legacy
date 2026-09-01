@@ -63,11 +63,27 @@ MIN_FLIGHT_MS = 400
 #     700-1200 ms  n= 376    993 u/s     <- consistent
 #     1200 ms +    n= 288    306 u/s     <- not a rocket
 #
-# 225 of the 288 paths over 1200 ms (78%) measure under 600 u/s. The band
-# below is deliberately wide — +/-45% around nominal — because sampling at
-# the 25 ms snapshot tick makes short flights noisy, and the goal is to
-# exclude the physically impossible, not to police the merely unusual.
-PLAUSIBLE_SPEED_MIN = 600.0
+# 225 of the 288 paths over 1200 ms (78%) measure under 600 u/s.
+#
+# The band is not a guess: the arc-speed histogram over all 1,377 loaded
+# candidates is plainly bimodal, with a trough between the two modes.
+#
+#     0- 600   461 paths   <- broad low mode, not projectiles
+#   600- 900   106 paths   <- trough
+#   900-1200   726 paths   <- sharp peak, centred 1000-1100
+#   1200+       84 paths   <- thin tail (short-flight sampling noise)
+#
+# The floor is placed at the top of the trough rather than at its bottom,
+# so the low mode's shoulder is excluded too. The ceiling is left loose
+# because a 25 ms sampling tick inflates apparent speed on short flights,
+# and over-reading a real rocket is far less damaging than riding a
+# fabricated arc.
+#
+# Note that straightness is NOT a discriminator, though it looks like one:
+# 100% of the paths inside the plausible band are perfectly straight
+# (arc == chord). Rockets fly straight. Speed is what separates a real
+# flight from a bad one.
+PLAUSIBLE_SPEED_MIN = 800.0
 PLAUSIBLE_SPEED_MAX = 1400.0
 
 
