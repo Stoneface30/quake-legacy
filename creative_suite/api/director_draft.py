@@ -63,6 +63,7 @@ MODE_CONTROLS: dict[str, tuple[str, ...]] = {
     "ORBIT": ("distance", "height", "fov", "damping"),
     "CHASE": ("distance", "height", "side_offset", "fov", "damping"),
     "PROJECTILE": ("distance", "height", "fov", "damping"),
+    "SIDE": ("distance", "height", "side_offset", "fov"),
     "FREECAM": ("fov", "damping"),
 }
 

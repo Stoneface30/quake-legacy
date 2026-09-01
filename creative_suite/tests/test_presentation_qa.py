@@ -153,3 +153,12 @@ def test_post_death_is_fine_when_a_transition_takes_over():
 def test_summary_passes_only_without_errors():
     assert qa.summarize([qa.check_post_death(0.0, 1000.0)[0]])["passes"]
     assert not qa.summarize(qa.check_hud("ORBIT", mp.PROFILE_NAME))["passes"]
+
+
+# ── SIDE: a fixed point that shows the shooter ──────────────────────────────
+
+def test_side_is_a_cinematic_mode_with_its_controls():
+    from creative_suite.api import director_draft as dd
+    assert pr.presentation_for("SIDE") == pr.CINEMATIC_CLEAN
+    assert "SIDE" in dd.MODE_CONTROLS
+    assert set(dd.MODE_CONTROLS["SIDE"]) == {"distance", "height", "side_offset", "fov"}

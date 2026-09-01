@@ -671,7 +671,7 @@ def build_plan(frag: dict[str, Any], draft: dict[str, Any],
                             int(frag["server_time_ms"]))
     usable = _usable_projectile(path)
     fallback: str | None = None
-    if mode in ("PROJECTILE", "CHASE") and not usable:
+    if mode in ("PROJECTILE", "CHASE", "SIDE") and not usable:
         fallback = ("no usable cached projectile path for this frag "
                     "(need >= 8 points and >= 200 ms of flight)")
         mode = "ORBIT" if path else "FPV"
@@ -734,6 +734,34 @@ def _author_camera(mode: str, camera: dict[str, Any], recipe: SceneRecipeV2,
             arc_deg=105.0, duration_ms=tail_ms, t0_ms=float(impact_rel),
             start_deg=_approach_bearing(track), fov=fov)
         return tuple(flight + orbit[1:]), tuple(track)
+    if mode == "SIDE" and track:
+        # FIXED POINT beside and above the launch, perpendicular to the
+        # initial flight direction, tracking the rocket with look-at and
+        # holding on the impact for the tail. The shooter stands at the
+        # launch point, so they are in frame as the shot leaves -- the
+        # "curved angle from a fixed point" the review asked for. A static
+        # position also has no path to clip; only the point itself must be
+        # clear, which pre-flight checks per side. side_offset picks the
+        # side (sign) and shifts along the flight (behind < 0 < ahead).
+        d0 = camera_paths.track_direction(track, 0)
+        perp = (-d0[1], d0[0], 0.0)
+        n = (perp[0] ** 2 + perp[1] ** 2) ** 0.5 or 1.0
+        perp = (perp[0] / n, perp[1] / n, 0.0)
+        side = 1.0 if float(camera.get("side_offset", 1.0)) >= 0 else -1.0
+        along = abs(float(camera.get("side_offset", 0.0)))
+        lx, ly, lz = track[0][1], track[0][2], track[0][3]
+        pos = (lx + side * perp[0] * distance - d0[0] * along,
+               ly + side * perp[1] * distance - d0[1] * along,
+               lz + height)
+        kfs = [{"t_ms": float(t_ms), "pos": pos,
+                "angles": camera_paths.look_at_angles(pos, (x, y, z)),
+                "fov": fov} for t_ms, x, y, z in track]
+        end_ms = float(total_ms)
+        if end_ms > kfs[-1]["t_ms"]:
+            kfs.append({"t_ms": end_ms, "pos": pos,
+                        "angles": camera_paths.look_at_angles(pos, impact_pos),
+                        "fov": fov})
+        return tuple(kfs), tuple(track)
     if mode == "CHASE" and track:
         chase = camera_paths.chase(track, distance, up=height, fov=fov)
         tail_ms = max(200.0, total_ms - impact_rel)

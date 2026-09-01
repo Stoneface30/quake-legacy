@@ -820,3 +820,28 @@ def test_visual_hit_rejects_a_wrong_length_artifact(env) -> None:
     key = "4" * 64
     _fake_artifact(key, 4096, edit_us=7_000_000)
     assert dp.visual_hit(key, 7_000_000) is None    # not even a real mp4
+
+
+def test_side_camera_is_a_fixed_point_that_tracks_the_projectile(env, monkeypatch) -> None:
+    """SIDE sits beside the launch point and never moves; only its angles
+    follow the rocket. The shooter is at the launch point, so a fixed camera
+    there keeps them in frame -- the review's 'see the person who shoots'."""
+    plan = dp.build_plan(_frag(), _draft(
+        camera={**dd_mod.DEFAULT_CAMERA, "mode": "SIDE",
+                "distance": 110.0, "height": 48.0, "side_offset": 40.0}))
+    assert plan.camera_mode == "SIDE"
+    assert plan.camera_fallback is None
+    positions = {tuple(round(v, 3) for v in k["pos"]) for k in plan.keyframes}
+    assert len(positions) == 1                       # a fixed point
+    angles = {tuple(round(v, 2) for v in k["angles"]) for k in plan.keyframes}
+    assert len(angles) > 3                           # that actually tracks
+    # keyframes span the whole window so the tail holds on the impact
+    assert plan.keyframes[-1]["t_ms"] >= plan.keyframes[0]["t_ms"] + 1000
+
+
+def test_side_without_a_projectile_falls_back_honestly(env, monkeypatch) -> None:
+    monkeypatch.setattr(dp, "_projectile_path", lambda *a, **k: None)
+    plan = dp.build_plan(_frag(), _draft(
+        camera={**dd_mod.DEFAULT_CAMERA, "mode": "SIDE"}))
+    assert plan.camera_mode != "SIDE"
+    assert plan.camera_fallback
