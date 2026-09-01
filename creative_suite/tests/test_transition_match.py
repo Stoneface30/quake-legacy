@@ -1,4 +1,5 @@
 """PROJECTILE_BRIDGE Scene B shortlisting."""
+import json
 import sqlite3
 import sys
 from pathlib import Path
@@ -214,3 +215,43 @@ def test_same_arena_differing_case_gets_no_cross_map_bonus():
     b = scene(map_name="quarantine", demo="d2.dm_73", speed=900.0,
               duration_ms=1900)
     assert tm.score_pair(a, b)["different_map"] is False
+
+
+# ── evidence contract is enforced at load ───────────────────────────────────
+
+def test_load_candidates_enforces_the_evidence_contract():
+    """Impact-only records must not enter rideable trajectory ranking.
+    Measured 2026-09-01: 51 of 1,377 candidates travel less than
+    MIN_DISPLACEMENT_U -- long enough to pass the duration gate, but with
+    no ride to photograph."""
+    from creative_suite.engine.director_preview import projectile_evidence
+    kept = tm.load_candidates()
+    if not kept:
+        pytest.skip("no cached projectile paths")
+    con = sqlite3.connect(f"file:{tm.RECOG_DB}?mode=ro", uri=True)
+    try:
+        for cand in kept:
+            row = con.execute(
+                "SELECT path FROM recognition_projectile_paths WHERE "
+                "demo_name=? AND server_time_ms=? ORDER BY version DESC "
+                "LIMIT 1", (cand["demo_name"], cand["server_time_ms"])
+            ).fetchone()
+            assert row is not None
+            assert projectile_evidence(json.loads(row[0]))["usable"], (
+                f"frag {cand['frag_id']} entered the ranking without "
+                f"usable projectile evidence")
+    finally:
+        con.close()
+
+
+def test_evidence_gate_can_be_disabled_and_admits_more():
+    gated = tm.load_candidates()
+    ungated = tm.load_candidates(require_evidence=False)
+    if not ungated:
+        pytest.skip("no cached projectile paths")
+    assert len(gated) <= len(ungated)
+
+
+def test_no_zero_duration_record_reaches_the_ranker():
+    for cand in tm.load_candidates():
+        assert cand["duration_ms"] >= tm.MIN_FLIGHT_MS

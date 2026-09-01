@@ -151,8 +151,24 @@ def path_metrics(path_json: dict) -> dict[str, Any] | None:
 
 def load_candidates(db_path: Path | str = RECOG_DB,
                     require_confirmed: bool = True,
-                    map_names: dict[str, str] | None = None) -> list[dict]:
-    """Every ride-able cached projectile path with its metrics + frag score."""
+                    map_names: dict[str, str] | None = None,
+                    require_evidence: bool = True) -> list[dict]:
+    """Every ride-able cached projectile path with its metrics + frag score.
+
+    ``require_evidence`` applies ``director_preview.projectile_evidence``,
+    the single authoritative test of whether a path can carry a camera.
+    Without it 51 of 1,377 candidates enter the ranking with less than
+    ``MIN_DISPLACEMENT_U`` of travel -- an impact record with no ride to
+    photograph. ``path_metrics`` alone does not catch these: it gates on
+    duration, and a path can last 400 ms while going nowhere.
+
+    Imported lazily because director_preview pulls in the whole capture
+    stack, which this module otherwise does not need.
+    """
+    if require_evidence:
+        from creative_suite.engine.director_preview import projectile_evidence
+    else:
+        projectile_evidence = None
     if map_names is None:
         map_names = load_map_names()
     con = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
@@ -175,6 +191,8 @@ def load_candidates(db_path: Path | str = RECOG_DB,
         except (TypeError, json.JSONDecodeError):
             continue
         if require_confirmed and pj.get("confidence") != "CONFIRMED":
+            continue
+        if projectile_evidence is not None and not projectile_evidence(pj)["usable"]:
             continue
         m = path_metrics(pj)
         if m is None:
