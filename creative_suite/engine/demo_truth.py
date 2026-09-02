@@ -10,14 +10,16 @@ plain numeric timeline the composer can do arithmetic on.
 THE DEMO IS NOT OMNISCIENT. A demo holds what the recording client was SENT.
 Remote entities the client never received are simply absent, and the honest
 response to absence is UNKNOWN, never a plausible reconstruction. Every event
-therefore carries an evidence class saying how strongly it is known:
+therefore carries an evidence class on a ladder with three rungs of trust:
 
-    POV_AUTHORITATIVE      the recorder's own state and actions
-    SNAPSHOT_OBSERVED      read from a received snapshot
-    ENTITY_OBSERVED        a remote entity the client received
-    EVENT_RECONSTRUCTED    derived from observed state, not sent as an event
-    GEOMETRY_RECONSTRUCTED derived from positions and the map
-    MULTI_DEMO_AUGMENTED   filled in from another recording of the same match
+    RECORDED   POV_AUTHORITATIVE, SNAPSHOT_OBSERVED, ENTITY_OBSERVED,
+               MULTI_DEMO_RECOVERED -- the demo stream carried it
+    DERIVED    PHYSICS_RECONSTRUCTED, EVENT_CONSTRAINED_RECONSTRUCTION,
+               GEOMETRY_RECONSTRUCTED, AI_CONSTRAINED_RECONSTRUCTION --
+               computed from recorded facts, never equal to them
+    AUTHORED   CINEMATIC_SYNTHETIC -- presentation, not history; refused here
+
+A fact may move down the ladder as it is re-derived. It never moves up.
 
 NOTHING HERE RE-PARSES. It reads permanent recognition caches that already
 exist. Where a field is missing at corpus scale, this module says so through
@@ -44,22 +46,49 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 RECOGNITION_DB = REPO_ROOT / "creative_suite" / "database" / "frag_recognition.db"
 
 # ── evidence classes ────────────────────────────────────────────────────────
+# Two families, deliberately kept apart. RECORDED means the demo stream
+# carried it; everything below was DERIVED, and the class says from what. A
+# derived fact must never be relabelled upward: the point of the ladder is
+# that a reconstruction stays visibly a reconstruction.
 
-POV_AUTHORITATIVE = "POV_AUTHORITATIVE"
-SNAPSHOT_OBSERVED = "SNAPSHOT_OBSERVED"
-ENTITY_OBSERVED = "ENTITY_OBSERVED"
-EVENT_RECONSTRUCTED = "EVENT_RECONSTRUCTED"
-GEOMETRY_RECONSTRUCTED = "GEOMETRY_RECONSTRUCTED"
-MULTI_DEMO_AUGMENTED = "MULTI_DEMO_AUGMENTED"
+# Recorded
+POV_AUTHORITATIVE = "POV_AUTHORITATIVE"          # the recorder's own state
+SNAPSHOT_OBSERVED = "SNAPSHOT_OBSERVED"          # read from a received snapshot
+ENTITY_OBSERVED = "ENTITY_OBSERVED"              # a remote entity actually received
+MULTI_DEMO_RECOVERED = "MULTI_DEMO_RECOVERED"    # recorded, in another demo
+# Derived
+PHYSICS_RECONSTRUCTED = "PHYSICS_RECONSTRUCTED"  # propagated by game rules + BSP
+EVENT_CONSTRAINED = "EVENT_CONSTRAINED_RECONSTRUCTION"  # fitted to later evidence
+GEOMETRY_RECONSTRUCTED = "GEOMETRY_RECONSTRUCTED"       # derived from positions + map
+AI_CONSTRAINED = "AI_CONSTRAINED_RECONSTRUCTION"        # ranked among possibilities
+# Authored
+CINEMATIC_SYNTHETIC = "CINEMATIC_SYNTHETIC"      # presentation; not history at all
 
-EVIDENCE_CLASSES = (POV_AUTHORITATIVE, SNAPSHOT_OBSERVED, ENTITY_OBSERVED,
-                    EVENT_RECONSTRUCTED, GEOMETRY_RECONSTRUCTED,
-                    MULTI_DEMO_AUGMENTED)
+RECORDED_CLASSES = (POV_AUTHORITATIVE, SNAPSHOT_OBSERVED, ENTITY_OBSERVED,
+                    MULTI_DEMO_RECOVERED)
+DERIVED_CLASSES = (PHYSICS_RECONSTRUCTED, EVENT_CONSTRAINED,
+                   GEOMETRY_RECONSTRUCTED, AI_CONSTRAINED)
+EVIDENCE_CLASSES = RECORDED_CLASSES + DERIVED_CLASSES + (CINEMATIC_SYNTHETIC,)
 
-# How much a class may be trusted when two sources disagree.
-EVIDENCE_RANK = {POV_AUTHORITATIVE: 0, SNAPSHOT_OBSERVED: 1,
-                 ENTITY_OBSERVED: 2, EVENT_RECONSTRUCTED: 3,
-                 GEOMETRY_RECONSTRUCTED: 4, MULTI_DEMO_AUGMENTED: 5}
+# Older names, kept so nothing that spelled them breaks; same meaning.
+EVENT_RECONSTRUCTED = EVENT_CONSTRAINED
+MULTI_DEMO_AUGMENTED = MULTI_DEMO_RECOVERED
+
+# How much a class may be trusted when two sources disagree. Lower wins.
+EVIDENCE_RANK = {c: i for i, c in enumerate(EVIDENCE_CLASSES)}
+
+
+def is_recorded(evidence: str) -> bool:
+    return evidence in RECORDED_CLASSES
+
+
+def may_relabel(old: str, new: str) -> bool:
+    """A fact may only ever move DOWN the ladder, never up.
+
+    Reconstructions get re-derived, refined and downgraded. They do not
+    become recorded because a later pass felt confident.
+    """
+    return EVIDENCE_RANK[new] >= EVIDENCE_RANK[old]
 
 # ── extra event kinds this module can produce ───────────────────────────────
 
@@ -101,8 +130,11 @@ class DemoEvent:
 
     @property
     def is_authoritative(self) -> bool:
-        return self.evidence in (POV_AUTHORITATIVE, SNAPSHOT_OBSERVED,
-                                 ENTITY_OBSERVED)
+        return is_recorded(self.evidence)
+
+    @property
+    def is_synthetic(self) -> bool:
+        return self.evidence == CINEMATIC_SYNTHETIC
 
     def to_edit(self, *, hero_demo_us: int, hero_edit_us: int) -> et.GameEvent:
         """Cast onto the edit clock, keeping the layer model intact."""
@@ -129,7 +161,16 @@ class DemoEvent:
 
 @dataclass(frozen=True)
 class ProjectileTrack:
-    """A projectile's measured flight. Numbers, not a guess from pixels."""
+    """A projectile's flight as the cache holds it -- and how it got there.
+
+    READ `evidence` BEFORE TRUSTING THE POINTS. The cache's projectile paths
+    are NOT recorded trajectories: dm_73 demo_parse does not export missile
+    entities, so the extractor inferred the launch from the impact and the
+    recorder's view rays, drew rockets as a straight line and simulated
+    grenades with constants it calls provisional. Every cached path is
+    therefore EVENT_CONSTRAINED_RECONSTRUCTION. This module said
+    ENTITY_OBSERVED for a day; it does not any more.
+    """
     entity_kind: str
     launch_us: int
     impact_us: int
@@ -138,6 +179,9 @@ class ProjectileTrack:
     points: tuple[tuple[int, float, float, float], ...]
     confidence: str
     bounces: int = 0
+    evidence: str = EVENT_CONSTRAINED
+    method: str = ("extract_projectile_paths: launch inferred from impact "
+                   "+ view rays; rocket drawn straight, grenade simulated")
 
     @property
     def flight_us(self) -> int:
@@ -175,6 +219,7 @@ class ProjectileTrack:
                 "distance_units": self.distance_units,
                 "speed_units_per_s": self.speed_units_per_s,
                 "confidence": self.confidence, "bounces": self.bounces,
+                "evidence": self.evidence, "method": self.method,
                 "points": len(self.points)}
 
 
@@ -193,6 +238,14 @@ class DemoTruthTimeline:
     derived: tuple[tuple[str, Any], ...] = ()
     protocol: str = PROTOCOL
     version: str = DEMO_TRUTH_VERSION
+
+    def __post_init__(self) -> None:
+        # Authored presentation lives in the recipe / Pandora domain. It
+        # cannot land here even by accident, because this object is what the
+        # composer treats as history.
+        if any(e.is_synthetic for e in self.events):
+            raise ValueError("CINEMATIC_SYNTHETIC events cannot enter a "
+                             "DemoTruthTimeline")
 
     def of_kind(self, *kinds: str) -> list[DemoEvent]:
         want = set(kinds)
@@ -287,12 +340,13 @@ def load(frag_id: int, *, db_path: Path | None = None) -> DemoTruthTimeline:
                     amount=float(v0 - v1), source="lg_engagements.my_hp"))
 
     track: ProjectileTrack | None = None
-    if proj is not None:
+    if proj is not None and weapon.upper().startswith(("ROCKET", "GRENADE")):
         p = json.loads(proj["path"])
         launch, impact = p.get("launch") or {}, p.get("impact") or {}
         pts = tuple((int(x[0]) * 1000, float(x[1]), float(x[2]), float(x[3]))
                     for x in p.get("points", ()))
-        if launch and impact:
+        kind_ok = str(p.get("kind", "")).upper() in weapon.upper()
+        if launch and impact and kind_ok:
             track = ProjectileTrack(
                 entity_kind=str(p.get("kind", "")),
                 launch_us=int(launch["t"]) * 1000,
@@ -301,14 +355,18 @@ def load(frag_id: int, *, db_path: Path | None = None) -> DemoTruthTimeline:
                 impact_pos=tuple(float(v) for v in impact["pos"]),
                 points=pts, confidence=str(p.get("confidence", "")),
                 bounces=len(p.get("bounces", ())))
+            # The launch is INFERRED (view ray + speed back from the impact).
+            # The impact is a missile_hit temp-entity the client did receive.
             events.append(DemoEvent(
                 demo_us=track.launch_us, kind=PROJECTILE_CREATE,
-                owner=et.OWNER_ME, evidence=ENTITY_OBSERVED, weapon=weapon,
-                position=track.launch_pos, source="projectile_paths.launch"))
+                owner=et.OWNER_ME, evidence=EVENT_CONSTRAINED, weapon=weapon,
+                position=track.launch_pos, confidence=0.7,
+                source="projectile_paths.launch (inferred from impact + view)"))
             events.append(DemoEvent(
                 demo_us=track.impact_us, kind=PROJECTILE_IMPACT,
                 owner=et.OWNER_ME, evidence=ENTITY_OBSERVED, weapon=weapon,
-                position=track.impact_pos, source="projectile_paths.impact"))
+                position=track.impact_pos,
+                source="projectile_paths.impact (missile_hit temp entity)"))
 
     for d in dodges:
         events.append(DemoEvent(
@@ -436,3 +494,101 @@ def coverage_audit(db_path: Path | None = None) -> dict[str, Any]:
             "total_frags": total, "streams": rows,
             "note": "shares are of recognised frags; a PARTIAL stream is "
                     "present for some frags and genuinely absent for others"}
+
+
+# ── round and team truth from the enrichment tables ─────────────────────────
+# dm_73 never sends a "winner" event. CS_ROUND_TIME (662) drops to -1 when a
+# round ends, and CS_SCORES1/CS_SCORES2 (6/7) carry the red and blue totals.
+# The winner of a round is the side whose total rose at that end. That is a
+# derivation from two recorded configstrings, so it is EVENT_CONSTRAINED, and
+# a round where neither total moved is reported as UNKNOWN rather than as a
+# draw the demo never said happened.
+
+ROUND_WIN = "WIN"
+ROUND_LOSS = "LOSS"
+ROUND_UNKNOWN = "UNKNOWN"
+
+CS_SCORES_RED = 6
+CS_SCORES_BLUE = 7
+CS_ROUND_TIME = 662
+
+
+@dataclass(frozen=True)
+class RoundOutcome:
+    """One round's result, from the recorder's point of view."""
+    round_index: int
+    end_us: int
+    winner_team: str                  # RED | BLUE | UNKNOWN
+    recorder_team: str                # RED | BLUE | UNKNOWN
+    evidence: str = EVENT_CONSTRAINED
+
+    @property
+    def result(self) -> str:
+        if ROUND_UNKNOWN in (self.winner_team, self.recorder_team):
+            return ROUND_UNKNOWN
+        return ROUND_WIN if self.winner_team == self.recorder_team else ROUND_LOSS
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d["result"] = self.result
+        return d
+
+
+def round_outcomes(state_rows: Sequence[tuple[int, int, str]], *,
+                   recorder_team: str) -> tuple[RoundOutcome, ...]:
+    """Derive per-round results from (server_time_ms, cs, value) rows.
+
+    A round ends when 662 becomes -1. The winner is whichever of 6 or 7
+    increased between the previous round end and this one. If both moved, or
+    neither, the demo does not say who won, and neither do we.
+    """
+    rows = sorted(state_rows, key=lambda r: r[0])
+    red = blue = 0
+    last_red = last_blue = 0
+    out: list[RoundOutcome] = []
+    index = 0
+    for t_ms, cs, value in rows:
+        v = str(value).strip().strip(chr(34))
+        if cs == CS_SCORES_RED and v.lstrip("-").isdigit():
+            red = int(v)
+        elif cs == CS_SCORES_BLUE and v.lstrip("-").isdigit():
+            blue = int(v)
+        elif cs == CS_ROUND_TIME and v == "-1":
+            index += 1
+            red_up, blue_up = red > last_red, blue > last_blue
+            winner = ("RED" if red_up and not blue_up else
+                      "BLUE" if blue_up and not red_up else ROUND_UNKNOWN)
+            out.append(RoundOutcome(index, int(t_ms) * 1000, winner,
+                                    recorder_team or ROUND_UNKNOWN))
+            last_red, last_blue = red, blue
+    return tuple(out)
+
+
+def load_round_outcomes(content_hash: str, recorder_client: int, *,
+                        db_path: Path | None = None) -> tuple[RoundOutcome, ...]:
+    """Read the enrichment tables for one demo. Empty if not enriched."""
+    path = Path(db_path or RECOGNITION_DB)
+    with sqlite3.connect(path) as db:
+        try:
+            team_row = db.execute(
+                "SELECT team FROM player_teams_v1 WHERE content_hash=? AND client=?",
+                (content_hash, recorder_client)).fetchone()
+            rows = db.execute(
+                "SELECT server_time_ms, cs, value FROM round_state_v1 "
+                "WHERE content_hash=? AND cs IN (?,?,?)",
+                (content_hash, CS_SCORES_RED, CS_SCORES_BLUE, CS_ROUND_TIME)
+            ).fetchall()
+        except sqlite3.OperationalError:
+            return ()
+    team = str(team_row[0]).upper() if team_row and team_row[0] else ROUND_UNKNOWN
+    if team not in ("RED", "BLUE"):
+        team = ROUND_UNKNOWN
+    return round_outcomes(rows, recorder_team=team)
+
+
+def outcome_at(outcomes: Sequence[RoundOutcome], demo_us: int) -> RoundOutcome | None:
+    """The round a moment belongs to: the first round ending at or after it."""
+    for o in sorted(outcomes, key=lambda x: x.end_us):
+        if o.end_us >= demo_us:
+            return o
+    return None

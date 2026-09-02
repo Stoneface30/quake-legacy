@@ -35,7 +35,10 @@ def test_the_recorders_own_state_outranks_a_reconstruction():
             < dt.EVIDENCE_RANK[dt.GEOMETRY_RECONSTRUCTED])
     assert _ev().is_authoritative
     assert not _ev(evidence=dt.GEOMETRY_RECONSTRUCTED).is_authoritative
-    assert not _ev(evidence=dt.MULTI_DEMO_AUGMENTED).is_authoritative
+    assert not _ev(evidence=dt.PHYSICS_RECONSTRUCTED).is_authoritative
+    # Recorded in ANOTHER demo of the same match is still recorded.
+    assert _ev(evidence=dt.MULTI_DEMO_RECOVERED).is_authoritative
+    assert not _ev(evidence=dt.CINEMATIC_SYNTHETIC).is_authoritative
 
 
 def test_unknown_kinds_are_rejected():
