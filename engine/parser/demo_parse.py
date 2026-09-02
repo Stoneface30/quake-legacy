@@ -78,6 +78,9 @@ _EV_NOAMMO         = 23      # retained: referenced by _build_event
 _EV_MISSILE_HIT    = 47
 _EV_MISSILE_MISS   = 48
 _EV_PLAYER_TELEPORT_IN = 39
+_EV_PLAYER_TELEPORT_OUT = 40   # enrichment 2026-09-02: bg_public.h
+_EV_JUMP_PAD       = 9         # enrichment 2026-09-02: bg_public.h
+_EV_JUMP           = 10        # enrichment 2026-09-02: bg_public.h
 _EV_RAILTRAIL      = 50
 _EV_PAIN           = 53
 _EV_DEATH1         = 54
@@ -99,6 +102,9 @@ _EV_NAMES: dict[int, str] = {
     _EV_MISSILE_HIT:        'missile_hit',
     _EV_MISSILE_MISS:       'missile_miss',
     _EV_PLAYER_TELEPORT_IN: 'teleport_in',
+    _EV_PLAYER_TELEPORT_OUT: 'teleport_out',
+    _EV_JUMP_PAD:           'jump_pad',
+    _EV_JUMP:               'jump',
     _EV_RAILTRAIL:          'railtrail',
     _EV_PAIN:               'pain',
     _EV_DEATH1:             'death',
@@ -475,8 +481,14 @@ _PS_BITS = [
 class DM73Parser:
     """Parse a .dm_73 Quake Live demo. Extracts all events, positions, rounds."""
 
-    def __init__(self, path: str | Path):
+    def __init__(self, path: str | Path, *, track_missiles: bool = False):
         self._path   = Path(path)
+        # Enrichment 2026-09-02. Off by default so every existing caller
+        # gets byte-identical output; the corpus job turns it on.
+        self._track_missiles = bool(track_missiles)
+        self._missile_track: list[dict] = []
+        self._server_text: list[dict] = []
+        self._round_results: list[dict] = []
         self._huff   = _get_huff()
         # Player metadata keyed by client number
         self._players: dict[int, dict] = {}
@@ -555,6 +567,9 @@ class DM73Parser:
             'snapshot_count': len(snapshots),
             'snapshots':    snapshots,
             'entities':     self._ent_track,
+            'server_text':  self._server_text,
+            'round_results': self._round_results,
+            'missiles':     self._missile_track,
             'accuracy':     self._acc_track,
             'packet_errors': self._packet_errors,
             'first_packet_error': self._first_packet_error,
@@ -629,7 +644,16 @@ class DM73Parser:
             entry  = self._players.setdefault(client, {})
             entry['name'] = name
             entry['team'] = _TEAM_NAMES.get(team, team)
-        elif idx == _CS_ROUND_START:
+        if idx in (6, 7, 661, 662, 705):
+            # Recorded WITHOUT consuming the index: 662 is also
+            # _CS_ROUND_START below, and an elif here silently zeroed the
+            # round tracker. 6/7 are CS_SCORES1/2 (team scores): the round
+            # winner is the team whose score rises when 662 goes to -1.
+            self._round_results.append({
+                'server_time_ms': self._last_server_time, 'cs': idx,
+                'value': val, 'round': self._cur_round,
+            })
+        if idx == _CS_ROUND_START:
             if val and val != self._last_round_start_val:
                 # Close previous round
                 if self._rounds:
@@ -673,6 +697,15 @@ class DM73Parser:
                     pass
         elif cmd == 'scores':
             self._absorb_scores(raw)
+        elif cmd in ('chat', 'tchat', 'print', 'cp'):
+            # Kept raw. Sender names live in this text; consumers that
+            # export must redact. Round-win announcements arrive as print/cp.
+            self._server_text.append({
+                'server_time_ms': self._last_server_time,
+                'kind': cmd,
+                'text': raw[len(cmd):].strip().strip('"'),
+                'round': self._cur_round,
+            })
 
     def _absorb_scores(self, raw: str) -> None:
         """Record per-client accuracy from the Quake Live scoreboard.
@@ -751,6 +784,12 @@ class DM73Parser:
 
             if delta is None:
                 # Entity removed — clear state and dedup tracking
+                if self._track_missiles and \
+                        self._entity_states.get(entity_num, {}).get(_F_ETYPE) == 3:
+                    self._missile_track.append({
+                        'server_time_ms': server_time, 'entity_num': entity_num,
+                        'removed': True,
+                    })
                 self._entity_states.pop(entity_num, None)
                 self._entity_prev_etype.pop(entity_num, None)
                 self._entity_prev_ev.pop(entity_num, None)
@@ -771,6 +810,25 @@ class DM73Parser:
             # whoever the demo followed (measured: 4 clients, 7% of kills had
             # victim coverage), so without this an airshot can only be judged
             # for the demo taker. groundEntityNum makes it exact.
+            if self._track_missiles and accumulated.get(_F_ETYPE) == 3:
+                # ET_MISSILE = 3 (bg_public.h entityType_t). pos.trBase and
+                # pos.trDelta share the player field indices.
+                self._missile_track.append({
+                    'server_time_ms': server_time, 'entity_num': entity_num,
+                    'owner': accumulated.get(_F_CLIENT),
+                    # g_missile.c sets s.otherEntityNum to the firer; clientNum
+                    # is not reliably the owner on a missile. Both are kept.
+                    'other': accumulated.get(_F_VICTIM),
+                    'weapon': accumulated.get(_F_WEAPON),
+                    'origin_x': accumulated.get(_F_POS_X),
+                    'origin_y': accumulated.get(_F_POS_Y),
+                    'origin_z': accumulated.get(_F_POS_Z),
+                    'vel_x': accumulated.get(_F_VEL_X),
+                    'vel_y': accumulated.get(_F_VEL_Y),
+                    'vel_z': accumulated.get(_F_VEL_Z),
+                    'eflags': accumulated.get(_F_EFLAGS),
+                    'removed': False,
+                })
             if entity_num < _MAX_CLIENTS:
                 g = accumulated.get(_F_GROUND)
                 self._ent_track.append({
