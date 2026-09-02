@@ -241,3 +241,19 @@ def test_replay_may_keep_the_explosion_past_the_tick():
     assert tm["src_out_s"] == 4.75
     assert h.replay_impact_edit_s < h.replay_end_edit_s
     assert h.replay_impact_edit_s == pytest.approx(tm["edit_in_s"] + 1.125 / 0.4037, abs=0.01)
+
+
+def test_requested_rate_is_exact_and_distinct_from_measurement():
+    """The original FPV is requested at exactly 1/1. A measured 0.995x is
+    frame quantization and must never be reported as the rate."""
+    tm = _hero().timemap()
+    assert tm[0]["requested_rate"] == "1"
+    assert tm[2]["requested_rate"] == "1"
+    assert tm[1]["requested_rate"] == str(Fraction(2284, 5657))
+    assert "measured_effective_rate" not in tm[0]     # only measurement adds it
+
+
+def test_tail_never_skips_or_replays_source_time():
+    h = _hero(); tm = h.timemap()
+    assert tm[2]["src_in_s"] == tm[0]["src_out_s"]           # continues exactly
+    assert tm[2]["src_out_s"] - tm[2]["src_in_s"] == h.tail_s

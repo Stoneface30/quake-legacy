@@ -266,14 +266,21 @@ class HeroCut:
 
     def pieces(self) -> list[dict]:
         r = float(self.slow_rate)
+        one = Fraction(1, 1)
+        # TAIL_FPV resumes from the CANONICAL post-impact source position --
+        # exactly where pass one stopped. No source time is skipped or
+        # replayed to reconnect after the replay.
         return [
             {"label": "PASS1_FPV", "src": 0, "src_in_s": self.scene_in_s,
-             "src_out_s": self.pass1_out_s, "rate": 1.0},
+             "src_out_s": self.pass1_out_s, "rate": 1.0,
+             "requested_rate": str(one)},
             {"label": "REPLAY_SIDE", "src": 1, "src_in_s": self.launch_s,
              "src_out_s": (self.T_s if self.replay_out_s is None
-                           else self.replay_out_s), "rate": r},
+                           else self.replay_out_s), "rate": r,
+             "requested_rate": str(self.slow_rate)},
             {"label": "TAIL_FPV", "src": 0, "src_in_s": self.pass1_out_s,
-             "src_out_s": self.pass1_out_s + self.tail_s, "rate": 1.0},
+             "src_out_s": self.pass1_out_s + self.tail_s, "rate": 1.0,
+             "requested_rate": str(one)},
         ]
 
     def timemap(self) -> list[dict]:
@@ -362,8 +369,17 @@ def measure_pieces(fpv_mp4: Path, replay_mp4: Path, cut: HeroCut,
                             str(piece)], capture_output=True, text=True)
         st = {s["codec_type"]: s for s in json.loads(o.stdout)["streams"]}
         vd = float(st["video"].get("duration", 0)); ad = float(st["audio"].get("duration", 0))
+        # Two facts, never conflated: what the TimeMap ASKED for (an exact
+        # rational, 1/1 for the original FPV) and what the 60 fps grid
+        # DELIVERED (2.985 s of source becomes 180 frames = 3.000 s, an
+        # effective 0.995x). The second is frame quantization, not intent,
+        # and it only ever lengthens a piece -- shortening is debt and is
+        # what check_temporal_debt catches.
         out.append({**pc, "out_duration_s": round(vd, 6),
                     "out_frames": int(st["video"].get("nb_frames", 0) or 0),
                     "audio_duration_s": round(ad, 6),
-                    "measured_rate": round((b - a) / vd, 4) if vd else None})
+                    "requested_rate": pc["requested_rate"],
+                    "measured_effective_rate": (round((b - a) / vd, 4)
+                                                if vd else None),
+                    "quantization_ms": round((vd - expected) * 1000.0, 1)})
     return out
