@@ -45,7 +45,7 @@ from typing import Any, Sequence
 
 from creative_suite.engine import demo_truth as dt
 
-RECON_VERSION = "projectile-recon-v1.0.0"
+RECON_VERSION = "projectile-recon-v1.1.0"   # patch normals
 
 # ── game constants, with their source lines ─────────────────────────────────
 
@@ -165,15 +165,56 @@ def first_contact(bsp: Any, start: Vec, end: Vec) -> Contact | None:
             hit = _brush_entry(bsp, b, start, end, eps)
             if hit is not None and (best is None or hit.fraction < best.fraction):
                 best = hit
-    # Curved surfaces: blocking only, no plane available.
+    # Curved surfaces. The boolean tracer only says "blocked"; a bounce needs
+    # the plane, and a patch triangle gives one by cross product. When the
+    # cell has no triangles (coarse AABB only) the contact keeps a zero
+    # normal and callers treat it as an explosion.
     for aabb, tris in bsp.patch_cells:
         if not bg._segment_hits_aabb(aabb, start, end):
             continue
-        blocked = tris is None or any(
-            bg._segment_hits_triangle(start, end, a, b, c) for a, b, c in tris)
-        if blocked and best is None:
-            best = Contact(1.0, tuple(end), (0.0, 0.0, 0.0))
+        if tris is None:
+            if best is None:
+                best = Contact(1.0, tuple(end), (0.0, 0.0, 0.0))
+            continue
+        for a, b, c in tris:
+            hit = _triangle_entry(start, end, a, b, c)
+            if hit is not None and (best is None or hit.fraction < best.fraction):
+                best = hit
     return best
+
+
+def _triangle_entry(p1: Vec, p2: Vec, a: Vec, b: Vec, c: Vec) -> Contact | None:
+    """Moller-Trumbore segment/triangle hit with the face normal, facing the
+    segment's origin so a bounce always reflects away from the surface."""
+    d = _sub(p2, p1)
+    e1, e2 = _sub(b, a), _sub(c, a)
+    n = (e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2],
+         e1[0] * e2[1] - e1[1] * e2[0])
+    nl = _length(n)
+    if nl < 1e-9:
+        return None
+    pvec = (d[1] * e2[2] - d[2] * e2[1], d[2] * e2[0] - d[0] * e2[2],
+            d[0] * e2[1] - d[1] * e2[0])
+    det = _dot(e1, pvec)
+    if abs(det) < 1e-9:
+        return None
+    inv = 1.0 / det
+    t = _sub(p1, a)
+    u = _dot(t, pvec) * inv
+    if u < -1e-6 or u > 1.0 + 1e-6:
+        return None
+    q = (t[1] * e1[2] - t[2] * e1[1], t[2] * e1[0] - t[0] * e1[2],
+         t[0] * e1[1] - t[1] * e1[0])
+    v = _dot(d, q) * inv
+    if v < -1e-6 or u + v > 1.0 + 1e-6:
+        return None
+    f = _dot(e2, q) * inv
+    if f < 0.0 or f > 1.0:
+        return None
+    normal = _scale(n, 1.0 / nl)
+    if _dot(normal, d) > 0:            # face the incoming segment
+        normal = _scale(normal, -1.0)
+    return Contact(f, _add(p1, _scale(d, f)), normal)
 
 
 def _brush_entry(bsp: Any, brush_idx: int, p1: Vec, p2: Vec,
@@ -332,8 +373,8 @@ def propagate(launch: LaunchState, bsp: Any, *, gravity: float = GRAVITY,
                 pts.append(PathPoint(t_hit, hit.point, vel, dt.PHYSICS_RECONSTRUCTED))
                 reason = "IMPACT" if kind == KIND_ROCKET else "PATCH"
                 if _length(hit.normal) == 0.0 and kind == KIND_GRENADE:
-                    notes.append("stopped on a curved surface: no plane normal "
-                                 "is available to bounce from")
+                    notes.append("stopped on a curved-surface cell with no "
+                                 "triangle data: no normal to bounce from")
                     confidence = AMBIGUOUS
                 pos, t = hit.point, t_hit
                 break
@@ -564,6 +605,17 @@ def truncate_at_event(cont: Continuation, *, event_kind: str, event_t_us: int,
     if not on_line:
         return replace(cont, confidence=AMBIGUOUS,
                        notes=cont.notes + (res.explanation,)), res
+    # The recorded event lands where and when the world-only physics already
+    # ended (fuse, wall, rest): nothing was unobserved at the end. That is the
+    # strongest claim this module makes, and it keeps the world-only reason.
+    if (cont.end_reason in ("FUSE", "IMPACT", "REST")
+            and abs(cont.end_t_us - event_t_us) <= CONFIRM_WINDOW_US):
+        why = (f"the recorded {event_kind} confirms the world-only end "
+               f"({cont.end_reason} at {cont.end_t_us} us): "
+               f"{'%.0fu' % s_res if s_res is not None else 'time'} agreement")
+        res = replace(res, explanation=why)
+        return replace(cont, confidence=EXACT_DETERMINISTIC,
+                       notes=cont.notes + (why,)), res
     kept = tuple(p for p in cont.points if p.t_us < event_t_us)
     cut = replace(at, evidence=EVENT_CONSTRAINED_EVIDENCE)
     pts = tuple(replace(p, evidence=EVENT_CONSTRAINED_EVIDENCE)
@@ -575,3 +627,4 @@ def truncate_at_event(cont: Continuation, *, event_kind: str, event_t_us: int,
 
 
 EVENT_CONSTRAINED_EVIDENCE = dt.EVENT_CONSTRAINED
+CONFIRM_WINDOW_US = 50_000     # two server frames: event and simulated end coincide

@@ -278,3 +278,43 @@ def test_synthetic_identity_is_deterministic():
     a = cs.SyntheticElement("x", cs.DOMAIN_MODEL, cs.CONTEXT_OUTRO, 0, 1, "ROUND_PAYOFF")
     b = cs.SyntheticElement("x", cs.DOMAIN_MODEL, cs.CONTEXT_OUTRO, 0, 1, "ROUND_PAYOFF")
     assert a.element_id == b.element_id
+
+
+# ── curved surfaces give a plane (v1.1.0) ──────────────────────────────────
+
+def test_triangle_entry_returns_the_face_normal_facing_the_shot():
+    a, b, c = (0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (0.0, 10.0, 0.0)   # z=0 floor
+    hit = pr._triangle_entry((2.0, 2.0, 5.0), (2.0, 2.0, -5.0), a, b, c)
+    assert hit is not None
+    assert abs(hit.fraction - 0.5) < 1e-9
+    assert hit.normal == pytest.approx((0.0, 0.0, 1.0))      # faces the origin above
+    down = pr._triangle_entry((2.0, 2.0, -5.0), (2.0, 2.0, 5.0), a, b, c)
+    assert down.normal == pytest.approx((0.0, 0.0, -1.0))    # and from below
+
+
+def test_triangle_entry_misses_outside_the_triangle_and_the_segment():
+    a, b, c = (0.0, 0.0, 0.0), (10.0, 0.0, 0.0), (0.0, 10.0, 0.0)
+    assert pr._triangle_entry((8.0, 8.0, 5.0), (8.0, 8.0, -5.0), a, b, c) is None   # past the hypotenuse
+    assert pr._triangle_entry((2.0, 2.0, 5.0), (2.0, 2.0, 1.0), a, b, c) is None     # stops short
+    assert pr._triangle_entry((2.0, 2.0, 5.0), (6.0, 2.0, 5.0), a, b, c) is None     # parallel
+
+
+def test_an_event_at_the_simulated_end_confirms_it_rather_than_cutting_it():
+    """A recorded explosion within two frames of the fuse, on the path, is
+    EXACT_DETERMINISTIC with the world-only reason kept."""
+    from dataclasses import replace
+    pts = tuple(pr.PathPoint(t * 25_000, (float(t), 0.0, 0.0), (40.0, 0.0, 0.0),
+                             dt.PHYSICS_RECONSTRUCTED) for t in range(0, 101))
+    launch = pr.LaunchState(pr.KIND_GRENADE, 0, pts[0].pos, pts[0].vel, dt.ENTITY_OBSERVED)
+    cont = pr.Continuation(pr.KIND_GRENADE, launch, pts, pts[-1].t_us, "FUSE",
+                           pts[-1].pos)
+    final, res = pr.truncate_at_event(cont, event_kind="missile_miss",
+                                      event_t_us=pts[-1].t_us - 25_000,
+                                      event_pos=(99.0, 3.0, 0.0))
+    assert res.compatible and final.end_reason == "FUSE"
+    assert final.confidence == pr.EXACT_DETERMINISTIC
+    assert "confirms" in res.explanation
+    # well before the end it is still a dynamic contact
+    cut, _ = pr.truncate_at_event(cont, event_kind="missile_hit",
+                                  event_t_us=pts[40].t_us, event_pos=(40.0, 2.0, 0.0))
+    assert cut.end_reason == "DYNAMIC_CONTACT"
