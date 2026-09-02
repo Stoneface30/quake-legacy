@@ -163,3 +163,39 @@ def test_silence_cannot_win_hit_rhythm_forward():
     silent = _feature(onsets_us=[], accents_us=[20_000_000])
     assert lg.search(p, [silent], kill_edit_us=8_875_000, scene_start_us=0,
                      scene_end_us=10_875_000, philosophy=lg.HIT_RHYTHM_FORWARD) == []
+
+
+# ── mix-state persistence + canary invariants (directive 17, 21, 24, 31) ────
+
+REVIEW = REPO_ROOT / "output" / "demo_v2" / "review"
+
+
+@pytest.fixture(scope="module")
+def selection():
+    p = REVIEW / "EDITORIAL_CANARY_V3_LG_selection.json"
+    if not p.exists():
+        pytest.skip("LG canary selection not rendered on this machine")
+    import json
+    return json.loads(p.read_text(encoding="utf-8"))
+
+
+def test_mix_states_persist_and_validate(selection):
+    for v in selection["variants"].values():
+        assert v["mix_state"] in lg.MIX_STATES
+    assert selection["variants"]["A"]["mix_state"] == lg.MIX_HIT_RHYTHM_FORWARD
+    assert selection["per_hit_ducking"] is False
+
+
+def test_all_variants_share_one_visual_capture(selection):
+    assert selection["visual_key"]
+    assert selection["requested_rate"] == "1"          # exactly 1/1, no retime
+    assert selection["camera"] == "FPV"
+
+
+def test_canary_does_not_consume_the_frag(selection):
+    assert selection["moment_state"].startswith("SHORTLISTED")
+
+
+def test_every_variant_names_its_head_nod(selection):
+    for v in selection["variants"].values():
+        assert len(v["head_nod"]) > 12
