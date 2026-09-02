@@ -110,6 +110,11 @@ class MomentCandidate:
     reconstruction_type: str = ""          # PHYSICS_RECONSTRUCTED | EVENT_CONSTRAINED_RECONSTRUCTION
     reconstruction_confidence: str = ""    # projectile_reconstruction.CONFIDENCES
     reconstruction_duration_us: int = 0
+    # Round / team / 1vX context, from round_context. UNKNOWN stays UNKNOWN.
+    one_v_x: str = ""                      # round_context.ONE_V_* or NOT_ONE_V_X
+    is_team_round: bool = False
+    movement_events: int = 0               # jumps / pads / teleports in the window
+    content_hash: str = ""                 # identity: never map + time alone
     evidence: tuple[tuple[str, str], ...] = ()
 
     @property
@@ -159,13 +164,27 @@ def retime_envelope_for_speed(relative_speed: float | None, *,
 FIT_COMPONENTS = ("DURATION_FIT", "ENERGY_FIT", "RHYTHM_FIT",
                   "HERO_ANCHOR_FIT", "NEGATIVE_SPACE_FIT", "CAMERA_FIT",
                   "RETIME_FIT", "TRANSITION_FIT", "NARRATIVE_FIT",
-                  "INTENSITY_FIT", "CONSUMPTION_AVAILABILITY")
+                  "INTENSITY_FIT", "CONSUMPTION_AVAILABILITY",
+                  # round / team / reconstruction dimensions (2026-09-02)
+                  "ROUND_RESULT_FIT", "TEAM_STORY_FIT", "ONE_VX_FIT",
+                  "MOVEMENT_FIT", "RECONSTRUCTION_CAMERA_FIT",
+                  "TRANSITION_MATERIAL_FIT")
 
-# What each component is worth. Availability is a gate, not a weight.
-WEIGHTS = {"DURATION_FIT": 0.22, "ENERGY_FIT": 0.12, "RHYTHM_FIT": 0.12,
-           "HERO_ANCHOR_FIT": 0.20, "NEGATIVE_SPACE_FIT": 0.08,
-           "CAMERA_FIT": 0.06, "RETIME_FIT": 0.08, "TRANSITION_FIT": 0.04,
-           "NARRATIVE_FIT": 0.08, "INTENSITY_FIT": 0.00}
+# What each component is worth. Availability is a gate, not a weight, and so
+# are the hard gates: a slot that REQUIRES a won round is not "scored lower"
+# for a lost one, it is refused.
+WEIGHTS = {"DURATION_FIT": 0.18, "ENERGY_FIT": 0.10, "RHYTHM_FIT": 0.10,
+           "HERO_ANCHOR_FIT": 0.16, "NEGATIVE_SPACE_FIT": 0.06,
+           "CAMERA_FIT": 0.05, "RETIME_FIT": 0.06, "TRANSITION_FIT": 0.03,
+           "NARRATIVE_FIT": 0.06, "INTENSITY_FIT": 0.00,
+           "ROUND_RESULT_FIT": 0.05, "TEAM_STORY_FIT": 0.04, "ONE_VX_FIT": 0.05,
+           "MOVEMENT_FIT": 0.03, "RECONSTRUCTION_CAMERA_FIT": 0.03,
+           "TRANSITION_MATERIAL_FIT": 0.00}
+
+# Slot roles whose payoff is a triumph. These REQUIRE a won round.
+TRIUMPH_ROLES = ("CLIMAX", "MULTIKILL")
+# Slot roles that want an omniscient projectile camera.
+PROJECTILE_CAMERA_ROLES = ("HERO", "CLIMAX")
 
 
 @dataclass(frozen=True)
@@ -257,12 +276,40 @@ def score_candidate(candidate: MomentCandidate, slot: Any, *,
 
     comps["CONSUMPTION_AVAILABILITY"] = 1.0 if candidate.available else 0.0
 
+    # Round result: a won round lifts any hero/climax slot; UNKNOWN is neutral,
+    # never a penalty for evidence that does not exist yet.
+    rr = getattr(candidate, "round_result", UNKNOWN)
+    comps["ROUND_RESULT_FIT"] = _clip(
+        1.0 if rr == "WIN" else 0.35 if rr == "LOSS" else 0.5)
+    comps["TEAM_STORY_FIT"] = _clip(
+        1.0 if getattr(candidate, "is_team_round", False) else 0.4)
+    ovx = getattr(candidate, "one_v_x", "")
+    comps["ONE_VX_FIT"] = _clip(
+        1.0 if ovx and ovx != "NOT_ONE_V_X" else 0.4)
+    comps["MOVEMENT_FIT"] = _clip(
+        min(1.0, getattr(candidate, "movement_events", 0) / 6.0)
+        if slot.role in ("MOVEMENT", "MONTAGE", "TRANSITION", "INTRO", "OUTRO")
+        else 0.5)
+    rconf = getattr(candidate, "reconstruction_confidence", "")
+    comps["RECONSTRUCTION_CAMERA_FIT"] = _clip(
+        1.0 if getattr(candidate, "supports_omniscient_replay", False)
+        else 0.6 if rconf in ("DETERMINISTIC_UNTIL_UNOBSERVED_DYNAMIC_CONTACT",)
+        else 0.4)
+    comps["TRANSITION_MATERIAL_FIT"] = _clip(
+        1.0 if candidate.transition_options or
+        getattr(candidate, "movement_events", 0) >= 3 else 0.4)
+
     total = round(sum(WEIGHTS[k] * v for k, v in comps.items()
                       if k in WEIGHTS), 4)
     eligible = candidate.available
     blocked = "" if eligible else (
         f"frag {candidate.frag_id} is {candidate.moment_state} and cannot be "
         f"planned again without an explicit reuse override")
+    # HARD GATES. Refusals, not discounts. UNKNOWN does not satisfy a gate.
+    if eligible and slot.role in TRIUMPH_ROLES and rr != "WIN":
+        eligible, blocked = False, (
+            f"{slot.role} is a triumph slot and requires round result WIN; "
+            f"frag {candidate.frag_id} has {rr}")
 
     bits = [f"{candidate.useful_duration_us / 1e6:.1f}s into a "
             f"{slot.duration_us / 1e6:.1f}s {slot.role.lower()} slot"]
