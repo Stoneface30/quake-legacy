@@ -628,3 +628,93 @@ def truncate_at_event(cont: Continuation, *, event_kind: str, event_t_us: int,
 
 EVENT_CONSTRAINED_EVIDENCE = dt.EVENT_CONSTRAINED
 CONFIRM_WINDOW_US = 50_000     # two server frames: event and simulated end coincide
+
+
+# ── segmented interval provenance ───────────────────────────────────────────
+#
+# A path is not one evidence class. Its first stretch was recorded, the rest
+# was derived, and a cut at a recorded hit is event-constrained. Consumers
+# (camera eligibility, scene evidence, UI text) need those runs as intervals
+# with a fraction, never a single label for the whole flight.
+
+@dataclass(frozen=True)
+class ProvenanceSegment:
+    start_us: int
+    end_us: int
+    evidence: str
+    points: int
+
+    @property
+    def duration_us(self) -> int:
+        return self.end_us - self.start_us
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d["duration_us"] = self.duration_us
+        return d
+
+
+def provenance_segments(cont: Continuation) -> tuple[ProvenanceSegment, ...]:
+    """Maximal runs of equal evidence along the path, in time order. A run's
+    end is the first instant of the next run (the interval is half-open), so
+    the segments tile the flight exactly."""
+    pts = sorted(cont.points, key=lambda p: p.t_us)
+    if not pts:
+        return ()
+    out: list[ProvenanceSegment] = []
+    run_start, run_ev, n = pts[0].t_us, pts[0].evidence, 0
+    for i, p in enumerate(pts):
+        if p.evidence != run_ev:
+            out.append(ProvenanceSegment(run_start, p.t_us, run_ev, n))
+            run_start, run_ev, n = p.t_us, p.evidence, 0
+        n += 1
+    out.append(ProvenanceSegment(run_start, max(cont.end_t_us, pts[-1].t_us), run_ev, n))
+    return tuple(out)
+
+
+def recorded_fraction(cont: Continuation) -> float:
+    """Share of the flight's duration whose evidence is RECORDED."""
+    segs = provenance_segments(cont)
+    total = sum(s.duration_us for s in segs)
+    if total <= 0:
+        return 1.0 if segs and dt.is_recorded(segs[0].evidence) else 0.0
+    return sum(s.duration_us for s in segs if dt.is_recorded(s.evidence)) / total
+
+
+@dataclass(frozen=True)
+class CameraEligibility:
+    """What a projectile camera may claim about this flight. Derived from the
+    reconstruction, never asserted by a scene."""
+    projectile_path_available: bool
+    reconstruction_class: str            # evidence of the dominant derived run, or RECORDED
+    confidence: str
+    recorded_fraction: float
+    reconstructed_fraction: float
+    segments: tuple[ProvenanceSegment, ...]
+    eligible: bool
+    reason: str
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d["segments"] = [s.to_dict() for s in self.segments]
+        return d
+
+
+PRESENTABLE = (EXACT_DETERMINISTIC, DETERMINISTIC_UNTIL_UNOBSERVED_DYNAMIC_CONTACT)
+
+
+def camera_eligibility(cont: Continuation | None) -> CameraEligibility:
+    if cont is None or not cont.points:
+        return CameraEligibility(False, "", "", 0.0, 0.0, (), False,
+                                 "no projectile path")
+    segs = provenance_segments(cont)
+    rf = recorded_fraction(cont)
+    derived = [s for s in segs if not dt.is_recorded(s.evidence)]
+    klass = (max(derived, key=lambda s: s.duration_us).evidence if derived
+             else dt.RECORDED)
+    ok = cont.confidence in PRESENTABLE
+    reason = (f"{cont.confidence}; {rf:.0%} recorded, {1 - rf:.0%} {klass}"
+              if ok else f"confidence {cont.confidence} is below the presentation "
+                         f"threshold; UNKNOWN or AMBIGUOUS never qualifies")
+    return CameraEligibility(True, klass, cont.confidence, rf, 1.0 - rf, segs,
+                             ok, reason)

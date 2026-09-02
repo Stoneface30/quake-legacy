@@ -110,6 +110,8 @@ class MomentCandidate:
     reconstruction_type: str = ""          # PHYSICS_RECONSTRUCTED | EVENT_CONSTRAINED_RECONSTRUCTION
     reconstruction_confidence: str = ""    # projectile_reconstruction.CONFIDENCES
     reconstruction_duration_us: int = 0
+    reconstruction_recorded_fraction: float = 0.0   # share of the flight RECORDED
+    reconstruction_class: str = ""         # dominant derived evidence, or RECORDED
     # Round / team / 1vX context, from round_context. UNKNOWN stays UNKNOWN.
     one_v_x: str = ""                      # round_context.ONE_V_* or NOT_ONE_V_X
     is_team_round: bool = False
@@ -130,6 +132,16 @@ class MomentCandidate:
         """A projectile camera needs a path the client did not fully see."""
         return (self.reconstruction_available and self.reconstruction_confidence
                 in ("EXACT_DETERMINISTIC", "EVENT_CONSTRAINED"))
+
+    @property
+    def camera_text(self) -> str:
+        """The only sentence a UI may print about the projectile camera."""
+        if not self.reconstruction_available:
+            return "no projectile path"
+        return (f"{self.reconstruction_confidence}: "
+                f"{self.reconstruction_recorded_fraction:.0%} recorded, "
+                f"{1 - self.reconstruction_recorded_fraction:.0%} "
+                f"{self.reconstruction_class or 'derived'}")
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -351,3 +363,18 @@ def montage_groups(candidates: Sequence[MomentCandidate], *,
         if c.motif_key and c.available:
             groups.setdefault(c.motif_key, []).append(c)
     return {k: v for k, v in groups.items() if len(v) >= min_size}
+
+
+def reconstruction_fields(cont: Any) -> dict[str, Any]:
+    """MomentCandidate kwargs derived from a projectile continuation, so the
+    graph never asserts a camera claim the reconstruction did not make."""
+    from creative_suite.engine import projectile_reconstruction as pr
+    el = pr.camera_eligibility(cont)
+    if not el.projectile_path_available:
+        return {"reconstruction_available": False}
+    return {"reconstruction_available": True,
+            "reconstruction_type": el.reconstruction_class,
+            "reconstruction_confidence": el.confidence,
+            "reconstruction_duration_us": int(cont.end_t_us - cont.points[0].t_us),
+            "reconstruction_recorded_fraction": el.recorded_fraction,
+            "reconstruction_class": el.reconstruction_class}

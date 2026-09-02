@@ -318,3 +318,33 @@ def test_an_event_at_the_simulated_end_confirms_it_rather_than_cutting_it():
     cut, _ = pr.truncate_at_event(cont, event_kind="missile_hit",
                                   event_t_us=pts[40].t_us, event_pos=(40.0, 2.0, 0.0))
     assert cut.end_reason == "DYNAMIC_CONTACT"
+
+
+# ── segmented provenance and camera eligibility ────────────────────────────
+
+def _mixed_cont():
+    pts = tuple(pr.PathPoint(t * 25_000, (float(t), 0.0, 0.0), (40.0, 0.0, 0.0),
+                             dt.ENTITY_OBSERVED if t < 4 else dt.PHYSICS_RECONSTRUCTED)
+                for t in range(0, 41))
+    launch = pr.LaunchState(pr.KIND_ROCKET, 0, pts[0].pos, pts[0].vel, dt.ENTITY_OBSERVED)
+    return pr.Continuation(pr.KIND_ROCKET, launch, pts, pts[-1].t_us, "IMPACT", pts[-1].pos)
+
+
+def test_segments_tile_the_flight_and_carry_their_own_evidence():
+    segs = pr.provenance_segments(_mixed_cont())
+    assert [s.evidence for s in segs] == [dt.ENTITY_OBSERVED, dt.PHYSICS_RECONSTRUCTED]
+    assert segs[0].start_us == 0 and segs[0].end_us == segs[1].start_us == 100_000
+    assert segs[-1].end_us == 1_000_000
+    assert abs(pr.recorded_fraction(_mixed_cont()) - 0.1) < 1e-9
+
+
+def test_camera_eligibility_is_derived_and_refuses_ambiguous():
+    from dataclasses import replace
+    good = pr.camera_eligibility(_mixed_cont())
+    assert good.projectile_path_available and good.eligible
+    assert good.reconstruction_class == dt.PHYSICS_RECONSTRUCTED
+    assert abs(good.recorded_fraction - 0.1) < 1e-9
+    assert "10% recorded" in good.reason
+    bad = pr.camera_eligibility(replace(_mixed_cont(), confidence=pr.AMBIGUOUS))
+    assert bad.projectile_path_available and not bad.eligible
+    assert pr.camera_eligibility(None).projectile_path_available is False

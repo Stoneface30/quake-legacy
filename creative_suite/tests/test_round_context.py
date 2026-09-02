@@ -269,3 +269,23 @@ def test_cut_copy_collapse_can_be_switched_off(tmp_path):
     p, full, cut, twin, other = _dup_db(tmp_path)
     rep = rc.canonical_demos(p, cut_copies=False)
     assert rep[cut] == cut and rep[twin] == full
+
+
+# ── camera fields come from the reconstruction ──────────────────────────────
+
+def test_candidate_camera_fields_are_derived_from_the_continuation():
+    from creative_suite.engine import projectile_reconstruction as pr
+    pts = tuple(pr.PathPoint(t * 25_000, (float(t), 0.0, 0.0), (40.0, 0.0, 0.0),
+                             dt.ENTITY_OBSERVED if t < 2 else dt.PHYSICS_RECONSTRUCTED)
+                for t in range(0, 11))
+    launch = pr.LaunchState(pr.KIND_ROCKET, 0, pts[0].pos, pts[0].vel, dt.ENTITY_OBSERVED)
+    cont = pr.Continuation(pr.KIND_ROCKET, launch, pts, pts[-1].t_us, "IMPACT", pts[-1].pos)
+    cand = og.MomentCandidate(9, og.KIND_ROCKET_IMPACT, 3_000_000, "MY_FRAG", 1_000_000,
+                              **og.reconstruction_fields(cont))
+    assert cand.reconstruction_available and cand.supports_omniscient_replay
+    assert abs(cand.reconstruction_recorded_fraction - 0.2) < 1e-9
+    assert cand.reconstruction_class == dt.PHYSICS_RECONSTRUCTED
+    assert cand.camera_text == "EXACT_DETERMINISTIC: 20% recorded, 80% PHYSICS_RECONSTRUCTED"
+    assert rc.gate_projectile_replay(cand).passed
+    none = og.MomentCandidate(1, og.KIND_ROCKET_IMPACT, 1, "MY_FRAG", 1, **og.reconstruction_fields(None))
+    assert none.camera_text == "no projectile path" and not rc.gate_projectile_replay(none).passed
