@@ -504,7 +504,9 @@ def game_event_lane(evidence: SceneEvidence, time_map: TimeMap
         add("PROJECTILE_LAUNCH", int(launch_ms) * 1000, bias="left",
             label="Launch", source="attributes.projectile_launch_t",
             detail={"kind": attrs.get("projectile_kind"),
-                    "confidence": attrs.get("projectile_path_confidence")})
+                    "confidence": attrs.get("projectile_path_confidence"),
+                    "provenance": "EVENT_CONSTRAINED_RECONSTRUCTION",
+                    "note": "launch inferred from impact + view rays"})
         add("PROJECTILE_IMPACT", int(impact_ms) * 1000, bias="right",
             label="Impact", source="attributes.projectile_impact_t",
             detail={"status": attrs.get("projectile_status"),

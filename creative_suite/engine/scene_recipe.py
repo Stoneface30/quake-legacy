@@ -419,8 +419,14 @@ def build_frag_scene_recipe(
         **common_evidence,
         detail={
             "projectile_status": attributes.get("projectile_status"),
+            # `projectile_confidence` grades the geometric FIT of an inferred
+            # path (CONFIRMED / LIKELY). It never meant "observed": the missile
+            # entity was not exported, so the trajectory is a reconstruction.
             "projectile_confidence": attributes.get("projectile_path_confidence"),
             "projectile_impact_event": attributes.get("projectile_impact_event"),
+            "trajectory_provenance": "EVENT_CONSTRAINED_RECONSTRUCTION",
+            "trajectory_origin": "inferred from impact + recorder view rays; "
+                                 "missile entity not observed",
         },
     )
     frag_evidence = EvidenceRef(

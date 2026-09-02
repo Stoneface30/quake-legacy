@@ -37,6 +37,9 @@ Every one of these is computed from `recognition_projectile_paths` +
 from __future__ import annotations
 
 import json
+
+# Every cached projectile path is an inference; see demo_truth.ProjectileTrack.
+PATH_PROVENANCE = "EVENT_CONSTRAINED_RECONSTRUCTION"
 import math
 import sqlite3
 from pathlib import Path
@@ -190,6 +193,9 @@ def load_candidates(db_path: Path | str = RECOG_DB,
             pj = json.loads(blob)
         except (TypeError, json.JSONDecodeError):
             continue
+        # "CONFIRMED" here grades how well the INFERRED path fits its impact
+        # event, not whether the missile was observed -- it never was. Every
+        # path this module ranks is EVENT_CONSTRAINED_RECONSTRUCTION.
         if require_confirmed and pj.get("confidence") != "CONFIRMED":
             continue
         if projectile_evidence is not None and not projectile_evidence(pj)["usable"]:

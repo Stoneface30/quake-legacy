@@ -600,7 +600,13 @@ def build_preview_recipe(frag: dict[str, Any]) -> SceneRecipeV2:
     evidence = EvidenceRef(
         dataset="recognized_frags", record_id=str(frag["id"]),
         version=f"recognition-v{int(frag.get('recognition_version') or 0)}",
-        detail={"weapon_name": frag.get("weapon_name")})
+        detail={"weapon_name": frag.get("weapon_name"),
+                # The cached projectile path was never observed: the extractor
+                # inferred it. The impact EVENT is recorded; the trajectory is
+                # a reconstruction and must be labelled as one downstream.
+                "trajectory_provenance": "EVENT_CONSTRAINED_RECONSTRUCTION",
+                "trajectory_origin": "inferred from impact + recorder view "
+                                     "rays; missile entity not observed"})
     weapon = str(frag.get("weapon_name") or "PROJECTILE").upper()
     anchors = (
         EventAnchor(anchor_id="impact-0",

@@ -557,3 +557,5 @@ and restored. On completion: `capture.cfg` deleted,
 `cgamepostinit.cfg` reset to `// idle`, grade pk3 removed,
 `scripts/pantheon_canary.fx` removed, all `canary01_*` AVIs deleted, all
 five UHD packs restored.
+
+> **Provenance correction (2026-09-02):** the projectile trajectory used by this canary was INFERRED by `extract_projectile_paths` from the impact event and the recorder's view rays; the missile entity was never observed. Its evidence class is `EVENT_CONSTRAINED_RECONSTRUCTION`, not `ENTITY_OBSERVED`. The impact event itself is recorded. Geometry unchanged; label corrected.
