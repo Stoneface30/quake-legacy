@@ -328,20 +328,45 @@ class ScoreTimelineV1:
 
 def build_timeline(feature: Any, *, anchors: Sequence[Any] = (),
                    negative_space: Sequence[NegativeSpaceInterval] = (),
+                   grid: Any = None,
                    max_us: int = DEFAULT_MAX_SONG_US) -> ScoreTimelineV1:
-    """Project a cached V2 feature (plus V3 anchors) into a score."""
+    """Project a cached V2 feature (plus V3 anchors) into a score.
+
+    A repaired ``grid`` supersedes the cached beats entirely. It also
+    supersedes the cached DURATION when it measured the audio and found the
+    cached value wrong -- a score built on a wrong duration produces a movie
+    of the wrong length, which is the one thing this architecture cannot get
+    away with.
+    """
     check_eligibility(feature, max_us=max_us).raise_if_ineligible()
+    beats = tuple(int(b) for b in feature.beats_us)
+    bars = tuple(int(b) for b in feature.bar_grid_estimate_us)
+    duration_us = int(feature.duration_us)
+    bpm = feature.bpm
+    prov_extra: tuple[tuple[str, str], ...] = ()
+    if grid is not None:
+        beats = tuple(int(b) for b in grid.beats_us) or beats
+        bars = tuple(int(b) for b in grid.bars_us) or bars
+        bpm = grid.bpm or bpm
+        prov_extra = (("beat_grid", grid.analyzer_version),
+                      ("beat_grid_status", grid.status))
+        measured = int(getattr(grid, "audio_duration_us", 0) or 0)
+        if measured and getattr(grid, "duration_suspect", False):
+            prov_extra += (("duration_source",
+                            f"measured audio {measured} us supersedes cached "
+                            f"{duration_us} us"),)
+            duration_us = measured
     return ScoreTimelineV1(
         track_hash=feature.track_hash, track_path=feature.path,
-        duration_us=int(feature.duration_us), bpm=feature.bpm,
-        beats_us=tuple(int(b) for b in feature.beats_us),
-        bars_us=tuple(int(b) for b in feature.bar_grid_estimate_us),
+        duration_us=duration_us, bpm=bpm,
+        beats_us=beats,
+        bars_us=bars,
         phrases_us=tuple(int(b) for b in feature.phrase_boundary_estimates_us),
         sections_us=tuple(int(b) for b in feature.section_boundary_estimates_us),
         energy_curve=tuple((int(t), float(v)) for t, v in feature.energy_curve),
         anchors=tuple(anchors), negative_space=tuple(negative_space),
         provenance=(("features", feature.extractor_version),
-                    ("timeline", SCORE_TIMELINE_VERSION)))
+                    ("timeline", SCORE_TIMELINE_VERSION)) + prov_extra)
 
 
 # ── slots ───────────────────────────────────────────────────────────────────
