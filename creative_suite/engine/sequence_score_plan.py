@@ -337,3 +337,110 @@ def unresolved_from(slots: Sequence[ScoreSlot],
                   f"{slot.duration_us / 1e6:.1f}s, "
                   f"{slot.evidence.hard_anchor_count} hard anchors"))
     return tuple(out)
+
+
+# ── the composition draft ───────────────────────────────────────────────────
+# A plan says where scenes and effects go. A DRAFT is the whole editorial
+# object: the plan, the story it is telling, the musical figures it quotes,
+# and the profile of the song it was built on. It hashes deterministically for
+# the same reason the plan does -- so two drafts can be compared, and so a
+# change to the film always changes its identity.
+
+@dataclass(frozen=True)
+class PlannedGesture:
+    """A musical figure and the visual pattern that answers it."""
+    gesture_id: str
+    label: str
+    score_start_us: int
+    score_end_us: int
+    attack_count: int
+    iois_us: tuple[int, ...]
+    response_pattern: str
+    response_us: tuple[int, ...]
+    bias_ms: float
+    tag_source: str = "DETECTED"
+    purpose: str = "MUSICAL_PUNCTUATION"
+    why: str = ""
+
+    @property
+    def rhythm_preserved(self) -> bool:
+        """The response must quote the figure's intervals exactly."""
+        r = tuple(b - a for a, b in zip(self.response_us, self.response_us[1:]))
+        return r == self.iois_us
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d["iois_us"] = list(self.iois_us)
+        d["response_us"] = list(self.response_us)
+        d["rhythm_preserved"] = self.rhythm_preserved
+        return d
+
+
+GESTURE_RHYTHM_BROKEN = "GESTURE_RHYTHM_BROKEN"
+NARRATIVE_GAP = "NARRATIVE_GAP"
+EFFECT_WITHOUT_PURPOSE = "EFFECT_WITHOUT_PURPOSE"
+
+# An effect that cannot say why it exists is decoration.
+BANNED_PURPOSES = ("", "NONE", "EFFECT_FOR_EFFECTS_SAKE")
+
+
+@dataclass(frozen=True)
+class CompositionDraftV1:
+    """A whole film's editorial intent: plan, story, figures, song profile."""
+    plan: "SequenceScorePlanV1"
+    episode_intent: str = ""
+    narrative: tuple[Any, ...] = ()          # NarrativeBeatPlacement
+    gestures: tuple[PlannedGesture, ...] = ()
+    song_profile: Any = None
+    draft_version: str = "composition-draft-v1.0.0"
+
+    def canonical(self) -> dict[str, Any]:
+        return {"plan": self.plan.canonical(),
+                "episode_intent": self.episode_intent,
+                "narrative": [n.to_dict() for n in self.narrative],
+                "gestures": [g.to_dict() for g in self.gestures],
+                "song_profile": (self.song_profile.to_dict()
+                                 if self.song_profile is not None else None),
+                "draft_version": self.draft_version}
+
+    @property
+    def draft_hash(self) -> str:
+        payload = json.dumps(self.canonical(), sort_keys=True,
+                             separators=(",", ":"), default=str)
+        return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+    def check(self, *, timeline: Any = None) -> list[dict[str, Any]]:
+        out = list(self.plan.check(timeline=timeline))
+        for g in self.gestures:
+            if not g.rhythm_preserved:
+                out.append({
+                    "check": GESTURE_RHYTHM_BROKEN, "severity": "ERROR",
+                    "detail": f"{g.label}: the visual response does not quote "
+                              f"the figure's intervals, which is the whole "
+                              f"point of aligning a gesture as a pattern"})
+        for e in self.plan.effects:
+            if e.purpose in BANNED_PURPOSES:
+                out.append({
+                    "check": EFFECT_WITHOUT_PURPOSE, "severity": "WARN",
+                    "detail": f"{e.effect_type} declares no purpose; an effect "
+                              f"that cannot say why it is here is decoration"})
+        covered = sum(n.duration_us for n in self.narrative)
+        if self.narrative and covered < self.plan.score_duration_us * 0.9:
+            out.append({
+                "check": NARRATIVE_GAP, "severity": "WARN",
+                "detail": f"the story covers only "
+                          f"{covered / self.plan.score_duration_us:.0%} of the "
+                          f"song"})
+        return out
+
+    @property
+    def valid(self) -> bool:
+        return not any(f["severity"] == "ERROR" for f in self.check())
+
+    def to_dict(self) -> dict[str, Any]:
+        d = self.canonical()
+        d.update(draft_hash=self.draft_hash, findings=self.check(),
+                 plan_hash=self.plan.plan_hash,
+                 coverage=self.plan.coverage,
+                 unresolved_us=self.plan.unresolved_us)
+        return d
