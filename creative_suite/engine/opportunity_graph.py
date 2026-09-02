@@ -102,6 +102,14 @@ class MomentCandidate:
     transition_options: tuple[str, ...] = ()
     motif_key: str | None = None         # for montage grouping
     moment_state: str = "AVAILABLE"
+    # Reconstruction offer. A projectile the client lost can still support an
+    # omniscient replay when physics continues it deterministically; the
+    # score must know that such a path exists, what kind it is, and how far
+    # to trust it, before spending a spectacle slot on it.
+    reconstruction_available: bool = False
+    reconstruction_type: str = ""          # PHYSICS_RECONSTRUCTED | EVENT_CONSTRAINED_RECONSTRUCTION
+    reconstruction_confidence: str = ""    # projectile_reconstruction.CONFIDENCES
+    reconstruction_duration_us: int = 0
     evidence: tuple[tuple[str, str], ...] = ()
 
     @property
@@ -111,6 +119,12 @@ class MomentCandidate:
     @property
     def supports_slow_motion(self) -> bool:
         return self.retime_min_rate < 1.0
+
+    @property
+    def supports_omniscient_replay(self) -> bool:
+        """A projectile camera needs a path the client did not fully see."""
+        return (self.reconstruction_available and self.reconstruction_confidence
+                in ("EXACT_DETERMINISTIC", "EVENT_CONSTRAINED"))
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)

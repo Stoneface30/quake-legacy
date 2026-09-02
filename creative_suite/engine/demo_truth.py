@@ -535,32 +535,41 @@ class RoundOutcome:
 
 
 def round_outcomes(state_rows: Sequence[tuple[int, int, str]], *,
-                   recorder_team: str) -> tuple[RoundOutcome, ...]:
+                   recorder_team: str,
+                   attribution_window_ms: int = 3000) -> tuple[RoundOutcome, ...]:
     """Derive per-round results from (server_time_ms, cs, value) rows.
 
     A round ends when 662 becomes -1. The winner is whichever of 6 or 7
-    increased between the previous round end and this one. If both moved, or
-    neither, the demo does not say who won, and neither do we.
+    increased for that round. The score string can arrive shortly BEFORE or
+    AFTER the end mark, so a rise within ``attribution_window_ms`` of a mark
+    is credited to that round. If both sides rose, or neither, the demo does
+    not say who won, and neither do we.
     """
     rows = sorted(state_rows, key=lambda r: r[0])
-    red = blue = 0
-    last_red = last_blue = 0
-    out: list[RoundOutcome] = []
-    index = 0
+    ends: list[int] = []
+    rises: list[tuple[int, str]] = []       # (t_ms, side)
+    red = blue = None
     for t_ms, cs, value in rows:
         v = str(value).strip().strip(chr(34))
-        if cs == CS_SCORES_RED and v.lstrip("-").isdigit():
-            red = int(v)
-        elif cs == CS_SCORES_BLUE and v.lstrip("-").isdigit():
-            blue = int(v)
+        if cs in (CS_SCORES_RED, CS_SCORES_BLUE) and v.lstrip("-").isdigit():
+            n = int(v)
+            if cs == CS_SCORES_RED:
+                if red is not None and n > red:
+                    rises.append((int(t_ms), "RED"))
+                red = n
+            else:
+                if blue is not None and n > blue:
+                    rises.append((int(t_ms), "BLUE"))
+                blue = n
         elif cs == CS_ROUND_TIME and v == "-1":
-            index += 1
-            red_up, blue_up = red > last_red, blue > last_blue
-            winner = ("RED" if red_up and not blue_up else
-                      "BLUE" if blue_up and not red_up else ROUND_UNKNOWN)
-            out.append(RoundOutcome(index, int(t_ms) * 1000, winner,
-                                    recorder_team or ROUND_UNKNOWN))
-            last_red, last_blue = red, blue
+            ends.append(int(t_ms))
+    team = recorder_team if recorder_team in ("RED", "BLUE") else ROUND_UNKNOWN
+    out: list[RoundOutcome] = []
+    for index, end_ms in enumerate(ends, 1):
+        sides = {side for t, side in rises
+                 if abs(t - end_ms) <= attribution_window_ms}
+        winner = next(iter(sides)) if len(sides) == 1 else ROUND_UNKNOWN
+        out.append(RoundOutcome(index, end_ms * 1000, winner, team))
     return tuple(out)
 
 
