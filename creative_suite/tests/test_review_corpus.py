@@ -87,15 +87,46 @@ def test_my_frags_is_available_and_ptn_is_not_yet():
     assert "otherEntityNum2" in ptn["needs"]
 
 
-def test_the_roster_is_the_users_list_not_a_string_match():
-    """A name is on the roster because the user put it there. 'pTn' appearing
-    in some other player's name proves nothing about who they are."""
-    assert set(rc.PTN_ROSTER) == {"NaikoMarie", "sereke", "S73rn", "jibyjibs"}
-    for member, spellings in rc.PTN_ROSTER.items():
-        assert spellings, member
-    # S73rn and S7ern were given as one member by the user; only spellings
-    # actually found in the cache are listed.
-    assert any("s73rn" in s.lower() for s in rc.PTN_ROSTER["S73rn"])
+def test_the_clan_tag_is_blue_pTn_and_a_yellow_dot():
+    """Verified against the vendored colour table, which has eight entries
+    and no extension: ^4 is blue and ^3 is yellow. ^2 would be green."""
+    assert rc.PTN_TAG == chr(94) + "4pTn" + chr(94) + "3."
+    assert rc.PTN_TAG_COLOURS["pTn"][1:] == ("COLOR_BLUE", "3266fe")
+    assert rc.PTN_TAG_COLOURS["."][1:] == ("COLOR_YELLOW", "fefe00")
+
+
+def test_the_tag_is_not_part_of_a_name():
+    """/clan sets it and the server prepends it to connect and chat lines.
+    player_names_v1 never had it, because the parser reads only `n`."""
+    st = rc.corpus_status(rc.PTN_FRAGS)
+    assert "NOT in" in st["clan_membership"]
+    assert "server_text_v1" in st["clan_membership"]
+
+
+def test_membership_is_evidence_or_the_users_word_and_says_which():
+    """A name is on the roster because it was seen wearing the tag, or
+    because the user put it there. Never because 'pTn' matched a string."""
+    seen = [k for k, v in rc.PTN_ROSTER.items()
+            if v["basis"] == rc.TAG_OBSERVED]
+    declared = [k for k, v in rc.PTN_ROSTER.items()
+                if v["basis"] == rc.USER_DECLARED]
+    assert "NaikoMarie" in seen and "jibyjibs" in seen
+    assert declared == ["b3nto"]
+    # b3nto is a real player with no tag evidence, and the row says so
+    b = rc.PTN_ROSTER["b3nto"]
+    assert b["tag_lines"] == 0 and "no tag evidence" in b["note"]
+    for k, v in rc.PTN_ROSTER.items():
+        if v["basis"] == rc.TAG_OBSERVED:
+            assert v["tag_lines"] > 0, k
+
+
+def test_names_wearing_the_tag_are_surfaced_not_absorbed():
+    """Three names wear the tag and are not on the user's list. They are a
+    question for the user, not a decision for the code."""
+    assert set(rc.PTN_ALIAS_CANDIDATES) == {"Xhipper", "rctmyouen", "Kabuu"}
+    assert not (set(rc.PTN_ALIAS_CANDIDATES) & set(rc.PTN_ROSTER))
+    for k, v in rc.PTN_ALIAS_CANDIDATES.items():
+        assert v["basis"] == rc.ALIAS_CANDIDATE and v["tag_lines"] > 0
 
 
 # ── the five roles ──────────────────────────────────────────────────────────

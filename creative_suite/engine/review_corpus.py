@@ -125,14 +125,65 @@ MY_AND_PTN = "MY_AND_PTN"
 ALL_PLAYERS = "ALL_PLAYERS"
 CORPORA = (MY_FRAGS, PTN_FRAGS, MY_AND_PTN, ALL_PLAYERS)
 
-# The roster the user supplied, with the raw spellings actually found in
-# player_names_v1. A name is here because the user put it here, never
-# because "pTn" appeared in a string.
-PTN_ROSTER: dict[str, tuple[str, ...]] = {
-    "NaikoMarie": ("NaikoMarie", "naikomarie"),
-    "sereke": ("sereke", "^7sere^4k^7e"),
-    "S73rn": ("s73rn", "^7s73rN", "^7s^47^73r^4N^7"),
-    "jibyjibs": ("jibyjibs", "^7jib^1y^7jib^1s^7"),
+# ── the pTn clan tag ────────────────────────────────────────────────────────
+# The tag is NOT part of a player name. It is set with /clan and the server
+# prepends it to connect and chat lines, which is why player_names_v1 never
+# had it: the parser reads only the `n` key from the player configstring.
+#
+# Observed spelling, from 45,551 cached text lines:
+#
+#     ^4pTn^3.        29,530 lines
+#     ^4pTn^3.^7      15,944 lines   (^7 begins the name)
+#
+# Colour codes verified against the vendored table (q_shared.h:468-475,
+# g_color_table in q_math.c), which has eight entries and no extension:
+#
+#     ^4 = COLOR_BLUE    3266fe     "pTn"
+#     ^3 = COLOR_YELLOW  fefe00     the dot
+#     ^2 = COLOR_GREEN   00fe00     -- green, not gold
+#
+# So blue pTn, yellow dot, as the user described. ^2 would have been green.
+PTN_TAG = chr(94) + "4pTn" + chr(94) + "3."
+PTN_TAG_COLOURS = {"pTn": ("^4", "COLOR_BLUE", "3266fe"),
+                   ".": ("^3", "COLOR_YELLOW", "fefe00")}
+
+# How a name got onto the roster. Membership is evidence or the user's word,
+# never a string match on "pTn" appearing somewhere.
+TAG_OBSERVED = "TAG_OBSERVED"          # seen wearing the tag in cached text
+USER_DECLARED = "USER_DECLARED"        # the user says so; no tag evidence yet
+ALIAS_CANDIDATE = "CLAN_ALIAS_CANDIDATE"   # wears the tag, not yet confirmed
+
+# Line counts are how often the name was seen next to the tag in
+# server_text_v1 -- connect messages and chat prefixes.
+PTN_ROSTER: dict[str, dict[str, Any]] = {
+    "Tr4sH": {"basis": TAG_OBSERVED, "tag_lines": 15940,
+              "note": "the recorder"},
+    "NaikoMarie": {"basis": TAG_OBSERVED, "tag_lines": 4248,
+                   "names": ("NaikoMarie", "naikomarie")},
+    "jibyjibs": {"basis": TAG_OBSERVED, "tag_lines": 1279,
+                 "names": ("jibyjibs", "^7jib^1y^7jib^1s^7")},
+    "S73rn": {"basis": TAG_OBSERVED, "tag_lines": 329,
+              "names": ("s73rn", "^7s73rN", "^7s^47^73r^4N^7"),
+              "note": "S7ern not present as its own spelling"},
+    "sereke": {"basis": TAG_OBSERVED, "tag_lines": 49,
+               "names": ("sereke", "^7sere^4k^7e")},
+    # Named by the user. b3nto is a real player -- 218 rows in
+    # player_names_v1, 4,174 text lines -- but appears in ZERO pTn-tagged
+    # lines, so the membership is the user's word and is labelled as such
+    # rather than dressed up as evidence.
+    "b3nto": {"basis": USER_DECLARED, "tag_lines": 0,
+              "names": ("b3nto",),
+              "note": "no tag evidence in cache; on the roster because the "
+                      "user put them there"},
+}
+
+# Wearing the tag but not on the user's list. Surfaced for a decision, never
+# added: a tag is a costume, and this project does not merge human
+# identities on its own.
+PTN_ALIAS_CANDIDATES: dict[str, dict[str, Any]] = {
+    "Xhipper": {"basis": ALIAS_CANDIDATE, "tag_lines": 1421},
+    "rctmyouen": {"basis": ALIAS_CANDIDATE, "tag_lines": 842},
+    "Kabuu": {"basis": ALIAS_CANDIDATE, "tag_lines": 279},
 }
 
 
@@ -149,7 +200,14 @@ def corpus_status(corpus: str) -> dict[str, Any]:
             "needs": ("a derivation pass persisting EV_OBITUARY's "
                       "otherEntityNum2 as the killer, then a name lookup "
                       "through player_names_v1 at the kill's server time"),
-            "roster_resolved": {k: list(v) for k, v in PTN_ROSTER.items()},
+            "roster": PTN_ROSTER,
+            "alias_candidates": PTN_ALIAS_CANDIDATES,
+            "tag": PTN_TAG, "tag_colours": PTN_TAG_COLOURS,
+            "clan_membership": ("recoverable from server_text_v1: 45,551 "
+                                "lines carry the tag and connect messages "
+                                "bind it to a name. It is NOT in "
+                                "player_names_v1, because the parser reads "
+                                "only the `n` configstring key"),
         }
     return {"corpus": corpus, "available": False, "total": 0,
             "blocked_by": "unknown corpus"}
