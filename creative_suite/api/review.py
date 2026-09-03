@@ -254,3 +254,85 @@ def identity_ui():
     if not p.exists():
         raise HTTPException(404, "identity.html missing")
     return HTMLResponse(p.read_text(encoding="utf-8"))
+
+
+# ── round context ───────────────────────────────────────────────────────────
+# A frag is the fast review unit; a round is the context it lived in. The
+# round is offered, never forced -- no autoplay, no replacing the +/-3s clip.
+
+class UsageUpdate(BaseModel):
+    occurrence_id: int
+    state: str
+    detail: str = ""
+
+
+@router.get("/round/{item_id}")
+def get_round(item_id: str):
+    from creative_suite.engine import round_story as rs
+    it = rc.item(item_id)
+    if it is None:
+        raise HTTPException(404, f"no such item: {item_id}")
+    if it.round_no is None:
+        return {"item_id": item_id, "available": False,
+                "reason": "this moment has no round attributed"}
+    ctx = rs.round_context(it.content_hash, it.round_no)
+    if ctx is None:
+        return {"item_id": item_id, "available": False,
+                "reason": "no observed events in that round"}
+    start, end = rs.round_window(ctx)
+    d = ctx.to_dict()
+    d.pop("content_hash", None)          # private provenance, never to the UI
+    return {"item_id": item_id, "available": True,
+            "round": d, "media_start_ms": start, "media_end_ms": end,
+            "media_duration_s": round((end - start) / 1000.0, 1)}
+
+
+@router.get("/usage/{occurrence_id}")
+def get_usage(occurrence_id: int):
+    from creative_suite.engine import production_usage as pu
+    return pu.states([occurrence_id])[occurrence_id]
+
+
+@router.post("/usage")
+def post_usage(u: UsageUpdate):
+    from creative_suite.engine import production_usage as pu
+    try:
+        return pu.set_state(u.occurrence_id, u.state, u.detail)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.get("/usage_summary")
+def usage_summary():
+    from creative_suite.engine import production_usage as pu
+    return pu.summary()
+
+
+@router.get("/media/round/{item_id}")
+def get_round_media(item_id: str):
+    """The whole round, rendered on demand only.
+
+    Never pre-rendered: full-round media is minutes of wolfcam per round and
+    the user asks for it on a small fraction of moments.
+    """
+    from creative_suite.engine import round_story as rs
+    it = rc.item(item_id)
+    if it is None or it.round_no is None:
+        raise HTTPException(404, f"no round for {item_id}")
+    ctx = rs.round_context(it.content_hash, it.round_no)
+    if ctx is None:
+        raise HTTPException(404, "no observed events in that round")
+    start, end = rs.round_window(ctx)
+    try:
+        st = review_proxy.request_proxy(frag_id=it.source_id,
+                                        demo_name=it.demo_name,
+                                        start_ms=start, end_ms=end)
+    except Exception as e:                                     # noqa: BLE001
+        raise HTTPException(503, f"{type(e).__name__}: {e}")
+    path = st.get("mp4_path")
+    if st.get("state") == "READY" and path and Path(path).exists():
+        return FileResponse(path, media_type="video/mp4")
+    raise HTTPException(
+        status_code=425,
+        detail={"state": st.get("state", "PENDING"),
+                "hint": "the full round is rendering; this is on-demand only"})

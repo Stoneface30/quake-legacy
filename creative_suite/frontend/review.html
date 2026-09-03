@@ -63,6 +63,37 @@
          padding:8px 16px;font-size:13px;opacity:0;transition:.2s;
          pointer-events:none}
   .toast.on{opacity:1}
+
+  /* Round context. Offered beside the frag, never replacing it. */
+  #usage{ margin:8px 0; font-size:12px; letter-spacing:.05em }
+  #usage .claimed{ color:#e0b050; border:1px solid #6a5320; padding:3px 8px;
+                   border-radius:2px; display:inline-block }
+  #usage .free{ color:#6a6a76 }
+  #roundbox{ margin-top:12px; border-top:1px solid #22222c; padding-top:10px }
+  #roundbox h3{ font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+                color:#8a8a96; margin:0 0 8px; font-weight:500 }
+  .story{ color:#c9a227; font-size:12px; margin-bottom:8px }
+  .tl{ position:relative; height:34px; margin:6px 0 10px;
+       border-left:1px solid #22222c; border-right:1px solid #22222c }
+  .tl .bar{ position:absolute; top:15px; left:0; right:0; height:1px;
+            background:#22222c }
+  .tl .ev{ position:absolute; top:9px; width:9px; height:9px; margin-left:-4px;
+           border-radius:50%; background:#3a3a46; cursor:pointer }
+  .tl .ev.user{ background:#c9a227 }
+  .tl .ev.team{ background:#3266fe }
+  .tl .ev.here{ box-shadow:0 0 0 3px rgba(201,162,39,.30); background:#fff }
+  .tl .ev.rev{ border:1px solid #8fd6a8 }
+  .rlist{ font-size:12px; line-height:1.7 }
+  .rlist div{ display:flex; gap:8px; color:#8a8a96 }
+  .rlist .t{ min-width:46px; color:#5a5a66; font-variant-numeric:tabular-nums }
+  .rlist .me{ color:#c9a227 } .rlist .tm{ color:#7f9ffe }
+  .rlist .cur{ color:#fff }
+  .rlist .tag{ color:#8fd6a8; font-size:11px }
+  .rlist .use{ color:#e0b050; font-size:11px }
+  #watchround{ margin-top:8px; background:#15151f; color:#e8e8ec;
+               border:1px solid #22222c; padding:6px 12px; font-size:11px;
+               letter-spacing:.08em; cursor:pointer; border-radius:2px }
+  #watchround:hover{ border-color:#c9a227 }
 </style>
 
 <header>
@@ -106,6 +137,8 @@
     <h3>Current item</h3>
     <div id="meta"></div>
     <div class="why" id="why"></div>
+    <div id="usage"></div>
+    <div id="roundbox"></div>
     <div class="verdict" id="verdict"></div>
     <textarea id="note" placeholder="optional note — saved without choosing a role"></textarea>
     <div class="keys">
@@ -215,6 +248,8 @@ function meta(it){
     return row;
   }));
   $("why").textContent = it.why || "no class detected";
+  renderUsage(it);
+  renderRound(it);
   const vd = $("verdict");
   if (it.human_role){
     vd.style.display = "block";
@@ -239,6 +274,88 @@ function placeholder(state, error){
     kids.push(el("div", null, "verdicts do not wait for it"));
   }
   ph.replaceChildren(...kids);
+}
+
+// Duplicate safety, made visible. The canonical occurrence layer makes a
+// repeat detectable; this is what makes it obvious BEFORE the user judges.
+async function renderUsage(it){
+  const box = $("usage");
+  box.replaceChildren();
+  if (it.item_type === "FRAG"){ return; }   // archive set has no occurrence id
+  try{
+    const u = await (await fetch(API + "/usage/" + it.source_id)).json();
+    if (u.state && u.state !== "AVAILABLE"){
+      const s = el("span", "claimed", u.state
+                   + (u.detail ? " — " + u.detail : ""));
+      box.appendChild(s);
+    } else {
+      box.appendChild(el("span", "free", "available — not used anywhere"));
+    }
+  }catch(e){ /* usage is context, never blocks a verdict */ }
+}
+
+async function renderRound(it){
+  const box = $("roundbox");
+  box.replaceChildren();
+  let d;
+  try{ d = await (await fetch(API + "/round/" + it.item_id)).json(); }
+  catch(e){ return; }
+  if (!d.available || !d.round) return;
+  const r = d.round;
+  box.appendChild(el("h3", null, "this round — " + (r.map_name || "?")
+    + " · round " + r.round_no + " · " + (r.duration_ms/1000).toFixed(1) + "s"));
+  if (r.is_story_candidate)
+    box.appendChild(el("div", "story",
+      "★ ROUND STORY CANDIDATE — " + r.story_reasons.join(" · ")));
+
+  // Timeline. One dot per observed event, the current frag highlighted.
+  const tl = el("div", "tl");
+  tl.appendChild(el("div", "bar"));
+  const span = Math.max(1, r.duration_ms);
+  r.events.forEach(e => {
+    const dot = el("div", "ev");
+    if (e.is_user) dot.classList.add("user");
+    if (e.is_team) dot.classList.add("team");
+    if (e.occurrence_id === it.source_id) dot.classList.add("here");
+    if (e.human_role) dot.classList.add("rev");
+    dot.style.left = (e.offset_ms / span * 100) + "%";
+    dot.title = (e.offset_ms/1000).toFixed(1) + "s  " + (e.actor || "")
+      + (e.victim ? " → " + e.victim : "") + (e.weapon ? "  " + e.weapon : "");
+    tl.appendChild(dot);
+  });
+  box.appendChild(tl);
+
+  // The related events themselves, with any verdict already given. The user
+  // must never later find they judged three moments of one fight blind.
+  const list = el("div", "rlist");
+  r.events.forEach(e => {
+    const row = el("div");
+    row.appendChild(el("span", "t", "+" + (e.offset_ms/1000).toFixed(1) + "s"));
+    const who = el("span", e.is_user ? "me" : (e.is_team ? "tm" : null),
+                   (e.actor || e.kind) + (e.victim ? " → " + e.victim : ""));
+    if (e.occurrence_id === it.source_id) who.classList.add("cur");
+    row.appendChild(who);
+    if (e.weapon) row.appendChild(el("span", null, e.weapon));
+    if (e.human_role) row.appendChild(el("span", "tag", e.human_role));
+    if (e.usage_state && e.usage_state !== "AVAILABLE")
+      row.appendChild(el("span", "use", e.usage_state));
+    list.appendChild(row);
+  });
+  box.appendChild(list);
+
+  const b = el("button", null, "WATCH FULL ROUND ("
+                + d.media_duration_s + "s)");
+  b.id = "watchround";
+  // On demand only. Full-round media costs minutes of wolfcam and the user
+  // wants it on a small fraction of moments.
+  b.onclick = () => {
+    b.textContent = "rendering the round…";
+    v.hidden = false; $("ph").hidden = true;
+    v.src = API + "/media/round/" + it.item_id;
+    v.loop = false;
+    v.play().catch(() => { b.textContent = "still rendering — try again"; });
+  };
+  box.appendChild(b);
 }
 
 async function show(){
