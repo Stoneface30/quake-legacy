@@ -41,6 +41,10 @@ None of this is a physics-grade q3 trace; it is evidence-grade geometry.
 from __future__ import annotations
 
 import math
+from typing import Sequence
+from dataclasses import dataclass
+import math
+import re
 import struct
 import zipfile
 from functools import lru_cache
@@ -85,12 +89,18 @@ class BspMap:
 
     __slots__ = ("name", "version", "lump_counts", "planes", "nodes", "leafs",
                  "leafbrushes", "brushes", "brushsides", "patch_cells",
-                 "world_brush_range", "world_mins", "world_maxs")
+                 "world_brush_range", "world_mins", "world_maxs",
+                 "entities", "model_bounds")
 
     def __init__(self, name: str):
         self.name = name
         self.version = 0
         self.lump_counts: dict[str, int] = {}
+        # Entity lump: the map's own list of what stands where. Teleporters,
+        # spawn points and jump pads are FIXED map geometry, so a destination
+        # is map truth, not something inferred from where a player ended up.
+        self.entities: list[dict[str, str]] = []
+        self.model_bounds: list[tuple[float, float, float, float, float, float]] = []
         self.planes: list[tuple[float, float, float, float]] = []
         # node: (plane_idx, child0, child1)
         self.nodes: list[tuple[int, int, int]] = []
@@ -174,6 +184,118 @@ def _segment_hits_triangle(p1, p2, a, b, c) -> bool:
     return -1e-6 <= t <= 1.000001
 
 
+def _lump_bytes(data: bytes, dirent: tuple[int, int]) -> bytes:
+    off, length = dirent
+    return data[off:off + length]
+
+
+_ENT_KV = re.compile(rb'"([^"]*)"\s+"([^"]*)"')
+
+
+def parse_entities(raw: bytes) -> list[dict[str, str]]:
+    """The entity lump is plain text: { "key" "value" ... } blocks.
+
+    Values stay strings exactly as authored; callers convert. Keys are
+    lower-cased because mappers are inconsistent about case.
+    """
+    out: list[dict[str, str]] = []
+    for block in re.findall(rb"\{([^{}]*)\}", raw.split(bytes(1))[0]):
+        ent = {k.decode("latin-1").lower(): v.decode("latin-1")
+               for k, v in _ENT_KV.findall(block)}
+        if ent:
+            out.append(ent)
+    return out
+
+
+def _vec(text: str | None) -> tuple[float, float, float] | None:
+    if not text:
+        return None
+    parts = text.split()
+    if len(parts) < 3:
+        return None
+    try:
+        return (float(parts[0]), float(parts[1]), float(parts[2]))
+    except ValueError:
+        return None
+
+
+# Entity classes that put a player somewhere. From g_spawn.c's spawn table:
+# a trigger_teleport targets a target_position / misc_teleporter_dest, and
+# a target_teleporter does the same from a target rather than a brush.
+TELEPORT_TRIGGERS = ("trigger_teleport", "target_teleporter")
+TELEPORT_DESTS = ("misc_teleporter_dest", "target_position", "info_notnull")
+SPAWN_POINTS = ("info_player_deathmatch", "info_player_start",
+                "team_ctf_redplayer", "team_ctf_blueplayer",
+                "team_ctf_redspawn", "team_ctf_bluespawn")
+JUMP_PADS = ("trigger_push", "target_push")
+
+
+@dataclass(frozen=True)
+class Teleporter:
+    """One fixed source -> destination pair declared by the map."""
+    target: str
+    dest: tuple[float, float, float]
+    source_bounds: tuple[float, float, float, float, float, float] | None
+    source_kind: str
+
+    def dest_distance(self, point: Sequence[float]) -> float:
+        return math.dist(self.dest, tuple(point)[:3])
+
+    def source_contains(self, point: Sequence[float], slack: float = 32.0) -> bool:
+        if self.source_bounds is None:
+            return False
+        x0, y0, z0, x1, y1, z1 = self.source_bounds
+        x, y, z = tuple(point)[:3]
+        return (x0 - slack <= x <= x1 + slack and y0 - slack <= y <= y1 + slack
+                and z0 - slack <= z <= z1 + slack)
+
+
+def teleporters(m: BspMap) -> list[Teleporter]:
+    """Source/destination pairs from the map's own entity lump."""
+    dests: dict[str, tuple[float, float, float]] = {}
+    for e in m.entities:
+        if e.get("classname", "") in TELEPORT_DESTS:
+            origin = _vec(e.get("origin"))
+            name = e.get("targetname")
+            if origin and name:
+                dests.setdefault(name, origin)
+    out: list[Teleporter] = []
+    for e in m.entities:
+        cls = e.get("classname", "")
+        if cls not in TELEPORT_TRIGGERS:
+            continue
+        target = e.get("target", "")
+        dest = dests.get(target)
+        if dest is None:
+            continue
+        bounds = None
+        model = e.get("model", "")
+        if model.startswith("*"):
+            try:
+                idx = int(model[1:])
+            except ValueError:
+                idx = -1
+            if 0 <= idx < len(m.model_bounds):
+                bounds = m.model_bounds[idx]
+        elif _vec(e.get("origin")):
+            ox, oy, oz = _vec(e.get("origin"))
+            bounds = (ox - 16, oy - 16, oz - 24, ox + 16, oy + 16, oz + 32)
+        out.append(Teleporter(target, dest, bounds, cls))
+    return out
+
+
+def spawn_points(m: BspMap) -> list[tuple[float, float, float]]:
+    """Where players materialise on respawn. A teleport_in at one of these is
+    a spawn, not a trip through a teleporter."""
+    out = []
+    for e in m.entities:
+        if e.get("classname", "") in SPAWN_POINTS:
+            v = _vec(e.get("origin"))
+            if v:
+                out.append(v)
+    return out
+
+
 def _read_lump(data: bytes, dirent: tuple[int, int], fmt: str) -> list[tuple]:
     off, length = dirent
     size = struct.calcsize(fmt)
@@ -214,6 +336,7 @@ def load_map_bytes(name: str, data: bytes) -> BspMap:
     models = _read_lump(data, dirents[LUMP_MODELS], "<6f4i")
     if not models:
         raise ValueError(f"{name}: no models lump")
+    m.model_bounds = [(mo[0], mo[1], mo[2], mo[3], mo[4], mo[5]) for mo in models]
     w = models[0]
     m.world_mins = (w[0], w[1], w[2])
     m.world_maxs = (w[3], w[4], w[5])
@@ -261,7 +384,10 @@ def load_map_bytes(name: str, data: bytes) -> BspMap:
             m.patch_cells.append(((min(xs2), min(ys2), min(zs2),
                                    max(xs2), max(ys2), max(zs2)), None))
 
+    m.entities = parse_entities(_lump_bytes(data, dirents[LUMP_ENTITIES]))
+
     m.lump_counts = {
+        "entities": len(m.entities),
         "shaders": len(shaders),
         "planes": len(m.planes),
         "nodes": len(m.nodes),
