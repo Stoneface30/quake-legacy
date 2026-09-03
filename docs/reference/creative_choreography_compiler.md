@@ -108,3 +108,84 @@ Requirements when it is built:
 of the same historical occurrence). `ENEMY_POV_RECONSTRUCTED` is built from recorded
 enemy state and labelled DERIVED. `ENEMY_POV_SYNTHETIC` is authored. The three are
 never interchangeable.
+
+---
+
+# Temporal choreography solver v1 (2026-09-03)
+
+Modules: `creative_suite/engine/temporal_operators.py`, `temporal_solver.py`,
+`temporal_proofs.py`; sheet in `choreography_sheet.render_temporal_sheet`.
+
+## The correction
+
+Choreography elements are not intervals placed on an existing timeline. They ARE
+edit time. A freeze does not annotate 300 ms, it *spends* 300 ms of the song. A
+replay inserts its own duration. A stutter's dwell and count decide how long the
+shot lasts. A transition overlap **removes** net time. Those are the variables
+that let an immutable song be fitted exactly.
+
+```
+final = Σ retimed source spans
+      + freezes + replay insertions + repeats + synthetic inserts + holds
+      − trims − transition overlaps
+subject to  final == score slot duration   (exactly, on a 1 ms quantum)
+```
+
+**Sync is a property of the finished choreography.** Not the raw frag, not the
+scene before effects. Anything inserted ahead of the hero moves the hero, so
+`ComposedTimeMap` refuses to be built from a plan that does not occupy its slot
+exactly — the regression is guarded by a test.
+
+## TemporalOperator
+
+Ten kinds: TRIM, RETIME, FREEZE, INSERT, REPLAY, REPEAT, STUTTER, OVERLAP,
+REPLACE, SYNTHETIC_INSERT. Sign is a property of the kind: TRIM and OVERLAP
+subtract, REPLACE is concurrent and costs nothing (that is the difference between
+a picture-in-picture enemy POV and a sequential one), the rest add.
+
+Each declares hard limits and a visually preferred band, plus rate bounds and a
+preferred rate for retimes, repeat counts and dwell for stutters. `soft_cost`
+combines distance from the preferred duration and distance from the preferred
+rate, and **the search and the final ranking use the same cost** — ranking states
+by one metric and choosing by another silently discards the better answer.
+
+## Sync bias is per effect
+
+`BIAS_US`: HERO −15 ms (the director's measured preference), everything else 0.
+A held stutter frame reads on its attack; applying the hero bias globally would
+drag every frame off its own beat.
+
+## Temporal elasticity
+
+`elasticity()` returns the range of final durations a candidate can honestly
+produce. **That**, not raw source duration, is what a score-slot search should
+ask about. The double air rocket carries 2.9 s of source and an envelope of
+3.695–7.350 s.
+
+## The five proofs
+
+| proof | slot | raw source | added | removed | anchors |
+|---|---|---|---|---|---|
+| DOUBLE_AIR_ROCKET | 5850 ms | 3275 ms | retime 1992, freeze 275, replay 3691, morph 392 | overlap 500 | hero −29.6 ms hit |
+| RHYTHMIC_IMAGE_STUTTER | 2600 ms | 1800 ms | retime 1880, stutter 720 | — | duration derived from the figure |
+| FREEZE_GO_FRAG | 4000 ms | 3100 ms | retime 3517, freeze 483 | — | release +3.0 ms, hero +1.3 ms |
+| HERO_THEN_DEATH_REWIND | 7200 ms | 3140 ms | retime 2400, freeze 367, flashes 587, rewind 1100, replay 2746 | — | hero +0.8 ms |
+| TRANSITION_OVERLAP | 3850 ms | 4000 ms | retime 4000 | overlap 150 | both scenes at rate exactly 1 |
+
+The stutter's 720 ms is **derived** from four attacks 180 ms apart — the music
+sets the effect's length. The overlap proof saves 150 ms with neither scene
+accelerated, which is the whole point of that degree of freedom.
+
+## Honest infeasibility
+
+Duration feasibility and anchor feasibility are separate. When every composition
+occupies the slot but none lands a required anchor, the report says so
+(`anchors_reachable=False`) and names the closest miss, rather than stretching an
+effect past its limits to reach it. Both were observed while building these
+proofs and the anchors were moved to where the composition can actually land.
+
+## Sheet
+
+`docs/visual-record/2026-09-03/temporal_double_air_rocket.png` and
+`temporal_transition_overlap.png`: fixed music on top, the composition on that
+ruler, and an explicit time-added / time-removed accounting underneath.

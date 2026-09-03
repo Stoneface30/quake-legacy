@@ -150,3 +150,123 @@ def sheet_summary(plans: Sequence[ch.ChoreographyPlan]) -> dict[str, Any]:
             "capability_counts": _capability_counts(plans),
             "gated_slots": [p.slot_id for p in plans if p.round_result_required],
             "bands": [b[0] for b in _rows(plans, zoom=False)]}
+
+
+# ── temporal view: where the song's time actually goes ──────────────────────
+
+OP_COLOR = {
+    "RETIME": "#7fb3ff", "REPLAY": "#c792ea", "FREEZE": "#ffd24d",
+    "STUTTER": "#ff4d6d", "REPEAT": "#ff8c42", "INSERT": "#7ee787",
+    "SYNTHETIC_INSERT": "#56d4c4", "OVERLAP": "#ff6b6b", "TRIM": "#ff6b6b",
+    "REPLACE": "#8fa1b3",
+}
+
+
+def render_temporal_sheet(report, dst: Path | str, *, title: str = "",
+                          dpi: int = 120, width: float = 15.0) -> Path:
+    """One solved slot: the fixed music, the composed spans, and an explicit
+    accounting of the time each operator added or removed.
+
+    The top band is the song -- immutable, the ruler everything else answers
+    to. The middle band is the finished composition laid on that ruler. The
+    bottom is the arithmetic: what was added, what was removed, and the raw
+    source it all came from.
+    """
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Rectangle
+
+    best = report.best
+    if best is None:
+        raise ValueError(f"{report.slot_id}: nothing to draw -- {report.reason}")
+    plan = best.plan
+    d = plan.to_dict()
+    slot = plan.slot_us
+
+    fig, ax = plt.subplots(figsize=(width, 5.2), facecolor=BG)
+    ax.set_facecolor(BG)
+
+    # the song: fixed
+    ax.add_patch(Rectangle((0, 2.6), slot, 0.5, facecolor="#2a2a2a",
+                           edgecolor="#444", lw=1))
+    ax.text(slot / 2, 2.85, f"FIXED MUSIC  {slot/1e6:.3f} s", color=FG,
+            fontsize=9, ha="center", va="center", weight="bold")
+
+    # the composition
+    for row, c in zip(d["timeline"], d["choices"]):
+        col = OP_COLOR.get(row["kind"], "#888888")
+        if row["edit_us"] < 0:                      # an overlap: draw the saving
+            ax.add_patch(Rectangle((row["start_us"], 1.55), -row["edit_us"], 0.6,
+                                   facecolor=col, alpha=0.35, hatch="///",
+                                   edgecolor=col))
+            ax.text(row["start_us"], 1.45,
+                    f"-{-row['edit_us']/1000:.0f} ms {row['kind']}",
+                    color=col, fontsize=7, ha="left", va="top")
+            continue
+        ax.add_patch(Rectangle((row["start_us"], 1.55),
+                               row["end_us"] - row["start_us"], 0.6,
+                               facecolor=col, edgecolor="none", alpha=0.9))
+        mid = (row["start_us"] + row["end_us"]) / 2
+        ax.text(mid, 1.85, f"{row['label']}\n{(row['end_us']-row['start_us'])/1000:.0f} ms",
+                color="#101010", fontsize=7, ha="center", va="center")
+        if row["peak_us"] != row["start_us"]:
+            ax.plot([row["peak_us"]], [1.55], marker="^", color=FG, ms=7, zorder=5)
+
+    # anchors, measured on the finished composition
+    for a in d["anchors"]:
+        ax.axvline(a["target_us"], color="#ff4d6d", lw=1.1, ls="--", zorder=6)
+        ok = "hit" if a["satisfied"] else "MISSED"
+        ax.text(a["target_us"], 3.25,
+                f"{a['event']} {a['kind']}\n{a['residual_us']/1000:+.1f} ms {ok}",
+                color="#ff4d6d" if not a["satisfied"] else "#7ee787",
+                fontsize=7, ha="center", va="bottom")
+
+    # the arithmetic
+    added = d["added_us"]
+    removed = d["removed_us"]
+    x = 0
+    for k, v in sorted(added.items(), key=lambda kv: -kv[1]):
+        ax.add_patch(Rectangle((x, 0.55), v, 0.45,
+                               facecolor=OP_COLOR.get(k, "#888"), alpha=0.85))
+        if v > slot * 0.04:
+            ax.text(x + v / 2, 0.775, f"+{v/1000:.0f}", color="#101010",
+                    fontsize=7, ha="center", va="center")
+        x += v
+    for k, v in sorted(removed.items(), key=lambda kv: -kv[1]):
+        ax.add_patch(Rectangle((x - v, 0.55), v, 0.45, facecolor="#ff6b6b",
+                               alpha=0.5, hatch="///", edgecolor="#ff6b6b"))
+        ax.text(x - v / 2, 0.42, f"-{v/1000:.0f} ms", color="#ff6b6b",
+                fontsize=7, ha="center", va="top")
+        x -= v
+    ax.plot([0, slot], [0.32, 0.32], color="#555", lw=0.8)
+    ax.text(slot, 0.2, f"= {x/1000:.0f} ms", color=FG, fontsize=8,
+            ha="right", va="top", weight="bold")
+
+    ax.set_xlim(-slot * 0.02, slot * 1.04)
+    ax.set_ylim(0, 3.9)
+    ax.set_yticks([0.775, 1.85, 2.85])
+    ax.set_yticklabels(["TIME ADDED / REMOVED", "COMPOSITION", "MUSIC"],
+                       color=FG, fontsize=8)
+    ax.set_xticks([i * slot / 5 for i in range(6)])
+    ax.set_xticklabels([f"{i*slot/5/1e6:.2f}" for i in range(6)], color="#9a9a9a")
+    ax.set_xlabel("edit time (s) -- the song's own axis", color="#9a9a9a")
+    ax.tick_params(colors="#9a9a9a", labelsize=8)
+    for s in ax.spines.values():
+        s.set_color(GRID)
+
+    fig.suptitle(title or report.slot_id, color=FG, fontsize=12, x=0.012,
+                 y=0.985, ha="left", weight="bold")
+    fig.text(0.012, 0.93,
+             f"raw source {d['source_us']/1000:.0f} ms  ->  composed "
+             f"{d['total_us']/1000:.0f} ms  (exact: {d['exact']})   ·   "
+             f"{report.considered} compositions occupy this slot exactly",
+             color="#9a9a9a", fontsize=8, ha="left")
+    fig.text(0.012, 0.012, f"PLANNING ONLY · nothing consumed · {SHEET_VERSION}",
+             color="#666666", fontsize=7)
+    fig.tight_layout(rect=(0, 0.03, 1, 0.90))
+    dst = Path(dst)
+    dst.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(dst, dpi=dpi, facecolor=BG)
+    plt.close(fig)
+    return dst
