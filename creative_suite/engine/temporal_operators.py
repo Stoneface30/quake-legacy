@@ -70,11 +70,20 @@ CONCURRENT = (REPLACE,)
 
 
 # ── sync bias ───────────────────────────────────────────────────────────────
-# Different effects want different relationships to the music. The hero's
-# -15 ms preference is a HERO preference and must not be applied globally.
+# Two axes, never one. `sync_contract` grades ACCURACY: how far the delivered
+# moment sits from the intended one. This grades DIRECTION: which side of the
+# gameplay event the music lands on, against a stated human preference.
+#
+#     delta = music_anchor - gameplay_event        (the project's convention)
+#
+# A NEGATIVE delta means the music arrives first and the gameplay lands into
+# it. For hero payoffs the director prefers that -- the beat drives into the
+# frag rather than appearing to react to it -- so the preferred hero delta is
+# about -15 ms, with an acceptable band of -20..0. The values mirror
+# editorial_sync_bias.DIRECTOR_2026_09, which is the profile of record.
 
-BIAS_US: dict[str, int] = {
-    "HERO": -15_000,          # the director's measured preference
+PREFERRED_DELTA_US: dict[str, int] = {
+    "HERO": -15_000,          # music leads; the frag lands into it
     "STUTTER_ATTACK": 0,      # a held frame reads on the attack itself
     "FREEZE_RELEASE": 0,
     "CAMERA_CUT": 0,
@@ -82,16 +91,27 @@ BIAS_US: dict[str, int] = {
     "MORPH_PEAK": 0,          # aligns to the energy peak, not the onset
     "TRANSITION_HANDOFF": 0,
 }
+# Acceptable direction band per class, as (low_us, high_us) on the delta.
+DELTA_BAND_US: dict[str, tuple[int, int]] = {
+    "HERO": (-20_000, 0),
+}
+# Kept for readers of older code; the delta is the thing that matters.
+BIAS_US = PREFERRED_DELTA_US
+
+PREFERRED, ACCEPTABLE, WRONG_SIDE, NO_PREFERENCE = (
+    "PREFERRED", "ACCEPTABLE", "WRONG_SIDE", "NO_PREFERENCE")
+PREFERRED_WINDOW_US = 8_000       # how close to the preference still reads as it
 
 
 @dataclass(frozen=True)
 class AnchorConstraint:
-    """A visual event that must land on a musical instant.
+    """A visual event that must land in a stated relationship to the music.
 
-    `tolerance_us` is how far off is still acceptable; `bias_us` is where the
-    event is MEANT to sit relative to the anchor. A hero frag wants to arrive
-    15 ms before its transient because that is what the director hears as
-    together; a stutter frame wants the attack itself.
+    `anchor_us` is the fixed musical instant. The event is NOT meant to land
+    on it: for a hero it is meant to land `preferred_delta` AFTER it, so the
+    music leads into the action. Accuracy and direction are reported
+    separately, because +1 ms and -14 ms can be equally accurate while only
+    one of them is what the director asked for.
     """
     event: str                 # the operator label whose peak this is
     anchor_us: int             # fixed music time, inside the slot
@@ -100,22 +120,45 @@ class AnchorConstraint:
     required: bool = True
 
     @property
-    def bias_us(self) -> int:
-        return BIAS_US.get(self.kind, 0)
+    def preferred_delta_us(self) -> int:
+        return PREFERRED_DELTA_US.get(self.kind, 0)
+
+    @property
+    def band_us(self) -> tuple[int, int] | None:
+        return DELTA_BAND_US.get(self.kind)
 
     @property
     def target_us(self) -> int:
-        return self.anchor_us + self.bias_us
+        """When the event should happen. delta = anchor - event, so an event
+        that sits `preferred_delta` behind the anchor lands at anchor minus
+        that (negative) delta -- i.e. AFTER it."""
+        return self.anchor_us - self.preferred_delta_us
+
+    def delta_us(self, actual_us: int) -> int:
+        """music minus gameplay, the project's convention."""
+        return self.anchor_us - actual_us
 
     def residual_us(self, actual_us: int) -> int:
+        """How far the event is from where it was meant to be."""
         return actual_us - self.target_us
 
     def satisfied(self, actual_us: int) -> bool:
         return abs(self.residual_us(actual_us)) <= self.tolerance_us
 
+    def direction_grade(self, actual_us: int) -> str:
+        """Which side of the preference the delta fell on."""
+        band = self.band_us
+        if band is None:
+            return NO_PREFERENCE
+        d = self.delta_us(actual_us)
+        if abs(d - self.preferred_delta_us) <= PREFERRED_WINDOW_US:
+            return PREFERRED
+        return ACCEPTABLE if band[0] <= d <= band[1] else WRONG_SIDE
+
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
-        d.update(bias_us=self.bias_us, target_us=self.target_us)
+        d.update(preferred_delta_us=self.preferred_delta_us,
+                 target_us=self.target_us, band_us=self.band_us)
         return d
 
 
@@ -423,8 +466,12 @@ class TemporalPlan:
             actual = self.event_us(a.event)
             out.append({"event": a.event, "kind": a.kind,
                         "anchor_us": a.anchor_us, "target_us": a.target_us,
+                        "preferred_delta_us": a.preferred_delta_us,
                         "actual_us": actual,
+                        "delta_us": None if actual is None else a.delta_us(actual),
                         "residual_us": None if actual is None else a.residual_us(actual),
+                        "direction": (NO_PREFERENCE if actual is None
+                                      else a.direction_grade(actual)),
                         "satisfied": False if actual is None else a.satisfied(actual),
                         "required": a.required, "tolerance_us": a.tolerance_us})
         return out

@@ -107,6 +107,7 @@ class DurationEnvelope:
     swept_points_us: tuple[int, ...] = ()      # what a canary actually rendered
     quantisation_us: int | None = None         # measured delivery grid
     delivery_bias_us: int = 0                  # measured request -> delivered offset
+    calibration: Any = None                    # the configuration it was measured under
     aesthetic_reviewed: bool = False           # has anybody actually looked
     rationale: str = ""
 
@@ -129,13 +130,28 @@ class DurationEnvelope:
     def preferred_us(self) -> int:
         return (self.preferred_min_us + self.preferred_max_us) // 2
 
-    def request_for(self, wanted_us: int) -> int:
+    def request_for(self, wanted_us: int, *, calibration: Any = None) -> int:
         """What to ASK the pipeline for so it delivers `wanted_us`.
 
         A freeze comes back one frame long every time; asking for the number
-        you want and accepting what arrives is how a composition drifts.
+        you want and accepting what arrives is how a composition drifts. The
+        compensation is refused when the render configuration is not the one
+        it was measured under, because a 60 fps frame is not a 120 fps frame.
         """
+        if self.delivery_bias_us and self.calibration is not None:
+            target = calibration or self.calibration
+            if not self.calibration.applies_to(target):
+                raise StaleCalibration(
+                    f"the {self.delivery_bias_us} us compensation was measured on "
+                    f"{self.calibration.key} and does not apply to {target.key}; "
+                    f"re-measure before trusting it")
         return wanted_us - self.delivery_bias_us
+
+    @property
+    def desired_vs_requested(self) -> str:
+        """The three durations that must never be conflated."""
+        return ("desired = what the choreography wants; requested = what the "
+                "pipeline is asked for; delivered = what came back")
 
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
@@ -258,16 +274,65 @@ class TemporalEffectTemplate:
         return d
 
 
+class StaleCalibration(RuntimeError):
+    """Raised when a compensation is used outside the configuration that
+    produced it."""
+
+
 def _env(hmin, pmin, pmax, hmax, prov=DESIGN_ESTIMATE, why="", swept=(),
-         quant=None, bias=0, **kw):
+         quant=None, bias=0, cal=None, **kw):
     return DurationEnvelope(hmin * MS, pmin * MS, pmax * MS, hmax * MS, prov,
                             tuple(v * MS for v in swept), quant, bias,
+                            cal if cal is not None else
+                            (CALIBRATION_60_X264 if prov in
+                             (SYNTHETIC_TEST, RUNTIME_MEASURED) else None),
                             rationale=why, **kw)
 
 
-# Measured on 2026-09-03 by scratchpad/effect_canaries.py at 60 fps on
-# generated footage. One frame is 16 667 us.
-FRAME_US = 16_667
+# ── delivery calibration ────────────────────────────────────────────────────
+# A measured compensation belongs to the pipeline that produced it. The
+# +16.6 ms freeze offset is exactly one frame at 60 fps; at 120 fps it would
+# be wrong, and a different encoder or filter graph could change it again.
+# So calibration is keyed, and a template that carries one records which
+# configuration it was measured under.
+
+@dataclass(frozen=True)
+class DeliveryCalibration:
+    """What a given render configuration actually does to a request."""
+    fps: int
+    encoder: str
+    pipeline: str                 # which script/graph produced the measurement
+    timebase: str = "AVTB"
+    measured_on: str = ""
+    notes: str = ""
+
+    @property
+    def frame_us(self) -> int:
+        return int(round(1_000_000 / self.fps))
+
+    @property
+    def key(self) -> str:
+        return (f"{self.fps}fps/{self.encoder}/{self.timebase}/{self.pipeline}")
+
+    def applies_to(self, other: "DeliveryCalibration") -> bool:
+        """A calibration is only valid for the configuration it came from."""
+        return (self.fps == other.fps and self.encoder == other.encoder
+                and self.timebase == other.timebase)
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d.update(frame_us=self.frame_us, key=self.key)
+        return d
+
+
+CALIBRATION_60_X264 = DeliveryCalibration(
+    fps=60, encoder="libx264", pipeline="scratchpad/effect_canaries.py",
+    timebase="AVTB", measured_on="2026-09-03",
+    notes="freeze returns one frame long; overlap exact; rates 3/10, 2/5 and "
+          "1/1 land exactly while 1/2 and 55/100 lose a frame")
+
+# Measured under CALIBRATION_60_X264. One frame is 16 667 us there.
+FRAME_US = CALIBRATION_60_X264.frame_us
 FREEZE_SWEEP = (50, 100, 133, 150, 200, 250, 300, 400, 500, 650, 900)
 STUTTER_SWEEP = (33, 45, 60, 90, 110, 120, 150, 170, 180, 230)
 RATE_SWEEP_EXACT = ("3/10", "2/5", "1/1")     # land on the frame grid exactly

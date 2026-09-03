@@ -29,6 +29,13 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+# Running this file directly puts engine/parser on sys.path, not the repo
+# root, so `creative_suite.engine` would not import. That failure used to be
+# swallowed and the teleport table came out empty.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 from demo_parse import DM73Parser  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -188,11 +195,8 @@ def enrich_one(con: sqlite3.Connection, chash: str, path: Path) -> dict:
 def _teleport_rows(chash: str, out: dict) -> list[tuple]:
     """Attribute this demo's teleports. A map we cannot load still yields
     transits -- only the map-pair evidence component is missing."""
-    try:
-        from engine.parser import bsp_geometry as bg
-        from creative_suite.engine import teleport_attribution as ta
-    except Exception:
-        return []
+    from engine.parser import bsp_geometry as bg
+    from creative_suite.engine import teleport_attribution as ta
     try:
         m = bg.load_map(out.get("map") or "")
         tps, spawns = bg.teleporters(m), bg.spawn_points(m)
@@ -217,7 +221,11 @@ def _teleport_rows(chash: str, out: dict) -> list[tuple]:
                          t.teleporter_target, ",".join(a.components),
                          a.nearest_at_destination, "TRANSIT"))
         return rows
-    except Exception:
+    except (ValueError, KeyError, TypeError) as exc:
+        # Narrow, and loud: a demo that cannot be attributed says so rather
+        # than quietly contributing nothing.
+        print(f"  teleport attribution failed for {chash[:10]}: "
+              f"{type(exc).__name__}: {exc}", flush=True)
         return []
 
 

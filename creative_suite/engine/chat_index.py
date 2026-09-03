@@ -28,6 +28,9 @@ UNRESOLVED = "UNKNOWN"
 RECOGNITION_DB = dt.RECOGNITION_DB
 
 _COLOR = re.compile(r"\^[0-9a-zA-Z]")
+# Quake Live wraps the sender in control characters and servers prepend clan
+# tags and slot numbers, so the raw prefix is rarely the bare name.
+_CONTROL = re.compile(chr(91) + chr(0) + chr(45) + chr(31) + chr(127) + chr(93))
 # Quake Live chat lines arrive as `<name>^7: <text>` (team chat as `(name): text`).
 _SENDER = re.compile(r"^\(?(?P<name>[^:()]{1,64}?)\)?\s*:\s*(?P<text>.*)$")
 
@@ -79,9 +82,10 @@ def name_timeline(db: sqlite3.Connection, content_hash: str
 
 
 def normalise(name: str) -> str:
-    """Colour codes stripped, case folded, spaces squashed. Two players whose
-    names differ only by colour are the same display identity."""
-    return " ".join(_COLOR.sub("", name).split()).strip().lower()
+    """Colour codes and control characters stripped, case folded, spaces
+    squashed. Two players whose names differ only by colour are the same
+    display identity."""
+    return " ".join(_CONTROL.sub("", _COLOR.sub("", name)).split()).strip().lower()
 
 
 def slot_at(timeline: Sequence[tuple[int, int, str]], name: str, t_ms: int
@@ -96,12 +100,25 @@ def slot_at(timeline: Sequence[tuple[int, int, str]], name: str, t_ms: int
     coin toss.
     """
     key = normalise(name)
+    if not key:
+        return None, UNRESOLVED
     held: dict[int, str] = {}
     for t, client, n in timeline:
         if t > t_ms:
             break
         held[client] = n
     matches = sorted(c for c, n in held.items() if n == key)
+    if not matches:
+        # The prefix carries clan tags, a slot number and control characters
+        # around the name. Fall back to finding which registered name the
+        # prefix CONTAINS -- and only when exactly one does, because a name
+        # that is a substring of another would otherwise be a coin toss.
+        matches = sorted(c for c, n in held.items()
+                         if n and len(n) >= 3 and n in key)
+        if len(matches) > 1:
+            longest = max(len(held[c]) for c in matches)
+            best = [c for c in matches if len(held[c]) == longest]
+            matches = best if len(best) == 1 else matches
     if len(matches) == 1:
         return matches[0], RESOLVED
     if len(matches) > 1:

@@ -401,3 +401,36 @@ def test_a_solved_plan_renders_to_exactly_the_duration_it_promised(tmp_path):
     assert abs(delivered_us - slot) <= 16_667, (
         f"planned {slot} us, delivered {delivered_us} us")
     assert abs(frames - round(slot / 1e6 * FPS)) <= 1
+
+
+# ── delivery calibration belongs to its pipeline ────────────────────────────
+
+def test_a_compensation_is_keyed_to_the_configuration_that_produced_it():
+    e = et.get("FREEZE_HOLD").envelope
+    assert e.calibration is not None and e.calibration.fps == 60
+    assert e.calibration.frame_us == et.FRAME_US
+    assert "effect_canaries" in e.calibration.pipeline
+    assert e.request_for(300 * MS) == 300 * MS - et.FRAME_US
+
+
+def test_a_stale_calibration_is_refused_rather_than_reused():
+    """A 60 fps frame is not a 120 fps frame."""
+    e = et.get("FREEZE_HOLD").envelope
+    future = et.DeliveryCalibration(fps=120, encoder="libx264", pipeline="next")
+    with pytest.raises(et.StaleCalibration, match="re-measure"):
+        e.request_for(300 * MS, calibration=future)
+    same = et.DeliveryCalibration(fps=60, encoder="libx264", pipeline="other")
+    assert e.request_for(300 * MS, calibration=same) == 300 * MS - et.FRAME_US
+
+
+def test_an_estimated_envelope_carries_no_calibration():
+    assert et.get("MODEL_MORPH").envelope.calibration is None
+    assert et.get("MODEL_MORPH").envelope.request_for(400 * MS) == 400 * MS
+
+
+def test_desired_requested_and_delivered_stay_three_different_numbers():
+    e = et.get("FREEZE_HOLD").envelope
+    desired = 300 * MS
+    requested = e.request_for(desired)
+    assert requested < desired, "the request compensates for the known bias"
+    assert "desired" in e.desired_vs_requested and "delivered" in e.desired_vs_requested

@@ -46,7 +46,10 @@ class Objective:
     director can see that a solution is 3 ms off the hero but sits outside
     the preferred replay rate, and disagree.
     """
-    hero_residual_us: int = 0
+    hero_residual_us: int = 0        # distance from where it was MEANT to land
+    hero_delta_us: int = 0           # music minus gameplay, the reported figure
+    hero_direction: str = tops.NO_PREFERENCE
+    wrong_side: int = 0              # required anchors that fell the wrong side
     gesture_residual_us: int = 0
     unsatisfied_anchors: int = 0
     preferred_deviation: float = 0.0
@@ -57,7 +60,11 @@ class Objective:
     @property
     def total(self) -> float:
         """A ranking number, never a verdict."""
+        # Accuracy and direction are separate axes. A solution that is a
+        # millisecond off but on the wrong side of the preference is not
+        # better than one fourteen milliseconds off on the right side.
         return round(abs(self.hero_residual_us) / 1000.0
+                     + self.wrong_side * 250.0
                      + abs(self.gesture_residual_us) / 2000.0
                      + self.unsatisfied_anchors * 500.0
                      + self.preferred_deviation * 40.0
@@ -240,6 +247,9 @@ def _measure(plan: tops.TemporalPlan) -> Objective:
     """Score a resolved plan against the music. Every number is measured on
     the FINISHED composition, never on the raw source."""
     hero = gesture = 0
+    hero_delta = 0
+    direction = tops.NO_PREFERENCE
+    wrong_side = 0
     unsatisfied = 0
     for row in plan.anchor_report():
         if row["actual_us"] is None:
@@ -248,9 +258,13 @@ def _measure(plan: tops.TemporalPlan) -> Objective:
             continue
         if not row["satisfied"] and row["required"]:
             unsatisfied += 1
+        if row.get("direction") == tops.WRONG_SIDE and row["required"]:
+            wrong_side += 1
         if row["kind"] == "HERO":
             if abs(row["residual_us"]) > abs(hero):
                 hero = row["residual_us"]        # the worst hero miss, signed
+                hero_delta = row["delta_us"]
+                direction = row["direction"]
         else:
             gesture += abs(row["residual_us"])
     secs = max(plan.slot_us / 1_000_000, 1e-6)
@@ -262,7 +276,9 @@ def _measure(plan: tops.TemporalPlan) -> Objective:
         want = c.operator.rate_preferred
         if want is not None and c.rate is not None:
             rate_dev += abs(float(c.rate) - float(want))
-    return Objective(hero_residual_us=hero, gesture_residual_us=gesture,
+    return Objective(hero_residual_us=hero, hero_delta_us=hero_delta,
+                     hero_direction=direction, wrong_side=wrong_side,
+                     gesture_residual_us=gesture,
                      unsatisfied_anchors=unsatisfied,
                      preferred_deviation=plan.deviation(),
                      rate_deviation=round(rate_dev, 6),

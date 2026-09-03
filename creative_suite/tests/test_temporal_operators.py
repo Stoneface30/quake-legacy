@@ -134,22 +134,23 @@ def test_the_timeline_places_every_operator_and_an_overlap_pulls_back():
 
 # ── sync bias ───────────────────────────────────────────────────────────────
 
-def test_the_hero_bias_is_minus_fifteen_milliseconds():
+def test_the_hero_preference_puts_the_music_ahead_of_the_frag():
     a = t.AnchorConstraint("frag", 5_000 * MS, "HERO")
-    assert a.bias_us == -15 * MS and a.target_us == 4_985 * MS
-    assert a.residual_us(4_985 * MS) == 0
-    assert a.satisfied(4_990 * MS)
+    assert a.preferred_delta_us == -15 * MS
+    assert a.target_us == 5_015 * MS          # the frag lands into the music
+    assert a.residual_us(5_015 * MS) == 0
+    assert a.satisfied(5_010 * MS)
 
 
 def test_a_stutter_frame_wants_the_attack_itself_not_the_hero_bias():
     """The -15 ms preference is the HERO's. Applying it everywhere would drag
     every held frame off its own attack."""
     s = t.AnchorConstraint("stutter#1", 1_000 * MS, "STUTTER_ATTACK")
-    assert s.bias_us == 0 and s.target_us == 1_000 * MS
+    assert s.preferred_delta_us == 0 and s.target_us == 1_000 * MS
     for kind in ("CAMERA_CUT", "MATERIAL_FLASH", "MORPH_PEAK",
                  "FREEZE_RELEASE", "TRANSITION_HANDOFF"):
-        assert t.BIAS_US[kind] == 0
-    assert t.BIAS_US["HERO"] == -15 * MS
+        assert t.PREFERRED_DELTA_US[kind] == 0
+    assert t.PREFERRED_DELTA_US["HERO"] == -15 * MS
 
 
 def test_anchor_residuals_are_measured_on_the_finished_composition():
@@ -160,9 +161,10 @@ def test_anchor_residuals_are_measured_on_the_finished_composition():
     plan = t.TemporalPlan("s", 4_000 * MS, (
         t.OperatorChoice(fpv, 2_000 * MS), t.OperatorChoice(freeze, 500 * MS),
         t.OperatorChoice(frag, 1_500 * MS)), (anchor,))
-    # peak = 2000 + 500 + 0.5*1500 = 3250; target = 3015 - 15 = 3000
+    # peak = 2000 + 500 + 0.5*1500 = 3250; target = 3015 + 15 = 3030
     assert plan.event_us("frag") == 3_250 * MS
-    assert plan.anchor_report()[0]["residual_us"] == 250 * MS
+    assert plan.anchor_report()[0]["residual_us"] == 220 * MS
+    assert plan.anchor_report()[0]["delta_us"] == -235 * MS
     assert not plan.anchors_satisfied
 
 
@@ -171,7 +173,7 @@ def test_inserting_a_freeze_before_the_hero_moves_it():
     THEN adding a freeze in front of it silently breaks the sync."""
     fpv = _retime("fpv", 2_000 * MS, peak_ratio=1.0)
     frag = _retime("frag", 1_000 * MS, 500 * MS, 2_000 * MS, peak_ratio=0.5)
-    anchor = t.AnchorConstraint("frag", 2_765 * MS, "HERO", 25 * MS)
+    anchor = t.AnchorConstraint("frag", 2_735 * MS, "HERO", 25 * MS)
     synced = t.TemporalPlan("s", 3_500 * MS, (
         t.OperatorChoice(fpv, 2_000 * MS), t.OperatorChoice(frag, 1_500 * MS)),
         (anchor,))
@@ -425,3 +427,54 @@ def test_readiness_now_requires_the_temporal_solver():
         music_library_ready=True, temporal_proofs_built=len(tpf.PROOFS),
         measured_templates=f["measured"], measured_scales=f["measured_scales"])
     assert with_solver.may_shortlist_songs and with_solver.temporal_solver_ready
+
+
+# ── accuracy and direction are different axes ───────────────────────────────
+
+def test_the_hero_delta_follows_the_projects_convention():
+    """delta = music_anchor - gameplay_event. Negative means the music leads
+    and the frag lands into it, which is what the director asked for."""
+    a = t.AnchorConstraint("frag", 5_000 * MS, "HERO")
+    assert a.preferred_delta_us == -15 * MS
+    assert a.target_us == 5_015 * MS, "the frag lands AFTER the anchor"
+    assert a.delta_us(5_015 * MS) == -15 * MS
+    assert a.residual_us(5_015 * MS) == 0
+
+
+def test_a_millisecond_off_on_the_wrong_side_loses_to_fourteen_on_the_right():
+    """+1 ms can be mathematically excellent and still be the wrong side."""
+    a = t.AnchorConstraint("frag", 5_000 * MS, "HERO")
+    late = 4_999 * MS          # delta +1 ms: the frag arrives before the music
+    good = 5_014 * MS          # delta -14 ms: the music leads into it
+    assert a.delta_us(late) == 1 * MS and a.direction_grade(late) == t.WRONG_SIDE
+    assert a.delta_us(good) == -14 * MS and a.direction_grade(good) == t.PREFERRED
+    assert abs(a.residual_us(late)) > abs(a.residual_us(good))
+
+
+def test_the_direction_band_is_per_event_class():
+    hero = t.AnchorConstraint("frag", 5_000 * MS, "HERO")
+    stut = t.AnchorConstraint("s#1", 5_000 * MS, "STUTTER_ATTACK")
+    assert hero.band_us == (-20 * MS, 0)
+    assert stut.band_us is None and stut.preferred_delta_us == 0
+    assert stut.direction_grade(5_000 * MS) == t.NO_PREFERENCE
+    assert hero.direction_grade(5_005 * MS) == t.ACCEPTABLE   # -5 ms, in band
+    assert hero.direction_grade(5_030 * MS) == t.WRONG_SIDE   # -30 ms, past it
+
+
+def test_the_solver_reports_both_axes_and_penalises_the_wrong_side():
+    rep = tpf.double_air_rocket()
+    o = rep.best.objective
+    assert o.hero_direction == t.PREFERRED
+    assert -20 * MS <= o.hero_delta_us <= 0, o.hero_delta_us
+    assert o.wrong_side == 0
+    d = o.to_dict()
+    assert "hero_delta_us" in d and "hero_residual_us" in d
+
+
+def test_every_proof_lands_its_hero_on_the_preferred_side():
+    for rep in tpf.all_reports():
+        if not rep.best:
+            continue
+        for row in rep.best.plan.anchor_report():
+            if row["kind"] == "HERO" and row["required"]:
+                assert row["direction"] == t.PREFERRED, (rep.slot_id, row)

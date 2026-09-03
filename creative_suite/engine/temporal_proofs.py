@@ -63,7 +63,7 @@ def double_air_rocket() -> ts.SolveReport:
             purpose="TRANSITION",
             notes="the only operator here that REMOVES net sequence time"),
     ]
-    anchors = (t.AnchorConstraint("side_replay", 4_600 * MS, "HERO", 40 * MS),)
+    anchors = (t.AnchorConstraint("side_replay", 4_540 * MS, "HERO", 40 * MS),)
     return ts.solve("DOUBLE_AIR_ROCKET", 5_850 * MS, ops, anchors=anchors, top=3)
 
 
@@ -136,8 +136,8 @@ def freeze_go_frag() -> ts.SolveReport:
     # can only fall between 3.428 s and 3.736 s, so an anchor outside that is
     # not a target, it is a refusal waiting to happen.
     anchors = (
-        t.AnchorConstraint("hold", 1_730 * MS, "FREEZE_RELEASE", 30 * MS),
-        t.AnchorConstraint("commit_and_frag", 3_515 * MS, "HERO", 25 * MS),
+        t.AnchorConstraint("hold", 1_750 * MS, "FREEZE_RELEASE", 30 * MS),
+        t.AnchorConstraint("commit_and_frag", 3_490 * MS, "HERO", 25 * MS),
     )
     return ts.solve("FREEZE_GO_FRAG", 4_000 * MS, ops, anchors=anchors, top=3)
 
@@ -241,14 +241,20 @@ def summary() -> dict[str, Any]:
         if best:
             d = best.plan.to_dict()
             row.update({
+                "hero_delta_ms": (None if best.objective.hero_delta_us == 0
+                                  else round(best.objective.hero_delta_us / 1000, 1)),
+                "hero_direction": best.objective.hero_direction,
                 "raw_source_ms": d["source_us"] // MS,
                 "final_ms": d["total_us"] // MS,
                 "exact": d["exact"],
                 "added_ms": {k: v // MS for k, v in d["added_us"].items()},
                 "removed_ms": {k: v // MS for k, v in d["removed_us"].items()},
                 "anchors": [{"event": a["event"], "kind": a["kind"],
+                             "delta_ms": None if a.get("delta_us") is None
+                             else round(a["delta_us"] / 1000, 1),
                              "residual_ms": None if a["residual_us"] is None
                              else round(a["residual_us"] / 1000, 1),
+                             "direction": a.get("direction"),
                              "satisfied": a["satisfied"]} for a in d["anchors"]],
                 "preferred_deviation": d["deviation"],
                 "rates": {c["label"]: c["rate"] for c in d["choices"] if c["rate"]},
