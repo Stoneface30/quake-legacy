@@ -208,3 +208,34 @@ def test_summary_reads_the_manifest_back(kill_db, mock_capture, tmp_path):
     s = px.export_summary(root)
     assert s["clips"] == 2 and s["public_eligible"] == 0
     assert s["actor_pov"] == 1 and s["observed_not_pov"] == 1
+
+
+# ── the command line offers no way to export everything ─────────────────────
+
+def test_the_cli_has_no_all_switch():
+    """Every attributed kill is queryable. That is a different thing from
+    having exported the media for it, and the CLI keeps them different."""
+    from creative_suite.engine import export_cli
+    import io, contextlib
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf), pytest.raises(SystemExit):
+        export_cli.main(["query", "--help"])
+    help_text = buf.getvalue()
+    assert "--all" not in help_text
+    assert "--dry-run" in help_text and "--limit" in help_text
+
+
+def test_dry_run_captures_nothing(tmp_path, monkeypatch, capsys):
+    """Reads the real corpus deliberately -- the point is that selecting from
+    it captures no frame and creates no export directory. `_capture` raising
+    is the assertion; a fixture database would only prove the fixture."""
+    from creative_suite.engine import export_cli
+    monkeypatch.setattr(px, "EXPORT_ROOT", tmp_path / "x")
+
+    def refuse(*a, **k):
+        raise AssertionError("--dry-run must not capture")
+
+    monkeypatch.setattr(px, "_capture", refuse)
+    assert export_cli.main(["query", "--limit", "2", "--dry-run"]) == 0
+    assert "nothing captured" in capsys.readouterr().out
+    assert not (tmp_path / "x").exists()
