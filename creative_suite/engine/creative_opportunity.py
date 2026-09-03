@@ -178,6 +178,12 @@ HEURISTICS: dict[str, Heuristic] = {h.name: h for h in (
     Heuristic("lg_burst_contacts", 8.0, "contacts",
               "enough sustained contact for tracking to read as tracking",
               ASSUMED),
+    Heuristic("fpv_establish_lead_us", 250_000.0, "us",
+              "how long first person must be settled before a protected skill "
+              "interval opens, so the tracking does not read as something that "
+              "happened while the camera was still arriving. A placeholder: "
+              "the camera spline sweep exists to replace this with a number",
+              ASSUMED),
     Heuristic("fast_relative_u_s", 700.0, "u/s",
               "relative motion above which deeper slow motion still reads",
               ASSUMED),

@@ -204,6 +204,53 @@ def why_refused(focus: VisualFocus, template_id: str) -> str:
 
 # ── ready-made focus profiles ───────────────────────────────────────────────
 
+@dataclass(frozen=True)
+class ReturnPlan:
+    """When a camera must leave a cinematic view to be back in time.
+
+    A protected interval does not begin the moment the camera arrives. The
+    viewer needs the first-person view established before the skill starts,
+    or the tracking reads as something that happened while we were still
+    settling. How much lead that takes is a question for the Effect Lab; the
+    geometry is not.
+    """
+    focus_start_us: int
+    handoff_us: int
+    establish_us: int
+    feasible: bool
+    latest_start_us: int
+    latest_arrival_us: int
+    shortfall_us: int = 0
+    reason: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+def plan_return(focus: "VisualFocus", handoff_us: int, establish_us: int,
+                earliest_us: int = 0) -> ReturnPlan:
+    """Where a return-to-FPV handoff has to start, and whether it can.
+
+    `establish_us` is how long the first-person view must be settled before
+    the protected interval opens. It is currently an unmeasured judgement --
+    the camera sweep exists to replace it with a number.
+    """
+    arrival = focus.start_us - establish_us
+    start = arrival - handoff_us
+    ok = start >= earliest_us
+    return ReturnPlan(
+        focus_start_us=focus.start_us, handoff_us=handoff_us,
+        establish_us=establish_us, feasible=ok,
+        latest_start_us=start, latest_arrival_us=arrival,
+        shortfall_us=(0 if ok else earliest_us - start),
+        reason=("" if ok else
+                f"a {handoff_us/1000:.0f} ms move plus "
+                f"{establish_us/1000:.0f} ms to settle needs to begin "
+                f"{(earliest_us - start)/1000:.0f} ms earlier than the scene "
+                f"allows; either the move is shorter or the cinematic view "
+                f"is entered sooner"))
+
+
 def tracking_focus(start_us: int, end_us: int) -> VisualFocus:
     """A sustained aim duel. The beam, the crosshair and the target are the
     story, so nothing may sit in front of them and the camera stays put."""

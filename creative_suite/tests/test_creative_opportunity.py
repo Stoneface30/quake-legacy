@@ -414,3 +414,38 @@ def test_a_damage_ledger_does_not_freeze_the_rest_of_the_film():
 def test_a_scoped_constraint_must_say_why_it_exists():
     with pytest.raises(ValueError, match="why"):
         vf.ScopedConstraint(0, 10, ("WORLD_STRIP",), vf.FORBID, "  ")
+
+
+# ── returning to the skill in time ──────────────────────────────────────────
+
+def test_a_return_must_land_before_the_protected_interval_opens():
+    """The camera does not get to arrive as the tracking starts."""
+    f = vf.tracking_focus(3_200 * MS, 7_600 * MS)
+    lead = int(co.heuristic("fpv_establish_lead_us").effective)
+    p = vf.plan_return(f, 400 * MS, lead, earliest_us=2_000 * MS)
+    assert p.feasible
+    assert p.latest_arrival_us == f.start_us - lead
+    assert p.latest_start_us == p.latest_arrival_us - 400 * MS
+    assert p.latest_start_us < f.start_us
+
+
+def test_a_move_that_cannot_get_back_in_time_is_refused_with_a_number():
+    f = vf.tracking_focus(1_000 * MS, 5_000 * MS)
+    p = vf.plan_return(f, 800 * MS, 250 * MS, earliest_us=500 * MS)
+    assert not p.feasible and p.shortfall_us > 0
+    assert "earlier than the scene allows" in p.reason
+
+
+def test_a_longer_move_must_leave_sooner():
+    f = vf.tracking_focus(4_000 * MS, 8_000 * MS)
+    short = vf.plan_return(f, 200 * MS, 250 * MS)
+    long = vf.plan_return(f, 800 * MS, 250 * MS)
+    assert long.latest_start_us < short.latest_start_us
+    assert long.latest_arrival_us == short.latest_arrival_us, (
+        "the arrival is fixed by the skill; only the departure moves")
+
+
+def test_the_establish_lead_admits_it_is_a_placeholder():
+    h = co.heuristic("fpv_establish_lead_us")
+    assert h.provenance == co.ASSUMED
+    assert "sweep" in h.reason, "it must name what would replace it"
