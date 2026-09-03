@@ -1,0 +1,210 @@
+"""The export seam: what crosses to THE_PANTHEON, and what must not.
+
+These tests are mostly about refusal. The export is a small amount of code
+whose entire job is to be narrow, so what is worth pinning is the narrowness:
+the window is ten seconds and not six, no local path escapes, no overlay is
+added, publication is off by default, and a batch cannot become a corpus.
+"""
+from __future__ import annotations
+
+import json
+import os
+import sqlite3
+import sys
+from pathlib import Path
+
+import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from creative_suite.engine import public_clip_export as px   # noqa: E402
+from creative_suite.engine import review_corpus as rc        # noqa: E402
+
+
+@pytest.fixture
+def kill_db(tmp_path: Path) -> Path:
+    """A tiny corpus: one recorder frag, one clanmate frag seen from outside."""
+    db = tmp_path / "k.db"
+    c = sqlite3.connect(db)
+    c.executescript("""
+      CREATE TABLE kill_events_v1(
+        kill_event_id INTEGER PRIMARY KEY, content_hash TEXT, server_time_ms INT,
+        demo_us INT, round INT, map TEXT, killer_client INT, victim_client INT,
+        mod INT, mod_name TEXT, killer_class TEXT, death_cause TEXT,
+        recorder_client INT, is_recorder_killer INT, is_recorder_victim INT,
+        killer_name_raw TEXT, killer_name_norm TEXT, victim_name_raw TEXT,
+        victim_name_norm TEXT, killer_identity_id TEXT, victim_identity_id TEXT,
+        kill_fingerprint TEXT, observation_provenance TEXT, event_provenance TEXT);
+      CREATE TABLE scanned_demos(content_hash TEXT PRIMARY KEY, demo_name TEXT,
+        recorder_client INT, n_frags INT, error TEXT, scanned_at TEXT,
+        recognition_version INT);
+      CREATE TABLE recognized_frags(id INTEGER PRIMARY KEY, content_hash TEXT,
+        server_time_ms INT, highlight_score REAL, recognition_version INT);
+    """)
+    c.execute("INSERT INTO scanned_demos VALUES ('h1','somebody_alias_2019',3,2,NULL,'',4)")
+    c.execute("INSERT INTO kill_events_v1 VALUES (1,'h1',60000,60000000,1,'campgrounds',"
+              "3,5,6,'ROCKET','PLAYER','PLAYER_KILL',3,1,0,'^1Tr4sH','tr4sh','vic','vic',"
+              "NULL,NULL,'fp1','RECORDED_OBSERVED','DEMO_EV_OBITUARY')")
+    c.execute("INSERT INTO kill_events_v1 VALUES (2,'h1',90000,90000000,1,'campgrounds',"
+              "7,5,10,'RAILGUN','PLAYER','PLAYER_KILL',3,0,0,'NaikoMarie','naikomarie',"
+              "'vic','vic',NULL,NULL,'fp2','RECORDED_OBSERVED','DEMO_EV_OBITUARY')")
+    c.execute("INSERT INTO recognized_frags VALUES (1,'h1',60000,7.5,4)")
+    c.commit(); c.close()
+    return db
+
+
+@pytest.fixture
+def mock_capture(monkeypatch):
+    monkeypatch.setenv("CS_EXPORT_MOCK", "1")
+    yield
+
+
+# ── the two windows are different on purpose ────────────────────────────────
+
+def test_the_public_window_is_ten_seconds_and_review_stays_six():
+    """A director judging their own moment needs six seconds. A stranger
+    scoring a play they have never seen needs run-up. Unifying these would
+    quietly damage one of them."""
+    assert px.PUBLIC_PRE_MS == 5000 and px.PUBLIC_POST_MS == 5000
+    assert px.PUBLIC_DURATION_MS == 10000
+    assert rc.PRE_MS == 3000 and rc.POST_MS == 3000
+
+
+def test_the_event_offset_reports_where_the_event_really_landed(
+        kill_db, mock_capture, tmp_path):
+    """When the demo does not reach five seconds before the event the clip is
+    short, and saying 5000 anyway would put the play in the wrong place for
+    every downstream consumer."""
+    cands = px.candidates_from_kill_events(limit=2, db=kill_db)
+    early = type(cands[0])(**{**cands[0].__dict__, "event_time_ms": 2000})
+    out = px.export([early], root=tmp_path / "x")
+    assert out["written"] == 1
+    assert out["rows"][0]["event_offset_ms"] == 2000    # not 5000
+
+
+# ── nothing local, nothing added ────────────────────────────────────────────
+
+def test_no_local_path_and_no_demo_filename_reaches_the_manifest(
+        kill_db, mock_capture, tmp_path):
+    """Demo filenames embed player aliases, so the demo is referenced by
+    content hash. The clip path is relative to the export root."""
+    cands = px.candidates_from_kill_events(limit=2, db=kill_db)
+    out = px.export(cands, root=tmp_path / "x")
+    blob = json.dumps(out["rows"])
+    assert "somebody_alias_2019" not in blob
+    assert "G:" not in blob and str(tmp_path) not in blob
+    for row in out["rows"]:
+        assert row["source_demo_ref"] == "h1"
+        assert row["clip_path"].startswith("clips/")
+        assert not Path(row["clip_path"]).is_absolute()
+
+
+def test_the_export_adds_no_overlay_of_its_own(kill_db, mock_capture, tmp_path):
+    """A clip that shows you whose play it is has voted for you."""
+    out = px.export(px.candidates_from_kill_events(limit=1, db=kill_db),
+                    root=tmp_path / "x")
+    assert out["rows"][0]["overlays_added"] == []
+
+
+def test_the_external_id_is_opaque_and_stable():
+    a = px.external_id("abc", 1000, 3, 5)
+    assert a == px.external_id("abc", 1000, 3, 5)
+    assert a != px.external_id("abc", 1001, 3, 5)
+    assert a.startswith("ql_") and "abc" not in a
+
+
+# ── disclosure and eligibility ──────────────────────────────────────────────
+
+def test_publication_is_off_until_the_user_says_otherwise(
+        kill_db, mock_capture, tmp_path):
+    """Ten years of archive footage was not recorded with the internet in
+    mind. An importer that ignores this field still cannot publish by
+    accident."""
+    out = px.export(px.candidates_from_kill_events(limit=2, db=kill_db),
+                    root=tmp_path / "x")
+    assert all(r["public_eligible"] is False for r in out["rows"])
+    assert all(r["identity_visibility"] == "AFTER_VOTE" for r in out["rows"])
+
+
+def test_identity_travels_as_a_field_so_it_can_be_withheld(
+        kill_db, mock_capture, tmp_path):
+    """Pixels cannot be un-shown; a field can be. The name is in the manifest
+    precisely so it is NOT in the video."""
+    out = px.export(px.candidates_from_kill_events(limit=1, db=kill_db),
+                    root=tmp_path / "x")
+    assert out["rows"][0]["actor_display_name"] == "Tr4sH"    # colours stripped
+
+
+# ── actor is not recorder ───────────────────────────────────────────────────
+
+def test_a_clanmates_frag_is_not_sold_as_their_first_person_view(kill_db):
+    """Row 2 is NaikoMarie's frag inside a demo recorded by client 3. It is
+    that frag observed from a foreign camera, and is_actor_pov says so."""
+    cands = px.candidates_from_kill_events(limit=2, db=kill_db)
+    mine, theirs = cands[0], cands[1]
+    assert mine.is_actor_pov is True
+    assert theirs.is_actor_pov is False
+    assert theirs.actor_display_name == "NaikoMarie"
+
+
+def test_a_score_is_only_attached_where_it_means_the_same_thing(kill_db):
+    """Every feature behind the recogniser's score came from the recorder's
+    own player state. Attaching it to a foreign-camera frag would produce a
+    number that is not comparable to the ones beside it."""
+    cands = px.attach_machine_scores(
+        px.candidates_from_kill_events(limit=2, db=kill_db), db=kill_db)
+    assert cands[0].machine_score == 7.5
+    assert cands[0].machine_score_version == "recognition-v4"
+    assert cands[1].machine_score is None
+    assert cands[1].machine_score_version is None
+
+
+# ── a batch cannot become a corpus ──────────────────────────────────────────
+
+def test_an_oversized_batch_is_refused_not_trimmed(kill_db, mock_capture, tmp_path):
+    """Trimming silently is how you find out weeks later that half the export
+    never happened."""
+    one = px.candidates_from_kill_events(limit=1, db=kill_db)
+    with pytest.raises(px.ExportRefused, match="MAX_BATCH"):
+        px.export(one * (px.MAX_BATCH + 1), root=tmp_path / "x")
+
+
+def test_an_empty_request_is_refused(tmp_path):
+    with pytest.raises(px.ExportRefused, match="nothing to export"):
+        px.export([], root=tmp_path / "x")
+
+
+def test_re_export_skips_what_is_already_there(kill_db, mock_capture, tmp_path):
+    root = tmp_path / "x"
+    cands = px.candidates_from_kill_events(limit=2, db=kill_db)
+    first = px.export(cands, root=root)
+    second = px.export(cands, root=root)
+    assert first["written"] == 2 and second["written"] == 0
+    assert second["skipped"] == 2
+    assert len((root / px.MANIFEST_NAME).read_text().strip().splitlines()) == 2
+
+
+def test_a_failure_is_named_and_the_rest_still_ship(kill_db, mock_capture,
+                                                    tmp_path, monkeypatch):
+    cands = px.candidates_from_kill_events(limit=2, db=kill_db)
+    real = px._capture
+    calls = {"n": 0}
+
+    def flaky(cand, s, e, dest):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise RuntimeError("wolfcam said no")
+        return real(cand, s, e, dest)
+
+    monkeypatch.setattr(px, "_capture", flaky)
+    out = px.export(cands, root=tmp_path / "x")
+    assert out["written"] == 1 and out["failed"] == 1
+    assert "wolfcam said no" in out["failures"][0]["error"]
+
+
+def test_summary_reads_the_manifest_back(kill_db, mock_capture, tmp_path):
+    root = tmp_path / "x"
+    assert px.export_summary(root)["exists"] is False
+    px.export(px.candidates_from_kill_events(limit=2, db=kill_db), root=root)
+    s = px.export_summary(root)
+    assert s["clips"] == 2 and s["public_eligible"] == 0
+    assert s["actor_pov"] == 1 and s["observed_not_pov"] == 1

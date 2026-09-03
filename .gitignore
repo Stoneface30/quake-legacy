@@ -233,3 +233,7 @@ engine/parser/stream.json
 engine/parser/*.json
 
 .mcp.json
+
+# THE_PANTHEON exchange -- exported public clips + manifest.
+# Media and player names leave the repo through here and must never enter it.
+exchange/
