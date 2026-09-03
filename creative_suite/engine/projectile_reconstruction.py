@@ -655,20 +655,22 @@ class ProvenanceSegment:
 
 
 def provenance_segments(cont: Continuation) -> tuple[ProvenanceSegment, ...]:
-    """Maximal runs of equal evidence along the path, in time order. A run's
-    end is the first instant of the next run (the interval is half-open), so
-    the segments tile the flight exactly."""
+    """Maximal runs of equal evidence along the path, in time order. A run
+    ends at its LAST point -- a recorded run ends where observation ended,
+    not where the first reconstructed point happens to fall -- and the next
+    run starts at that same instant, so the segments tile the flight."""
     pts = sorted(cont.points, key=lambda p: p.t_us)
     if not pts:
         return ()
     out: list[ProvenanceSegment] = []
-    run_start, run_ev, n = pts[0].t_us, pts[0].evidence, 0
-    for i, p in enumerate(pts):
+    run_start, run_ev, n, last_t = pts[0].t_us, pts[0].evidence, 0, pts[0].t_us
+    for p in pts:
         if p.evidence != run_ev:
-            out.append(ProvenanceSegment(run_start, p.t_us, run_ev, n))
-            run_start, run_ev, n = p.t_us, p.evidence, 0
+            out.append(ProvenanceSegment(run_start, last_t, run_ev, n))
+            run_start, run_ev, n = last_t, p.evidence, 0
         n += 1
-    out.append(ProvenanceSegment(run_start, max(cont.end_t_us, pts[-1].t_us), run_ev, n))
+        last_t = p.t_us
+    out.append(ProvenanceSegment(run_start, max(cont.end_t_us, last_t), run_ev, n))
     return tuple(out)
 
 

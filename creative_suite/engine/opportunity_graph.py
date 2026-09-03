@@ -117,6 +117,16 @@ class MomentCandidate:
     is_team_round: bool = False
     movement_events: int = 0               # jumps / pads / teleports in the window
     content_hash: str = ""                 # identity: never map + time alone
+    # Netcode anomaly evidence attached to the moment (netcode_anomaly). It is
+    # searchable material for a later interlude; it never places itself.
+    anomaly_available: bool = False
+    anomaly_type: str = ""
+    anomaly_assessment: str = ""
+    anomaly_id: str = ""
+    forensic_replay_available: bool = False
+    observation_gap_us: int = 0
+    anomaly_residual_u: float | None = None
+    creative_utility: str = ""
     evidence: tuple[tuple[str, str], ...] = ()
 
     @property
@@ -378,3 +388,17 @@ def reconstruction_fields(cont: Any) -> dict[str, Any]:
             "reconstruction_duration_us": int(cont.end_t_us - cont.points[0].t_us),
             "reconstruction_recorded_fraction": el.recorded_fraction,
             "reconstruction_class": el.reconstruction_class}
+
+
+def anomaly_fields(anomaly: Any, *, forensic_replay_available: bool = False
+                   ) -> dict[str, Any]:
+    """MomentCandidate kwargs from a NetcodeAnomaly. A bug claim is carried
+    as the assessment string; the graph never upgrades it."""
+    if anomaly is None:
+        return {"anomaly_available": False}
+    return {"anomaly_available": True, "anomaly_type": anomaly.anomaly_type,
+            "anomaly_assessment": anomaly.assessment, "anomaly_id": anomaly.anomaly_id,
+            "forensic_replay_available": bool(forensic_replay_available),
+            "observation_gap_us": int(anomaly.snapshot_gap_us or 0),
+            "anomaly_residual_u": anomaly.spatial_residual_u,
+            "creative_utility": anomaly.creative_utility}

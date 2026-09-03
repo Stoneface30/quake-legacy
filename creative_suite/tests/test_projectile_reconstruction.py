@@ -333,9 +333,9 @@ def _mixed_cont():
 def test_segments_tile_the_flight_and_carry_their_own_evidence():
     segs = pr.provenance_segments(_mixed_cont())
     assert [s.evidence for s in segs] == [dt.ENTITY_OBSERVED, dt.PHYSICS_RECONSTRUCTED]
-    assert segs[0].start_us == 0 and segs[0].end_us == segs[1].start_us == 100_000
+    assert segs[0].start_us == 0 and segs[0].end_us == segs[1].start_us == 75_000   # last recorded sample
     assert segs[-1].end_us == 1_000_000
-    assert abs(pr.recorded_fraction(_mixed_cont()) - 0.1) < 1e-9
+    assert abs(pr.recorded_fraction(_mixed_cont()) - 0.075) < 1e-9
 
 
 def test_camera_eligibility_is_derived_and_refuses_ambiguous():
@@ -343,8 +343,8 @@ def test_camera_eligibility_is_derived_and_refuses_ambiguous():
     good = pr.camera_eligibility(_mixed_cont())
     assert good.projectile_path_available and good.eligible
     assert good.reconstruction_class == dt.PHYSICS_RECONSTRUCTED
-    assert abs(good.recorded_fraction - 0.1) < 1e-9
-    assert "10% recorded" in good.reason
+    assert abs(good.recorded_fraction - 0.075) < 1e-9
+    assert "8% recorded" in good.reason
     bad = pr.camera_eligibility(replace(_mixed_cont(), confidence=pr.AMBIGUOUS))
     assert bad.projectile_path_available and not bad.eligible
     assert pr.camera_eligibility(None).projectile_path_available is False

@@ -41,9 +41,16 @@ reports the disagreement instead of bending the path. Fully-recorded grenades (l
 hit tick) are **not** reconstructions and are never counted as proof; on 8 of them the physics
 step reproduces the final recorded sample with median residual 15.7 u (validation only).
 
-## Code spaces (easy to get wrong)
+## Code spaces (measured, easy to get wrong)
 
-- `missile_samples_v1.weapon` is the **WP_** space (4 = grenade launcher, 5 = rocket launcher).
-- Event `weapon` on `missile_hit` / `missile_miss` is the **MOD_** space
-  (4 = `MOD_GRENADE` direct, 5 = `MOD_GRENADE_SPLASH`, 6/7 rocket).
+- `missile_samples_v1.weapon`, `entityState.weapon` and the `weapon` of **entity-sourced**
+  `missile_hit` / `missile_miss` events are all the **WP_** launcher space
+  (4 = grenade launcher, 5 = rocket launcher, 8 = plasma gun). Measured across the v1.0.3
+  demos at the frag tick: grenade frags → 4, rocket and rocket-splash frags → 5, plasma → 8.
+  (g_missile.c sets `bolt->s.weapon = WP_*` and the event rides that entity.)
+- **MOD_** (means of death: 4 grenade, 5 grenade splash, 6 rocket, 7 rocket splash) is the
+  obituary space only (`EV_OBITUARY` eventParm). An earlier draft of this page called event
+  weapons MOD; that was wrong and has been corrected in the parser's naming table.
+- A **playerstate-sourced** event's `weapon` is the recorder's held weapon at that tick, not the
+  missile's; never match on it.
 - Delta-coded event positions: a missing `pos_z` means *unchanged*, not unknown.

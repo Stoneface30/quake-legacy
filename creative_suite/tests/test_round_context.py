@@ -283,9 +283,54 @@ def test_candidate_camera_fields_are_derived_from_the_continuation():
     cand = og.MomentCandidate(9, og.KIND_ROCKET_IMPACT, 3_000_000, "MY_FRAG", 1_000_000,
                               **og.reconstruction_fields(cont))
     assert cand.reconstruction_available and cand.supports_omniscient_replay
-    assert abs(cand.reconstruction_recorded_fraction - 0.2) < 1e-9
+    assert abs(cand.reconstruction_recorded_fraction - 0.1) < 1e-9
     assert cand.reconstruction_class == dt.PHYSICS_RECONSTRUCTED
-    assert cand.camera_text == "EXACT_DETERMINISTIC: 20% recorded, 80% PHYSICS_RECONSTRUCTED"
+    assert cand.camera_text == "EXACT_DETERMINISTIC: 10% recorded, 90% PHYSICS_RECONSTRUCTED"
     assert rc.gate_projectile_replay(cand).passed
     none = og.MomentCandidate(1, og.KIND_ROCKET_IMPACT, 1, "MY_FRAG", 1, **og.reconstruction_fields(None))
     assert none.camera_text == "no projectile path" and not rc.gate_projectile_replay(none).passed
+
+
+# ── similarity is not identity ──────────────────────────────────────────────
+
+def test_same_map_weapon_and_victim_in_another_recording_is_not_a_duplicate(tmp_path):
+    """Two matches on the same map where the recorder kills the same slot with
+    the same weapon at different server times: not even a candidate."""
+    p, full, cut, twin, other = _dup_db(tmp_path)
+    db = sqlite3.connect(p)
+    replay = "f" * 64
+    db.execute("INSERT INTO scanned_demos VALUES (?,?,?,NULL,?)", (replay, "f", 0, "trinity"))
+    for t, v, w in ((1500, 3, "ROCKET"), (2500, 5, "RAIL"), (3500, 3, "GRENADE")):
+        db.execute("INSERT INTO recognized_frags VALUES (?,?,?,?,?)", (300 + t, replay, t, v, w))
+    db.commit(); db.close()
+    reasons = {}
+    rep = rc.canonical_demos(p, reasons=reasons)
+    assert rep[replay] == replay and replay not in reasons
+
+
+def test_same_server_time_value_in_another_demo_is_not_a_duplicate(tmp_path):
+    """server_time recurs across matches. A one-kill demo whose tuple equals
+    a kill in a longer demo stays its own occurrence unless the recorded
+    world agrees tick for tick."""
+    p, full, cut, twin, other = _dup_db(tmp_path)
+    db = sqlite3.connect(p)
+    coincidence = "9" * 64
+    db.execute("INSERT INTO scanned_demos VALUES (?,?,?,NULL,?)", (coincidence, "9", 0, "trinity"))
+    db.execute("INSERT INTO recognized_frags VALUES (?,?,?,?,?)", (901, coincidence, 1000, 3, "ROCKET"))
+    for t in range(1500, 3500, 100):      # nearly the same coordinates: 1u off, not identical
+        db.execute("INSERT INTO missile_samples_v1 VALUES (?,?,?,?,?,?)", (coincidence, t, 40, float(t) + 1.0, 1.0, 2.0))
+    db.commit(); db.close()
+    reasons = {}
+    rep = rc.canonical_demos(p, reasons=reasons)
+    assert rep[coincidence] == coincidence
+    assert reasons[coincidence] == rc.REFUSED_CUT
+    db = sqlite3.connect(p)
+    assert rc.world_agreement(db, coincidence, full) == 0.0
+    assert rc.world_agreement(db, cut, full) == 1.0
+    db.close()
+
+
+def test_moment_identity_is_content_hash_plus_time_never_map_plus_time():
+    a = og.MomentCandidate(1, og.KIND_ROCKET_IMPACT, 1_000_000, "MY_FRAG", 1_000_000, content_hash="a" * 64)
+    b = og.MomentCandidate(2, og.KIND_ROCKET_IMPACT, 1_000_000, "MY_FRAG", 1_000_000, content_hash="b" * 64)
+    assert (a.content_hash, a.useful_duration_us) != (b.content_hash, b.useful_duration_us)

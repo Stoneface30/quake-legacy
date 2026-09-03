@@ -1,0 +1,99 @@
+{
+ "anomaly_hash": "137a3e28e6b7eec3f54c926adf0bc927f8568506e0859e7ca3c77e68c79e3439",
+ "anomaly_id": "137a3e28e6b7eec3f54c926a",
+ "audio": "GAME_AUDIO",
+ "bsp_hash": "fe058e381af3a634710d9b3ba0f63497f99a3f8471dfb8fe55830b931b95d276",
+ "camera": "SIDE",
+ "content_hash": "54bb0e3907e02e56646440fa8e3e7734c02bc443045f95be4b2156c08172e9fe",
+ "domain": "FORENSIC_REFERENCE",
+ "hud_mode": "CINEMATIC_CLEAN",
+ "layers": [
+  "RECORDED_PROJECTILE_POINTS",
+  "PROVENANCE_BOUNDARY",
+  "SNAPSHOT_GAP",
+  "RECONSTRUCTED_PROJECTILE_PATH",
+  "EXPECTED_TERMINAL_POINT",
+  "STATIC_BSP_COLLISION",
+  "RECORDED_IMPACT_EXPLOSION",
+  "SPLASH_RADIUS"
+ ],
+ "manifest_version": "forensic-manifest-v1.0.0",
+ "output_path": "G:\\QUAKE_LEGACY\\docs\\visual-record\\2026-09-02\\forensic_replay_frag28557.mp4",
+ "output_sha256": "49c11ff5969074000c1dd16e495c323ca3e1cc12b3e680f737b3277abf33e6da",
+ "physics_constants": {
+  "BOUNCE_DAMPING": 0.65,
+  "GRAVITY": 800.0,
+  "GRENADE_FUSE_MS": 2500,
+  "GRENADE_SPEED": 700.0,
+  "GRENADE_SPLASH": 150.0,
+  "REST_NORMAL_Z": 0.2,
+  "REST_SPEED": 40.0,
+  "ROCKET_LIFE_MS": 15000,
+  "ROCKET_SPEED_QL": 1000.0,
+  "ROCKET_SPLASH": 120.0,
+  "STEP_MS": 10
+ },
+ "provenance_segments": [
+  {
+   "duration_us": 25000,
+   "end_us": 867000000,
+   "evidence": "ENTITY_OBSERVED",
+   "points": 2,
+   "start_us": 866975000
+  },
+  {
+   "duration_us": 2476290,
+   "end_us": 869476290,
+   "evidence": "PHYSICS_RECONSTRUCTED",
+   "points": 251,
+   "start_us": 867000000
+  }
+ ],
+ "recipe_hash": "0dc84296091f71da9aaadaff",
+ "reconstruction_version": "projectile-recon-v1.1.0",
+ "source_event": {
+  "entity_num": 163,
+  "event_type": "missile_miss",
+  "server_time_ms": 869475,
+  "weapon_mod": null,
+  "weapon_wp": 4
+ },
+ "time_map": [
+  {
+   "demo_end_us": 867000000,
+   "demo_start_us": 865975000,
+   "edit_end_us": 1025000,
+   "edit_start_us": 0,
+   "kind": "normal",
+   "rate_den": 1,
+   "rate_num": 1
+  },
+  {
+   "demo_end_us": 867000000,
+   "demo_start_us": 867000000,
+   "edit_end_us": 2525000,
+   "edit_start_us": 1025000,
+   "kind": "freeze",
+   "rate_den": 1,
+   "rate_num": 0
+  },
+  {
+   "demo_end_us": 869475000,
+   "demo_start_us": 867000000,
+   "edit_end_us": 12425000,
+   "edit_start_us": 2525000,
+   "kind": "slow",
+   "rate_den": 4,
+   "rate_num": 1
+  },
+  {
+   "demo_end_us": 870475000,
+   "demo_start_us": 869475000,
+   "edit_end_us": 13425000,
+   "edit_start_us": 12425000,
+   "kind": "normal",
+   "rate_den": 1,
+   "rate_num": 1
+  }
+ ]
+}
