@@ -82,7 +82,8 @@ CAUSE_UNKNOWN = "UNKNOWN"
 OBSERVED = "RECORDED_OBSERVED"       # seen in a demo we hold
 EV_OBITUARY_PROV = "DEMO_EV_OBITUARY"
 
-_COLOR = re.compile(r"\^[0-9a-zA-Z]")
+# Caret plus ONE DIGIT. A caret followed by a letter is part of the name.
+_COLOR = re.compile(r"\^[0-9]")
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS kill_events_v1(

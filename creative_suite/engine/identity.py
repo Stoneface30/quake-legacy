@@ -75,7 +75,9 @@ USER_SUPPLIED_PTN = ("naikomarie", "sereke", "s73rn", "jibyjibs", "b3nto")
 # in the caches; the relation is the provenance.
 USER_DEFINED_ALIASES = {"s7ern": "s73rn"}
 
-_COLOR = re.compile(r"\^[0-9a-zA-Z]")
+# Colour is a caret plus ONE DIGIT. See quake_names -- the wider pattern
+# also eats caret+letter, which is part of a name, not markup.
+from creative_suite.engine.quake_names import COLOR_CODE as _COLOR
 _DATE = re.compile(r"(20\d\d)[_-](\d\d)[_-](\d\d)")
 _TOKEN = re.compile(r"[0-9a-z]+")
 

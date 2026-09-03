@@ -83,7 +83,7 @@ LOCK_POLL_S = 5.0
 ELIGIBLE_DEFAULT = False
 VISIBILITY_AFTER_VOTE = "AFTER_VOTE"
 
-_COLOR = re.compile(r"\^[0-9a-zA-Z]")
+from creative_suite.engine.quake_names import COLOR_CODE as _COLOR
 
 
 class ExportRefused(Exception):

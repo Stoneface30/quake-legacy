@@ -410,7 +410,8 @@ def user_norms() -> set[str]:
 
 
 import re as _re                                                # noqa: E402
-_COLOR_RE = _re.compile(r"\^[0-9a-zA-Z]")
+# One authority for what a colour code is: caret plus ONE DIGIT.
+from creative_suite.engine.quake_names import COLOR_CODE as _COLOR_RE
 
 
 def _strip_colors(name: str) -> str:
