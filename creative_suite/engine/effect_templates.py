@@ -272,6 +272,11 @@ FREEZE_SWEEP = (50, 100, 133, 150, 200, 250, 300, 400, 500, 650, 900)
 STUTTER_SWEEP = (33, 45, 60, 90, 110, 120, 150, 170, 180, 230)
 RATE_SWEEP_EXACT = ("3/10", "2/5", "1/1")     # land on the frame grid exactly
 OVERLAP_SWEEP = (50, 100, 150, 200, 250, 300, 400, 500)
+PIP_SWEEP = (600, 900, 1200, 1800, 2400)
+REWIND_SWEEP = (300, 600, 900, 1200, 1800, 2400)   # delivered cost, not slice
+# A rewind runs the slice backwards and then forwards again, so it costs
+# TWICE the slice it rewinds. Measured exact at every point.
+REWIND_COST_FACTOR = 2
 
 
 _T = TemporalEffectTemplate
@@ -299,8 +304,9 @@ TEMPLATES: tuple[TemporalEffectTemplate, ...] = (
        anchor_kind="STUTTER_ATTACK", music_targets=("SUBDIVISION", "GESTURE"),
        render_cost="CHEAP"),
     _T("MICRO_REWIND", F_CUTTING, (), t.INSERT,
-       _env(120, 200, 450, 800, why="short enough to read as a stumble in time "
-            "rather than a replay"),
+       _env(120,200,450,800, SYNTHETIC_TEST,
+       why='shares the reverse primitive: exact delivery, and twice the slice',
+       swept=REWIND_SWEEP, quant=FRAME_US, bias=0),
        SMALL, "PROTOTYPE", "TIME", "MUSICAL_PUNCTUATION", peak_ratio=0.0,
        anchor_kind="TRANSITION_HANDOFF", music_targets=("BEAT", "GESTURE")),
     _T("TIME_ECHO", F_CUTTING, ("FRAME_ECHO", "MULTI_EXPOSURE"), t.REPEAT,
@@ -352,8 +358,9 @@ TEMPLATES: tuple[TemporalEffectTemplate, ...] = (
        evidence_required=("projectile_path",), requirements=("camera_path",)),
     _T("ENEMY_POV_INSERT", F_REPLAY,
        ("ENEMY_POV_REAL", "ENEMY_POV_RECONSTRUCTED", "ENEMY_POV_SYNTHETIC"), t.INSERT,
-       _env(600, 1_000, 2_400, 4_000, why="long enough to establish whose eyes "
-            "these are, short enough not to lose the thread"),
+       _env(600,1_000,2_400,4_000, SYNTHETIC_TEST,
+       why='swept 600-2400 ms as a cut: adds exactly its own duration at every point, the counterpart to the PIP measurement',
+       swept=PIP_SWEEP, quant=FRAME_US, bias=0),
        LARGE, "DESIGNABLE", "CAMERA", "REVEAL_SKILL", peak_ratio=0.7,
        anchor_kind="HERO", evidence_required=("enemy_state",),
        notes="SEQUENTIAL: this adds its whole duration. The PIP form does not."),
@@ -593,8 +600,9 @@ TEMPLATES: tuple[TemporalEffectTemplate, ...] = (
        music_targets=("SUBDIVISION", "GESTURE"),
        evidence_required=("death", "motif_group"), render_cost="CHEAP"),
     _T("DEATH_REWIND", F_DEATH, ("HERO_THEN_DEATH_REWIND",), t.INSERT,
-       _env(300, 450, 1_100, 2_000, why="the rewind is the apology before the "
-            "replay; it should be quick"),
+       _env(300,450,1_100,2_000, SYNTHETIC_TEST,
+       why='swept 150-1200 ms slices: a rewind runs the slice backwards then forwards, so it costs exactly twice the slice. The envelope here is the delivered cost, not the slice length',
+       swept=REWIND_SWEEP, quant=FRAME_US, bias=0),
        MEDIUM, "PROTOTYPE", "TIME", "TRANSITION", peak_ratio=1.0,
        anchor_kind="TRANSITION_HANDOFF", music_targets=("PHRASE", "BEAT"),
        must_precede=("SIDE_REPLAY",), evidence_required=("death",)),
@@ -618,8 +626,9 @@ TEMPLATES: tuple[TemporalEffectTemplate, ...] = (
     # ── family 13: POV and PIP ──────────────────────────────────────────────
     _T("POV_PIP", F_POV, ("ENEMY_POV_RECONSTRUCTED", "PIP_WORLD_SURFACE",
                           "DAMAGE_CHASE_ASSIST"), t.REPLACE,
-       _env(500, 900, 2_400, 2_500, why="a corner of the frame needs longer to "
-            "read than the middle of it"),
+       _env(500,900,2_400,2_500, SYNTHETIC_TEST,
+       why='swept 600-2400 ms as an overlay: adds exactly 0.0 ms of sequence time at every point, which is what makes it different from cutting to it',
+       swept=PIP_SWEEP, quant=FRAME_US, bias=0),
        MEDIUM, "DESIGNABLE", "PIP", "REVEAL_SKILL", peak_ratio=0.6,
        anchor_kind="CAMERA_CUT", can_overlap=True, render_cost="EXPENSIVE",
        notes="SIMULTANEOUS: costs no sequence time, unlike ENEMY_POV_INSERT"),

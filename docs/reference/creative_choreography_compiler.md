@@ -250,3 +250,14 @@ every duration drawn from the library rather than hand-picked.
 `good_with` / `bad_with` / `must_precede` / `must_follow` / `can_overlap`.
 WORLD_STRIP with MOSAIC_TILE_STEP is flagged as competing for attention;
 WORLD_REBUILD before WORLD_STRIP is flagged as out of order.
+
+## Second canary batch (2026-09-03)
+
+Raw numbers: `docs/reference/effect_canary_measurements_2.json`.
+
+| primitive | finding |
+|---|---|
+| **PIP vs cut** | The same creative idea, two temporal behaviours, measured at 600–2400 ms. An overlay adds **exactly 0.0 ms** of sequence time at every point; cutting to the same material adds **exactly its own duration**. |
+| **Rewind** | A rewind runs the slice backwards and then forwards again, so it costs **exactly twice the slice** — 150/300/450/600/900/1200 ms slices delivered 300/600/900/1200/1800/2400 ms, 0.0 ms error throughout. The template envelope is the *delivered cost*, not the slice length. |
+
+Measured coverage is now **12 of 50 templates (24%)** across four temporal scales.

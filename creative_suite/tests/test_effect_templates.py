@@ -307,3 +307,28 @@ def test_a_vocabulary_measured_at_only_one_scale_is_not_enough():
         measured_templates=20, measured_scales=1)
     assert not r.may_shortlist_songs
     assert any("temporal scales" in b for b in r.blockers)
+
+
+# ── second canary batch ─────────────────────────────────────────────────────
+
+def test_pip_and_a_cut_to_the_same_material_cost_differently():
+    """Measured: an overlay adds 0.0 ms at 600-2400 ms; cutting to the same
+    material adds its whole duration."""
+    pip, cut = et.get("POV_PIP"), et.get("ENEMY_POV_INSERT")
+    assert pip.envelope.provenance == et.SYNTHETIC_TEST
+    assert cut.envelope.provenance == et.SYNTHETIC_TEST
+    assert pip.envelope.swept_points_us == cut.envelope.swept_points_us
+    for ms in (600, 1200, 2400):
+        assert t.OperatorChoice(pip.operator_for(), ms * MS).edit_us == 0
+        assert t.OperatorChoice(cut.operator_for(), ms * MS).edit_us == ms * MS
+
+
+def test_a_rewind_costs_twice_the_slice_it_rewinds():
+    """It runs the slice backwards and then forwards again. Budgeting the
+    slice length would leave the composition short by the same amount."""
+    assert et.REWIND_COST_FACTOR == 2
+    tpl = et.get("DEATH_REWIND")
+    assert tpl.envelope.provenance == et.SYNTHETIC_TEST
+    assert "twice the slice" in tpl.envelope.rationale
+    # the envelope is the delivered cost, so a 450 ms slice sits at 900 ms
+    assert tpl.envelope.hard_min_us <= 900 * MS <= tpl.envelope.hard_max_us
