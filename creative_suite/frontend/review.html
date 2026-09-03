@@ -94,6 +94,21 @@
                border:1px solid #22222c; padding:6px 12px; font-size:11px;
                letter-spacing:.08em; cursor:pointer; border-radius:2px }
   #watchround:hover{ border-color:#c9a227 }
+
+  /* Filter drawer. Search narrows what is reviewed; it is not a verdict. */
+  #fdrawer{ border-bottom:1px solid #22222c; background:#0e0e14;
+            padding:8px 16px }
+  .frow{ display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+         font-size:11px; letter-spacing:.06em; color:#8a8a96 }
+  .frow label{ text-transform:uppercase }
+  .frow select{ background:#12121a; color:#e8e8ec; border:1px solid #22222c;
+                padding:3px 6px; font-size:11px; border-radius:2px }
+  .frow button{ background:#15151f; color:#8a8a96; border:1px solid #22222c;
+                padding:3px 10px; font-size:11px; cursor:pointer;
+                border-radius:2px; letter-spacing:.08em }
+  .frow button:hover{ border-color:#c9a227; color:#e8e8ec }
+  #filtercount{ margin-left:auto; color:#c9a227 }
+  .fnote{ color:#5a5a66; font-size:11px; margin-top:5px }
 </style>
 
 <header>
@@ -160,7 +175,7 @@
 // Live demo filenames embed opponent nicknames, and this is a public repo.
 const API = "/api/review";
 let items = [], idx = 0, offset = 0, order = "WORST_FIRST", cur = null;
-let itemType = "USER_FRAG", corpus = "USER_FRAGS";
+let itemType = "USER_FRAG", corpus = "USER_FRAGS", filters = {};
 const $ = id => document.getElementById(id);
 const v = $("v");
 
@@ -180,11 +195,17 @@ function toast(msg){
 }
 
 async function loadQueue(off){
+  const qs = Object.entries(filters)
+    .filter(([, v]) => v !== "" && v != null)
+    .map(([k, v]) => "&" + k + "=" + encodeURIComponent(v)).join("");
   const r = await fetch(API + "/queue?order=" + order + "&offset=" + off +
                        "&limit=30&item_type=" + itemType +
-                       (corpus ? "&corpus=" + corpus : ""));
+                       (corpus ? "&corpus=" + corpus : "") + qs);
   const d = await r.json();
   items = d.items; offset = d.offset; idx = 0;
+  const fc = $("filtercount");
+  if (fc) fc.textContent = d.total.toLocaleString() + " match"
+    + (Object.keys(filters).length ? " this filter" : "");
   $("order").textContent = order === "WORST_FIRST" ? "worst → best"
                                                    : "best → worst";
   if (items.length) show(); else toast("queue exhausted");
@@ -498,6 +519,46 @@ async function corpora(){
   };
 }
 
+
+// The filter drawer is populated FROM THE DATA. A filter offered for a value
+// nobody has produces an empty result that reads as "this never happened".
+async function facets(){
+  const d = await (await fetch(API + "/facets?corpus=" + (corpus || "USER_FRAGS"))).json();
+  const fill = (id, vals, blank) => {
+    const sel = $(id);
+    if (!sel) return;
+    const opts = [Object.assign(document.createElement("option"),
+                                {value: "", textContent: blank})];
+    vals.forEach(v => {
+      const o = document.createElement("option");
+      o.value = String(v.value !== undefined ? v.value : v);
+      o.textContent = String(v.label !== undefined ? v.label : v);
+      opts.push(o);
+    });
+    sel.replaceChildren(...opts);
+    sel.onchange = () => {
+      const key = id.slice(2);
+      if (sel.value) filters[key] = sel.value; else delete filters[key];
+      progress(); loadQueue(0);
+    };
+  };
+  fill("f-weapon", d.weapons, "any");
+  fill("f-map", d.maps, "any");
+  fill("f-trait", d.traits.map(t => ({value: t.trait,
+        label: t.trait + "  (" + t.count.toLocaleString() + ")"})), "any");
+  fill("f-death_cause", d.death_causes, "any");
+  fill("f-min_round_kills", [2, 3, 4, 5, 6].map(n => ({value: n, label: n})), "any");
+  fill("f-pov", ["ACTOR_POV", "VICTIM_POV", "OTHER_POV"], "any");
+  $("fnote").textContent = d.trait_note;
+  $("f-clear").onclick = () => {
+    filters = {};
+    ["weapon", "map", "trait", "death_cause", "min_round_kills", "pov"]
+      .forEach(k => { const e = $("f-" + k); if (e) e.value = ""; });
+    progress(); loadQueue(0);
+  };
+}
+
+facets();
 corpora();
 progress();
 loadQueue(0);

@@ -127,10 +127,40 @@ TELEPORT_CONFIRMED = "TELEPORT_PLAYER_CONFIRMED"
 #
 # Reviewing it as 36,586 clips would show the same frag up to eight times and
 # call each showing a different moment.
+# The anchor test: take one row and ask what it is attached to. If it lands
+# on a frag the user already reviews, it describes that frag rather than
+# being a moment of its own.
+#
+#   table                          rows    anchors   on a frag
+#   recognition_projectile_paths   4,391     4,391       100%
+#   recognition_lg_engagements    13,696    13,696       100%
+#   recognition_view_timeseries   13,463    13,463       100%
+#   recognition_dodge_events      36,586    19,877       100%  (via kill_anchor_ms)
+#
+# All four are per-frag features. Offering them as queues would have put
+# 31,550 items in front of the user that are re-descriptions of frags already
+# in USER_FRAGS -- the same moment asked about twice under a different name.
+#
+# They are not lost: every one of them is already a FILTER. NEAR_MISS_ROCKET,
+# LG_TRACKING, DIRECT_CONFIRMED_GEO and the rest come from exactly this data
+# and narrow the frag queue, which is what they are for.
+#
+# A genuine PROJECTILE_FLYBY or LG_TRACKING moment -- one that does not end in
+# a kill -- is derivable, but from missile_samples_v1 and the player-state
+# streams, not from these tables. That is new derivation, honestly, and it is
+# not what these rows are.
+_ANCHORED = ("a per-frag feature, not a moment: every row anchors to a frag "
+             "already reviewable in USER_FRAGS")
 NOT_A_REVIEW_MOMENT = {
-    DODGE: ("a per-frag feature, not a moment: 36,586 rows collapse to "
-            "19,877 kill anchors, all of which are frags already reviewable "
-            "in MY_FRAGS, up to 8 rows per frag, and survived=1 on every row"),
+    DODGE: (_ANCHORED + " -- 36,586 rows collapse to 19,877 kill anchors, "
+            "up to 8 rows per frag, and survived=1 on every row"),
+    PROJECTILE: (_ANCHORED + " -- 4,391 rows, 4,391 anchors, 100% of them a "
+                 "frag. Available as the NEAR_MISS_* and DIRECT_* filters. A "
+                 "flyby that ends in no kill needs missile_samples_v1, which "
+                 "is a separate derivation"),
+    LG_TRACKING: (_ANCHORED + " -- 13,696 rows, 13,696 anchors, 100% of them "
+                  "a frag. Available as the LG_TRACKING and LG_HIGH_ACCURACY "
+                  "filters"),
 }
 
 # The review window. Three seconds of run-up, the moment, three seconds of
@@ -426,6 +456,83 @@ def _in(names: set[str]) -> tuple[str, list[Any]]:
         # is valid SQL that matches no row -- a bare 0 was not.
         return "(NULL)", []
     return "(" + ",".join("?" * len(ns)) + ")", ns
+
+
+# ── filters ─────────────────────────────────────────────────────────────────
+# A WHITELIST, not a query language. Every key here maps to one parameterised
+# fragment; nothing the browser sends reaches SQL as text. The list is short
+# on purpose -- a filter whose data is not reliable is worse than no filter,
+# because the user trusts an empty result.
+
+FILTERS = {
+    "weapon":       ("o.mod_name = ?", str.upper),
+    "map":          ("LOWER(o.map) = ?", str.lower),
+    "death_cause":  ("o.death_cause = ?", str.upper),
+    "actor":        ("o.killer_name_norm = ?", str.lower),
+    "opponent":     ("o.victim_name_norm = ?", str.lower),
+    "merge":        ("o.merge_confidence = ?", str.upper),
+    "pov":          ("o.best_observation_pov = ?", str.upper),
+}
+
+# Machine traits live in recognized_frags.classes as JSON. Filtering by one
+# therefore restricts to moments the recogniser scored -- the actor's own
+# camera -- and the UI says so rather than letting an empty result read as
+# "this never happened".
+TRAIT_NOTE = ("machine traits exist only for the actor's own camera, so a "
+              "trait filter narrows to those moments by construction")
+
+
+def trait_vocabulary(limit: int = 40) -> list[dict[str, Any]]:
+    """The traits actually present, with counts. Never a hardcoded list --
+    a filter offered for a trait nobody has is a dead end."""
+    import json as _json
+    import collections as _c
+    cnt: _c.Counter = _c.Counter()
+    with _rec() as c:
+        for (cl,) in c.execute("SELECT classes FROM recognized_frags "
+                               "WHERE classes IS NOT NULL"):
+            try:
+                for x in _json.loads(cl or "[]"):
+                    if x.get("name"):
+                        cnt[x["name"]] += 1
+            except (ValueError, TypeError, AttributeError):
+                continue
+    return [{"trait": k, "count": v} for k, v in cnt.most_common(limit)]
+
+
+def _filter_sql(filters: dict[str, Any] | None) -> tuple[str, list[Any]]:
+    """Turn a validated filter dict into SQL. Unknown keys are refused."""
+    if not filters:
+        return "", []
+    where, params = [], []
+    for key, raw in filters.items():
+        if raw in (None, "", []):
+            continue
+        if key == "trait":
+            # JSON containment. A leading wildcard cannot use an index, and
+            # saying so beats pretending this is free.
+            where.append("EXISTS (SELECT 1 FROM recognized_frags rf WHERE "
+                         "rf.content_hash = k.content_hash AND "
+                         "rf.server_time_ms = o.server_time_ms AND "
+                         "rf.classes LIKE ?)")
+            params.append(f'%"{raw}"%')
+            continue
+        if key == "min_round_kills":
+            # Read from the precomputed round sizes. The correlated count it
+            # replaces ran once per candidate row and made the filter
+            # unusable; this is an indexed lookup on 78,730 rows.
+            where.append("EXISTS (SELECT 1 FROM round_kills_v1 rk WHERE "
+                         "rk.content_hash = k.content_hash AND "
+                         "rk.round = o.round AND rk.kills >= ?)")
+            params.append(int(raw))
+            continue
+        if key not in FILTERS:
+            raise ValueError(f"unknown filter {key!r}; allowed: "
+                             f"{sorted(set(FILTERS) | {'trait', 'min_round_kills'})}")
+        frag, cast = FILTERS[key]
+        where.append(frag)
+        params.append(cast(str(raw)))
+    return (" AND " + " AND ".join(where)) if where else "", params
 
 
 def _kill_where(item_type: str, corpus: str | None = None
@@ -775,8 +882,11 @@ def _why(row: sqlite3.Row) -> str:
 
 
 def _kill_rows(order: str, limit: int, offset: int, unreviewed_only: bool,
-               item_type: str, corpus: str | None) -> list[sqlite3.Row]:
+               item_type: str, corpus: str | None,
+               filters: dict[str, Any] | None = None) -> list[sqlite3.Row]:
     where, params = _kill_where(item_type, corpus)
+    fw, fp = _filter_sql(filters)
+    where, params = where + fw, params + fp
     select = _DEATH_SELECT if item_type == DEATH else _KILL_SELECT
     direction = "ASC" if order == ORDER_WORST_FIRST else "DESC"
     # Unscored rows sort after scored ones in both directions rather than
@@ -820,7 +930,8 @@ def _kill_item(r: sqlite3.Row, item_type: str, rank: int, total: int,
 
 def queue(order: str = ORDER_WORST_FIRST, limit: int = 50, offset: int = 0,
           item_type: str = FRAG, unreviewed_only: bool = False,
-          corpus: str | None = None) -> list[ReviewItem]:
+          corpus: str | None = None,
+          filters: dict[str, Any] | None = None) -> list[ReviewItem]:
     """A slice of the corpus in the requested order.
 
     The default is WORST FIRST because that is what was asked for, and it is
@@ -847,9 +958,9 @@ def queue(order: str = ORDER_WORST_FIRST, limit: int = 50, offset: int = 0,
     if item_type in KILL_BACKED:
         if not _kill_table_exists():
             return []
-        total = count_items(item_type, corpus=corpus)
+        total = count_items(item_type, corpus=corpus, filters=filters)
         rows = _kill_rows(order, limit, offset, unreviewed_only, item_type,
-                          corpus)
+                          corpus, filters)
         got = reviews([f"{item_type}:{r['id']}" for r in rows])
         return [_kill_item(r, item_type, offset + i + 1, total,
                            got.get(f"{item_type}:{r['id']}") or {})
@@ -878,15 +989,18 @@ def queue(order: str = ORDER_WORST_FIRST, limit: int = 50, offset: int = 0,
     return out
 
 
-def count_items(item_type: str = FRAG, corpus: str | None = None) -> int:
+def count_items(item_type: str = FRAG, corpus: str | None = None,
+                filters: dict[str, Any] | None = None) -> int:
     if item_type in KILL_BACKED:
         if not _kill_table_exists():
             return 0
         where, params = _kill_where(item_type, corpus)
+        fw, fp = _filter_sql(filters)
         with _rec() as c:
             return int(c.execute(
-                f"SELECT COUNT(*) FROM kill_occurrences_v1 o WHERE {where}",
-                params).fetchone()[0])
+                "SELECT COUNT(*) FROM kill_occurrences_v1 o JOIN "
+                "kill_events_v1 k ON k.kill_event_id = o.best_observation_id "
+                f"WHERE {where}{fw}", params + fp).fetchone()[0])
     if item_type == TELEPORT:
         with _rec() as c:
             return int(c.execute(

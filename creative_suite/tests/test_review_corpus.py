@@ -422,3 +422,36 @@ def test_my_frags_says_when_the_recorder_was_not_the_user():
     assert "stoneface" in sp["candidates"]
     assert "stoneface" not in rc.USER_RECORDER_NAMES
     assert rc.corpus_status(rc.MY_FRAGS)["recorder_identity"]["available"]
+
+
+def test_the_anchor_test_is_applied_to_every_special_family():
+    """DODGE was caught this way; PROJECTILE, LG and VIEW are the same shape.
+    Take one row and ask what it attaches to -- all three land on a frag the
+    user already reviews, 100% of the time. Offering them as queues would
+    have added 31,550 items that re-describe frags already in USER_FRAGS."""
+    for fam in (rc.DODGE, rc.PROJECTILE, rc.LG_TRACKING):
+        assert fam in rc.NOT_A_REVIEW_MOMENT, fam
+        why = rc.NOT_A_REVIEW_MOMENT[fam]
+        assert "per-frag feature" in why
+        assert rc.queue(item_type=fam) == []
+    # And they survive as filters, which is what that data is for.
+    traits = {t["trait"] for t in rc.trait_vocabulary(limit=40)}
+    assert {"LG_TRACKING", "NEAR_MISS_ROCKET", "DIRECT_CONFIRMED_GEO"} <= traits
+
+
+def test_filters_are_a_whitelist_not_a_query_language():
+    """Nothing the browser sends reaches SQL as text."""
+    import pytest as _p
+    with _p.raises(ValueError, match="unknown filter"):
+        rc._filter_sql({"; DROP TABLE": "1"})
+    where, params = rc._filter_sql({"weapon": "railgun"})
+    assert where == " AND o.mod_name = ?" and params == ["RAILGUN"]
+
+
+def test_a_filter_narrows_without_discarding():
+    """Machine score orders; it never removes. A filtered queue is a view of
+    the same corpus, and clearing the filter restores it."""
+    everything = rc.count_items(rc.USER_FRAG, corpus=rc.USER_FRAGS)
+    rails = rc.count_items(rc.USER_FRAG, corpus=rc.USER_FRAGS,
+                           filters={"weapon": "RAILGUN"})
+    assert 0 < rails < everything

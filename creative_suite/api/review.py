@@ -73,11 +73,23 @@ def get_progress(item_type: str = rc.FRAG, corpus: str | None = None):
 @router.get("/queue")
 def get_queue(order: str = rc.ORDER_WORST_FIRST, offset: int = 0,
               limit: int = Query(30, le=200), item_type: str = rc.FRAG,
-              unreviewed_only: bool = False, corpus: str | None = None):
+              unreviewed_only: bool = False, corpus: str | None = None,
+              weapon: str | None = None, map: str | None = None,
+              trait: str | None = None, death_cause: str | None = None,
+              actor: str | None = None, opponent: str | None = None,
+              pov: str | None = None, merge: str | None = None,
+              min_round_kills: int | None = None):
+    # Named parameters, not a query string the browser composes. The filter
+    # whitelist lives in review_corpus and refuses anything it does not know.
+    filters = {k: v for k, v in
+               {"weapon": weapon, "map": map, "trait": trait,
+                "death_cause": death_cause, "actor": actor,
+                "opponent": opponent, "pov": pov, "merge": merge,
+                "min_round_kills": min_round_kills}.items() if v}
     try:
         items = rc.queue(order=order, limit=limit, offset=offset,
                          item_type=item_type, unreviewed_only=unreviewed_only,
-                         corpus=corpus)
+                         corpus=corpus, filters=filters)
     except ValueError as e:
         raise HTTPException(400, str(e))
     if corpus:
@@ -88,7 +100,9 @@ def get_queue(order: str = rc.ORDER_WORST_FIRST, offset: int = 0,
     _prefetch(items[:PREFETCH])
     return {"order": order, "offset": offset, "item_type": item_type,
             "corpus": corpus,
-            "total": rc.count_items(item_type, corpus=corpus),
+            "filters": filters,
+            "total": rc.count_items(item_type, corpus=corpus,
+                                    filters=filters),
             "items": [i.to_dict() for i in items]}
 
 
@@ -336,3 +350,35 @@ def get_round_media(item_id: str):
         status_code=425,
         detail={"state": st.get("state", "PENDING"),
                 "hint": "the full round is rendering; this is on-demand only"})
+
+
+@router.get("/traits")
+def get_traits(limit: int = Query(40, le=120)):
+    """The machine traits actually present, with counts.
+
+    Never a hardcoded list: offering a filter for a trait nobody has gives
+    the user an empty result that reads as "this never happened".
+    """
+    return {"traits": rc.trait_vocabulary(limit=limit),
+            "note": rc.TRAIT_NOTE}
+
+
+@router.get("/facets")
+def get_facets(corpus: str = rc.DEFAULT_CORPUS):
+    """Values worth offering as filters, drawn from the data itself."""
+    it = rc.CORPUS_ITEM_TYPE.get(corpus, rc.USER_FRAG)
+    with rc._rec() as c:
+        weapons = [r[0] for r in c.execute(
+            "SELECT mod_name FROM kill_occurrences_v1 WHERE mod_name IS NOT NULL "
+            "GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 16")]
+        maps = [r[0] for r in c.execute(
+            "SELECT map FROM kill_occurrences_v1 WHERE map IS NOT NULL "
+            "GROUP BY 1 ORDER BY COUNT(*) DESC LIMIT 20")]
+        causes = [r[0] for r in c.execute(
+            "SELECT death_cause FROM kill_occurrences_v1 GROUP BY 1 "
+            "ORDER BY COUNT(*) DESC")]
+    return {"corpus": corpus, "item_type": it, "weapons": weapons,
+            "maps": maps, "death_causes": causes,
+            "roles": list(rc.ROLES), "role_labels": rc.ROLE_LABEL,
+            "traits": rc.trait_vocabulary(limit=40),
+            "trait_note": rc.TRAIT_NOTE}
