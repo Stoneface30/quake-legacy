@@ -112,9 +112,12 @@ def test_membership_is_evidence_or_the_users_word_and_says_which():
                 if v["basis"] == rc.USER_DECLARED]
     assert "NaikoMarie" in seen and "jibyjibs" in seen
     assert declared == ["b3nto"]
-    # b3nto is a real player with no tag evidence, and the row says so
+    # b3nto is a real player with no tag evidence, and the row explains why
+    # rather than leaving it looking like a hole in the data: he joined late
+    # and sometimes played untagged.
     b = rc.PTN_ROSTER["b3nto"]
-    assert b["tag_lines"] == 0 and "no tag evidence" in b["note"]
+    assert b["tag_lines"] == 0
+    assert "joined later" in b["note"] and "untagged" in b["note"]
     for k, v in rc.PTN_ROSTER.items():
         if v["basis"] == rc.TAG_OBSERVED:
             assert v["tag_lines"] > 0, k

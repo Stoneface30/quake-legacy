@@ -150,7 +150,9 @@ PTN_TAG_COLOURS = {"pTn": ("^4", "COLOR_BLUE", "3266fe"),
 # How a name got onto the roster. Membership is evidence or the user's word,
 # never a string match on "pTn" appearing somewhere.
 TAG_OBSERVED = "TAG_OBSERVED"          # seen wearing the tag in cached text
-USER_DECLARED = "USER_DECLARED"        # the user says so; no tag evidence yet
+USER_DECLARED = "USER_DECLARED"        # the user says so; tag evidence may
+                                       # be absent for good reasons -- joining
+                                       # late, or playing untagged
 ALIAS_CANDIDATE = "CLAN_ALIAS_CANDIDATE"   # wears the tag, not yet confirmed
 
 # Line counts are how often the name was seen next to the tag in
@@ -167,14 +169,16 @@ PTN_ROSTER: dict[str, dict[str, Any]] = {
               "note": "S7ern not present as its own spelling"},
     "sereke": {"basis": TAG_OBSERVED, "tag_lines": 49,
                "names": ("sereke", "^7sere^4k^7e")},
-    # Named by the user. b3nto is a real player -- 218 rows in
-    # player_names_v1, 4,174 text lines -- but appears in ZERO pTn-tagged
-    # lines, so the membership is the user's word and is labelled as such
-    # rather than dressed up as evidence.
+    # b3nto is a real player -- 218 rows in player_names_v1 and 4,174 text
+    # lines -- and appears in ZERO pTn-tagged lines. Per the user: he joined
+    # later and sometimes played without the tag. So the absence of tag
+    # evidence is explained rather than suspicious, and the membership rests
+    # on the user's word, which is labelled as such rather than dressed up
+    # as evidence it does not have.
     "b3nto": {"basis": USER_DECLARED, "tag_lines": 0,
               "names": ("b3nto",),
-              "note": "no tag evidence in cache; on the roster because the "
-                      "user put them there"},
+              "note": "joined later and sometimes played untagged, per the "
+                      "user; real player, no tag lines in cache"},
 }
 
 # Wearing the tag but not on the user's list. Surfaced for a decision, never
