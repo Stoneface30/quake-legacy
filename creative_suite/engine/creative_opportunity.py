@@ -30,6 +30,7 @@ from typing import Any, Iterable, Sequence
 
 from creative_suite.engine import effect_templates as et
 from creative_suite.engine import temporal_operators as t
+from creative_suite.engine import visual_focus as vf
 
 OPPORTUNITY_VERSION = "creative-opportunity-v1.0.0"
 MS = 1000
@@ -117,6 +118,90 @@ def editorial_weight(template_id: str) -> tuple[str, str]:
     return EDITORIAL.get(template_id, (SUPPORT, OCCASIONAL))
 
 
+# ── heuristics, which are not laws ──────────────────────────────────────────
+# A threshold that decides whether a treatment is INTERESTING is a creative
+# judgement and must say so. A rule that decides whether a treatment would be
+# a LIE is a truth constraint and is not negotiable.
+
+HARD_TRUTH = "HARD_TRUTH"
+CREATIVE_HEURISTIC = "CREATIVE_HEURISTIC"
+
+DIRECTOR_STATED = "DIRECTOR_STATED"
+OBSERVED = "OBSERVED"
+ASSUMED = "ASSUMED"
+
+
+@dataclass(frozen=True)
+class Heuristic:
+    """A tunable creative threshold, with its reasoning attached."""
+    name: str
+    value: float
+    unit: str
+    reason: str
+    provenance: str = ASSUMED
+    version: str = "v1"
+    override: float | None = None
+
+    @property
+    def effective(self) -> float:
+        return self.value if self.override is None else self.override
+
+    @property
+    def overridden(self) -> bool:
+        return self.override is not None
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d.update(effective=self.effective, overridden=self.overridden,
+                 kind=CREATIVE_HEURISTIC)
+        return d
+
+
+HEURISTICS: dict[str, Heuristic] = {h.name: h for h in (
+    Heuristic("flyby_close_pass_u", 220.0, "units",
+              "near enough that the pass is felt rather than noticed; a guess "
+              "from the splash radius, not a measurement",
+              ASSUMED),
+    Heuristic("damage_story_min", 60.0, "damage",
+              "below roughly a third of a fresh player's effective health the "
+              "number explains little; 59 may still tell a story and 70 of "
+              "scattered spam may not, which is why strength is reported too",
+              ASSUMED),
+    Heuristic("hero_death_strong_us", 1_000_000.0, "us",
+              "the director's own framing: dying within about a second of the "
+              "action makes the death part of the same beat",
+              DIRECTOR_STATED),
+    Heuristic("hero_death_contextual_us", 2_500_000.0, "us",
+              "beyond a second the death is still relatable but weaker; past "
+              "this it is usually a different moment",
+              DIRECTOR_STATED),
+    Heuristic("lg_burst_contacts", 8.0, "contacts",
+              "enough sustained contact for tracking to read as tracking",
+              ASSUMED),
+    Heuristic("fast_relative_u_s", 700.0, "u/s",
+              "relative motion above which deeper slow motion still reads",
+              ASSUMED),
+)}
+
+
+def heuristic(name: str) -> Heuristic:
+    return HEURISTICS[name]
+
+
+def override_heuristic(name: str, value: float | None) -> Heuristic:
+    """The director may move a creative threshold. A hard truth has no such
+    door."""
+    from dataclasses import replace as _replace
+    HEURISTICS[name] = _replace(HEURISTICS[name], override=value)
+    return HEURISTICS[name]
+
+
+# How strongly the evidence supports a treatment. Not every opportunity is
+# equally earned, and a weak one should not be mistaken for a strong one.
+STRONG, CONTEXTUAL, WEAK = "STRONG", "CONTEXTUAL", "WEAK"
+STRENGTHS = (WEAK, CONTEXTUAL, STRONG)
+
+
 # ── evidence ────────────────────────────────────────────────────────────────
 
 @dataclass(frozen=True)
@@ -150,12 +235,74 @@ class MomentEvidence:
     enemy_state_known: bool = False
     multi_demo_recovered: bool = False
     source_useful_us: int = 0
+    # Where things happen inside the scene. A scene has phases, and a
+    # constraint that ignores them either forbids too much or protects
+    # nothing.
+    scene_start_us: int = 0
+    scene_end_us: int = 0
+    hero_us: int | None = None            # the payoff instant
+    lg_track_start_us: int | None = None  # sustained tracking, if any
+    lg_track_end_us: int | None = None
+    victim_effective_hp: int | None = None
 
     def has(self, kind: str) -> bool:
         return kind in self.kinds
 
+    @property
+    def span(self) -> tuple[int, int]:
+        if self.scene_end_us > self.scene_start_us:
+            return (self.scene_start_us, self.scene_end_us)
+        return (0, max(self.source_useful_us, 1))
+
+    @property
+    def tracking_interval(self) -> tuple[int, int] | None:
+        if self.lg_track_start_us is None or self.lg_track_end_us is None:
+            return None
+        if self.lg_track_end_us <= self.lg_track_start_us:
+            return None
+        return (self.lg_track_start_us, self.lg_track_end_us)
+
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
+
+
+@dataclass(frozen=True)
+class SourceWindow:
+    """What THIS occurrence actually gives us to work with.
+
+    A grammar is reusable; the duration it can occupy is not. "PURE_FPV is
+    0.3 to 8.0 seconds" would eventually mean almost anything fits almost
+    anywhere. The real envelope comes from this window: how much usable
+    source exists, where the payoff sits inside it, and how much lead-in and
+    aftermath the action needs to stay comprehensible.
+    """
+    useful_us: int                     # total usable source
+    hero_offset_us: int = 0            # where the payoff sits inside it
+    pre_context_us: int = 0            # usable lead-in before the payoff
+    post_context_us: int = 0           # usable aftermath
+    replay_source_us: int = 0          # what can be shown again
+    min_recognition_us: int = 600_000  # below this the action stops reading
+    min_aftermath_us: int = 150_000
+    camera_available: bool = False     # is a second angle actually available
+
+    def __post_init__(self) -> None:
+        if self.useful_us <= 0:
+            raise ValueError("a source window with no usable source is not one")
+        if self.min_recognition_us > self.useful_us:
+            raise ValueError(
+                "this occurrence has less source than the action needs to be "
+                "comprehensible; it cannot be trimmed into a slot")
+
+    @property
+    def floor_us(self) -> int:
+        """The least this action can occupy and still be understood."""
+        return max(self.min_recognition_us + self.min_aftermath_us,
+                   min(self.useful_us, self.min_recognition_us))
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d["floor_us"] = self.floor_us
+        return d
 
 
 # ── a grammar: one legitimate treatment of the action ───────────────────────
@@ -174,7 +321,40 @@ class Grammar:
 
     @property
     def elasticity(self) -> t.TemporalElasticity:
+        """The templates' own range, before any particular moment is chosen.
+        Useful for library questions; never for deciding whether an
+        occurrence fits a slot."""
         return et.combined_envelope(list(self.templates))
+
+    def envelope_for(self, window: "SourceWindow") -> t.TemporalElasticity:
+        """What THIS occurrence can honestly occupy under this grammar.
+
+        The templates say how far each operator may stretch. The window says
+        how much source there is to stretch, and how much of it the action
+        needs in order to remain comprehensible. The answer is the narrower
+        of the two, floored by what the action cannot go below.
+        """
+        base = self.elasticity
+        source = window.useful_us
+        replay = window.replay_source_us
+        uses_replay = any(i in ("SIDE_REPLAY", "PROJECTILE_REPLAY",
+                                "PROJECTILE_FOLLOW", "GRENADE_ARC")
+                          for i in self.templates)
+        if uses_replay and replay <= 0:
+            # nothing to replay: this grammar is not available here
+            return t.TemporalElasticity(0, 0, 0, 0, len(self.templates))
+        # a retime can slow the source but cannot invent more of it
+        slowest = 5.0            # the deepest usable rate is about 0.2x
+        ceiling = int(source * slowest) + (int(replay * slowest) if uses_replay else 0)
+        added = sum(et.get(i).envelope.hard_max_us for i in self.templates
+                    if et.get(i).operator in (t.FREEZE, t.INSERT,
+                                              t.SYNTHETIC_INSERT, t.REPEAT,
+                                              t.STUTTER))
+        hi = min(base.max_us, ceiling + added)
+        lo = max(window.floor_us, min(base.min_us, hi))
+        plo = max(lo, min(base.preferred_min_us, hi))
+        phi = max(plo, min(base.preferred_max_us, hi))
+        return t.TemporalElasticity(lo, max(hi, lo), plo, phi, len(self.templates))
 
     @property
     def weakest_provenance(self) -> str:
@@ -187,12 +367,14 @@ class Grammar:
         return max((editorial_weight(i)[0] for i in self.templates),
                    key=lambda w: order[w], default=SUPPORT)
 
-    def fits(self, slot_us: int) -> bool:
-        return self.elasticity.fits(slot_us)
+    def fits(self, slot_us: int, window: "SourceWindow | None" = None) -> bool:
+        el = self.envelope_for(window) if window is not None else self.elasticity
+        return el.max_us > 0 and el.fits(slot_us)
 
-    def to_dict(self) -> dict[str, Any]:
-        el = self.elasticity
+    def to_dict(self, window: "SourceWindow | None" = None) -> dict[str, Any]:
+        el = self.envelope_for(window) if window is not None else self.elasticity
         return {"name": self.name, "templates": list(self.templates),
+                "moment_specific": window is not None,
                 "rationale": self.rationale,
                 "hard_ms": [el.min_us // MS, el.max_us // MS],
                 "preferred_ms": [el.preferred_min_us // MS,
@@ -209,7 +391,10 @@ class CreativeOpportunity:
     why: str                               # what in the action earns this
     evidence_used: tuple[str, ...]
     grammars: tuple[Grammar, ...]
-    forbidden_templates: tuple[str, ...] = ()
+    constraints: tuple[Any, ...] = ()      # visual_focus.ScopedConstraint
+    focuses: tuple[Any, ...] = ()          # visual_focus.VisualFocus
+    strength: str = STRONG
+    forbidden_templates: tuple[str, ...] = ()   # forbidden for the WHOLE moment
     result_truth: str = "UNKNOWN"
     narrative_purpose: str = ""
     rarity: str = OCCASIONAL
@@ -237,8 +422,22 @@ class CreativeOpportunity:
     def grammar(self, name: str) -> Grammar | None:
         return next((g for g in self.grammars if g.name == name), None)
 
-    def grammars_for(self, slot_us: int) -> tuple[Grammar, ...]:
-        return tuple(g for g in self.grammars if g.fits(slot_us))
+    def grammars_for(self, slot_us: int,
+                     window: "SourceWindow | None" = None) -> tuple[Grammar, ...]:
+        return tuple(g for g in self.grammars if g.fits(slot_us, window))
+
+    def permits(self, template_id: str, at_us: int) -> tuple[bool, str]:
+        """Whether this opportunity allows a template at an instant."""
+        if template_id in self.forbidden_templates:
+            return (False, f"{template_id} is refused across this whole moment")
+        return vf.permitted_at(template_id, at_us, self.focuses, self.constraints)
+
+    def free_for(self, template_id: str, span: tuple[int, int]
+                 ) -> list[tuple[int, int]]:
+        """Where inside the scene this template IS allowed."""
+        if template_id in self.forbidden_templates:
+            return []
+        return vf.free_intervals(span, template_id, self.focuses, self.constraints)
 
     def to_dict(self) -> dict[str, Any]:
         return {"moment_ref": self.moment_ref,
@@ -247,6 +446,9 @@ class CreativeOpportunity:
                 "result_truth": self.result_truth,
                 "narrative_purpose": self.narrative_purpose,
                 "rarity": self.rarity, "editorial_weight": self.editorial_weight,
+                "strength": self.strength,
+                "constraints": [c.to_dict() for c in self.constraints],
+                "focuses": [f.to_dict() for f in self.focuses],
                 "allowed_templates": list(self.allowed_templates),
                 "forbidden_templates": list(self.forbidden_templates),
                 "grammars": [g.to_dict() for g in self.grammars],
@@ -258,11 +460,69 @@ class CreativeOpportunity:
 # Each rule states the signature that earns a treatment. Nothing here consults
 # a duration, a slot, or a song.
 
-MEANINGFUL_DAMAGE = 60          # below this a ledger explains nothing
-CLOSE_PASS_U = 220.0            # a projectile near enough for the camera to feel
-FAST_U_S = 700.0                # relative speed that widens the slow envelope
-DEATH_SOON_US = 2_500_000       # a death this close still belongs to the action
-LG_BURST = 8                    # contacts that make a tracking story
+# The numbers below come from HEURISTICS, so they can be reasoned about and
+# overridden. They are creative judgements, not truth constraints.
+
+
+def _h(name: str) -> float:
+    return heuristic(name).effective
+
+
+def _damage_strength(ev: "MomentEvidence") -> tuple[str, dict[str, Any]]:
+    """How strongly the damage tells a story.
+
+    Absolute damage is only one component. A hundred points into a fresh
+    player reads differently from a hundred into an almost-dead one, and a
+    teammate taking the finish is exactly when the viewer might otherwise
+    misread who did the work.
+    """
+    dmg = ev.damage_by_user or 0
+    floor = _h("damage_story_min")
+    parts: dict[str, Any] = {"damage": dmg, "threshold": floor}
+    score = dmg / max(floor, 1.0)
+    if ev.victim_effective_hp:
+        share = dmg / max(ev.victim_effective_hp, 1)
+        parts["share_of_target"] = round(share, 3)
+        score = max(score, share * 2.0)
+    if ev.finisher_is_teammate:
+        parts["teammate_finished"] = True
+        score += 0.5      # the viewer could otherwise misread the contribution
+    parts["score"] = round(score, 3)
+    return (STRONG if score >= 1.6 else CONTEXTUAL if score >= 1.0 else WEAK,
+            parts)
+
+
+def _flyby_strength(ev: "MomentEvidence") -> tuple[str, dict[str, Any]]:
+    """Distance is the obvious component and not the only one. A slow
+    projectile drifting past is not the same event as a rocket tearing by."""
+    d = ev.projectile_close_pass_u
+    parts: dict[str, Any] = {"closest_u": d, "threshold_u": _h("flyby_close_pass_u")}
+    if d is None:
+        return (WEAK, parts)
+    score = max(0.0, 1.0 - d / max(_h("flyby_close_pass_u"), 1.0)) * 2.0
+    if ev.relative_speed_u_s:
+        parts["relative_speed_u_s"] = ev.relative_speed_u_s
+        score += min(ev.relative_speed_u_s / 1000.0, 1.0)
+    if ev.projectile_recorded_fraction is not None:
+        parts["recorded_fraction"] = ev.projectile_recorded_fraction
+    parts["score"] = round(score, 3)
+    return (STRONG if score >= 1.6 else CONTEXTUAL if score >= 0.9 else WEAK,
+            parts)
+
+
+def _hero_death_strength(after_us: int) -> tuple[str, dict[str, Any]]:
+    """The director's own framing: within about a second the death is part of
+    the same beat; beyond that it weakens; past two and a half seconds it is
+    usually a different moment."""
+    strong = _h("hero_death_strong_us")
+    contextual = _h("hero_death_contextual_us")
+    parts = {"death_after_us": after_us, "strong_below_us": strong,
+             "contextual_below_us": contextual}
+    if after_us <= strong:
+        return (STRONG, parts)
+    if after_us <= contextual:
+        return (CONTEXTUAL, parts)
+    return (WEAK, parts)
 
 
 def opportunities_for(ev: MomentEvidence) -> tuple[CreativeOpportunity, ...]:
@@ -288,25 +548,30 @@ def opportunities_for(ev: MomentEvidence) -> tuple[CreativeOpportunity, ...]:
                 ("SLOW_MOTION", "FREEZE_HOLD", "PROJECTILE_FOLLOW",
                  "MATCH_CUT_OVERLAP"),
                 "the camera rides the shot itself"))
+        hero_at = ev.hero_us if ev.hero_us is not None else ev.span[1]
         add(HERO_PROJECTILE,
             f"a {ev.weapon or 'projectile'} kill whose flight was recorded, so "
             f"the trajectory can be shown rather than asserted",
             ("frag", "projectile_path"), gr,
+            focuses=(vf.projectile_focus(max(ev.span[0], hero_at - 1_500_000),
+                                         min(ev.span[1], hero_at + 500_000)),),
             result_truth=ev.round_result, narrative_purpose="hero",
             rarity=OCCASIONAL, editorial_weight=FEATURE)
 
     # ── a projectile that passes close to the camera ───────────────────────
     if (ev.projectile_path and ev.projectile_close_pass_u is not None
-            and ev.projectile_close_pass_u <= CLOSE_PASS_U):
+            and ev.projectile_close_pass_u <= _h("flyby_close_pass_u")):
+        fly_strength, fly_parts = _flyby_strength(ev)
         add(PROJECTILE_FLYBY,
             f"a projectile passes {ev.projectile_close_pass_u:.0f} units from "
-            f"the camera, close enough to be felt",
+            f"the camera ({fly_strength.lower()}, components {fly_parts})",
             ("projectile_path", "projectile_close_pass_u"),
             [Grammar("FLYBY_BRIDGE", ("ROCKET_FLYBY_BRIDGE",),
                      "the pass carries us into the next scene"),
              Grammar("FLYBY_FOLLOW", ("PROJECTILE_FOLLOW", "ROCKET_FLYBY_BRIDGE"),
                      "follow it in, hand off on the closest approach")],
-            narrative_purpose="transition", editorial_weight=FEATURE)
+            strength=fly_strength, narrative_purpose="transition",
+            editorial_weight=FEATURE)
 
     # ── being outnumbered, truthfully ──────────────────────────────────────
     if (ev.alive_self == 1 and (ev.alive_enemy or 0) >= 2):
@@ -323,9 +588,12 @@ def opportunities_for(ev: MomentEvidence) -> tuple[CreativeOpportunity, ...]:
                 ("WORLD_STRIP", "ENEMY_REVEAL_STEP", "ENEMY_COUNT_TICK",
                  "WORLD_REBUILD", "ROUND_WIN_RELEASE"),
                 "the full escalation, earned by a won round"))
+        track = ev.tracking_interval
+        reveal_end = track[0] if track else ev.span[0] + 3_000_000
         add(ONE_VX_REVEAL,
             f"one against {ev.alive_enemy}, from death events inside the round",
             ("alive_self", "alive_enemy", "round_result"), gr,
+            focuses=(vf.threat_focus(ev.span[0], max(reveal_end, ev.span[0] + 1)),),
             forbidden_templates=forbidden, result_truth=ev.round_result,
             narrative_purpose="1vx", rarity=RARE, editorial_weight=HERO)
 
@@ -342,10 +610,12 @@ def opportunities_for(ev: MomentEvidence) -> tuple[CreativeOpportunity, ...]:
 
     # ── brilliance, punished ───────────────────────────────────────────────
     if (ev.has("frag") and ev.death_after_us is not None
-            and 0 < ev.death_after_us <= DEATH_SOON_US):
+            and 0 < ev.death_after_us <= _h("hero_death_contextual_us")):
+        strength, parts = _hero_death_strength(ev.death_after_us)
         add(HERO_THEN_DEATH,
-            f"the player dies {ev.death_after_us/1000:.0f} ms after the action, "
-            f"so the death is part of the same beat rather than a failure",
+            f"the player dies {ev.death_after_us/1000:.0f} ms after the action "
+            f"({strength.lower()}: the director's framing puts the same beat "
+            f"under {parts['strong_below_us']/1000:.0f} ms)",
             ("frag", "death_after_us"),
             [Grammar("DEATH_AS_CUT", ("DEATH_FREEZE", "DEATH_EXPLOSION_MATCH"),
                      "let the death carry the cut"),
@@ -353,11 +623,12 @@ def opportunities_for(ev: MomentEvidence) -> tuple[CreativeOpportunity, ...]:
                      ("DEATH_FREEZE", "DEATH_FLASH_MONTAGE", "DEATH_REWIND",
                       "SIDE_REPLAY"),
                      "freeze, flash the deaths, rewind, replay it clean")],
-            result_truth=ev.round_result, narrative_purpose="hero",
-            rarity=RARE, editorial_weight=FEATURE)
+            strength=strength, result_truth=ev.round_result,
+            narrative_purpose="hero", rarity=RARE, editorial_weight=FEATURE)
 
     # ── damage that tells a story ──────────────────────────────────────────
-    if (ev.damage_by_user or 0) >= MEANINGFUL_DAMAGE:
+    if (ev.damage_by_user or 0) >= _h("damage_story_min"):
+        dmg_strength, dmg_parts = _damage_strength(ev)
         gr = [Grammar("LEDGER", ("DAMAGE_LEDGER_TICK",),
                       "show the damage accumulating on the target")]
         if ev.finisher_is_teammate:
@@ -367,13 +638,20 @@ def opportunities_for(ev: MomentEvidence) -> tuple[CreativeOpportunity, ...]:
                  if ev.round_result == "WIN" else "DAMAGE_LEDGER_TICK"),
                 "the player did the work, a teammate finished it"))
         add(DAMAGE_STORY,
-            f"{ev.damage_by_user} damage from the player, enough for the number "
-            f"to mean something",
-            ("damage_by_user",), gr, result_truth=ev.round_result,
-            narrative_purpose="damage", editorial_weight=SUPPORT)
+            f"{ev.damage_by_user} damage from the player ({dmg_strength.lower()}, "
+            f"components {dmg_parts})",
+            ("damage_by_user",), gr, strength=dmg_strength,
+            # Only where the numbers are actually on screen. A ledger that
+            # claimed the whole scene would ban world effects everywhere,
+            # which is the coarse veto this architecture exists to avoid.
+            focuses=(vf.damage_focus(
+                max(ev.span[0], (ev.hero_us or ev.span[1]) - 1_500_000),
+                min(ev.span[1], (ev.hero_us or ev.span[1]) + 500_000)),),
+            result_truth=ev.round_result, narrative_purpose="damage",
+            editorial_weight=SUPPORT)
 
     # ── a teammate finishes what the player started ────────────────────────
-    if ev.finisher_is_teammate and (ev.damage_by_user or 0) >= MEANINGFUL_DAMAGE:
+    if ev.finisher_is_teammate and (ev.damage_by_user or 0) >= _h("damage_story_min"):
         add(ASSISTED_FINISH,
             "the player did the damage and a teammate took the kill; the kill "
             "is never credited to the player",
@@ -408,22 +686,26 @@ def opportunities_for(ev: MomentEvidence) -> tuple[CreativeOpportunity, ...]:
             rarity=RARE, editorial_weight=HERO)
 
     # ── tracking, which wants to be watched not decorated ──────────────────
-    if (ev.lg_contacts or 0) >= LG_BURST:
+    if (ev.lg_contacts or 0) >= _h("lg_burst_contacts"):
+        track = ev.tracking_interval or ev.span
         add(LG_TRACKING,
-            f"{ev.lg_contacts} lightning contacts: the skill is the tracking "
-            f"itself, which decoration would hide",
+            f"{ev.lg_contacts} lightning contacts over "
+            f"{(track[1]-track[0])/1000:.0f} ms: the skill is the tracking "
+            f"itself, and anything in front of it hides the thing worth "
+            f"watching",
             ("lg_contacts",),
             [Grammar("FPV_ONLY", ("SLOW_MOTION",),
                      "first person, restrained; the beam is the story"),
              Grammar("FPV_WITH_PULSES", ("SLOW_MOTION", "MATERIAL_FLASH"),
                      "light pulses off the contact rhythm")],
-            forbidden_templates=("WORLD_STRIP", "MOSAIC_TILE_STEP",
-                                 "MODEL_MORPH", "ENEMY_REVEAL_STEP"),
+            # Scoped to the tracking itself. Before and after it, another
+            # opportunity may legitimately open the world up.
+            focuses=(vf.tracking_focus(*track),),
             result_truth=ev.round_result, narrative_purpose="duel",
             editorial_weight=FEATURE)
 
     # ── speed ──────────────────────────────────────────────────────────────
-    if (ev.relative_speed_u_s or 0) >= FAST_U_S:
+    if (ev.relative_speed_u_s or 0) >= _h("fast_relative_u_s"):
         add(HIGH_SPEED_CONTACT,
             f"{ev.relative_speed_u_s:.0f} u/s of relative motion, which widens "
             f"how far the moment can be slowed before it stops reading",
@@ -468,24 +750,55 @@ def opportunities_for(ev: MomentEvidence) -> tuple[CreativeOpportunity, ...]:
     return tuple(out)
 
 
-def allowed_templates(opportunities: Sequence[CreativeOpportunity]) -> tuple[str, ...]:
-    """The union of what these opportunities permit, minus anything any one of
-    them forbids. A tracking sequence that forbids world effects forbids them
-    for the whole moment."""
+def allowed_templates(opportunities: Sequence[CreativeOpportunity],
+                      at_us: int | None = None) -> tuple[str, ...]:
+    """What these opportunities permit, optionally at one instant.
+
+    Without a time this is the scene's whole vocabulary: everything earned,
+    minus what is refused across the entire moment. With a time it also
+    honours the scoped constraints and visual focuses, which is how a world
+    strip can be legal before a tracking interval and refused inside it.
+    """
     forbidden = {f for o in opportunities for f in o.forbidden_templates}
     out: list[str] = []
     for o in opportunities:
         for i in o.allowed_templates:
-            if i not in out and i not in forbidden:
-                out.append(i)
+            if i in out or i in forbidden:
+                continue
+            if at_us is not None:
+                blocked = False
+                for other in opportunities:
+                    ok, _why = other.permits(i, at_us)
+                    if not ok:
+                        blocked = True
+                        break
+                if blocked:
+                    continue
+            out.append(i)
     return tuple(out)
 
 
-def grammars_fitting(opportunities: Sequence[CreativeOpportunity],
-                     slot_us: int) -> list[tuple[str, Grammar]]:
-    """Every legitimate treatment whose envelope contains this slot."""
+def windows_for(opportunities: Sequence[CreativeOpportunity], template_id: str,
+                span: tuple[int, int]) -> list[tuple[int, int]]:
+    """Where in the scene this template may run, after every focus and
+    constraint from every opportunity has had its say."""
+    if any(template_id in o.forbidden_templates for o in opportunities):
+        return []
+    focuses = [f for o in opportunities for f in o.focuses]
+    constraints = [c for o in opportunities for c in o.constraints]
+    return vf.free_intervals(span, template_id, focuses, constraints)
+
+
+def grammars_fitting(opportunities: Sequence[CreativeOpportunity], slot_us: int,
+                     window: SourceWindow | None = None
+                     ) -> list[tuple[str, Grammar]]:
+    """Every legitimate treatment whose envelope contains this slot.
+
+    Pass the occurrence's own source window and the envelopes become
+    moment-specific rather than the templates' generic reach.
+    """
     out = []
     for o in opportunities:
-        for g in o.grammars_for(slot_us):
+        for g in o.grammars_for(slot_us, window):
             out.append((o.opportunity_type, g))
     return out

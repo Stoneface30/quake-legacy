@@ -10,7 +10,8 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(REPO_ROOT))
 
-from creative_suite.engine import (effect_approval as ea, effect_templates as et,
+from creative_suite.engine import (creative_opportunity as co,
+                                   effect_approval as ea, effect_templates as et,
                                    temporal_budget as tb)
 
 MS = 1000
@@ -113,9 +114,22 @@ HERO_J = tb.Justification(
     narrative="hero", gameplay_kind="projectile",
     evidence_present=("frag", "projectile_path", "movement", "death"))
 
+# A budget may only ever see what the action earned, so these tests build the
+# vocabulary from real evidence rather than handing the solver a wish list.
+HERO_EVIDENCE = co.MomentEvidence(
+    moment_ref="h@1125", kinds=("frag", "movement"), weapon="ROCKET",
+    projectile_path=True, projectile_recorded_fraction=0.02,
+    projectile_close_pass_u=90, relative_speed_u_s=980,
+    round_result="WIN", teammates=2, opponents=3, alive_self=1, alive_enemy=2,
+    death_after_us=700 * MS, damage_by_user=120,
+    scene_start_us=0, scene_end_us=4_250 * MS, hero_us=3_400 * MS,
+    source_useful_us=4_250 * MS)
+HERO_OPS = co.opportunities_for(HERO_EVIDENCE)
+
 
 def test_the_budget_states_the_gap_and_what_may_close_it():
-    b = tb.build("SLOT_A", 8_400 * MS, 4_250 * MS, 7_830 * MS, HERO_J)
+    b = tb.build("SLOT_A", 8_400 * MS, 4_250 * MS, 7_830 * MS, HERO_J,
+                 opportunities=HERO_OPS)
     assert b.delta_us == 570 * MS and b.needs_more
     assert b.verdict == "SOLVABLE" and b.solutions
     assert all(o.eligible for o in b.eligible_options)
@@ -163,20 +177,23 @@ def test_no_tasteful_solution_means_the_moment_does_not_fit():
 
 
 def test_a_balanced_slot_needs_nothing():
-    b = tb.build("S", 5_000 * MS, 3_000 * MS, 5_000 * MS, HERO_J)
+    b = tb.build("S", 5_000 * MS, 3_000 * MS, 5_000 * MS, HERO_J,
+                 opportunities=HERO_OPS)
     assert b.balanced and b.verdict == "BALANCED"
     assert "already exact" in b.explain()
 
 
 def test_a_surplus_is_reported_as_a_negative_need():
-    b = tb.build("S", 5_000 * MS, 3_000 * MS, 5_400 * MS, HERO_J)
+    b = tb.build("S", 5_000 * MS, 3_000 * MS, 5_400 * MS, HERO_J,
+                 opportunities=HERO_OPS)
     assert b.delta_us == -400 * MS and not b.needs_more
     subtractive = [o for o in b.eligible_options if not o.adds_time]
     assert subtractive, "an overlap can give time back"
 
 
 def test_solutions_prefer_measured_timing_and_the_smallest_tool():
-    b = tb.build("SLOT_A", 8_400 * MS, 4_250 * MS, 7_830 * MS, HERO_J)
+    b = tb.build("SLOT_A", 8_400 * MS, 4_250 * MS, 7_830 * MS, HERO_J,
+                 opportunities=HERO_OPS)
     first = b.solutions[0]
     ranks = [et.PROVENANCE_RANK[s.weakest_provenance] for s in b.solutions]
     assert ranks[0] >= max(ranks) - 0.001 or ranks == sorted(ranks, reverse=True) \
