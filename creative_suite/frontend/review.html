@@ -127,7 +127,7 @@
 // Live demo filenames embed opponent nicknames, and this is a public repo.
 const API = "/api/review";
 let items = [], idx = 0, offset = 0, order = "WORST_FIRST", cur = null;
-let itemType = "FRAG";
+let itemType = "FRAG", corpus = null;
 const $ = id => document.getElementById(id);
 const v = $("v");
 
@@ -148,7 +148,8 @@ function toast(msg){
 
 async function loadQueue(off){
   const r = await fetch(API + "/queue?order=" + order + "&offset=" + off +
-                       "&limit=30&item_type=" + itemType);
+                       "&limit=30&item_type=" + itemType +
+                       (corpus ? "&corpus=" + corpus : ""));
   const d = await r.json();
   items = d.items; offset = d.offset; idx = 0;
   $("order").textContent = order === "WORST_FIRST" ? "worst → best"
@@ -157,7 +158,8 @@ async function loadQueue(off){
 }
 
 async function progress(){
-  const p = await (await fetch(API + "/progress?item_type=" + itemType)).json();
+  const p = await (await fetch(API + "/progress?item_type=" + itemType +
+                    (corpus ? "&corpus=" + corpus : ""))).json();
   const r = p.roles;
   const box = $("counts");
   const parts = [
@@ -178,13 +180,25 @@ function meta(it){
     ["item", it.item_id],
     ["machine rank", it.machine_rank.toLocaleString() + " / " +
                      it.total_items.toLocaleString()],
-    ["machine score", it.machine_score],
+    // An unscored moment says so. Every feature behind the recogniser's
+    // score comes from the recorder's own player state, so a frag by
+    // somebody else has no comparable number -- and showing a placeholder
+    // digit would invite the user to compare it anyway.
+    ["machine score", it.scored === false ? "unscored (not the recorder)"
+                                          : it.machine_score],
     ["weapon", it.weapon || "—"],
     ["round", it.round_no === null ? "—" : it.round_no],
     ["victim slot", it.victim === null ? "—" : it.victim],
     ["clip", it.duration_s.toFixed(1) + "s, frag at +" +
              it.frag_offset_s.toFixed(1) + "s"],
   ];
+  // Who did it, and whose camera this is. A clanmate's frag inside somebody
+  // else's demo is that frag observed from outside -- never their own view.
+  if (it.actor_name) rows.splice(1, 0, ["actor", it.actor_name]);
+  if (it.is_actor_pov === false)
+    rows.splice(2, 0, ["camera", "another player's demo — not the actor's view"]);
+  if (it.death_cause && it.death_cause !== "PLAYER_KILL")
+    rows.push(["cause", it.death_cause]);
   $("meta").replaceChildren(...rows.map(([k, val]) => {
     const row = el("div", "row");
     row.appendChild(el("span", "k", k));
@@ -315,17 +329,41 @@ $("note").addEventListener("blur", async () => {
 async function corpora(){
   const d = await (await fetch(API + "/corpora")).json();
   const sel = $("corpus");
-  sel.replaceChildren(...d.item_types.map(t => {
+  const groups = [];
+  // WHOSE moments first, then WHAT happened. They are different questions
+  // and the selector should not blur them into one flat list.
+  const g1 = document.createElement("optgroup");
+  g1.label = "whose frags";
+  g1.append(...d.corpora.map(c => {
     const o = document.createElement("option");
-    o.value = t.item_type;
+    o.value = "corpus:" + c.corpus;
+    o.textContent = c.available
+      ? c.corpus + " (" + c.total.toLocaleString() + ")"
+      : c.corpus + " — " + (c.blocked_by || "unavailable");
+    o.disabled = !c.available;
+    return o;
+  }));
+  groups.push(g1);
+  const g2 = document.createElement("optgroup");
+  g2.label = "what happened";
+  g2.append(...d.item_types.map(t => {
+    const o = document.createElement("option");
+    o.value = "type:" + t.item_type;
     o.textContent = t.available
       ? t.item_type + " (" + t.total.toLocaleString() + ")"
       : t.item_type + " — not derived yet";
     o.disabled = !t.available;
     return o;
   }));
-  sel.value = itemType;
-  sel.onchange = () => { itemType = sel.value; progress(); loadQueue(0); };
+  groups.push(g2);
+  sel.replaceChildren(...groups);
+  sel.value = "corpus:MY_FRAGS";
+  sel.onchange = () => {
+    const [kind, val] = sel.value.split(":");
+    if (kind === "corpus"){ corpus = val; itemType = "FRAG"; }
+    else { corpus = null; itemType = val; }
+    progress(); loadQueue(0);
+  };
 }
 
 corpora();

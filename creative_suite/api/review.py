@@ -60,25 +60,31 @@ def get_corpora():
 
 
 @router.get("/progress")
-def get_progress(item_type: str = rc.FRAG):
+def get_progress(item_type: str = rc.FRAG, corpus: str | None = None):
+    if corpus:
+        item_type = rc.CORPUS_ITEM_TYPE.get(corpus, item_type)
     return rc.progress(item_type)
 
 
 @router.get("/queue")
 def get_queue(order: str = rc.ORDER_WORST_FIRST, offset: int = 0,
               limit: int = Query(30, le=200), item_type: str = rc.FRAG,
-              unreviewed_only: bool = False):
+              unreviewed_only: bool = False, corpus: str | None = None):
     try:
         items = rc.queue(order=order, limit=limit, offset=offset,
-                         item_type=item_type, unreviewed_only=unreviewed_only)
+                         item_type=item_type, unreviewed_only=unreviewed_only,
+                         corpus=corpus)
     except ValueError as e:
         raise HTTPException(400, str(e))
+    if corpus:
+        item_type = rc.CORPUS_ITEM_TYPE.get(corpus, item_type)
     with _lock:
         _state["order"] = order
         _state["cursor"] = offset
     _prefetch(items[:PREFETCH])
-    return {"order": order, "offset": offset,
-            "total": rc.count_items(item_type),
+    return {"order": order, "offset": offset, "item_type": item_type,
+            "corpus": corpus,
+            "total": rc.count_items(item_type, corpus=corpus),
             "items": [i.to_dict() for i in items]}
 
 

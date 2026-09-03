@@ -87,11 +87,21 @@ ROLE_BY_KEY = {str(i + 1): r for i, r in enumerate(ROLES)}
 FRAG = "FRAG"
 TELEFRAG = "TELEFRAG"
 DEATH = "DEATH"
+CLAN_FRAG = "CLAN_FRAG"
+ALL_KILL = "ALL_KILL"
 TELEPORT = "TELEPORT"
 DODGE = "DODGE"
 LG_TRACKING = "LG_TRACKING"
 PROJECTILE = "PROJECTILE"
-ITEM_TYPES = (FRAG, TELEFRAG, DEATH, TELEPORT, DODGE, LG_TRACKING, PROJECTILE)
+ITEM_TYPES = (FRAG, TELEFRAG, DEATH, CLAN_FRAG, ALL_KILL, TELEPORT, DODGE,
+              LG_TRACKING, PROJECTILE)
+
+# Which families read from `kill_events_v1` rather than `recognized_frags`.
+# The split is not cosmetic: `recognized_frags` is the recorder's own
+# killer-attributed set with a full feature vector behind every score, and
+# `kill_events_v1` is every observed kill including ones the recogniser never
+# scored because the features it needs are the recorder's.
+KILL_BACKED = (DEATH, CLAN_FRAG, ALL_KILL)
 
 # The review window. Three seconds of run-up, the moment, three seconds of
 # consequence -- clamped honestly at the recording's own edges rather than
@@ -191,19 +201,30 @@ PTN_ALIAS_CANDIDATES: dict[str, dict[str, Any]] = {
 }
 
 
+# The corpus a review queue is drawn from, expressed as the item type that
+# serves it. MY_FRAGS keeps the recognized_frags path: it is scored, ranked,
+# and the user is already reviewing it.
+CORPUS_ITEM_TYPE = {
+    MY_FRAGS: FRAG,
+    PTN_FRAGS: CLAN_FRAG,
+    MY_AND_PTN: ALL_KILL,      # narrowed by roster + recorder in the SQL
+    ALL_PLAYERS: ALL_KILL,
+}
+
+
 def corpus_status(corpus: str) -> dict[str, Any]:
     """Whether a corpus can be reviewed, and if not, exactly what is missing."""
     if corpus == MY_FRAGS:
         return {"corpus": corpus, "available": True, "total": count_items(FRAG),
-                "note": "the recorder's own kills"}
+                "item_type": FRAG,
+                "scored": True,
+                "note": "the recorder's own kills, fully scored and ranked"}
     if corpus in (PTN_FRAGS, MY_AND_PTN, ALL_PLAYERS):
-        return {
-            "corpus": corpus, "available": False, "total": 0,
-            "blocked_by": ("cached death events carry no killer: victim and "
-                           "weapon are NULL across all 133,279 rows"),
-            "needs": ("a derivation pass persisting EV_OBITUARY's "
-                      "otherEntityNum2 as the killer, then a name lookup "
-                      "through player_names_v1 at the kill's server time"),
+        it = CORPUS_ITEM_TYPE[corpus]
+        total = count_items(it, corpus=corpus)
+        out = {
+            "corpus": corpus, "item_type": it, "available": total > 0,
+            "total": total,
             "roster": PTN_ROSTER,
             "alias_candidates": PTN_ALIAS_CANDIDATES,
             "tag": PTN_TAG, "tag_colours": PTN_TAG_COLOURS,
@@ -212,9 +233,99 @@ def corpus_status(corpus: str) -> dict[str, Any]:
                                 "bind it to a name. It is NOT in "
                                 "player_names_v1, because the parser reads "
                                 "only the `n` configstring key"),
+            # Said plainly rather than left for the user to discover: a frag
+            # by somebody else, seen from this recorder's camera, cannot
+            # carry the recogniser's score. Every feature behind that score
+            # -- aim, tracking, movement, visibility -- is computed from the
+            # recorder's own player state, which is not the actor's.
+            "scoring": ("machine scores exist only where the actor IS the "
+                        "recorder. Foreign-camera frags are unscored, not "
+                        "scored zero, and the two are not comparable"),
         }
+        if total == 0:
+            out["blocked_by"] = ("kill_events_v1 is empty or not yet derived; "
+                                 "run engine/parser/derive_kill_events.py")
+        return out
     return {"corpus": corpus, "available": False, "total": 0,
             "blocked_by": "unknown corpus"}
+
+
+# ── kill-event-backed families ──────────────────────────────────────────────
+# Every roster spelling, normalized the same way the derivation normalized
+# the killer name. Matching is on this set and nothing else -- never on the
+# substring "pTn", which is a costume anyone can wear.
+
+def roster_norms() -> set[str]:
+    out: set[str] = set()
+    for member, info in PTN_ROSTER.items():
+        for n in (member, *info.get("names", ())):
+            v = _strip_colors(n).strip().lower()
+            if v:
+                out.add(v)
+    return out
+
+
+import re as _re                                                # noqa: E402
+_COLOR_RE = _re.compile(r"\^[0-9a-zA-Z]")
+
+
+def _strip_colors(name: str) -> str:
+    return _COLOR_RE.sub("", name or "")
+
+
+def _kill_where(item_type: str, corpus: str | None = None
+                ) -> tuple[str, list[Any]]:
+    """The WHERE clause for one kill-event family, plus its parameters."""
+    if item_type == DEATH:
+        # The user's own deaths. Not "kills they were present for" -- the
+        # victim slot has to be the recorder.
+        return "k.is_recorder_victim = 1", []
+    norms = sorted(roster_norms())
+    marks = ",".join("?" * len(norms))
+    if item_type == CLAN_FRAG:
+        # A clanmate's frag, observed. is_recorder_killer = 0 keeps the
+        # recorder's own kills in MY_FRAGS where they are scored.
+        return (f"k.killer_class = 'PLAYER' AND k.is_recorder_killer = 0 "
+                f"AND k.killer_name_norm IN ({marks})", norms)
+    if item_type == ALL_KILL and corpus == MY_AND_PTN:
+        return (f"k.killer_class = 'PLAYER' AND (k.is_recorder_killer = 1 "
+                f"OR k.killer_name_norm IN ({marks}))", norms)
+    if item_type == ALL_KILL:
+        return "k.killer_class = 'PLAYER'", []
+    raise ValueError(f"not a kill-backed family: {item_type!r}")
+
+
+def _kill_table_exists() -> bool:
+    with _rec() as c:
+        return c.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                         "AND name='kill_events_v1'").fetchone() is not None
+
+
+_KILL_SELECT = """
+SELECT k.kill_event_id AS id, k.content_hash, s.demo_name, k.server_time_ms,
+       k.round, k.mod_name, k.mod, k.victim_client, k.killer_client, k.map,
+       k.killer_name_raw, k.victim_name_raw, k.death_cause, k.killer_class,
+       k.is_recorder_killer, k.is_recorder_victim, r.highlight_score
+FROM kill_events_v1 k
+JOIN scanned_demos s ON s.content_hash = k.content_hash
+LEFT JOIN recognized_frags r
+       ON r.content_hash = k.content_hash
+      AND r.server_time_ms = k.server_time_ms
+      AND k.is_recorder_killer = 1
+"""
+
+
+def _kill_why(row: sqlite3.Row) -> str:
+    """What is known about this moment. For a foreign-camera frag that is
+    genuinely less than for the recorder's own, and saying so is better than
+    padding it out."""
+    who = _strip_colors(row["killer_name_raw"] or "") or "unknown"
+    weap = row["mod_name"] or "kill"
+    if row["is_recorder_victim"]:
+        return f"killed by {who}, {weap}"
+    if row["is_recorder_killer"]:
+        return f"{weap}, own camera"
+    return f"{who}, {weap}, observed from another camera"
 
 
 @dataclass(frozen=True)
@@ -234,6 +345,16 @@ class ReviewItem:
     victim: int | None = None
     round_no: int | None = None
     why: str = ""
+    # Who did it, and whether this footage is their own view. A clanmate's
+    # frag inside somebody else's demo is that clanmate's frag seen from a
+    # foreign camera -- it is not their first-person view, and calling it one
+    # would be wrong in the review UI, in an export, and in the film.
+    actor_name: str | None = None
+    is_actor_pov: bool = True
+    death_cause: str | None = None
+    # False when the recogniser never scored this moment, which is every
+    # moment whose actor is not the recorder. Distinct from a low score.
+    scored: bool = True
     human_role: str | None = None
     note: str = ""
 
@@ -427,9 +548,49 @@ def _why(row: sqlite3.Row) -> str:
     return f"{row['weapon_name'] or 'kill'}, no class detected"
 
 
+def _kill_rows(order: str, limit: int, offset: int, unreviewed_only: bool,
+               item_type: str, corpus: str | None) -> list[sqlite3.Row]:
+    where, params = _kill_where(item_type, corpus)
+    direction = "ASC" if order == ORDER_WORST_FIRST else "DESC"
+    # Unscored rows sort after scored ones in both directions rather than
+    # being treated as a score of zero. A missing score is not a low score.
+    sql = (f"{_KILL_SELECT} WHERE {where} "
+           f"ORDER BY (r.highlight_score IS NULL), r.highlight_score {direction}, "
+           "k.kill_event_id ASC LIMIT ? OFFSET ?")
+    with _rec() as c:
+        rows = c.execute(sql, (*params, limit, offset)).fetchall()
+    if not unreviewed_only:
+        return rows
+    got = reviews([f"{item_type}:{r['id']}" for r in rows])
+    return [r for r in rows if f"{item_type}:{r['id']}" not in got]
+
+
+def _kill_item(r: sqlite3.Row, item_type: str, rank: int, total: int,
+               rv: dict[str, Any]) -> ReviewItem:
+    score = r["highlight_score"]
+    return ReviewItem(
+        item_id=f"{item_type}:{r['id']}", item_type=item_type,
+        source_id=int(r["id"]), content_hash=r["content_hash"] or "",
+        demo_name=r["demo_name"] or "",
+        server_time_ms=int(r["server_time_ms"]),
+        # -1.0 is the sentinel for "the recogniser never scored this", which
+        # is the truth for every frag seen from a camera that is not the
+        # actor's. It is not a score of zero and must not be compared.
+        machine_score=float(score) if score is not None else -1.0,
+        machine_rank=rank, total_items=total,
+        weapon=r["mod_name"] or "", map_name=r["map"] or "",
+        victim=r["victim_client"], round_no=r["round"], why=_kill_why(r),
+        actor_name=_strip_colors(r["killer_name_raw"] or "") or None,
+        is_actor_pov=bool(r["is_recorder_killer"]),
+        death_cause=r["death_cause"],
+        scored=score is not None,
+        human_role=(rv.get("human_role") or None) or None,
+        note=rv.get("note") or "")
+
+
 def queue(order: str = ORDER_WORST_FIRST, limit: int = 50, offset: int = 0,
-          item_type: str = FRAG, unreviewed_only: bool = False
-          ) -> list[ReviewItem]:
+          item_type: str = FRAG, unreviewed_only: bool = False,
+          corpus: str | None = None) -> list[ReviewItem]:
     """A slice of the corpus in the requested order.
 
     The default is WORST FIRST because that is what was asked for, and it is
@@ -438,6 +599,18 @@ def queue(order: str = ORDER_WORST_FIRST, limit: int = 50, offset: int = 0,
     """
     if order not in ORDERS:
         raise ValueError(f"unknown order {order!r}")
+    if corpus is not None and item_type in (FRAG, None):
+        item_type = CORPUS_ITEM_TYPE.get(corpus, item_type)
+    if item_type in KILL_BACKED:
+        if not _kill_table_exists():
+            return []
+        total = count_items(item_type, corpus=corpus)
+        rows = _kill_rows(order, limit, offset, unreviewed_only, item_type,
+                          corpus)
+        got = reviews([f"{item_type}:{r['id']}" for r in rows])
+        return [_kill_item(r, item_type, offset + i + 1, total,
+                           got.get(f"{item_type}:{r['id']}") or {})
+                for i, r in enumerate(rows)]
     if item_type not in (FRAG, TELEFRAG):
         return []                       # other families wire in next
     total = count_items(item_type)
@@ -462,7 +635,15 @@ def queue(order: str = ORDER_WORST_FIRST, limit: int = 50, offset: int = 0,
     return out
 
 
-def count_items(item_type: str = FRAG) -> int:
+def count_items(item_type: str = FRAG, corpus: str | None = None) -> int:
+    if item_type in KILL_BACKED:
+        if not _kill_table_exists():
+            return 0
+        where, params = _kill_where(item_type, corpus)
+        with _rec() as c:
+            return int(c.execute(
+                f"SELECT COUNT(*) FROM kill_events_v1 k WHERE {where}",
+                params).fetchone()[0])
     if item_type == FRAG:
         with _rec() as c:
             return int(c.execute("SELECT COUNT(*) FROM recognized_frags")
@@ -476,6 +657,16 @@ def count_items(item_type: str = FRAG) -> int:
 
 def item(item_id: str) -> ReviewItem | None:
     kind, _, sid = item_id.partition(":")
+    if kind in KILL_BACKED:
+        if not _kill_table_exists():
+            return None
+        with _rec() as c:
+            r = c.execute(f"{_KILL_SELECT} WHERE k.kill_event_id = ?",
+                          (int(sid),)).fetchone()
+        if not r:
+            return None
+        rv = reviews([item_id]).get(item_id) or {}
+        return _kill_item(r, kind, 0, count_items(kind), rv)
     if kind not in (FRAG, TELEFRAG):
         return None
     with _rec() as c:

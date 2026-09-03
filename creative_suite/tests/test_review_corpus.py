@@ -78,13 +78,45 @@ def test_a_telefrag_gets_the_same_five_questions():
 
 # ── corpora: what is available, and why the rest is not ─────────────────────
 
-def test_my_frags_is_available_and_ptn_is_not_yet():
+def test_every_corpus_is_now_served_by_real_killer_attribution():
+    """PTN_FRAGS was blocked because the cached death rows named no killer.
+    The obituary derivation supplies one, so the block is gone -- and each
+    corpus reports which table answers it."""
     mine = rc.corpus_status(rc.MY_FRAGS)
     assert mine["available"] and mine["total"] == 36607
-    ptn = rc.corpus_status(rc.PTN_FRAGS)
-    assert not ptn["available"]
-    assert "carry no killer" in ptn["blocked_by"]
-    assert "otherEntityNum2" in ptn["needs"]
+    assert mine["item_type"] == rc.FRAG and mine["scored"] is True
+    for name in (rc.PTN_FRAGS, rc.MY_AND_PTN, rc.ALL_PLAYERS):
+        st = rc.corpus_status(name)
+        assert st["available"], st.get("blocked_by")
+        assert st["total"] > 0
+        assert st["item_type"] in rc.KILL_BACKED
+
+
+def test_a_corpus_says_out_loud_that_foreign_frags_are_unscored():
+    """Not a footnote. The user asked for this explicitly: do not pretend
+    scores are comparable when the features behind them are not available."""
+    st = rc.corpus_status(rc.PTN_FRAGS)
+    assert "unscored, not scored zero" in st["scoring"]
+    assert "recorder" in st["scoring"]
+
+
+def test_the_roster_matches_names_not_the_substring_pTn():
+    """A tag is a costume. Membership is the roster, normalized -- never a
+    LIKE on 'pTn' appearing somewhere in a name."""
+    norms = rc.roster_norms()
+    assert {"naikomarie", "sereke", "s73rn", "jibyjibs", "b3nto",
+            "tr4sh"} <= norms
+    where, params = rc._kill_where(rc.CLAN_FRAG)
+    assert "killer_name_norm IN" in where
+    assert "LIKE" not in where.upper()
+    assert set(params) == norms
+
+
+def test_a_clan_frag_is_never_the_recorders_own_scored_frag():
+    """MY_FRAGS owns the recorder's kills, where a real score exists.
+    CLAN_FRAG is what was observed from outside, and the two do not overlap."""
+    where, _ = rc._kill_where(rc.CLAN_FRAG)
+    assert "is_recorder_killer = 0" in where
 
 
 def test_the_clan_tag_is_blue_pTn_and_a_yellow_dot():
@@ -308,4 +340,9 @@ def test_the_item_type_is_generic_from_the_start():
     assert rc.FRAG in rc.ITEM_TYPES and len(rc.ITEM_TYPES) > 1
     for t in rc.ITEM_TYPES:
         assert isinstance(t, str) and t.isupper()
-    assert rc.queue(item_type=rc.DEATH) == [], "not wired yet, and says so"
+    # DEATH is wired now, off the same obituary truth as the frags, and it
+    # asks the same five questions.
+    deaths = rc.queue(item_type=rc.DEATH, limit=3)
+    assert deaths and all(d.item_type == rc.DEATH for d in deaths)
+    where, _ = rc._kill_where(rc.DEATH)
+    assert where == "k.is_recorder_victim = 1", "the user's own deaths"
