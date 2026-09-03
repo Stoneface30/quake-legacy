@@ -70,6 +70,21 @@ RUNTIME_BASELINE: dict[str, str] = {
     "cg_drawCameraPath": "0",
     "cg_drawCameraPathAngles": "0",
     "cg_drawCameraPointInfo": "0",
+    # ENTITY CHASE. `chase <entity> [x y z] [range] [angle]`
+    # (cg_consolecmds.c:1101, bound :8509) rides any entity by number,
+    # including a missile -- a native projectile follow that needs no
+    # camera file and no sample budget. These two steer it and both are
+    # CVAR_ARCHIVE with a default of "1" (cg_main.c:2615-2616), so they are
+    # the same leak class as the camera-path overlay above: a session that
+    # chases once persists third-person framing into the next capture's
+    # q3config.cfg. Neutral here means "if nobody asked for a chase,
+    # nothing about chasing is inherited".
+    # cg_chaseThirdPerson 0 is also the more useful of the two modes: the
+    # camera takes the entity's position and the look direction stays free
+    # (cg_view.c:4653-4669), which is a follow with independent aim rather
+    # than a fixed orbit.
+    "cg_chaseThirdPerson": "0",
+    "cg_chaseUpdateFreeCam": "0",
     # --- capture output ---
     "cl_aviFrameRate": "60",
     "cl_aviCodec": "mjpeg",
@@ -87,6 +102,8 @@ OVERRIDABLE = frozenset({
     "timescale", "cg_fxfile", "mme_saveDepth", "mme_blurFrames",
     "mme_dofFrames", "cl_aviFrameRate", "r_jpegCompressionQuality",
     "debug_camera", "logfile", "cl_freezeDemo",
+    # a shot that wants a chase says so; the baseline still resets it after
+    "cg_chaseThirdPerson", "cg_chaseUpdateFreeCam",
 })
 
 
