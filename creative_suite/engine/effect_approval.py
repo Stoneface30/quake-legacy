@@ -217,10 +217,9 @@ APPROVALS: dict[str, Approval] = {a.subject: a for a in (
     Approval("OVERLAP", _d("effect_canaries.py", (50, 100, 150, 200, 250, 300, 400, 500),
                            0, "removes exactly the time requested")),
     Approval("MORPH"),
-    # A cut inherits the insert sweep's evidence; a spline move is the gap.
-    Approval("CAMERA_CUT", _d("effect_canaries.py",
-                              (600, 900, 1200, 1800, 2400), 0,
-                              "costs nothing; inherited from the insert sweep")),
+    # Neither camera primitive is proven. The cut needs a frame-identity
+    # check, not a duration sweep; the spline needs the whole envelope.
+    Approval("CAMERA_CUT"),
     Approval("CAMERA_SPLINE_HANDOFF"),
     Approval("MATERIAL_TRANSFORM"),
     Approval("WORLD_TRANSFORM"),

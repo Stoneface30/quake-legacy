@@ -402,11 +402,59 @@ class SlotEvidence:
 # boundary. Every candidate below is a real grid point read from the track,
 # never an invented window.
 
+# What kind of boundary this is. Only the last is freely movable: an anchor
+# is evidence about the song, and a detector's structural guess may propose
+# alternatives but never pretend to be one.
+MUSICAL_HARD_ANCHOR = "MUSICAL_HARD_ANCHOR"
+STRUCTURAL_BOUNDARY_ESTIMATE = "STRUCTURAL_BOUNDARY_ESTIMATE"
+EDITORIAL_BOUNDARY = "EDITORIAL_BOUNDARY"
+BOUNDARY_KINDS = (MUSICAL_HARD_ANCHOR, STRUCTURAL_BOUNDARY_ESTIMATE,
+                  EDITORIAL_BOUNDARY)
+
+# Bars are estimated, and this library has already been bitten once by cached
+# grids that were truncated. A boundary may only flex where the local grid is
+# actually present and regular. The threshold is a judgement, not a fact.
+MIN_GRID_CONFIDENCE = 0.75
+GRID_WINDOW_US = 16_000_000        # how much music either side counts as local
+
 PHRASE_LOCKED = "PHRASE_LOCKED"      # sits on a phrase edge; may take another
 BAR_FLEXIBLE = "BAR_FLEXIBLE"        # may slide across bars inside its phrase
 BEAT_FLEXIBLE = "BEAT_FLEXIBLE"      # no bar grid; beats are all we have
 RIGID = "RIGID"                      # the track ends here, or nothing to move to
 RIGIDITIES = (RIGID, PHRASE_LOCKED, BAR_FLEXIBLE, BEAT_FLEXIBLE)
+
+
+def grid_confidence(timeline: "ScoreTimelineV1", at_us: int,
+                    window_us: int = GRID_WINDOW_US) -> tuple[float, str]:
+    """How far the local grid can be trusted around this instant.
+
+    Not a model output and not a stored number: it is read off the grid
+    itself. A grid that is present on both sides of the boundary and evenly
+    spaced is trustworthy; one that thins out, stops, or wanders is not.
+    Returns the value and the sentence explaining it.
+    """
+    bars = [int(b) for b in timeline.bars_us
+            if at_us - window_us <= b <= at_us + window_us]
+    if len(bars) < 3:
+        return (0.0, f"only {len(bars)} bar lines within "
+                     f"{window_us/1e6:.0f} s of the cut; nothing local to "
+                     f"move to")
+    before = [b for b in bars if b < at_us]
+    after = [b for b in bars if b > at_us]
+    if not before or not after:
+        return (0.25, "the local grid exists on one side of the cut only, so "
+                      "any alternative would be a guess in the other "
+                      "direction")
+    gaps = [b - a for a, b in zip(bars, bars[1:])]
+    med = float(np.median(gaps))
+    if med <= 0:
+        return (0.0, "the local grid has no usable spacing")
+    spread = float(np.median([abs(g - med) for g in gaps])) / med
+    regularity = max(0.0, 1.0 - spread * 4.0)
+    span = (bars[-1] - bars[0]) / max(1, 2 * window_us)
+    conf = round(min(1.0, regularity * 0.7 + min(span, 1.0) * 0.3), 3)
+    return (conf, f"{len(bars)} bar lines either side, median spacing "
+                  f"{med/1000:.0f} ms, deviation {spread*100:.0f}%")
 
 
 @dataclass(frozen=True)
@@ -420,18 +468,34 @@ class BoundaryFlex:
     on_phrase: bool
     on_bar: bool
     reason: str
+    kind: str = EDITORIAL_BOUNDARY
+    confidence: float = 1.0
+    confidence_basis: str = ""
 
     def __post_init__(self) -> None:
         if self.rigidity not in RIGIDITIES:
             raise ValueError(f"unknown rigidity {self.rigidity!r}")
+        if self.kind not in BOUNDARY_KINDS:
+            raise ValueError(f"unknown boundary kind {self.kind!r}")
         if self.at_us not in self.candidates_us:
             raise ValueError(
                 "a boundary must remain one of its own candidates; otherwise "
                 "the current cut is being called invalid")
+        if self.kind == MUSICAL_HARD_ANCHOR and len(self.candidates_us) > 1:
+            raise ValueError(
+                "an anchor is evidence about the song; it does not get "
+                "alternatives")
 
     @property
     def movable(self) -> bool:
-        return len(self.candidates_us) > 1
+        """Whether this boundary may actually be moved.
+
+        Alternatives alone are not permission. An anchor never moves, and a
+        structural estimate over a grid we do not trust proposes nothing.
+        """
+        return (len(self.candidates_us) > 1
+                and self.kind != MUSICAL_HARD_ANCHOR
+                and self.confidence >= MIN_GRID_CONFIDENCE)
 
     @property
     def slack_us(self) -> int:
@@ -454,6 +518,14 @@ def _near(grid: Sequence[int], us: int, tol_us: int) -> bool:
     return any(abs(g - us) <= tol_us for g in grid)
 
 
+def _anchor_at(timeline: "ScoreTimelineV1", at_us: int, tol_us: int) -> bool:
+    for a in timeline.anchors:
+        t = getattr(a, "t_us", None) or getattr(a, "us", None)
+        if t is not None and abs(int(t) - at_us) <= tol_us:
+            return True
+    return False
+
+
 def boundary_flex(timeline: "ScoreTimelineV1", at_us: int,
                   tol_us: int = 40_000) -> BoundaryFlex:
     """How far this boundary may move, and to exactly which instants.
@@ -468,14 +540,34 @@ def boundary_flex(timeline: "ScoreTimelineV1", at_us: int,
     beats = tuple(int(x) for x in timeline.beats_us)
     end = int(timeline.duration_us)
 
+    conf, basis = grid_confidence(timeline, at_us)
+
     if at_us <= 0 or at_us >= end:
         return BoundaryFlex(at_us, RIGID, at_us, at_us, (at_us,),
                             _near(phrases, at_us, tol_us),
                             _near(bars, at_us, tol_us),
-                            "the track begins and ends where it begins and ends")
+                            "the track begins and ends where it begins and ends",
+                            MUSICAL_HARD_ANCHOR, 1.0, "the track's own extent")
+
+    if _anchor_at(timeline, at_us, tol_us):
+        return BoundaryFlex(at_us, RIGID, at_us, at_us, (at_us,),
+                            _near(phrases, at_us, tol_us),
+                            _near(bars, at_us, tol_us),
+                            "a musical anchor sits here, and an anchor is "
+                            "evidence about the song rather than a planning "
+                            "choice",
+                            MUSICAL_HARD_ANCHOR, 1.0, basis)
 
     on_phrase = _near(phrases, at_us, tol_us)
     on_bar = _near(bars, at_us, tol_us)
+
+    if conf < MIN_GRID_CONFIDENCE:
+        # No inventing candidates over a grid we cannot vouch for.
+        return BoundaryFlex(at_us, RIGID, at_us, at_us, (at_us,), on_phrase,
+                            on_bar,
+                            f"the local grid is not trustworthy enough to "
+                            f"propose anywhere else ({basis})",
+                            STRUCTURAL_BOUNDARY_ESTIMATE, conf, basis)
 
     if on_phrase and len(phrases) > 1:
         # the neighbouring phrase edges, and this one
@@ -486,7 +578,8 @@ def boundary_flex(timeline: "ScoreTimelineV1", at_us: int,
         return BoundaryFlex(
             at_us, PHRASE_LOCKED, min(cands), max(cands), tuple(cands),
             True, on_bar,
-            "the cut sits on a phrase edge, so it may only take another one")
+            "the cut sits on a phrase edge, so it may only take another one",
+            STRUCTURAL_BOUNDARY_ESTIMATE, conf, basis)
 
     if bars:
         # bounded by the phrase this boundary lives in
@@ -497,7 +590,8 @@ def boundary_flex(timeline: "ScoreTimelineV1", at_us: int,
             at_us, BAR_FLEXIBLE, min(cands), max(cands), tuple(cands),
             False, on_bar,
             f"inside one phrase, so it may slide across that phrase's "
-            f"{len(cands) - 1} bar lines and no further")
+            f"{len(cands) - 1} bar lines and no further",
+            EDITORIAL_BOUNDARY, conf, basis)
 
     if beats:
         lo = max([b for b in beats if b <= at_us], default=0)
@@ -506,11 +600,12 @@ def boundary_flex(timeline: "ScoreTimelineV1", at_us: int,
         return BoundaryFlex(
             at_us, BEAT_FLEXIBLE, min(cands), max(cands), cands, False, False,
             "no bar grid on this track, so only the adjacent beats are "
-            "defensible")
+            "defensible", EDITORIAL_BOUNDARY, conf, basis)
 
     return BoundaryFlex(at_us, RIGID, at_us, at_us, (at_us,), False, False,
                         "this track has no usable grid, so nothing says where "
-                        "else the cut could go")
+                        "else the cut could go",
+                        STRUCTURAL_BOUNDARY_ESTIMATE, conf, basis)
 
 
 @dataclass(frozen=True)

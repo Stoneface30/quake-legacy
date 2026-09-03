@@ -26,12 +26,11 @@ def test_a_primitive_cannot_claim_measurement_without_a_sweep():
 def test_the_measured_primitives_are_the_ones_a_canary_actually_swept():
     measured = {n for n, p in et.PRIMITIVES.items() if p.measured}
     for name in (et.P_FREEZE, et.P_STUTTER, et.P_OVERLAP, et.P_REVERSE,
-                 et.P_SEQUENTIAL_INSERT, et.P_SIMULTANEOUS_OVERLAY,
-                 et.P_CAMERA_CUT):
+                 et.P_SEQUENTIAL_INSERT, et.P_SIMULTANEOUS_OVERLAY):
         assert name in measured, name
     for name in (et.P_MORPH, et.P_WORLD_TRANSFORM, et.P_MATERIAL_TRANSFORM,
                  et.P_INFORMATION_REVEAL, et.P_CAMERA_SPLINE,
-                 et.P_SYNTHETIC_ANIMATION):
+                 et.P_CAMERA_CUT, et.P_SYNTHETIC_ANIMATION):
         assert name not in measured, f"{name} has no runtime yet"
         assert et.PRIMITIVES[name].finding, f"{name} should say why"
 

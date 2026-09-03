@@ -463,7 +463,7 @@ def test_an_unmeasured_primitive_cannot_shrug():
 def test_the_report_ranks_gaps_by_how_close_and_how_costly_they_are():
     r = et.capability_report()
     rows = r["unmeasured"]
-    assert len(rows) == 6
+    assert len(rows) == 7
     # nearest first: a runtime that exists but is unswept beats missing tech
     assert rows[0]["capability"] in (et.RUNTIME_EXISTS_UNSWEPT,
                                      et.POST_COMPOSITOR_EXISTS_UNSWEPT)
@@ -472,8 +472,8 @@ def test_the_report_ranks_gaps_by_how_close_and_how_costly_they_are():
     # reach alone would start somewhere else, and the report says so instead
     # of letting the sort win an argument it was never given
     assert r["derived_disagrees"] is True
-    assert et.next_gap() == et.P_CAMERA_SPLINE
-    assert r["director_priority"][0] == et.P_CAMERA_SPLINE
+    assert et.next_gap() == et.P_CAMERA_CUT
+    assert r["director_priority"][0] == et.P_CAMERA_CUT
     spline = next(x for x in rows if x["primitive"] == et.P_CAMERA_SPLINE)
     assert spline["templates_waiting_count"] >= 9 and spline["distance"] == 1
     # an authored duration is not a gap a sweep could close, so it sorts last
@@ -493,11 +493,11 @@ def test_a_cut_and_a_spline_move_are_not_the_same_operator():
     question."""
     cut = et.PRIMITIVES[et.P_CAMERA_CUT]
     spline = et.PRIMITIVES[et.P_CAMERA_SPLINE]
-    assert cut.measured and not spline.measured
-    assert cut.capability == et.MEASURED
-    assert spline.capability == et.RUNTIME_EXISTS_UNSWEPT
-    assert "inherited" in cut.finding, (
-        "a cut's evidence comes from the insert sweep and must say so")
+    assert not cut.measured and not spline.measured
+    # Neither is proven, but they need different evidence: the cut needs four
+    # frame identities from one render, the spline needs a whole envelope.
+    assert "not a sweep" in cut.measurable_when
+    assert "four semantic situations" in spline.measurable_when
 
 
 def test_cinematic_moves_use_the_spline_and_an_insert_uses_the_cut():
@@ -508,8 +508,7 @@ def test_cinematic_moves_use_the_spline_and_an_insert_uses_the_cut():
     assert et.P_CAMERA_CUT in et.components_of("ENEMY_POV_INSERT")
 
 
-def test_the_spline_is_the_gap_the_director_asked_for_first():
-    assert et.next_gap() == et.P_CAMERA_SPLINE
+def test_the_spline_sweep_must_vary_the_situation_not_only_the_duration():
     spline = et.PRIMITIVES[et.P_CAMERA_SPLINE]
     assert "four semantic situations" in spline.measurable_when, (
         "the sweep must vary the situation, not only the duration")
@@ -575,3 +574,46 @@ def test_reach_does_not_get_to_choose_the_first_move():
     assert r["derived_disagrees"] is True
     assert et.next_gap() == r["director_priority"][0]
     assert r["director_priority_reason"]
+
+
+# ── the cut is not proven by duration alone ─────────────────────────────────
+
+def test_exact_insert_duration_does_not_prove_the_cut_boundaries():
+    """Two equal and opposite boundary offsets preserve the total while
+    putting both cuts on the wrong frame."""
+    cut = et.PRIMITIVES[et.P_CAMERA_CUT]
+    assert not cut.measured, "duration evidence is necessary, not sufficient"
+    assert cut.capability == et.RUNTIME_EXISTS_UNSWEPT
+    assert "not sufficient" in cut.finding
+    assert et.P_CAMERA_CUT not in ea_delivery_verified()
+
+
+def ea_delivery_verified():
+    from creative_suite.engine import effect_approval as ea
+    return ea.status()["delivery_verified"]
+
+
+def test_the_cut_names_the_four_frame_identities_it_needs():
+    m = et.PRIMITIVES[et.P_CAMERA_CUT].measurable_when
+    for phrase in ("last outgoing", "first inserted", "last inserted",
+                   "first source frame after"):
+        assert phrase in m, phrase
+    assert "not a sweep" in m, "this is one short render, not a campaign"
+
+
+def test_the_cheap_proof_comes_before_the_expensive_sweep():
+    assert et.next_gap() == et.P_CAMERA_CUT
+    order = et.capability_report()["director_priority"]
+    assert order.index(et.P_CAMERA_CUT) < order.index(et.P_CAMERA_SPLINE)
+
+
+def test_the_spline_needs_a_motion_envelope_not_a_duration_one():
+    """300 ms across a small displacement and 300 ms across a large one are
+    not the same shot."""
+    m = et.PRIMITIVES[et.P_CAMERA_SPLINE].measurable_when
+    for feature in ("translation distance", "path length",
+                    "angular displacement", "field-of-view",
+                    "subject screen displacement", "peak translational",
+                    "smoothness", "coverage"):
+        assert feature in m, feature
+    assert "not the same shot" in m

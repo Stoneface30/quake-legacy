@@ -29,9 +29,9 @@ def _real(**kw):
 
 def test_the_synthetic_sweeps_prove_delivery_and_nothing_more():
     s = ea.status()
-    assert len(s["delivery_verified"]) == 10
+    assert len(s["delivery_verified"]) == 9
     assert s["visually_approved"] == [] and s["semantically_approved"] == []
-    assert len(s["awaiting_the_eye"]) == 10
+    assert len(s["awaiting_the_eye"]) == 9
     a = ea.approval_for("FREEZE")
     assert a.state == ea.DELIVERY_VERIFIED
     assert "synthetic footage" in a.blocking()

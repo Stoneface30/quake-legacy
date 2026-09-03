@@ -1129,12 +1129,17 @@ PRIMITIVES: dict[str, PrimitiveTiming] = {p.name: p for p in (
        "so nothing knows which point becomes which",
        measurable_when="a correspondence solver exists and can emit an "
        "interpolated frame sequence; then sweep the transition duration"),
-    _p(P_CAMERA_CUT, SYNTHETIC_TEST, PIP_SWEEP, FRAME_US, 0,
-       "a cut costs nothing. The sequential-insert sweep added exactly the "
-       "inserted duration at every point from 600 to 2400 ms, which is only "
-       "possible if both cut boundaries landed on the requested frame. This "
-       "is inherited evidence, not its own sweep, and the frame grid is the "
-       "only quantisation"),
+    _p(P_CAMERA_CUT, DESIGN_ESTIMATE, capability=RUNTIME_EXISTS_UNSWEPT,
+       finding="the insert sweep showed the inserted duration is exact, which "
+       "is necessary but not sufficient: two equal and opposite boundary "
+       "offsets preserve the total while putting both cuts on the wrong "
+       "frame. Duration evidence cannot prove boundary identity",
+       blocked_by="no test has checked which frames actually sit either side "
+       "of a cut, only how much time the whole insert occupied",
+       measurable_when="four frame identities agree in one delivered file: "
+       "the last outgoing source frame, the first inserted frame, the last "
+       "inserted frame, and the first source frame after the return. This is "
+       "a single short render, not a sweep"),
     _p(P_CAMERA_SPLINE, DESIGN_ESTIMATE, capability=RUNTIME_EXISTS_UNSWEPT,
        finding="the artistic envelope of an interpolated camera move is "
        "entirely unknown; this is the highest-value gap in the vocabulary",
@@ -1143,8 +1148,13 @@ PRIMITIVES: dict[str, PrimitiveTiming] = {p.name: p for p in (
        "review has said which durations look right for which situation",
        measurable_when="a handoff sweep runs on real captures from 100 to "
        "800 ms in four semantic situations -- projectile replay, threat "
-       "reveal, return to skill, hero payoff -- and both the delivered "
-       "durations and the director's verdicts are recorded"),
+       "reveal, return to skill, hero payoff -- recording a MOTION envelope "
+       "and not merely a duration one: translation distance, path length, "
+       "angular displacement, field-of-view change, subject screen "
+       "displacement, peak translational and angular speed, smoothness, "
+       "clearance and subject coverage. 300 ms across 50 units and 10 "
+       "degrees is not the same shot as 300 ms across 900 units and 120, so "
+       "a duration alone would answer the wrong question"),
     _p(P_MATERIAL_TRANSFORM, DESIGN_ESTIMATE, capability=RUNTIME_EXISTS_UNSWEPT,
        finding="shader and texture replacement exist in the asset system but "
        "their timing is unswept",
@@ -1307,11 +1317,13 @@ def animation_envelope(name: str) -> DurationEnvelope:
 # disagree the report says so rather than letting a sort win an argument it
 # was never given.
 DIRECTOR_PRIORITY: tuple[str, ...] = (
-    P_CAMERA_SPLINE, P_MATERIAL_TRANSFORM, P_INFORMATION_REVEAL,
+    P_CAMERA_CUT, P_CAMERA_SPLINE, P_MATERIAL_TRANSFORM, P_INFORMATION_REVEAL,
     P_WORLD_TRANSFORM,
 )
 DIRECTOR_PRIORITY_REASON = (
-    "camera spline first: it is the nearest genuine unknown and it opens "
+    "the cut's four-frame identity proof comes first only because it is one "
+    "short render rather than a sweep. Then the spline: it is the nearest "
+    "genuine unknown and it opens "
     "FPV to cinematic and back, which every other treatment sits inside. "
     "Model morph is deliberately last: expensive research for two effects"
 )
