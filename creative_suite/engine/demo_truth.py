@@ -565,12 +565,50 @@ def round_outcomes(state_rows: Sequence[tuple[int, int, str]], *,
             ends.append(int(t_ms))
     team = recorder_team if recorder_team in ("RED", "BLUE") else ROUND_UNKNOWN
     out: list[RoundOutcome] = []
-    for index, end_ms in enumerate(ends, 1):
-        sides = {side for t, side in rises
-                 if abs(t - end_ms) <= attribution_window_ms}
-        winner = next(iter(sides)) if len(sides) == 1 else ROUND_UNKNOWN
+    consumed: set[int] = set()          # rises a settled round already accounts for
+    first: list[str] = []
+    for end_ms in ends:
+        window = [i for i, (t, _) in enumerate(rises)
+                  if abs(t - end_ms) <= attribution_window_ms]
+        sides = {rises[i][1] for i in window}
+        if len(sides) == 1:
+            first.append(next(iter(sides)))
+            consumed.update(window)
+        else:
+            # Two sides rising is a CONFLICT, not a gap: the demo is genuinely
+            # ambiguous and no later evidence may cast the deciding vote.
+            first.append(ROUND_UNKNOWN if not sides else CONFLICTED)
+    for index, (end_ms, winner) in enumerate(zip(ends, first), 1):
+        if winner is ROUND_UNKNOWN:
+            winner = _recover_bounded(index - 1, ends, rises, consumed)
+        elif winner == CONFLICTED:
+            winner = ROUND_UNKNOWN
         out.append(RoundOutcome(index, end_ms * 1000, winner, team))
     return tuple(out)
+
+
+CONFLICTED = "CONFLICTED"            # internal: both sides rose in the window
+RECOVERY_BOUNDED_BY_NEIGHBOURS = "BOUNDED_BY_NEIGHBOURING_ROUNDS"
+BOUNDED_RECOVERY_TAIL_MS = 120_000   # the last round has no next round to bound it
+
+
+def _recover_bounded(pos: int, ends: Sequence[int],
+                     rises: Sequence[tuple[int, str]],
+                     consumed: set[int]) -> str:
+    """Second pass for a round the fixed window could not attribute at all.
+
+    A score can land well before or well after its own end mark. The bound
+    that is always true is the neighbouring rounds: a rise between the
+    previous round's end and the next round's end can only belong to this one
+    or to a round that already accounted for it. Rises a settled round
+    consumed are excluded, so nothing that was attributed changes; exactly one
+    remaining side is a recovery, anything else stays UNKNOWN.
+    """
+    lo = ends[pos - 1] if pos > 0 else -1
+    hi = ends[pos + 1] if pos + 1 < len(ends) else ends[pos] + BOUNDED_RECOVERY_TAIL_MS
+    sides = {side for i, (t, side) in enumerate(rises)
+             if i not in consumed and lo < t <= hi}
+    return next(iter(sides)) if len(sides) == 1 else ROUND_UNKNOWN
 
 
 def load_round_outcomes(content_hash: str, recorder_client: int, *,

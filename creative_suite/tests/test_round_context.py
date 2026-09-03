@@ -334,3 +334,52 @@ def test_moment_identity_is_content_hash_plus_time_never_map_plus_time():
     a = og.MomentCandidate(1, og.KIND_ROCKET_IMPACT, 1_000_000, "MY_FRAG", 1_000_000, content_hash="a" * 64)
     b = og.MomentCandidate(2, og.KIND_ROCKET_IMPACT, 1_000_000, "MY_FRAG", 1_000_000, content_hash="b" * 64)
     assert (a.content_hash, a.useful_duration_us) != (b.content_hash, b.useful_duration_us)
+
+
+# ── bounded round recovery ──────────────────────────────────────────────────
+
+def test_a_late_score_is_recovered_when_bounded_by_the_next_round():
+    """The fixed window misses a score that lands well after the end mark.
+    The next round is a bound that is always true."""
+    rows = [(0, 6, "0"), (0, 7, "0"),
+            (10_000, 662, "-1"),            # round 1 ends
+            (18_000, 7, "1"),               # BLUE scores 8 s later
+            (30_000, 662, "-1")]            # round 2 ends
+    out = dt.round_outcomes(rows, recorder_team="BLUE")
+    assert out[0].winner_team == "BLUE" and out[0].result == dt.ROUND_WIN
+
+
+def test_recovery_never_forces_an_outcome():
+    both = [(0, 6, "0"), (0, 7, "0"), (10_000, 662, "-1"),
+            (18_000, 6, "1"), (18_500, 7, "1"), (30_000, 662, "-1")]
+    assert dt.round_outcomes(both, recorder_team="BLUE")[0].winner_team == dt.ROUND_UNKNOWN
+    neither = [(0, 6, "0"), (0, 7, "0"), (10_000, 662, "-1"), (30_000, 662, "-1")]
+    assert dt.round_outcomes(neither, recorder_team="BLUE")[0].winner_team == dt.ROUND_UNKNOWN
+
+
+def test_a_score_belonging_to_the_next_round_is_not_stolen_by_this_one():
+    rows = [(0, 6, "0"), (0, 7, "0"),
+            (10_000, 662, "-1"),           # round 1 ends, nothing scores
+            (30_000, 662, "-1"),           # round 2 ends
+            (31_000, 6, "1")]              # RED's point lands after round 2
+    out = dt.round_outcomes(rows, recorder_team="RED")
+    assert out[0].winner_team == dt.ROUND_UNKNOWN     # round 1 stays unknown
+    assert out[1].winner_team == "RED"
+
+
+def test_already_attributed_rounds_are_untouched_by_recovery():
+    """One side rose in the window, so round 1 is settled. A later rise
+    belongs to round 2 and must not disturb it."""
+    rows = [(0, 6, "0"), (0, 7, "0"), (9_000, 6, "1"), (10_000, 662, "-1"),
+            (25_000, 7, "1"), (30_000, 662, "-1")]
+    out = dt.round_outcomes(rows, recorder_team="RED")
+    assert out[0].winner_team == "RED"      # the in-window rise still wins
+    assert out[1].winner_team == "BLUE"
+
+
+def test_recovery_fills_a_gap_but_never_breaks_a_tie():
+    """Both sides rise inside the window: the demo is ambiguous about this
+    round, and a later rise is not allowed to cast the deciding vote."""
+    rows = [(0, 6, "0"), (0, 7, "0"), (9_000, 6, "1"), (10_000, 662, "-1"),
+            (12_000, 7, "1"), (30_000, 662, "-1")]
+    assert dt.round_outcomes(rows, recorder_team="RED")[0].winner_team == dt.ROUND_UNKNOWN
