@@ -53,7 +53,11 @@ def get_corpora():
         "corpora": [rc.corpus_status(c) for c in rc.CORPORA],
         "item_types": [
             {"item_type": t, "total": rc.count_items(t),
-             "available": rc.count_items(t) > 0}
+             "available": (rc.count_items(t) > 0
+                           and t not in rc.NOT_A_REVIEW_MOMENT),
+             # A family can have plenty of rows and still not be reviewable.
+             # Saying which, and why, beats an empty or a misleading queue.
+             "withheld_because": rc.NOT_A_REVIEW_MOMENT.get(t)}
             for t in rc.ITEM_TYPES
         ],
     }

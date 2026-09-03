@@ -351,7 +351,9 @@ async function corpora(){
     o.value = "type:" + t.item_type;
     o.textContent = t.available
       ? t.item_type + " (" + t.total.toLocaleString() + ")"
-      : t.item_type + " — not derived yet";
+      : t.item_type + " — " + (t.withheld_because ? "not a review moment"
+                                                  : "not derived yet");
+    if (t.withheld_because) o.title = t.withheld_because;
     o.disabled = !t.available;
     return o;
   }));

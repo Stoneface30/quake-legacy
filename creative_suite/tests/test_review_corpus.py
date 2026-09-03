@@ -346,3 +346,15 @@ def test_the_item_type_is_generic_from_the_start():
     assert deaths and all(d.item_type == rc.DEATH for d in deaths)
     where, _ = rc._kill_where(rc.DEATH)
     assert where == "k.is_recorder_victim = 1", "the user's own deaths"
+
+
+def test_a_dodge_is_a_feature_of_a_frag_not_a_moment_of_its_own():
+    """36,586 dodge rows against 36,607 frags looks like one per frag. It is
+    a coincidence: the rows carry kill_anchor_ms and collapse to 19,877
+    distinct anchors, every one of them a frag already reviewable in
+    MY_FRAGS, up to eight rows per frag. Offering it as a queue would show
+    the same frag eight times and call each showing a different moment."""
+    assert rc.DODGE in rc.NOT_A_REVIEW_MOMENT
+    why = rc.NOT_A_REVIEW_MOMENT[rc.DODGE]
+    assert "19,877" in why and "per-frag feature" in why
+    assert rc.queue(item_type=rc.DODGE) == []

@@ -103,6 +103,26 @@ ITEM_TYPES = (FRAG, TELEFRAG, DEATH, CLAN_FRAG, ALL_KILL, TELEPORT, DODGE,
 # scored because the features it needs are the recorder's.
 KILL_BACKED = (DEATH, CLAN_FRAG, ALL_KILL)
 
+# Why a family is not offered as a review queue. A machine feature is not a
+# review moment, and the difference is not visible from the row count.
+#
+# DODGE looked ready: 36,586 rows against 36,607 frags is close enough to
+# assume one per frag. It is a coincidence. The rows carry `kill_anchor_ms`,
+# and they collapse to 19,877 distinct anchors -- every one of which matches
+# an existing recognized_frags row exactly, up to eight rows per frag. So a
+# dodge row is a near-miss THREAT measured on the way into a kill the user
+# already has in MY_FRAGS, not an independent moment. `survived` is 1 on all
+# 36,586 rows, so the table has no contrast case either: it only ever
+# recorded threats that missed.
+#
+# Reviewing it as 36,586 clips would show the same frag up to eight times and
+# call each showing a different moment.
+NOT_A_REVIEW_MOMENT = {
+    DODGE: ("a per-frag feature, not a moment: 36,586 rows collapse to "
+            "19,877 kill anchors, all of which are frags already reviewable "
+            "in MY_FRAGS, up to 8 rows per frag, and survived=1 on every row"),
+}
+
 # The review window. Three seconds of run-up, the moment, three seconds of
 # consequence -- clamped honestly at the recording's own edges rather than
 # padded with something that was never recorded.
