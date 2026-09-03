@@ -239,13 +239,69 @@ CORPUS_ITEM_TYPE = {
 }
 
 
+# The user's own recorder identity. Only what is certain: "Tr4sH" wears the
+# clan tag on 15,940 cached text lines and records 3,825 of the 3,997 demos
+# that contain a recorder kill.
+#
+# The corpus is NOT all the user's demos. 172 demos were recorded by someone
+# else -- clanmates and opponents whose demos are in the archive -- and their
+# kills therefore appear as "the recorder's own". "stoneface" (20 demos) is
+# very probably the user under another handle, but probably is not a basis
+# for merging a human identity, so it is surfaced as a candidate and left
+# for the user to confirm or reject.
+USER_RECORDER_NAMES = ("tr4sh",)
+USER_RECORDER_CANDIDATES = ("stoneface", ". stoneface")
+
+
+def recorder_identity_spread(limit: int = 20) -> dict[str, Any]:
+    """Who actually recorded the demos behind MY_FRAGS.
+
+    `is_recorder_killer` means the killer recorded THIS demo, which is the
+    user for 94.8% of the corpus and somebody else for the rest. Reporting
+    that is the difference between "your frags" and "frags from whoever held
+    the camera".
+    """
+    if not _kill_table_exists():
+        return {"available": False}
+    with _rec() as c:
+        rows = c.execute(
+            "SELECT killer_name_norm n, COUNT(DISTINCT content_hash) demos, "
+            "COUNT(*) kills FROM kill_events_v1 WHERE is_recorder_killer=1 "
+            "GROUP BY 1 ORDER BY demos DESC LIMIT ?", (limit,)).fetchall()
+        total = int(c.execute("SELECT COUNT(*) FROM kill_events_v1 "
+                              "WHERE is_recorder_killer=1").fetchone()[0])
+        marks = ",".join("?" * len(USER_RECORDER_NAMES))
+        mine = int(c.execute(
+            f"SELECT COUNT(*) FROM kill_events_v1 WHERE is_recorder_killer=1 "
+            f"AND killer_name_norm IN ({marks})",
+            USER_RECORDER_NAMES).fetchone()[0])
+        n_ident = int(c.execute(
+            "SELECT COUNT(DISTINCT killer_name_norm) FROM kill_events_v1 "
+            "WHERE is_recorder_killer=1").fetchone()[0])
+    return {
+        "available": True, "total_recorder_kills": total,
+        "confirmed_user": mine, "not_the_user": total - mine,
+        "distinct_recorder_identities": n_ident,
+        "top": [{"name": r["n"], "demos": r["demos"], "kills": r["kills"]}
+                for r in rows],
+        "candidates": list(USER_RECORDER_CANDIDATES),
+        "meaning": ("is_recorder_killer means the killer recorded THAT demo. "
+                    "The archive holds demos recorded by other people, so a "
+                    "slice of MY_FRAGS is somebody else's kill in their own "
+                    "demo. Narrowing it needs the user to confirm which "
+                    "recorder identities are theirs -- not a string match"),
+    }
+
+
 def corpus_status(corpus: str) -> dict[str, Any]:
     """Whether a corpus can be reviewed, and if not, exactly what is missing."""
     if corpus == MY_FRAGS:
         return {"corpus": corpus, "available": True, "total": count_items(FRAG),
                 "item_type": FRAG,
                 "scored": True,
-                "note": "the recorder's own kills, fully scored and ranked"}
+                "note": "the recorder's own kills, fully scored and ranked",
+                # Surfaced, not silently filtered: see recorder_identity_spread.
+                "recorder_identity": recorder_identity_spread(limit=8)}
     if corpus in (PTN_FRAGS, MY_AND_PTN, ALL_PLAYERS):
         it = CORPUS_ITEM_TYPE[corpus]
         total = count_items(it, corpus=corpus)

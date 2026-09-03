@@ -389,3 +389,21 @@ def test_the_combined_corpus_does_not_report_all_player_progress():
     both = rc.progress(rc.ALL_KILL, corpus=rc.MY_AND_PTN)["total"]
     everyone = rc.progress(rc.ALL_KILL, corpus=rc.ALL_PLAYERS)["total"]
     assert 0 < both < everyone
+
+
+def test_my_frags_says_when_the_recorder_was_not_the_user():
+    """is_recorder_killer means the killer recorded THAT demo. The archive
+    holds 172 demos recorded by other people, so a slice of MY_FRAGS is
+    somebody else's kill in their own demo. That is surfaced, not silently
+    filtered -- narrowing it needs the user to confirm which recorder
+    identities are theirs."""
+    sp = rc.recorder_identity_spread()
+    assert sp["available"]
+    assert sp["confirmed_user"] > 0
+    assert sp["not_the_user"] > 0, "the corpus is not all one recorder"
+    assert sp["distinct_recorder_identities"] > 1
+    assert sp["confirmed_user"] + sp["not_the_user"] == sp["total_recorder_kills"]
+    # A likely alias is a candidate, never merged.
+    assert "stoneface" in sp["candidates"]
+    assert "stoneface" not in rc.USER_RECORDER_NAMES
+    assert rc.corpus_status(rc.MY_FRAGS)["recorder_identity"]["available"]
