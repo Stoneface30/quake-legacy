@@ -262,3 +262,94 @@ def test_the_sheet_renders_both_views(tmp_path):
     zoom = cs.render_sheet(plans[6:7], tmp_path / "zoom.png", zoom=True)
     assert whole.exists() and whole.stat().st_size > 5000
     assert zoom.exists() and zoom.stat().st_size > 5000
+
+
+# ── reconciliation with the user's own list ─────────────────────────────────
+
+USER_CONCEPTS = {
+    "live texture/skin/model transformation": "TEAM_IDENTITY_MORPH",
+    "seamless world transformation": "WORLD_MORPH_TO_NEXT_SCENE",
+    "rocket/background morph into next scene": "PROJECTILE_MORPH_BRIDGE",
+    "fly into an eye/rocket/object": "FLY_INTO_OBJECT",
+    "world disappears/rebuilds": "WORLD_STRIP",
+    "1vX map removal and enemy reveals": "ONE_V_X_ENEMY_REVEAL",
+    "display X count and decrement it": "ONE_V_X_COUNT_DISPLAY",
+    "countdown/text on world textures": "TEXTURE_COUNTDOWN_TEXT",
+    "low-HP reactive materials/world": "LOW_HP_REACTIVE_WORLD",
+    "grenade football/chest/headbutt gag": "GRENADE_FOOTBALL_GAG",
+    "victory-only payoff gating": "ROUND_WIN_PAYOFF",
+    "a loss needs a different ending": "ROUND_LOSS_CONTINUATION",
+    "full pTn team-round storytelling": "TEAM_ROUND_STORY",
+    "freeze and match-cut into a similar pose": "IDENTITY_MATCH_CUT",
+    "map wireframe to geometry to material": "MAP_CONSTRUCTION_INTRO",
+    "PIP on advertisement/world surfaces": "PIP_WORLD_SURFACE",
+    "chat bubbles / rage / gg / memes": "CHAT_REACTION",
+    "rapid motif montages": "RHYTHMIC_MOTIF_MONTAGE",
+    "doors / teleports / rocket jumps as transitions": "MOVEMENT_TRANSITION",
+    "telefrag grammar": "TELEFRAG_GRAMMAR",
+    "gauntlet grammar": "GAUNTLET_GRAMMAR",
+    "multi-exposure": "MULTI_EXPOSURE",
+    "time echoes": "FRAME_ECHO",
+    "freeze decomposition": "TEMPORAL_DECOMPOSITION",
+    "music-reactive world/material changes": "MUSIC_REACTIVE_MATERIAL",
+    "death as transition material": "DEATH_AS_TRANSITION",
+    "wall removal/x-ray/rebuild": "WALL_XRAY_REBUILD",
+    "team identity skin morphs": "TEAM_IDENTITY_MORPH",
+    "teammate model transformation after victory": "POST_WIN_TEAMMATE_MODEL_REVEAL",
+    "rhythmic image stutter": "RHYTHMIC_IMAGE_STUTTER",
+    "tiled/mosaic interpolation": "MOSAIC_TILE_INTERPOLATION",
+    "gauntlet/item micro accents": "MICRO_ACTION_ACCENT",
+    "rail cooldown visualization": "RAIL_COOLDOWN_TELEGRAPH",
+    "cumulative enemy damage ledger": "DAMAGE_LEDGER_OVER_TARGET",
+    "round total damage": "ROUND_DAMAGE_COUNTER",
+    "Episode 1 CA explanation": "CA_EXPLAINER",
+    "semantic compression of long rounds": "SEMANTIC_COMPRESSION",
+    "cross-sign danger dive gag": "DANGER_CROSS_SIGN",
+    "jump-to-jump audio match": "STRAFE_JUMP_AUDIO_MATCH",
+    "good frag, death, montage, rewind": "HERO_THEN_DEATH_REWIND",
+    "rocket flyby audio/geometry": "ROCKET_FLYBY_AUDIO_ANCHOR",
+    "diegetic scoreboard": "DIEGETIC_SCOREBOARD",
+    "assisted round payoff": "ASSISTED_ROUND_FINISH",
+    "jump-pad/double-jump/plasma/grenade movement": "VELOCITY_SIGNATURE",
+    "NOPE retreat": "NOPE_RETREAT",
+    "1vX commit": "COMMIT_1VX",
+    "speed-scaled slow-motion envelope": "SPEED_SCALED_SLOWMO",
+    "damage chase into enemy death": "DAMAGE_CHASE_ASSIST",
+    "lag/teleport ragebait": "LAG_TELEPORT_STYLIZATION",
+    "useless deaths as montage material": "DEATH_MOTIF_BANK",
+    "outshaft statistics": "SHAFT_DUEL_STAT",
+    "enemy POV, real": "ENEMY_POV_REAL",
+    "enemy POV, reconstructed": "ENEMY_POV_RECONSTRUCTED",
+    "enemy POV, synthetic": "ENEMY_POV_SYNTHETIC",
+    "projectile cinematic": "PROJECTILE_CINEMATIC",
+    "reconstructed projectile cinematic": "RECONSTRUCTED_PROJECTILE_CINEMATIC",
+    "teleporter as a world pass": "TELEPORTER_WORLD_PASS",
+    "project intro": "PROJECT_INTRO",
+    "Quake tribute outro": "QUAKE_TRIBUTE_OUTRO",
+}
+
+
+def test_every_idea_the_user_named_is_registered():
+    """The corpus is the promise that nothing was dropped. If an idea stops
+    being represented, this fails rather than quietly disappearing."""
+    missing = {phrase: name for phrase, name in USER_CONCEPTS.items()
+               if name not in cc.BY_NAME}
+    assert not missing, f"unregistered ideas: {missing}"
+    assert len(set(USER_CONCEPTS.values())) >= 55
+
+
+def test_the_hard_ideas_are_registered_as_hard():
+    """Honest capability: the ideas that need new tooling say so, and the
+    ones that already ship say that too."""
+    assert cc.get("WORLD_MORPH_TO_NEXT_SCENE").capability == ch.REQUIRES_NEW_TECH
+    assert cc.get("GRENADE_FOOTBALL_GAG").capability == ch.CREATIVE_SEED
+    assert cc.get("SHAFT_DUEL_STAT").capability == ch.CREATIVE_SEED
+    assert cc.get("DEATH_AS_TRANSITION").capability == ch.PROVEN_RUNTIME
+    assert cc.get("TEAM_ROUND_STORY").capability == ch.PROVEN_RUNTIME
+
+
+def test_gated_ideas_carry_their_gate():
+    assert "ROUND_WIN" in cc.get("POST_WIN_TEAMMATE_MODEL_REVEAL").gates
+    assert "ROUND_WIN" in cc.get("ROUND_WIN_PAYOFF").gates
+    assert "MANUAL_VERIFIED_TEAM_IDENTITY" in cc.get("TEAM_IDENTITY_MORPH").gates
+    assert "PRESENTABLE_RECONSTRUCTION" in cc.get("RECONSTRUCTED_PROJECTILE_CINEMATIC").gates
