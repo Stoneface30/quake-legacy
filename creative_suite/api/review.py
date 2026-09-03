@@ -67,7 +67,7 @@ def get_corpora():
 def get_progress(item_type: str = rc.FRAG, corpus: str | None = None):
     if corpus:
         item_type = rc.CORPUS_ITEM_TYPE.get(corpus, item_type)
-    return rc.progress(item_type)
+    return rc.progress(item_type, corpus=corpus)
 
 
 @router.get("/queue")

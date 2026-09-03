@@ -775,8 +775,11 @@ def item(item_id: str) -> ReviewItem | None:
 
 # ── progress and pools ──────────────────────────────────────────────────────
 
-def progress(item_type: str = FRAG) -> dict[str, Any]:
-    total = count_items(item_type)
+def progress(item_type: str = FRAG, corpus: str | None = None) -> dict[str, Any]:
+    # MY_AND_PTN and ALL_PLAYERS share an item type but not a total: the
+    # combined corpus is narrowed by the roster in SQL. Counting without the
+    # corpus would report all-player progress against a smaller queue.
+    total = count_items(item_type, corpus=corpus)
     with conn() as c:
         qs = ",".join("?" * len(HUMAN_PROVENANCE))
         counts = {r["human_role"]: r["n"] for r in c.execute(

@@ -380,3 +380,12 @@ def test_every_family_uses_the_same_six_second_window():
         if not it:
             continue
         assert it[0].end_ms - it[0].start_ms <= rc.PRE_MS + rc.POST_MS
+
+
+def test_the_combined_corpus_does_not_report_all_player_progress():
+    """MY_AND_PTN and ALL_PLAYERS share an item type but not a total -- the
+    combined corpus is narrowed by the roster in SQL. Counting without the
+    corpus would measure progress against the wrong denominator."""
+    both = rc.progress(rc.ALL_KILL, corpus=rc.MY_AND_PTN)["total"]
+    everyone = rc.progress(rc.ALL_KILL, corpus=rc.ALL_PLAYERS)["total"]
+    assert 0 < both < everyone
