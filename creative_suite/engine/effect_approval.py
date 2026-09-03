@@ -183,10 +183,9 @@ class Approval:
 # answer what looks good.
 
 _CAL = "60fps/libx264/AVTB/scratchpad/effect_canaries.py"
-# The cut proof ran at the archive footage's native rate. Forcing 30 fps
-# source to 60 duplicates every frame, which makes frame identity
-# undecidable, so this is a different pipeline rather than the same one.
-_CAL_CUT = "30fps/libx264/AVTB/concat/scratchpad/cut_identity.py"
+# The cut proof ran on media the active capture path produced, at 60 fps.
+# Same rate as the sweeps but a different graph, so it stays its own string.
+_CAL_CUT = "60fps/libx264/AVTB/concat/engine/canaries/cut_identity.py"
 
 
 def _d(canary, swept, err, finding, cal=None):

@@ -331,16 +331,17 @@ CALIBRATION_60_X264 = DeliveryCalibration(
     notes="freeze returns one frame long; overlap exact; rates 3/10, 2/5 and "
           "1/1 land exactly while 1/2 and 55/100 lose a frame")
 
-# The cut proof runs on the archive footage at its own native rate. The
-# source AVIs are 30 fps, and forcing them to 60 duplicates every frame,
-# which makes "which frame is this?" undecidable by construction. So the
-# boundary identity is established where the frames are distinct, and this is
-# a different calibration from the 60 fps one rather than the same result at
-# another rate.
-CALIBRATION_30_X264_CONCAT = DeliveryCalibration(
-    fps=30, encoder="libx264", pipeline="scratchpad/cut_identity.py",
+# The cut proof runs on media the active capture path actually produced:
+# 1920x1080 MJPEG at 60/1 from creative_suite/engine/wolfcam_capture.py,
+# whose delivered cadence was measured as sixty distinct frames per second
+# rather than thirty doubled. An earlier run of this proof used archive
+# footage instead, which is 30 fps; forcing that to 60 duplicates every frame
+# and makes "which frame is this?" undecidable. That was a property of the
+# footage chosen for the canary and never of this pipeline.
+CALIBRATION_60_V2_CAPTURE = DeliveryCalibration(
+    fps=60, encoder="libx264", pipeline="engine/canaries/cut_identity.py",
     timebase="AVTB", measured_on="2026-09-03",
-    notes="concat demuxer, native-rate archive footage; all four frames "
+    notes="concat demuxer over active-path capture media; all four frames "
           "either side of a cut carry the identity the edit asked for")
 
 # Measured under CALIBRATION_60_X264. One frame is 16 667 us there.
@@ -1144,11 +1145,12 @@ PRIMITIVES: dict[str, PrimitiveTiming] = {p.name: p for p in (
        "interpolated frame sequence; then sweep the transition duration"),
     _p(P_CAMERA_CUT, SYNTHETIC_TEST, CUT_IDENTITY_SWEEP, FRAME_US, 0,
        "all four frames either side of a cut carry the identity the edit "
-       "asked for. Matched against real footage by nearest thumbnail: "
-       "distances 0.10 to 0.19 grey levels, which is re-encode noise, and "
-       "margins over the runner-up of 13.8 to 32.8. Duration was exact too, "
+       "asked for, on media the active capture path produced. Matched by "
+       "nearest thumbnail: distances 0.08 to 0.21 grey levels, which is "
+       "re-encode noise, against margins over the runner-up of 8.7 to 11.7. "
+       "Duration was exact too, "
        "but that was never the part in doubt",
-       cal=CALIBRATION_30_X264_CONCAT),
+       cal=CALIBRATION_60_V2_CAPTURE),
     _p(P_CAMERA_SPLINE, DESIGN_ESTIMATE, capability=RUNTIME_EXISTS_UNSWEPT,
        finding="the artistic envelope of an interpolated camera move is "
        "entirely unknown; this is the highest-value gap in the vocabulary",

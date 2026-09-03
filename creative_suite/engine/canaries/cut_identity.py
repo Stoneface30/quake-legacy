@@ -96,9 +96,15 @@ def normalise(src: Path, dst: Path, start_frame: int, count: int):
 
 
 def main():
-    vids = sorted(Path("G:/QUAKE_LEGACY/QUAKE VIDEO/T2").rglob("*.avi"))
-    if len(vids) < 2:
-        raise SystemExit("need two real clips")
+    global FPS
+    if len(sys.argv) >= 4:
+        vids = [Path(sys.argv[1]), Path(sys.argv[2])]
+        FPS = int(sys.argv[3])
+    else:
+        raise SystemExit("usage: cut_identity.py <source> <insert> <fps>")
+    if not all(v.exists() for v in vids):
+        raise SystemExit("both clips must exist")
+    print(f"source: {vids[0].name}   insert: {vids[1].name}   fps: {FPS}")
     WORK.mkdir(parents=True, exist_ok=True)
 
     def moving_window(raw: Path, need: int, probe: Path, scan: int = 200):
@@ -206,7 +212,7 @@ def main():
     result["duration_exact"] = len(got) == K + M + TAIL
     print(f"\n  all four agree: {ok_all}")
     print(f"  duration exact: {result['duration_exact']}")
-    dest = Path("G:/QUAKE_LEGACY/docs/reference/camera_cut_frame_identity.json")
+    dest = Path(f"G:/QUAKE_LEGACY/docs/reference/camera_cut_frame_identity_{FPS}fps.json")
     dest.write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(f"  written: {dest}")
 

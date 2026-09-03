@@ -585,6 +585,7 @@ def test_the_cut_is_proven_by_frame_identity_not_by_duration():
     cut = et.PRIMITIVES[et.P_CAMERA_CUT]
     assert cut.measured and cut.capability == et.MEASURED
     assert "identity the edit asked for" in cut.finding
+    assert "active capture path produced" in cut.finding
     assert "never the part in doubt" in cut.finding
     assert et.P_CAMERA_CUT in ea_delivery_verified()
 
@@ -594,14 +595,14 @@ def ea_delivery_verified():
     return ea.status()["delivery_verified"]
 
 
-def test_the_cut_measurement_belongs_to_its_own_pipeline():
-    """The proof ran on 30 fps archive footage. Forcing that to 60 duplicates
-    every frame, which makes frame identity undecidable, so this is not the
-    60 fps sweeps' calibration under another name."""
+def test_the_cut_was_measured_on_the_path_we_actually_ship():
+    """Not on archive footage. A proxy's frame rate is not the pipeline's,
+    and an earlier run of this proof proved only the proxy."""
     cal = et.PRIMITIVES[et.P_CAMERA_CUT].calibration
-    assert cal is not None and cal.fps == 30
-    assert cal is not et.CALIBRATION_60_X264
+    assert cal is not None and cal.fps == 60
+    assert cal is et.CALIBRATION_60_V2_CAPTURE
     assert "cut_identity" in cal.pipeline
+    assert "active-path capture media" in cal.notes
 
 
 def test_the_spline_needs_a_motion_envelope_not_a_duration_one():
@@ -614,3 +615,14 @@ def test_the_spline_needs_a_motion_envelope_not_a_duration_one():
                     "smoothness", "coverage"):
         assert feature in m, feature
     assert "not the same shot" in m
+
+
+def test_a_proxys_frame_rate_is_not_the_pipelines():
+    """The regression this cost a wrong conclusion. Delivery calibration
+    belongs to the path that produced it, and archive media is not that
+    path."""
+    cal = et.PRIMITIVES[et.P_CAMERA_CUT].calibration
+    assert cal.fps == 60, "the active capture path delivers 60 distinct frames"
+    assert not hasattr(et, "CALIBRATION_30_X264_CONCAT"), (
+        "the 30 fps calibration described archive footage chosen for a "
+        "canary, never a pipeline, and must not survive as one")
