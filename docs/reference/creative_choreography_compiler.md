@@ -380,3 +380,70 @@ deficit because it adds no time.
 
 When nothing passes all three the verdict is `DOES_NOT_FIT`: **this moment belongs
 in a different slot**, not "we found something to pad it with".
+
+---
+
+# Semantic-first creative director v1 (2026-09-03)
+
+Module: `creative_suite/engine/creative_opportunity.py`.
+
+## The invariant
+
+> ACTION CREATES THE OPPORTUNITY.
+> MUSIC SHAPES THE OPPORTUNITY.
+> TIME PERFECTS THE OPPORTUNITY.
+> **TIME NEVER INVENTS THE OPPORTUNITY.**
+
+The previous `TemporalBudget` could be asked "we need +570 ms, which tools are
+legal?" and would search the whole effect library. That is a padding machine with
+good manners. It now **requires** the creative opportunities the gameplay earned,
+and raises `NoOpportunity` if asked to search without them.
+
+## Eligibility is a signature, not a wish
+
+Each opportunity states what in the action earns it, and cites the evidence:
+
+| opportunity | requires |
+|---|---|
+| `HERO_PROJECTILE` | a frag whose projectile flight was recorded |
+| `PROJECTILE_FLYBY` | a pass within 220 units of the camera |
+| `1VX_REVEAL` | genuinely one alive against two or more |
+| `OCCLUDED_SKILL` | geometry that actually hides the shot/target relation |
+| `DAMAGE_STORY` | at least 60 damage from the player |
+| `HERO_THEN_DEATH` | the player's own death within 2.5 s of the action |
+| `ROUND_WIN_PAYOFF` | the score configstrings say the round was won |
+| `LG_TRACKING` | 8 or more lightning contacts |
+| `ENEMY_POV` | another recording, or recorded enemy state |
+
+A one-versus-one earns no enemy reveals **even if the music has three attacks**.
+
+## Result truth gates the treatment
+
+A lost 1vX keeps `WORLD_REVEAL` — the threat still reads — but
+`ROUND_WIN_RELEASE` is in `forbidden_templates` and the `REVEAL_AND_PAYOFF`
+grammar does not exist for it. A won round gets all three.
+
+## One veto covers the moment
+
+Lightning tracking forbids `WORLD_STRIP`, `MOSAIC_TILE_STEP`, `MODEL_MORPH` and
+`ENEMY_REVEAL_STEP`: the skill *is* the tracking, and decoration would hide it.
+If another opportunity on the same moment would allow them, the veto still wins.
+
+## Several grammars, one action
+
+The rocket kill offers `PURE_FPV` (0.3–8.0 s), `FPV_REPLAY` (1.5–13.0 s),
+`FPV_FREEZE_REPLAY` (1.6–13.9 s) and `PROJECTILE_CAMERA` (0.6–13.9 s). A score
+slot is compared against **those** envelopes, and the composer chooses a treatment
+rather than stretching one.
+
+**Same system, different action, different vocabulary.** The rocket earns 5
+opportunities and 12 templates. The lightning tracking earns 2 opportunities and
+3 templates, with four explicitly forbidden.
+
+## Editorial weight and repeat policy
+
+MICRO · SUPPORT · FEATURE · HERO · SIGNATURE, with FREQUENT · OCCASIONAL · RARE ·
+ONCE_PER_EPISODE. The danger-cross pose, the grenade gag, the map construction and
+the world morph bridge are SIGNATURE / ONCE_PER_EPISODE. Freezes, movement accents
+and material flashes are FREQUENT. Among equal solutions the budget reaches for the
+lighter tool, so a signature effect is not spent closing a gap.

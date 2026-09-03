@@ -196,13 +196,40 @@ def _justified(tpl: et.TemporalEffectTemplate, j: Justification) -> str:
     return ""
 
 
+class NoOpportunity(ValueError):
+    """Raised when a budget is asked to search for effects rather than
+    evaluate the ones the action already earned."""
+
+
 def build(slot_id: str, slot_us: int, raw_gameplay_us: int, composed_us: int,
           justification: Justification, *,
+          opportunities: Sequence[Any] | None = None,
           candidates: Sequence[str] | None = None,
           trusted_only: bool = False, max_effects: int = 2) -> TemporalBudget:
-    """Work out the gap and what may honestly close it."""
+    """Evaluate the treatments this action earned against this slot.
+
+    THE INVARIANT: a budget never discovers an effect. It receives the
+    creative opportunities the gameplay generated and asks which of THOSE can
+    also satisfy the timing. Passing neither `opportunities` nor an explicit
+    `candidates` list would mean searching the whole library for something
+    worth 570 ms, which is the padding machine this exists to prevent.
+    """
     need = slot_us - composed_us
-    ids = list(candidates) if candidates is not None else [t_.id for t_ in et.TEMPLATES]
+    if opportunities is not None:
+        from creative_suite.engine import creative_opportunity as co
+        ids = list(co.allowed_templates(opportunities))
+        if not ids:
+            return TemporalBudget(slot_id, slot_us, raw_gameplay_us, composed_us,
+                                  justification, (), ())
+    elif candidates is not None:
+        ids = list(candidates)
+    else:
+        raise NoOpportunity(
+            "a temporal budget needs the creative opportunities the action "
+            "earned. Searching the whole effect library for something that "
+            "fills the gap is how a film fills with decoration that means "
+            "nothing; if the action earns no treatment, the moment does not "
+            "belong in this slot.")
     options: list[Option] = []
     for tid in ids:
         tpl = et.get(tid)
@@ -267,5 +294,12 @@ def build(slot_id: str, slot_us: int, raw_gameplay_us: int, composed_us: int,
     solutions.sort(key=lambda s: (order.get(s.weakest_provenance, 9),
                                   max(power.get(p, 9) for p in s.powers),
                                   len(s.options)))
+    # An effect that is spent by being used twice should not be reached for
+    # casually; the heaviest tool sorts last among equals.
+    from creative_suite.engine import creative_opportunity as _co
+    heft = {_co.MICRO: 0, _co.SUPPORT: 1, _co.FEATURE: 2, _co.HERO: 3,
+            _co.SIGNATURE: 4}
+    solutions.sort(key=lambda s: max(
+        heft.get(_co.editorial_weight(i)[0], 1) for i in s.options))
     return TemporalBudget(slot_id, slot_us, raw_gameplay_us, composed_us,
                           justification, tuple(options), tuple(solutions[:8]))
