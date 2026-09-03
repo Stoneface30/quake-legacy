@@ -332,3 +332,72 @@ def test_a_rewind_costs_twice_the_slice_it_rewinds():
     assert "twice the slice" in tpl.envelope.rationale
     # the envelope is the delivered cost, so a 450 ms slice sits at 900 ms
     assert tpl.envelope.hard_min_us <= 900 * MS <= tpl.envelope.hard_max_us
+
+
+# ── the loop closes ─────────────────────────────────────────────────────────
+
+def test_a_solved_plan_renders_to_exactly_the_duration_it_promised(tmp_path):
+    """Arithmetic is not delivery. This renders a solved plan and measures
+    the file: planned duration, delivered duration, and the difference."""
+    import json
+    import subprocess
+    ff = REPO_ROOT / "creative_suite" / "tools" / "ffmpeg" / "ffmpeg.exe"
+    fp = REPO_ROOT / "creative_suite" / "tools" / "ffmpeg" / "ffprobe.exe"
+    if not (ff.exists() and fp.exists()):
+        pytest.skip("ffmpeg not on disk")
+    FPS = 60
+
+    src = tmp_path / "src.mp4"
+    r = subprocess.run([str(ff), "-y", "-loglevel", "error", "-f", "lavfi", "-i",
+                        f"testsrc=size=320x180:rate={FPS}:duration=4", "-c:v",
+                        "libx264", "-preset", "ultrafast", "-crf", "28",
+                        "-pix_fmt", "yuv420p", str(src)], capture_output=True,
+                       text=True, timeout=300)
+    assert r.returncode == 0, r.stderr[:300]
+
+    slot = 3_000 * MS
+    spec = [{"template": "SLOW_MOTION", "label": "a",
+             "src_in_us": 0, "src_out_us": 1_000 * MS},
+            {"template": "FREEZE_HOLD", "label": "hold"},
+            {"template": "SLOW_MOTION", "label": "b",
+             "src_in_us": 1_000 * MS, "src_out_us": 2_000 * MS}]
+    report, conf, problems = et.solve_from_templates("RENDER_CANARY", slot, spec)
+    assert report.feasible, report.reason
+    plan = report.best.plan
+    assert plan.exact and plan.total_us == slot
+
+    freeze_tpl = et.get("FREEZE_HOLD")
+    filters, order = [], []
+    for i, c in enumerate(plan.choices):
+        op = c.operator
+        if op.kind == t.FREEZE:
+            ask = freeze_tpl.envelope.request_for(c.duration_us)
+            filters.append(f"[0:v]trim=2:{2 + 1/FPS},setpts=PTS-STARTPTS,"
+                           f"tpad=stop_mode=clone:stop_duration={ask/1e6:.6f},"
+                           f"fps={FPS},settb=AVTB[s{i}]")
+        else:
+            filters.append(f"[0:v]trim={op.src_in_us/1e6}:{op.src_out_us/1e6},"
+                           f"setpts=(PTS-STARTPTS)/{float(c.rate):.8f},"
+                           f"fps={FPS},settb=AVTB[s{i}]")
+        order.append(f"[s{i}]")
+    filters.append("".join(order) + f"concat=n={len(order)}:v=1:a=0[v]")
+    dst = tmp_path / "out.mp4"
+    r = subprocess.run([str(ff), "-y", "-loglevel", "error", "-i", str(src),
+                        "-filter_complex", ";".join(filters), "-map", "[v]",
+                        "-r", str(FPS), "-c:v", "libx264", "-preset", "ultrafast",
+                        "-crf", "28", "-pix_fmt", "yuv420p", str(dst)],
+                       capture_output=True, text=True, timeout=600)
+    assert r.returncode == 0, r.stderr[:400]
+
+    pr = subprocess.run([str(fp), "-v", "error", "-count_frames", "-select_streams",
+                         "v:0", "-show_entries",
+                         "stream=nb_read_frames:format=duration", "-of", "json",
+                         str(dst)], capture_output=True, text=True, timeout=300)
+    probe = json.loads(pr.stdout)
+    delivered_us = int(round(float(probe["format"]["duration"]) * 1e6))
+    frames = int(probe["streams"][0]["nb_read_frames"])
+
+    # one frame of tolerance: the plan is exact, the encoder works in frames
+    assert abs(delivered_us - slot) <= 16_667, (
+        f"planned {slot} us, delivered {delivered_us} us")
+    assert abs(frames - round(slot / 1e6 * FPS)) <= 1

@@ -261,3 +261,33 @@ Raw numbers: `docs/reference/effect_canary_measurements_2.json`.
 | **Rewind** | A rewind runs the slice backwards and then forwards again, so it costs **exactly twice the slice** — 150/300/450/600/900/1200 ms slices delivered 300/600/900/1200/1800/2400 ms, 0.0 ms error throughout. The template envelope is the *delivered cost*, not the slice length. |
 
 Measured coverage is now **12 of 50 templates (24%)** across four temporal scales.
+
+## The loop closes: plan -> render -> measure (2026-09-03)
+
+`scratchpad/composition_canary.py` solves the double air rocket from the library's
+own envelopes, builds the ffmpeg graph **straight from the plan**, renders it, and
+probes the result.
+
+```
+PLANNED    slot 5850 ms | total 5850 ms | exact True
+           RETIME  fpv           2550 ms  rate 43/51
+           FREEZE  freeze         300 ms
+           REPLAY  side_replay   2800 ms  rate 45/112
+           SYNTH   morph          400 ms
+           OVERLAP xfade          200 ms
+           anchor side_replay  target 4585 ms  planned 4586 ms  (+1.0 ms)
+
+DELIVERED  5850.0 ms | 351 frames
+           planned 5850.0 -> delivered 5850.0   ERROR +0.0 ms (0.00 frames)
+```
+
+351 frames is 5850 ms at 60 fps exactly. The freeze asked for one frame less than
+it wanted, because the first canary showed it always comes back long.
+
+Frame check (`composition_canary_frames.png`): output frame 30 shows source frame
+25 — the 43/51 rate, exact. The freeze holds source frame 126. The replay then
+jumps **back** to source 63 and runs forward to 126 again, which is what makes it
+a replay rather than a continuation. The morph closes the slot.
+
+A trimmed version of this runs as a test with one frame of tolerance, so the
+arithmetic can never quietly drift from what the encoder delivers.
