@@ -347,3 +347,53 @@ def test_integer_cvars_are_never_sent_fractions():
         if c.cvar in ("mme_blurFrames", "cg_shadows"):
             assert "." not in c.value, (c.cvar, c.value)
     assert rp.CONTROLS["gamma"].integer is False
+
+
+# ── commands the model did not know the engine had ──────────────────────────
+
+def test_material_transform_is_a_runtime_primitive_not_an_asset_reload():
+    """remapshader replaces a shader while the demo runs. Filing it as a pk3
+    swap put the primitive behind a rebuild it does not need."""
+    c = rp.CONTROLS["material_swap"]
+    assert c.capability == rp.AVAILABLE_NOW and c.animatable
+    assert c.backend_binding == "remapshader"
+    assert c.liveness_provenance == rp.FROM_SOURCE
+    best = rp.best_route_now("MATERIAL_PULSE")
+    assert best.layer == rp.ENGINE and best.coverage == "FULL"
+
+
+def test_a_live_continuous_control_is_ramped_not_stepped():
+    """cvarinterp hands the engine a start, an end and a duration. A
+    staircase of scheduled sets is what you emit when you don't have it."""
+    assert rp.can_ramp("gamma") and rp.can_ramp("timescale")
+    assert not rp.can_ramp("picmip"), "latched: written and ignored"
+    assert not rp.can_ramp("player_shadows"), "discrete: has no in-between"
+    c = rp.ScheduledCvar(1000, "r_gamma", "1.0", "gamma",
+                         ramp_to="1.8", ramp_ms=400)
+    assert c.line() == "at 1000 cvarinterp r_gamma 1.0 1.8 0.400"
+    assert rp.ScheduledCvar(1000, "r_gamma", "1.0").line() == "at 1000 r_gamma 1.0"
+
+
+def test_the_speed_ramp_can_happen_before_capture():
+    """timescale ramped in the engine means particles and blur follow the
+    ramp, instead of a finished frame being resampled afterwards."""
+    best = rp.best_route_now("SPEED_RAMP")
+    assert best.layer == rp.ENGINE and best.coverage == "FULL"
+    assert "cvarinterp timescale" in best.means
+    post = [r for r in rp.routes_for("SPEED_RAMP") if r.layer == rp.COMPOSITOR]
+    assert post and post[0].coverage == "PARTIAL"
+
+
+def test_entity_strip_is_not_world_reveal():
+    """entityfilter hides entities. It does not touch BSP geometry, and the
+    two must not be conflated."""
+    strip = rp.best_route_now("ENTITY_STRIP")
+    assert strip.layer == rp.ENGINE and strip.coverage == "FULL"
+    assert "never BSP" in strip.notes
+    assert rp.best_route_now("GEOMETRY_REBUILD") is None
+
+
+def test_a_single_entity_can_be_frozen_while_the_world_runs():
+    c = rp.CONTROLS["entity_freeze"]
+    assert c.backend_binding == "entityfreeze" and c.animatable
+    assert rp.best_route_now("SELECTIVE_FREEZE").layer == rp.ENGINE

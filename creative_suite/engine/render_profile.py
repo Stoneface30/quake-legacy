@@ -66,6 +66,14 @@ CAPABILITIES = (AVAILABLE_NOW, AVAILABLE_VIA_ASSETS, FUTURE_BACKEND)
 # vendored source: it takes effect on the next vid_restart, so a scheduled
 # staircase would execute every line and change nothing on screen. Every
 # control must say how it actually behaves once set.
+# `cvarinterp <cvar> <from> <to> <seconds> ['real'|'game']`
+# (cg_consolecmds.c:7244) ramps a cvar in the ENGINE, on either the real
+# clock or the game clock. The model previously assumed the only way to
+# vary a control was a staircase of scheduled `at` sets; a live cvar can
+# instead be handed a start, an end and a duration once. The source's own
+# examples are `cvarinterp s_volume 0 0.7 2.0` and
+# `cvarinterp timescale 0.0001 1.0 6.0 real`.
+CVARINTERP = "cvarinterp"
 LIVE_CONTINUOUS = "LIVE_CONTINUOUS"      # any value, takes effect next frame
 LIVE_DISCRETE = "LIVE_DISCRETE"          # a few values, takes effect next frame
 LIVE_STEP_ONLY = "LIVE_STEP_ONLY"        # live, but visibly a staircase
@@ -375,10 +383,33 @@ CONTROLS: dict[str, RenderControl] = {c.name: c for c in (
                   "zzz_zz_pantheon_grade.pk3 (colorcorrect.fs)", 0, 1, "LOW",
                   "post grade; per-scene variants need one pk3 each",
                   liveness=RELOAD_REQUIRED, liveness_provenance=ASSUMED),
-    RenderControl("material_swap", AVAILABLE_VIA_ASSETS, "zzz_*.pk3 shader",
-                  0, 1, "MEDIUM", "a material state, per shot; the live "
-                  "transform is the Effect Lab's question",
-                  liveness=RELOAD_REQUIRED, liveness_provenance=ASSUMED),
+    # `remapshader <original> <new> [time offset] [keep lightmap]`
+    # (cg_consolecmds.c:7437) replaces a shader while the demo runs, and
+    # `clearremappedshader` puts it back. This was filed as an asset swap
+    # needing a reload, which put the material-transform primitive behind a
+    # pk3 rebuild it does not need.
+    RenderControl("material_swap", AVAILABLE_NOW, "remapshader", 0, 1,
+                  "MEDIUM", "live shader replacement; the material-transform "
+                  "primitive, revertible with clearremappedshader",
+                  liveness=LIVE_DISCRETE, liveness_provenance=FROM_SOURCE),
+    RenderControl("entity_freeze", AVAILABLE_NOW, "entityfreeze", 0, 1, "LOW",
+                  "freeze ONE entity by number while the world runs on; a "
+                  "selective freeze the ffmpeg-side operator cannot express",
+                  liveness=LIVE_DISCRETE, liveness_provenance=FROM_SOURCE),
+    RenderControl("entity_hide", AVAILABLE_NOW, "entityfilter", 0, 1, "MEDIUM",
+                  "show only chosen entities, by type or number; a world "
+                  "strip for ENTITIES, not for BSP geometry",
+                  liveness=LIVE_DISCRETE, liveness_provenance=FROM_SOURCE),
+    RenderControl("timescale", AVAILABLE_NOW, "timescale", 0.05, 4.0, "HIGH",
+                  "engine-side speed, rampable with cvarinterp on the real "
+                  "clock; a speed ramp that happens before capture rather "
+                  "than in post",
+                  integer=False, liveness=LIVE_CONTINUOUS,
+                  liveness_provenance=FROM_SOURCE),
+    RenderControl("information_text", AVAILABLE_NOW, "centerprint", 0, 1,
+                  "MEDIUM", "engine-drawn centre text; an information reveal "
+                  "that lands on a gameplay frame rather than over it",
+                  liveness=LIVE_DISCRETE, liveness_provenance=FROM_SOURCE),
     RenderControl("bloom", FUTURE_BACKEND, "", 0, 1, "HIGH"),
     RenderControl("exposure", FUTURE_BACKEND, "", -4, 4, "MEDIUM"),
     RenderControl("tone_response", FUTURE_BACKEND, "", 0, 1, "MEDIUM"),
@@ -461,12 +492,27 @@ IMPLEMENTATIONS: dict[str, tuple[Implementation, ...]] = {
                        FUTURE_BACKEND),
     ),
     "MATERIAL_PULSE": (
-        Implementation(ENGINE, "r_gamma keyframes", "STYLISED", AVAILABLE_NOW,
-                       "whole-frame, live, continuous"),
+        Implementation(ENGINE, "remapshader + clearremappedshader", "FULL",
+                       AVAILABLE_NOW,
+                       "live shader swap and revert; timing unswept"),
+        Implementation(ENGINE, "cvarinterp r_gamma", "STYLISED", AVAILABLE_NOW,
+                       "whole-frame, engine-ramped"),
         Implementation(COMPOSITOR, "selective grade on delivered frames",
                        "PARTIAL", AVAILABLE_NOW),
-        Implementation(ENGINE, "live material response", "FULL",
-                       FUTURE_BACKEND),
+    ),
+    "SPEED_RAMP": (
+        Implementation(ENGINE, "cvarinterp timescale ... real", "FULL",
+                       AVAILABLE_NOW,
+                       "ramped by the engine before capture, so motion blur "
+                       "and particles follow the ramp instead of being "
+                       "resampled after the fact"),
+        Implementation(COMPOSITOR, "setpts on delivered frames", "PARTIAL",
+                       AVAILABLE_NOW, "measured; cannot recover sub-frame "
+                       "detail the capture never had"),
+    ),
+    "SELECTIVE_FREEZE": (
+        Implementation(ENGINE, "entityfreeze <entity>", "FULL", AVAILABLE_NOW,
+                       "one entity holds while the world runs on"),
     ),
     "RHYTHMIC_IMAGE_STUTTER": (
         Implementation(COMPOSITOR, "frame hold / repeat on delivered frames",
@@ -487,6 +533,16 @@ IMPLEMENTATIONS: dict[str, tuple[Implementation, ...]] = {
     "INFORMATION_REVEAL": (
         Implementation(COMPOSITOR, "text / number overlays", "FULL",
                        AVAILABLE_NOW, "post-compositor exists, unswept"),
+        Implementation(ENGINE, "centerprint / echopopup", "PARTIAL",
+                       AVAILABLE_NOW,
+                       "engine-drawn, so it is lit and compressed with the "
+                       "frame; less control over type than the compositor"),
+    ),
+    "ENTITY_STRIP": (
+        Implementation(ENGINE, "entityfilter <type|number>", "FULL",
+                       AVAILABLE_NOW,
+                       "hides entities, never BSP geometry -- this is not "
+                       "WORLD_REVEAL and must not be sold as it"),
     ),
 }
 
@@ -824,11 +880,18 @@ class ScheduledCvar:
     cvar: str
     value: str                       # what the engine is told
     control: str = ""
+    # a ramp is one command; a staircase is one command per step
     requested_unit: float | None = None   # 0..1 semantic value from the plan
     compiled_value: float | None = None   # after range mapping, before rounding
     delivered: str | None = None          # what a canary observed, if any
 
+    ramp_to: str | None = None        # cvarinterp target
+    ramp_ms: int | None = None
+
     def line(self) -> str:
+        if self.ramp_to is not None and self.ramp_ms:
+            return (f"at {self.at_ms} {CVARINTERP} {self.cvar} {self.value} "
+                    f"{self.ramp_to} {self.ramp_ms / 1000.0:.3f}")
         return f"at {self.at_ms} {self.cvar} {self.value}"
 
     @property
@@ -967,6 +1030,18 @@ def application_report() -> list[dict[str, Any]]:
                     "application": c.application, "truth": c.truth,
                     "liveness_provenance": c.liveness_provenance})
     return out
+
+
+def can_ramp(control: str) -> bool:
+    """Whether this control can be handed to cvarinterp instead of stepped.
+
+    Only a live continuous cvar: cvarinterp writes a cvar every frame, so a
+    latched one would be written and ignored, and a discrete one would be
+    driven through values it does not have.
+    """
+    c = CONTROLS.get(control)
+    return bool(c and c.capability == AVAILABLE_NOW
+                and c.liveness == LIVE_CONTINUOUS and not c.integer)
 
 
 def separation_report() -> dict[str, Any]:
