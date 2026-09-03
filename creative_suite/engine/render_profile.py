@@ -1066,6 +1066,13 @@ def application_report() -> list[dict[str, Any]]:
 # defaults, which is why several primitives looked like they needed custom
 # machinery. `ecam help` (cg_consolecmds.c:4127) is the grammar.
 
+# A camera point can fire a command. Whether that is a usable sync port
+# depends on the gap between the engine executing it and the frame showing
+# it, which is unmeasured -- so it is a trigger port until a canary says
+# otherwise.
+ENGINE_TRIGGER_PORT = "ENGINE_TRIGGER_PORT"
+DELIVERY_VERIFIED_SYNC_PORT = "DELIVERY_VERIFIED_SYNC_PORT"
+
 CAM_POINT_FIELDS: dict[str, dict[str, Any]] = {
     "type": {"used": True, "values": ["SPLINE", "INTERP", "JUMP", "CURVE",
                                       "SPLINE_BEZIER", "SPLINE_CATMULLROM"],
@@ -1095,9 +1102,14 @@ CAM_POINT_FIELDS: dict[str, dict[str, Any]] = {
                                      "note": "per-point ease. Smoothness is a "
                                              "control, not an emergent "
                                              "property of sample density"},
+    # An ENGINE_TRIGGER_PORT, not yet a sync port. The engine executing a
+    # command at a camera point and the delivered frame showing its effect
+    # are two different instants, and the offset between them is unmeasured.
     "commandStr": {"used": False, "values": ["any console command"],
-                   "note": "fired when the point is reached -- a sync port "
-                           "the engine already implements"},
+                   "port_status": ENGINE_TRIGGER_PORT,
+                   "note": "fired when the point is reached. Whether it is a "
+                           "SYNC port depends on a delivery offset nobody has "
+                           "measured"},
 }
 
 
@@ -1109,11 +1121,38 @@ def cam_point_unused() -> list[str]:
 # Multiple routes are kept apart on purpose: a chase and a spline are
 # different primitives with different fidelity, not two spellings of one.
 
-FULL_ROUTE = "FULL_ROUTE_AVAILABLE"
-PARTIAL_ROUTE = "PARTIAL_ROUTE_AVAILABLE"
+# ROUTE COVERAGE ONLY. A route existing in code is not a production-ready
+# effect, and naming it "FULL" invited exactly that reading. An idea with a
+# complete implementation route may still be unproven in captured media,
+# untimed, unseen and unjudged in context -- four further axes, each
+# independent, none implied by this one.
+ROUTE_COMPLETE = "COMPLETE_IMPLEMENTATION_ROUTE_EXISTS"
+ROUTE_PARTIAL = "PARTIAL_IMPLEMENTATION_ROUTE_EXISTS"
 NEEDS_CANARY = "NEEDS_CANARY"
 NEEDS_NEW_TECH = "REQUIRES_NEW_TECH"
 BLOCKED = "BLOCKED"
+
+# Back-compat aliases; the old names read as production readiness.
+FULL_ROUTE = ROUTE_COMPLETE
+PARTIAL_ROUTE = ROUTE_PARTIAL
+
+# The five independent axes. Nothing here is inferred from anything else.
+ROUTE_COVERAGE = "ROUTE_COVERAGE"            # is there a way to build it
+DELIVERY_COVERAGE = "DELIVERY_COVERAGE"      # proven in captured media
+TIMING_COVERAGE = "TIMING_COVERAGE"          # temporal behaviour measured
+VISUAL_APPROVAL = "VISUAL_APPROVAL"          # the user has watched it
+SEMANTIC_APPROVAL = "SEMANTIC_APPROVAL"      # approved in its own context
+MATURITY_AXES = (ROUTE_COVERAGE, DELIVERY_COVERAGE, TIMING_COVERAGE,
+                 VISUAL_APPROVAL, SEMANTIC_APPROVAL)
+
+# What has actually been carried past a route, by name. Everything absent is
+# absent, not assumed.
+DELIVERED: set[str] = set()          # nothing yet: no idea has been captured
+TIMED: set[str] = {"RHYTHMIC_IMAGE_STUTTER", "FRAME_ECHO", "MULTI_EXPOSURE",
+                   "MOVEMENT_TRANSITION", "HERO_THEN_DEATH_REWIND",
+                   "PIP_WORLD_SURFACE", "SPEED_SCALED_SLOWMO"}
+VISUALLY_OK: set[str] = set()
+SEMANTICALLY_OK: set[str] = set()
 
 
 def idea_status(name: str) -> str:
@@ -1123,12 +1162,50 @@ def idea_status(name: str) -> str:
         return NEEDS_CANARY
     now = [r for r in routes if r.capability != FUTURE_BACKEND]
     if any(r.coverage == "FULL" for r in now):
-        return FULL_ROUTE
+        return ROUTE_COMPLETE
     if any(r.coverage == "PARTIAL" for r in now):
-        return PARTIAL_ROUTE
+        return ROUTE_PARTIAL
     if now:
         return NEEDS_CANARY            # stylised stand-in only
     return NEEDS_NEW_TECH
+
+
+def maturity(name: str) -> dict[str, Any]:
+    """One idea across all five axes, each answered independently."""
+    return {
+        ROUTE_COVERAGE: idea_status(name),
+        DELIVERY_COVERAGE: name in DELIVERED,
+        TIMING_COVERAGE: name in TIMED,
+        VISUAL_APPROVAL: name in VISUALLY_OK,
+        SEMANTIC_APPROVAL: name in SEMANTICALLY_OK,
+    }
+
+
+def maturity_report() -> dict[str, Any]:
+    """The five axes counted separately, so no one number can stand in for
+    the others."""
+    from creative_suite.engine import creative_corpus as cc
+    names = [e.name for e in cc.CORPUS]
+    return {
+        "ideas": len(names),
+        ROUTE_COVERAGE: {
+            ROUTE_COMPLETE: sum(1 for n in names
+                                if idea_status(n) == ROUTE_COMPLETE),
+            ROUTE_PARTIAL: sum(1 for n in names
+                               if idea_status(n) == ROUTE_PARTIAL),
+            NEEDS_NEW_TECH: sum(1 for n in names
+                                if idea_status(n) == NEEDS_NEW_TECH),
+            NEEDS_CANARY: sum(1 for n in names
+                              if idea_status(n) == NEEDS_CANARY),
+        },
+        DELIVERY_COVERAGE: len([n for n in names if n in DELIVERED]),
+        TIMING_COVERAGE: len([n for n in names if n in TIMED]),
+        VISUAL_APPROVAL: len([n for n in names if n in VISUALLY_OK]),
+        SEMANTIC_APPROVAL: len([n for n in names if n in SEMANTICALLY_OK]),
+        "note": ("route coverage answers 'could this be built'. It says "
+                 "nothing about whether it has been built, timed, seen or "
+                 "judged, and those are counted separately for that reason"),
+    }
 
 
 def capability_matrix() -> dict[str, Any]:
@@ -1149,6 +1226,7 @@ def capability_matrix() -> dict[str, Any]:
             "idea": name,
             "lane": getattr(entry, "lane", ""),
             "status": st,
+            "maturity": maturity(name),
             "routes": [{"layer": r.layer, "means": r.means,
                         "coverage": r.coverage, "capability": r.capability}
                        for r in routes_for(name)],

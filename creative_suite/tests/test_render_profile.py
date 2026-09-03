@@ -439,3 +439,36 @@ def test_the_cam10_format_carries_more_than_we_write():
         assert f in unused, f
     assert rp.CAM_POINT_FIELDS["type"]["used"] is True
     assert len(unused) >= 8
+
+
+# ── route coverage is not readiness ─────────────────────────────────────────
+
+def test_a_route_existing_is_not_a_finished_effect():
+    """Four axes beyond 'could this be built', none implied by it."""
+    r = rp.maturity_report()
+    assert r[rp.ROUTE_COVERAGE][rp.ROUTE_COMPLETE] == 40
+    assert r[rp.DELIVERY_COVERAGE] == 0, "nothing has been captured yet"
+    assert r[rp.VISUAL_APPROVAL] == 0 and r[rp.SEMANTIC_APPROVAL] == 0
+    assert 0 < r[rp.TIMING_COVERAGE] < r[rp.ROUTE_COVERAGE][rp.ROUTE_COMPLETE]
+
+
+def test_the_route_status_name_does_not_read_as_ready():
+    assert rp.ROUTE_COMPLETE == "COMPLETE_IMPLEMENTATION_ROUTE_EXISTS"
+    m = rp.maturity("MUSIC_REACTIVE_MATERIAL")
+    assert m[rp.ROUTE_COVERAGE] == rp.ROUTE_COMPLETE
+    assert m[rp.DELIVERY_COVERAGE] is False
+    assert m[rp.TIMING_COVERAGE] is False
+
+
+def test_a_measured_effect_is_ahead_of_an_unmeasured_one():
+    stutter = rp.maturity("RHYTHMIC_IMAGE_STUTTER")
+    shader = rp.maturity("MUSIC_REACTIVE_MATERIAL")
+    assert stutter[rp.TIMING_COVERAGE] and not shader[rp.TIMING_COVERAGE]
+    assert stutter[rp.ROUTE_COVERAGE] == shader[rp.ROUTE_COVERAGE]
+
+
+def test_commandstr_is_a_trigger_port_until_measured():
+    f = rp.CAM_POINT_FIELDS["commandStr"]
+    assert f["port_status"] == rp.ENGINE_TRIGGER_PORT
+    assert f["port_status"] != rp.DELIVERY_VERIFIED_SYNC_PORT
+    assert "unmeasured" in f["note"] or "nobody has measured" in f["note"]

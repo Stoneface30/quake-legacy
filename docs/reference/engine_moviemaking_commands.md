@@ -181,3 +181,38 @@ are. `addmirrorsurface` is genuinely a world-surface capability and unswept.
 `cvarinterp` on the game clock versus the real clock, `loop` audio and
 particle behaviour, q3mme camera interpolation compared with cam10, and the
 `dof` subsystem's controls.
+
+---
+
+## Database search — a correction
+
+An earlier note here claimed an ordinary index on `server_text_v1(text)` or
+`player_names_v1(name)` would take substring scans "to microseconds". That is
+wrong. A B-tree index cannot serve a leading-wildcard `LIKE '%gg%'`: with no
+known prefix there is no range to seek, so SQLite scans regardless.
+
+What ordinary indexes do help: exact match, prefix match (`LIKE 'mkl%'`),
+joins and ordering. Arbitrary substring needs a different strategy
+altogether — FTS, or a trigram-style index.
+
+Measured today, and the reason none of that is urgent:
+
+| Query | Rows scanned | Time |
+|---|---|---|
+| `text LIKE '%gg%'` | 256,651 | 45 ms |
+| `name LIKE '%mkl%'` | 42,067 | 4.7 ms |
+| chat in one demo (indexed) | — | <1 ms |
+| chat within 10 s of a frag (indexed join) | — | <1 ms |
+
+FTS is worth adding later for word-boundary and ranked search, which a scan
+cannot do at any speed. It is not worth adding for speed.
+
+## Identity, kept in three layers
+
+`RAW_NAME` (6,140) → `NORMALIZED_NAME` (4,841) → `PLAYER_IDENTITY`.
+
+The 1,299 that collapse do so on colour codes and control characters, which
+is formatting. Two rows sharing a normalised spelling is not evidence of one
+person, across twenty years of public servers especially. Identity stays a
+third layer, and any AI alias matching is a suggestion against it, never a
+merge into it.
