@@ -69,6 +69,9 @@
   <b>PANTHEON</b>
   <span style="color:var(--dim)">career review</span>
   <span id="order" style="color:var(--dim);font-size:12px"></span>
+  <select id="corpus" style="background:#12121a;color:var(--fg);
+      border:1px solid var(--line);border-radius:4px;padding:3px 6px;
+      font:inherit;font-size:12px"></select>
   <div class="counts" id="counts"></div>
 </header>
 
@@ -124,6 +127,7 @@
 // Live demo filenames embed opponent nicknames, and this is a public repo.
 const API = "/api/review";
 let items = [], idx = 0, offset = 0, order = "WORST_FIRST", cur = null;
+let itemType = "FRAG";
 const $ = id => document.getElementById(id);
 const v = $("v");
 
@@ -143,7 +147,8 @@ function toast(msg){
 }
 
 async function loadQueue(off){
-  const r = await fetch(API + "/queue?order=" + order + "&offset=" + off + "&limit=30");
+  const r = await fetch(API + "/queue?order=" + order + "&offset=" + off +
+                       "&limit=30&item_type=" + itemType);
   const d = await r.json();
   items = d.items; offset = d.offset; idx = 0;
   $("order").textContent = order === "WORST_FIRST" ? "worst → best"
@@ -152,7 +157,7 @@ async function loadQueue(off){
 }
 
 async function progress(){
-  const p = await (await fetch(API + "/progress")).json();
+  const p = await (await fetch(API + "/progress?item_type=" + itemType)).json();
   const r = p.roles;
   const box = $("counts");
   const parts = [
@@ -307,6 +312,23 @@ $("note").addEventListener("blur", async () => {
   toast("note saved");
 });
 
+async function corpora(){
+  const d = await (await fetch(API + "/corpora")).json();
+  const sel = $("corpus");
+  sel.replaceChildren(...d.item_types.map(t => {
+    const o = document.createElement("option");
+    o.value = t.item_type;
+    o.textContent = t.available
+      ? t.item_type + " (" + t.total.toLocaleString() + ")"
+      : t.item_type + " — not derived yet";
+    o.disabled = !t.available;
+    return o;
+  }));
+  sel.value = itemType;
+  sel.onchange = () => { itemType = sel.value; progress(); loadQueue(0); };
+}
+
+corpora();
 progress();
 loadQueue(0);
 </script>

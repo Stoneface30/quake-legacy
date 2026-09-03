@@ -20,6 +20,84 @@ def _isolated(tmp_path, monkeypatch):
     yield
 
 
+# ── provenance: only the user writes creative truth ─────────────────────────
+
+def test_a_test_cannot_write_a_human_verdict():
+    """Automated tests drove the live UI during implementation and wrote rows
+    that were indistinguishable from real review. That must stay impossible."""
+    it = rc.queue(limit=1)[0]
+    rc.record(it.item_id, it.item_type, it.source_id, rc.T1_FEATURE_FX,
+              provenance=rc.TEST)
+    p = rc.progress()
+    assert p["reviewed"] == 0, "a TEST row is not the user's judgement"
+    assert p["non_human_rows"] == {rc.TEST: 1}
+    assert rc.pool(rc.T1_FEATURE_FX) == [], "and it never reaches a pool"
+
+
+def test_only_human_provenance_counts_towards_progress():
+    a, b = rc.queue(limit=2)
+    rc.record(a.item_id, a.item_type, a.source_id, rc.T4_KEEP_NORMAL,
+              provenance=rc.HUMAN_USER)
+    rc.record(b.item_id, b.item_type, b.source_id, rc.T4_KEEP_NORMAL,
+              provenance=rc.AI_SUGGESTION)
+    p = rc.progress()
+    assert p["reviewed"] == 1
+    assert p["roles"][rc.T4_KEEP_NORMAL] == 1
+    assert [r["item_id"] for r in rc.pool(rc.T4_KEEP_NORMAL)] == [a.item_id]
+
+
+def test_an_unknown_provenance_is_refused():
+    it = rc.queue(limit=1)[0]
+    with pytest.raises(ValueError, match="unknown provenance"):
+        rc.record(it.item_id, it.item_type, it.source_id, rc.T4_KEEP_NORMAL,
+                  provenance="SOMEONE_ELSE")
+
+
+# ── telefrags: the constant had to be read, not guessed ─────────────────────
+
+def test_telefrag_uses_the_verified_means_of_death():
+    """An earlier query used mod=12 and found nothing. 12 is MOD_BFG; the
+    vendored enum puts MOD_TELEFRAG at 18."""
+    assert rc.MOD_TELEFRAG == 18
+    assert rc.count_items(rc.TELEFRAG) == 194
+    q = rc.queue(item_type=rc.TELEFRAG, limit=5)
+    assert len(q) == 5
+    assert all(i.item_id.startswith("TELEFRAG:") for i in q)
+    assert all(i.total_items == 194 for i in q)
+
+
+def test_a_telefrag_gets_the_same_five_questions():
+    it = rc.queue(item_type=rc.TELEFRAG, limit=1)[0]
+    rc.record(it.item_id, it.item_type, it.source_id, rc.T2_TRANSITION,
+              "telefrags are natural scene joins")
+    got = rc.item(it.item_id)
+    assert got.item_type == rc.TELEFRAG
+    assert got.human_role == rc.T2_TRANSITION
+    assert rc.progress(rc.TELEFRAG)["total"] == 194
+
+
+# ── corpora: what is available, and why the rest is not ─────────────────────
+
+def test_my_frags_is_available_and_ptn_is_not_yet():
+    mine = rc.corpus_status(rc.MY_FRAGS)
+    assert mine["available"] and mine["total"] == 36607
+    ptn = rc.corpus_status(rc.PTN_FRAGS)
+    assert not ptn["available"]
+    assert "carry no killer" in ptn["blocked_by"]
+    assert "otherEntityNum2" in ptn["needs"]
+
+
+def test_the_roster_is_the_users_list_not_a_string_match():
+    """A name is on the roster because the user put it there. 'pTn' appearing
+    in some other player's name proves nothing about who they are."""
+    assert set(rc.PTN_ROSTER) == {"NaikoMarie", "sereke", "S73rn", "jibyjibs"}
+    for member, spellings in rc.PTN_ROSTER.items():
+        assert spellings, member
+    # S73rn and S7ern were given as one member by the user; only spellings
+    # actually found in the cache are listed.
+    assert any("s73rn" in s.lower() for s in rc.PTN_ROSTER["S73rn"])
+
+
 # ── the five roles ──────────────────────────────────────────────────────────
 
 def test_there_are_exactly_five_roles_and_they_map_to_the_number_keys():

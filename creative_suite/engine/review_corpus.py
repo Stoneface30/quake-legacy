@@ -38,6 +38,20 @@ EDITORIAL_DB = REPO_ROOT / "creative_suite/database/editorial.db"
 
 REVIEW_VERSION = "review-corpus-v1"
 
+# ── who wrote this verdict ──────────────────────────────────────────────────
+# A creative judgement is the user's and nobody else's. Automated tests drove
+# the live UI during implementation and wrote rows that were indistinguishable
+# from real review; that must never be possible again. Only the first two
+# count towards reviewed totals, human pools, or anything the composer
+# prefers.
+HUMAN_USER = "HUMAN_USER"
+IMPORTED_LEGACY_HUMAN = "IMPORTED_LEGACY_HUMAN"
+TEST = "TEST"
+SYSTEM = "SYSTEM"
+AI_SUGGESTION = "AI_SUGGESTION"
+PROVENANCES = (HUMAN_USER, IMPORTED_LEGACY_HUMAN, TEST, SYSTEM, AI_SUGGESTION)
+HUMAN_PROVENANCE = (HUMAN_USER, IMPORTED_LEGACY_HUMAN)
+
 # ── the five roles ──────────────────────────────────────────────────────────
 # One click, one answer. Not a tag cloud: the machine already knows what the
 # event IS, and the only thing it cannot infer is what the event is FOR.
@@ -84,6 +98,61 @@ ITEM_TYPES = (FRAG, TELEFRAG, DEATH, TELEPORT, DODGE, LG_TRACKING, PROJECTILE)
 # padded with something that was never recorded.
 PRE_MS = 3000
 POST_MS = 3000
+
+# MOD_TELEFRAG. Read off the vendored enum (bg_public.h: MOD_UNKNOWN=0 ..
+# MOD_CRUSH=17, MOD_TELEFRAG=18), not assumed -- an earlier query used 12,
+# which is MOD_BFG, and returned zero.
+MOD_TELEFRAG = 18
+
+# ── corpora ─────────────────────────────────────────────────────────────────
+# A corpus is WHOSE moments are reviewed. Separate from item type, which is
+# WHAT happened.
+#
+# MY_FRAGS is the recorder's own kills -- the only killer-attributed set the
+# caches hold.
+#
+# PTN_FRAGS is unavailable, and the reason is specific rather than a shrug.
+# It needs a killer for every kill, and the cached `death` events do not
+# carry one: victim and weapon are NULL across all 133,279 rows, leaving
+# only the dying entity and the means of death. Killer attribution lives in
+# EV_OBITUARY's otherEntityNum2, which the enrichment read and never
+# persisted. Until a derivation pass writes it, a pTn corpus could only be
+# guessed, and a guess about who killed whom is exactly what this project
+# does not do.
+MY_FRAGS = "MY_FRAGS"
+PTN_FRAGS = "PTN_FRAGS"
+MY_AND_PTN = "MY_AND_PTN"
+ALL_PLAYERS = "ALL_PLAYERS"
+CORPORA = (MY_FRAGS, PTN_FRAGS, MY_AND_PTN, ALL_PLAYERS)
+
+# The roster the user supplied, with the raw spellings actually found in
+# player_names_v1. A name is here because the user put it here, never
+# because "pTn" appeared in a string.
+PTN_ROSTER: dict[str, tuple[str, ...]] = {
+    "NaikoMarie": ("NaikoMarie", "naikomarie"),
+    "sereke": ("sereke", "^7sere^4k^7e"),
+    "S73rn": ("s73rn", "^7s73rN", "^7s^47^73r^4N^7"),
+    "jibyjibs": ("jibyjibs", "^7jib^1y^7jib^1s^7"),
+}
+
+
+def corpus_status(corpus: str) -> dict[str, Any]:
+    """Whether a corpus can be reviewed, and if not, exactly what is missing."""
+    if corpus == MY_FRAGS:
+        return {"corpus": corpus, "available": True, "total": count_items(FRAG),
+                "note": "the recorder's own kills"}
+    if corpus in (PTN_FRAGS, MY_AND_PTN, ALL_PLAYERS):
+        return {
+            "corpus": corpus, "available": False, "total": 0,
+            "blocked_by": ("cached death events carry no killer: victim and "
+                           "weapon are NULL across all 133,279 rows"),
+            "needs": ("a derivation pass persisting EV_OBITUARY's "
+                      "otherEntityNum2 as the killer, then a name lookup "
+                      "through player_names_v1 at the kill's server time"),
+            "roster_resolved": {k: list(v) for k, v in PTN_ROSTER.items()},
+        }
+    return {"corpus": corpus, "available": False, "total": 0,
+            "blocked_by": "unknown corpus"}
 
 
 @dataclass(frozen=True)
@@ -137,10 +206,9 @@ CREATE TABLE IF NOT EXISTS human_reviews (
     human_role     TEXT NOT NULL,
     note           TEXT NOT NULL DEFAULT '',
     reviewed_at    TEXT NOT NULL,
-    review_version TEXT NOT NULL
+    review_version TEXT NOT NULL,
+    provenance     TEXT NOT NULL DEFAULT 'HUMAN_USER'
 );
-CREATE INDEX IF NOT EXISTS ix_hr_role ON human_reviews(human_role);
-CREATE INDEX IF NOT EXISTS ix_hr_type ON human_reviews(item_type, human_role);
 CREATE TABLE IF NOT EXISTS human_review_log (
     rowid_         INTEGER PRIMARY KEY AUTOINCREMENT,
     item_id        TEXT NOT NULL,
@@ -150,12 +218,25 @@ CREATE TABLE IF NOT EXISTS human_review_log (
 );
 """
 
+# Indexes run AFTER the column migration below: an index on a column an old
+# database has not grown yet fails the whole script.
+_INDEXES = """
+CREATE INDEX IF NOT EXISTS ix_hr_role ON human_reviews(human_role);
+CREATE INDEX IF NOT EXISTS ix_hr_type ON human_reviews(item_type, human_role);
+CREATE INDEX IF NOT EXISTS ix_hr_prov ON human_reviews(provenance);
+"""
+
 
 def conn() -> sqlite3.Connection:
     c = sqlite3.connect(EDITORIAL_DB, timeout=30)
     c.row_factory = sqlite3.Row
     c.execute("PRAGMA journal_mode=WAL")
     c.executescript(_SCHEMA)
+    cols = {r[1] for r in c.execute("PRAGMA table_info(human_reviews)")}
+    if "provenance" not in cols:      # rows written before provenance existed
+        c.execute("ALTER TABLE human_reviews ADD COLUMN provenance TEXT "
+                  "NOT NULL DEFAULT 'HUMAN_USER'")
+    c.executescript(_INDEXES)
     return c
 
 
@@ -167,22 +248,32 @@ def _rec() -> sqlite3.Connection:
 
 
 def record(item_id: str, item_type: str, source_id: int, role: str,
-           note: str | None = None) -> dict[str, Any]:
+           note: str | None = None, provenance: str = HUMAN_USER
+           ) -> dict[str, Any]:
     """Save a verdict. Immediate, and appended to a log so a mistake is
-    recoverable rather than merely regretted."""
+    recoverable rather than merely regretted.
+
+    `provenance` says who decided. It defaults to HUMAN_USER because the UI
+    is the only thing that should be calling this without thinking; a test
+    must pass TEST explicitly, and a guard in the test suite holds that line.
+    """
     if role not in ROLES:
         raise ValueError(f"unknown role {role!r}")
+    if provenance not in PROVENANCES:
+        raise ValueError(f"unknown provenance {provenance!r}")
     with conn() as c:
         prev = c.execute("SELECT note FROM human_reviews WHERE item_id=?",
                          (item_id,)).fetchone()
         keep = prev["note"] if (prev and note is None) else (note or "")
         c.execute(
             "INSERT INTO human_reviews(item_id,item_type,source_id,human_role,"
-            "note,reviewed_at,review_version) "
-            "VALUES(?,?,?,?,?,datetime('now'),?) "
+            "note,reviewed_at,review_version,provenance) "
+            "VALUES(?,?,?,?,?,datetime('now'),?,?) "
             "ON CONFLICT(item_id) DO UPDATE SET human_role=excluded.human_role,"
-            "note=excluded.note, reviewed_at=excluded.reviewed_at",
-            (item_id, item_type, source_id, role, keep, REVIEW_VERSION))
+            "note=excluded.note, reviewed_at=excluded.reviewed_at, "
+            "provenance=excluded.provenance",
+            (item_id, item_type, source_id, role, keep, REVIEW_VERSION,
+             provenance))
         c.execute("INSERT INTO human_review_log(item_id,human_role,note,at) "
                   "VALUES(?,?,?,datetime('now'))", (item_id, role, keep))
     return {"item_id": item_id, "human_role": role, "note": keep}
@@ -242,20 +333,22 @@ ORDER_BEST_FIRST = "BEST_FIRST"
 ORDERS = (ORDER_WORST_FIRST, ORDER_BEST_FIRST)
 
 
-def _frag_rows(order: str, limit: int, offset: int,
-               unreviewed_only: bool) -> list[sqlite3.Row]:
+def _frag_rows(order: str, limit: int, offset: int, unreviewed_only: bool,
+               item_type: str = FRAG) -> list[sqlite3.Row]:
     direction = "ASC" if order == ORDER_WORST_FIRST else "DESC"
+    where = "WHERE mod = ?" if item_type == TELEFRAG else ""
+    pre: list[Any] = [MOD_TELEFRAG] if item_type == TELEFRAG else []
     sql = ("SELECT id, content_hash, demo_name, server_time_ms, round, "
            "weapon_name, victim_client, highlight_score, classes, reasons "
-           "FROM recognized_frags "
+           f"FROM recognized_frags {where} "
            f"ORDER BY highlight_score {direction}, id ASC "
            "LIMIT ? OFFSET ?")
     with _rec() as c:
-        rows = c.execute(sql, (limit, offset)).fetchall()
+        rows = c.execute(sql, (*pre, limit, offset)).fetchall()
     if not unreviewed_only:
         return rows
-    got = reviews([f"{FRAG}:{r['id']}" for r in rows])
-    return [r for r in rows if f"{FRAG}:{r['id']}" not in got]
+    got = reviews([f"{item_type}:{r['id']}" for r in rows])
+    return [r for r in rows if f"{item_type}:{r['id']}" not in got]
 
 
 def _why(row: sqlite3.Row) -> str:
@@ -283,19 +376,19 @@ def queue(order: str = ORDER_WORST_FIRST, limit: int = 50, offset: int = 0,
     """
     if order not in ORDERS:
         raise ValueError(f"unknown order {order!r}")
-    if item_type != FRAG:
+    if item_type not in (FRAG, TELEFRAG):
         return []                       # other families wire in next
     total = count_items(item_type)
-    rows = _frag_rows(order, limit, offset, unreviewed_only)
-    ids = [f"{FRAG}:{r['id']}" for r in rows]
+    rows = _frag_rows(order, limit, offset, unreviewed_only, item_type)
+    ids = [f"{item_type}:{r['id']}" for r in rows]
     got = reviews(ids)
     out: list[ReviewItem] = []
     for i, r in enumerate(rows):
-        iid = f"{FRAG}:{r['id']}"
+        iid = f"{item_type}:{r['id']}"
         rv = got.get(iid) or {}
         rank = offset + i + 1
         out.append(ReviewItem(
-            item_id=iid, item_type=FRAG, source_id=int(r["id"]),
+            item_id=iid, item_type=item_type, source_id=int(r["id"]),
             content_hash=r["content_hash"] or "", demo_name=r["demo_name"] or "",
             server_time_ms=int(r["server_time_ms"]),
             machine_score=float(r["highlight_score"]),
@@ -308,16 +401,20 @@ def queue(order: str = ORDER_WORST_FIRST, limit: int = 50, offset: int = 0,
 
 
 def count_items(item_type: str = FRAG) -> int:
-    if item_type != FRAG:
-        return 0
-    with _rec() as c:
-        return int(c.execute("SELECT COUNT(*) FROM recognized_frags")
-                   .fetchone()[0])
+    if item_type == FRAG:
+        with _rec() as c:
+            return int(c.execute("SELECT COUNT(*) FROM recognized_frags")
+                       .fetchone()[0])
+    if item_type == TELEFRAG:
+        with _rec() as c:
+            return int(c.execute("SELECT COUNT(*) FROM recognized_frags "
+                                 "WHERE mod = ?", (MOD_TELEFRAG,)).fetchone()[0])
+    return 0
 
 
 def item(item_id: str) -> ReviewItem | None:
     kind, _, sid = item_id.partition(":")
-    if kind != FRAG:
+    if kind not in (FRAG, TELEFRAG):
         return None
     with _rec() as c:
         r = c.execute(
@@ -332,11 +429,11 @@ def item(item_id: str) -> ReviewItem | None:
             (r["highlight_score"], r["highlight_score"], r["id"])).fetchone()[0])
     rv = reviews([item_id]).get(item_id) or {}
     return ReviewItem(
-        item_id=item_id, item_type=FRAG, source_id=int(r["id"]),
+        item_id=item_id, item_type=kind, source_id=int(r["id"]),
         content_hash=r["content_hash"] or "", demo_name=r["demo_name"] or "",
         server_time_ms=int(r["server_time_ms"]),
         machine_score=float(r["highlight_score"]), machine_rank=rank,
-        total_items=count_items(), weapon=r["weapon_name"] or "",
+        total_items=count_items(kind), weapon=r["weapon_name"] or "",
         victim=r["victim_client"], round_no=r["round"], why=_why(r),
         human_role=(rv.get("human_role") or None) or None,
         note=rv.get("note") or "")
@@ -347,14 +444,20 @@ def item(item_id: str) -> ReviewItem | None:
 def progress(item_type: str = FRAG) -> dict[str, Any]:
     total = count_items(item_type)
     with conn() as c:
+        qs = ",".join("?" * len(HUMAN_PROVENANCE))
         counts = {r["human_role"]: r["n"] for r in c.execute(
             "SELECT human_role, COUNT(*) n FROM human_reviews "
-            "WHERE item_type=? AND human_role<>'' GROUP BY 1", (item_type,))}
+            f"WHERE item_type=? AND human_role<>'' AND provenance IN ({qs}) "
+            "GROUP BY 1", (item_type, *HUMAN_PROVENANCE))}
+        other = {r["provenance"]: r["n"] for r in c.execute(
+            "SELECT provenance, COUNT(*) n FROM human_reviews "
+            f"WHERE item_type=? AND provenance NOT IN ({qs}) GROUP BY 1",
+            (item_type, *HUMAN_PROVENANCE))}
     reviewed = sum(counts.values())
     return {"item_type": item_type, "total": total, "reviewed": reviewed,
             "unreviewed": total - reviewed,
             "roles": {r: counts.get(r, 0) for r in ROLES},
-            "labels": ROLE_LABEL}
+            "non_human_rows": other, "labels": ROLE_LABEL}
 
 
 def pool(role: str, item_type: str | None = None, weapon: str | None = None,
@@ -364,8 +467,11 @@ def pool(role: str, item_type: str | None = None, weapon: str | None = None,
     if role not in ROLES:
         raise ValueError(f"unknown role {role!r}")
     with conn() as c:
-        sql = "SELECT * FROM human_reviews WHERE human_role=?"
-        args: list[Any] = [role]
+        # Pools feed the composer, so only human judgement enters them.
+        qs = ",".join("?" * len(HUMAN_PROVENANCE))
+        sql = (f"SELECT * FROM human_reviews WHERE human_role=? "
+               f"AND provenance IN ({qs})")
+        args: list[Any] = [role, *HUMAN_PROVENANCE]
         if item_type:
             sql += " AND item_type=?"
             args.append(item_type)

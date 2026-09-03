@@ -37,11 +37,26 @@ class Verdict(BaseModel):
     item_id: str
     role: str
     note: str | None = None
+    # No provenance field. The API is the user's hand; anything else writing
+    # a verdict goes through review_corpus.record() and states what it is.
 
 
 class Note(BaseModel):
     item_id: str
     note: str
+
+
+@router.get("/corpora")
+def get_corpora():
+    """What can be reviewed, and for what cannot, exactly what is missing."""
+    return {
+        "corpora": [rc.corpus_status(c) for c in rc.CORPORA],
+        "item_types": [
+            {"item_type": t, "total": rc.count_items(t),
+             "available": rc.count_items(t) > 0}
+            for t in rc.ITEM_TYPES
+        ],
+    }
 
 
 @router.get("/progress")
@@ -81,7 +96,8 @@ def post_verdict(v: Verdict):
     if it is None:
         raise HTTPException(404, f"no such item: {v.item_id}")
     try:
-        out = rc.record(v.item_id, it.item_type, it.source_id, v.role, v.note)
+        out = rc.record(v.item_id, it.item_type, it.source_id, v.role, v.note,
+                        provenance=rc.HUMAN_USER)
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {**out, "progress": rc.progress(it.item_type)}
