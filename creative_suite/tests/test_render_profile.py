@@ -397,3 +397,45 @@ def test_a_single_entity_can_be_frozen_while_the_world_runs():
     c = rp.CONTROLS["entity_freeze"]
     assert c.backend_binding == "entityfreeze" and c.animatable
     assert rp.best_route_now("SELECTIVE_FREEZE").layer == rp.ENGINE
+
+
+# ── the corpus route matrix ─────────────────────────────────────────────────
+
+def test_every_corpus_idea_has_a_route_recorded():
+    from creative_suite.engine import creative_routes as cr
+    assert cr.unmapped() == [], "an unexamined idea is not a blocked one"
+    m = rp.capability_matrix()
+    assert m["mapped"] == 60 and m["unmapped"] == 0
+
+
+def test_routes_are_kept_apart_not_collapsed():
+    """A chase and a spline are different primitives with different failure
+    modes; one entry each."""
+    r = rp.routes_for("PROJECTILE_CINEMATIC")
+    means = [x.means for x in r]
+    assert any("chase" in m for m in means)
+    assert any("viewEnt" in m for m in means)
+    assert any("authored angles" in m for m in means)
+    assert len(r) >= 3
+
+
+def test_a_stylised_stand_in_never_counts_as_the_idea():
+    strip = rp.routes_for("WORLD_STRIP")
+    assert any(x.coverage == "STYLISED" and "picmip" in x.means for x in strip)
+    assert rp.idea_status("WORLD_STRIP") == rp.PARTIAL_ROUTE
+    assert rp.idea_status("WORLD_REBUILD") == rp.NEEDS_NEW_TECH
+
+
+def test_material_routes_are_not_called_morphs():
+    team = rp.routes_for("TEAM_IDENTITY_MORPH")
+    shader = next(x for x in team if "remapshader" in x.means)
+    assert shader.coverage == "PARTIAL"
+    assert "Not a model morph" in shader.notes
+
+
+def test_the_cam10_format_carries_more_than_we_write():
+    unused = rp.cam_point_unused()
+    for f in ("viewEnt", "commandStr", "timescale / timescaleInterp"):
+        assert f in unused, f
+    assert rp.CAM_POINT_FIELDS["type"]["used"] is True
+    assert len(unused) >= 8

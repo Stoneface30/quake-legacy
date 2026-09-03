@@ -128,8 +128,56 @@ hides entities; the world itself stays. WORLD_REVEAL, WALL_XRAY,
 GEOMETRY_REBUILD and MAP_CONSTRUCTION remain without a full route, and
 `entityfilter` must not be sold as one.
 
-## Unread
+---
 
-`ecam`, `ucam`, `idcamera`, `startOrbit`, `camtracesave`, `dof`,
-`fxmath`, `addmirrorsurface`, `demo_scale`, `cvarinterp` on the game clock
-versus the real clock. Each is a real command with an unknown envelope.
+## The camera format we already write and barely use
+
+Every `.cam10` point carries these fields; `cam10_writer` emits all of them
+and we fill four. The rest sit at defaults, which is why several primitives
+looked like they needed custom machinery. `ecam help`
+(cg_consolecmds.c:4127) is the editing grammar for the same fields.
+
+| Field | Used | What it gives |
+|---|---|---|
+| `type` | yes, always INTERP | SPLINE, INTERP, JUMP, CURVE, SPLINE_BEZIER, SPLINE_CATMULLROM |
+| `viewEnt` + angles `ENT` | **no** | the camera aims at an entity by itself. A projectile follow needs no authored angles at all |
+| `viewPointOrigin` | **no** | aim at a fixed world point |
+| `fov` / `fovType` | **no** | per-point field of view: USE_CURRENT, INTERP, FIXED, PASS, SPLINE |
+| `roll` / `rollType` | **no** | per-point roll: INTERP, FIXED, PASS, AS_ANGLES |
+| `offset` / `offsetType` | **no** | per-point positional offset |
+| `timescale` / `timescaleInterp` | **no** | a speed ramp carried by the camera path itself |
+| `use*Velocity` + initial/final | **no** | per-point ease for origin, angles, offsets, fov, roll |
+| `commandStr` | **no** | a console command fired when the point is reached |
+
+Two of these change earlier conclusions. Smoothness was being measured as an
+emergent property of sample density; it is a per-point control. And
+`commandStr` is a sync port the engine already implements — a camera point
+can fire an fx cue, a shader swap or a centerprint at the exact instant it
+is reached.
+
+`ecam` also exposes `rebase`, `shifttime`, `rotate`, and
+`smooth velocity|avgvelocity`, which retimes points so each point's exit
+velocity matches the next point's entry.
+
+## The nine formerly-unread commands
+
+| Command | Source | What it actually is |
+|---|---|---|
+| `ecam` | :4127 | edit selected camera points — the grammar above |
+| `ucam` | | `CG_UpdateCameraInfo`; recomputes camera info after edits |
+| `idcamera` / `stopidcamera` | :513 | toggles `cg.cameraMode`, the id-style camera |
+| `startOrbit` | | sets `cg_cameraOrbit 5`, `cg_thirdPerson 1`, angle 0, range 100 — a canned orbit, not a path |
+| `camtracesave` | | writes the current camera points to a trace file; needs ≥2 points, optional `old` format |
+| `dof` | cg_q3mme_demos_dof.c | q3mme depth-of-field parse, its own subsystem |
+| `fxmath <expr>` | | an expression evaluator, e.g. `fxmath sin(45.3 / 1.2)`. A console calculator, not an effect |
+| `addmirrorsurface <x> <y> <z>` | | registers a real mirror surface, capped at `MAX_MIRROR_SURFACES` |
+| `demo_scale <v>` | | a thin alias: sets `timescale` |
+
+`fxmath` and `demo_scale` are the two that sound more interesting than they
+are. `addmirrorsurface` is genuinely a world-surface capability and unswept.
+
+## Still unread
+
+`cvarinterp` on the game clock versus the real clock, `loop` audio and
+particle behaviour, q3mme camera interpolation compared with cam10, and the
+`dof` subsystem's controls.

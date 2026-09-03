@@ -1,0 +1,943 @@
+{
+  "ideas": [
+    {
+      "idea": "WORLD_STRIP",
+      "lane": "",
+      "status": "PARTIAL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "ENGINE",
+          "means": "r_picmip per shot",
+          "coverage": "STYLISED",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "ENGINE",
+          "means": "entityfilter",
+          "coverage": "STYLISED",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "CAPTURE_PASS",
+          "means": "mme_saveDepth + depth compositing",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "ENGINE",
+          "means": "per-frame surface suppression",
+          "coverage": "FULL",
+          "capability": "FUTURE_BACKEND"
+        }
+      ]
+    },
+    {
+      "idea": "WORLD_REBUILD",
+      "lane": "",
+      "status": "REQUIRES_NEW_TECH",
+      "routes": [
+        {
+          "layer": "ENGINE",
+          "means": "per-frame surface suppression",
+          "coverage": "FULL",
+          "capability": "FUTURE_BACKEND"
+        }
+      ]
+    },
+    {
+      "idea": "MAP_CONSTRUCTION_INTRO",
+      "lane": "",
+      "status": "REQUIRES_NEW_TECH",
+      "routes": [
+        {
+          "layer": "SYNTHETIC",
+          "means": "authored build animation",
+          "coverage": "FULL",
+          "capability": "FUTURE_BACKEND"
+        }
+      ]
+    },
+    {
+      "idea": "WORLD_MORPH_TO_NEXT_SCENE",
+      "lane": "",
+      "status": "REQUIRES_NEW_TECH",
+      "routes": [
+        {
+          "layer": "ENGINE",
+          "means": "vertex morph",
+          "coverage": "FULL",
+          "capability": "FUTURE_BACKEND"
+        }
+      ]
+    },
+    {
+      "idea": "FLY_INTO_OBJECT",
+      "lane": "",
+      "status": "PARTIAL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "ENGINE",
+          "means": "cam10 spline into a surface",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "PROJECTILE_MORPH_BRIDGE",
+      "lane": "",
+      "status": "NEEDS_CANARY",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "shape-matched dissolve",
+          "coverage": "STYLISED",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "ENGINE",
+          "means": "vertex morph",
+          "coverage": "FULL",
+          "capability": "FUTURE_BACKEND"
+        }
+      ]
+    },
+    {
+      "idea": "LOW_HP_REACTIVE_WORLD",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "ENGINE",
+          "means": "remapshader on health thresholds",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "ENGINE",
+          "means": "cvarinterp r_gamma",
+          "coverage": "STYLISED",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "WALL_XRAY_REBUILD",
+      "lane": "",
+      "status": "PARTIAL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "CAPTURE_PASS",
+          "means": "depth pass + mask compositing",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "ENGINE",
+          "means": "per-frame surface suppression",
+          "coverage": "FULL",
+          "capability": "FUTURE_BACKEND"
+        }
+      ]
+    },
+    {
+      "idea": "ONE_V_X_ENEMY_REVEAL",
+      "lane": "",
+      "status": "PARTIAL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "ENGINE",
+          "means": "entityfilter to isolate enemies",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "COMPOSITOR",
+          "means": "marker overlay",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "ENGINE",
+          "means": "world strip + reveal",
+          "coverage": "FULL",
+          "capability": "FUTURE_BACKEND"
+        }
+      ]
+    },
+    {
+      "idea": "ONE_V_X_COUNT_DISPLAY",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "number overlay",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "ENGINE",
+          "means": "centerprint",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "NOPE_RETREAT",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "beat + overlay",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "COMMIT_1VX",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "sequence from round evidence",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "DANGER_CROSS_SIGN",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "marker overlay",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "TEAM_IDENTITY_MORPH",
+      "lane": "",
+      "status": "PARTIAL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "ENGINE",
+          "means": "remapshader on player skins",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "ENGINE",
+          "means": "vertex morph",
+          "coverage": "FULL",
+          "capability": "FUTURE_BACKEND"
+        }
+      ]
+    },
+    {
+      "idea": "POST_WIN_TEAMMATE_MODEL_REVEAL",
+      "lane": "",
+      "status": "PARTIAL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "ENGINE",
+          "means": "remapshader on teammate skins",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "COMPOSITOR",
+          "means": "marker overlay",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "TEAM_ROUND_STORY",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "sequence from round evidence",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "ASSISTED_ROUND_FINISH",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "sequence + damage overlay",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "IDENTITY_MATCH_CUT",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "cut on matched silhouette",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "DAMAGE_LEDGER_OVER_TARGET",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "tracked number overlay",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "ROUND_DAMAGE_COUNTER",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "number overlay",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "ENGINE",
+          "means": "centerprint",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "DIEGETIC_SCOREBOARD",
+      "lane": "",
+      "status": "PARTIAL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "ENGINE",
+          "means": "remapshader on an ad surface",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "COMPOSITOR",
+          "means": "projected overlay",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "TEXTURE_COUNTDOWN_TEXT",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "ENGINE",
+          "means": "remapshader through numbered shaders",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "RAIL_COOLDOWN_TELEGRAPH",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "bar overlay",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "SHAFT_DUEL_STAT",
+      "lane": "",
+      "status": "PARTIAL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "stat overlay",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "RHYTHMIC_IMAGE_STUTTER",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "frame hold / repeat",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "MOSAIC_TILE_INTERPOLATION",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "tile region stepping",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "FRAME_ECHO",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "frame blend",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "MULTI_EXPOSURE",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "frame accumulate",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "ENGINE",
+          "means": "mme_blurFrames",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "TEMPORAL_DECOMPOSITION",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "freeze + overlay",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "ENGINE",
+          "means": "entityfreeze",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "RHYTHMIC_MOTIF_MONTAGE",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "cut sequence on the grid",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "MOVEMENT_TRANSITION",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "overlap on matched motion",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "STRAFE_JUMP_AUDIO_MATCH",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "cut on the audio anchor",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "VELOCITY_SIGNATURE",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "overlay from cached movement",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "SPEED_SCALED_SLOWMO",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "ENGINE",
+          "means": "cvarinterp timescale ... real",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "ENGINE",
+          "means": "cam10 per-point timescale",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "COMPOSITOR",
+          "means": "setpts",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "TELEPORTER_WORLD_PASS",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "ENGINE",
+          "means": "cam10 JUMP across the teleporter pair",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "PROJECTILE_CINEMATIC",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "ENGINE",
+          "means": "chase <missile entity>",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "ENGINE",
+          "means": "cam10 viewEnt + angles ENT",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "ENGINE",
+          "means": "cam10 authored angles",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "COMPOSITOR",
+          "means": "crop and track in post",
+          "coverage": "STYLISED",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "RECONSTRUCTED_PROJECTILE_CINEMATIC",
+      "lane": "",
+      "status": "PARTIAL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "ENGINE",
+          "means": "cam10 over a reconstructed path",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "ROCKET_FLYBY_AUDIO_ANCHOR",
+      "lane": "",
+      "status": "PARTIAL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "ENGINE",
+          "means": "chase with offset and range",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "ENGINE",
+          "means": "cam10 spline past the flight line",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "GRENADE_ARC_FOLLOW",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "ENGINE",
+          "means": "chase <grenade entity>",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "ENGINE",
+          "means": "cam10 viewEnt",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "DEATH_AS_TRANSITION",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "match cut on the death",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "DEATH_MOTIF_BANK",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "montage from death events",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "HERO_THEN_DEATH_REWIND",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "reverse + replay",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "ENGINE",
+          "means": "loop <start> <end>",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "TELEFRAG_GRAMMAR",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "cut on the telefrag",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "GAUNTLET_GRAMMAR",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "cut on the gauntlet kill",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "ROUND_WIN_PAYOFF",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "release cut",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "ROUND_LOSS_CONTINUATION",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "continuation cut",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "SEMANTIC_COMPRESSION",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "trim to the recognised action",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "DAMAGE_CHASE_ASSIST",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "sequence + damage overlay",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "ENEMY_POV_REAL",
+      "lane": "",
+      "status": "PARTIAL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "ENGINE",
+          "means": "chase <player entity>",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "ENEMY_POV_RECONSTRUCTED",
+      "lane": "",
+      "status": "PARTIAL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "ENGINE",
+          "means": "cam10 at a reconstructed eye",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "ENEMY_POV_SYNTHETIC",
+      "lane": "",
+      "status": "REQUIRES_NEW_TECH",
+      "routes": [
+        {
+          "layer": "SYNTHETIC",
+          "means": "authored",
+          "coverage": "FULL",
+          "capability": "FUTURE_BACKEND"
+        }
+      ]
+    },
+    {
+      "idea": "PIP_WORLD_SURFACE",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "overlay of a second capture",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "ENGINE",
+          "means": "addmirrorsurface",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "CHAT_REACTION",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "text overlay from the chat index",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "GRENADE_FOOTBALL_GAG",
+      "lane": "",
+      "status": "REQUIRES_NEW_TECH",
+      "routes": [
+        {
+          "layer": "SYNTHETIC",
+          "means": "authored",
+          "coverage": "FULL",
+          "capability": "FUTURE_BACKEND"
+        }
+      ]
+    },
+    {
+      "idea": "LAG_TELEPORT_STYLIZATION",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "stutter on the anomaly",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "MICRO_ACTION_ACCENT",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "short hold",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "MUSIC_REACTIVE_MATERIAL",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "ENGINE",
+          "means": "remapshader on musical anchors",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        },
+        {
+          "layer": "ENGINE",
+          "means": "cvarinterp r_gamma ramp",
+          "coverage": "PARTIAL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "PROJECT_INTRO",
+      "lane": "",
+      "status": "REQUIRES_NEW_TECH",
+      "routes": [
+        {
+          "layer": "SYNTHETIC",
+          "means": "authored",
+          "coverage": "FULL",
+          "capability": "FUTURE_BACKEND"
+        }
+      ]
+    },
+    {
+      "idea": "CA_EXPLAINER",
+      "lane": "",
+      "status": "FULL_ROUTE_AVAILABLE",
+      "routes": [
+        {
+          "layer": "COMPOSITOR",
+          "means": "card",
+          "coverage": "FULL",
+          "capability": "AVAILABLE_NOW"
+        }
+      ]
+    },
+    {
+      "idea": "QUAKE_TRIBUTE_OUTRO",
+      "lane": "",
+      "status": "REQUIRES_NEW_TECH",
+      "routes": [
+        {
+          "layer": "SYNTHETIC",
+          "means": "authored",
+          "coverage": "FULL",
+          "capability": "FUTURE_BACKEND"
+        }
+      ]
+    }
+  ],
+  "version": "render-profile-v1.0.0",
+  "tally": {
+    "PARTIAL_ROUTE_AVAILABLE": 12,
+    "REQUIRES_NEW_TECH": 7,
+    "NEEDS_CANARY": 1,
+    "FULL_ROUTE_AVAILABLE": 40
+  },
+  "mapped": 60,
+  "unmapped": 0
+}

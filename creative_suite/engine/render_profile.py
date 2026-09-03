@@ -530,6 +530,34 @@ IMPLEMENTATIONS: dict[str, tuple[Implementation, ...]] = {
         Implementation(COMPOSITOR, "overlay of a second capture", "FULL",
                        AVAILABLE_NOW, "measured: adds exactly zero time"),
     ),
+    "PROJECTILE_FOLLOW": (
+        Implementation(ENGINE, "chase <missile entity>", "FULL", AVAILABLE_NOW,
+                       "engine rides the entity; no path, no sample budget. "
+                       "Entity lifetime and impact behaviour unswept"),
+        Implementation(ENGINE, "cam10 viewEnt + angles ENT", "FULL",
+                       AVAILABLE_NOW,
+                       "authored path, engine-computed aim at the entity"),
+        Implementation(ENGINE, "cam10 authored angles", "PARTIAL",
+                       AVAILABLE_NOW,
+                       "what we do today; aim is keyframed and can lag"),
+        Implementation(COMPOSITOR, "crop and track in post", "STYLISED",
+                       AVAILABLE_NOW),
+    ),
+    "ROCKET_FLYBY_BRIDGE": (
+        Implementation(ENGINE, "chase with offset and range", "PARTIAL",
+                       AVAILABLE_NOW),
+        Implementation(ENGINE, "cam10 spline past the flight line", "PARTIAL",
+                       AVAILABLE_NOW,
+                       "measured: a long dolly fights level geometry"),
+    ),
+    "SIDE_REPLAY": (
+        Implementation(ENGINE, "cam10 spline FPV to SIDE", "PARTIAL",
+                       AVAILABLE_NOW,
+                       "Case A: below ~250 ms the delivered path is a coarse "
+                       "polyline, not the authored curve"),
+        Implementation(ENGINE, "cam10 JUMP type", "FULL", AVAILABLE_NOW,
+                       "a cut between viewpoints, no traversal to clip"),
+    ),
     "INFORMATION_REVEAL": (
         Implementation(COMPOSITOR, "text / number overlays", "FULL",
                        AVAILABLE_NOW, "post-compositor exists, unswept"),
@@ -1029,6 +1057,105 @@ def application_report() -> list[dict[str, Any]]:
                     "liveness": c.liveness, "set_stage": c.set_stage,
                     "application": c.application, "truth": c.truth,
                     "liveness_provenance": c.liveness_provenance})
+    return out
+
+
+# ── the camera-point fields we already write and do not use ────────────────
+# Every .cam10 point carries these (cg_consolecmds.c:2401 reads them in this
+# order; cam10_writer emits all of them). We fill four and leave the rest at
+# defaults, which is why several primitives looked like they needed custom
+# machinery. `ecam help` (cg_consolecmds.c:4127) is the grammar.
+
+CAM_POINT_FIELDS: dict[str, dict[str, Any]] = {
+    "type": {"used": True, "values": ["SPLINE", "INTERP", "JUMP", "CURVE",
+                                      "SPLINE_BEZIER", "SPLINE_CATMULLROM"],
+             "note": "we always write INTERP; five other interpolations exist"},
+    "viewEnt": {"used": False, "values": ["entity number"],
+                "note": "with angles type ENT the camera AIMS at an entity by "
+                        "itself. A projectile follow needs no authored angles"},
+    "viewPointOrigin": {"used": False, "values": ["x y z"],
+                        "note": "aim at a fixed world point instead"},
+    "fov / fovType": {"used": False,
+                      "values": ["USE_CURRENT", "INTERP", "FIXED", "PASS",
+                                 "SPLINE"],
+                      "note": "per-point field of view, splineable"},
+    "roll / rollType": {"used": False,
+                        "values": ["INTERP", "FIXED", "PASS", "AS_ANGLES"],
+                        "note": "per-point roll"},
+    "offset / offsetType": {"used": False,
+                            "values": ["INTERP", "FIXED", "PASS"],
+                            "note": "per-point positional offset"},
+    "timescale / timescaleInterp": {"used": False, "values": ["float"],
+                                    "note": "a speed ramp carried BY the "
+                                            "camera path itself"},
+    "use*Velocity + initial/final": {"used": False,
+                                     "values": ["origin", "angles", "xoffset",
+                                                "yoffset", "zoffset", "fov",
+                                                "roll"],
+                                     "note": "per-point ease. Smoothness is a "
+                                             "control, not an emergent "
+                                             "property of sample density"},
+    "commandStr": {"used": False, "values": ["any console command"],
+                   "note": "fired when the point is reached -- a sync port "
+                           "the engine already implements"},
+}
+
+
+def cam_point_unused() -> list[str]:
+    return [k for k, v in CAM_POINT_FIELDS.items() if not v["used"]]
+
+
+# ── every route to every creative idea ──────────────────────────────────────
+# Multiple routes are kept apart on purpose: a chase and a spline are
+# different primitives with different fidelity, not two spellings of one.
+
+FULL_ROUTE = "FULL_ROUTE_AVAILABLE"
+PARTIAL_ROUTE = "PARTIAL_ROUTE_AVAILABLE"
+NEEDS_CANARY = "NEEDS_CANARY"
+NEEDS_NEW_TECH = "REQUIRES_NEW_TECH"
+BLOCKED = "BLOCKED"
+
+
+def idea_status(name: str) -> str:
+    """Where one creative idea stands, from its routes."""
+    routes = routes_for(name)
+    if not routes:
+        return NEEDS_CANARY
+    now = [r for r in routes if r.capability != FUTURE_BACKEND]
+    if any(r.coverage == "FULL" for r in now):
+        return FULL_ROUTE
+    if any(r.coverage == "PARTIAL" for r in now):
+        return PARTIAL_ROUTE
+    if now:
+        return NEEDS_CANARY            # stylised stand-in only
+    return NEEDS_NEW_TECH
+
+
+def capability_matrix() -> dict[str, Any]:
+    """Every corpus idea against every route we know of.
+
+    An idea with no entry in IMPLEMENTATIONS is NEEDS_CANARY, never
+    "blocked": not having looked is a different state from having looked and
+    found nothing.
+    """
+    from creative_suite.engine import creative_corpus as cc
+    out: dict[str, Any] = {"ideas": [], "version": RENDER_PROFILE_VERSION}
+    tally: dict[str, int] = {}
+    for entry in cc.CORPUS:
+        name = entry.name
+        st = idea_status(name)
+        tally[st] = tally.get(st, 0) + 1
+        out["ideas"].append({
+            "idea": name,
+            "lane": getattr(entry, "lane", ""),
+            "status": st,
+            "routes": [{"layer": r.layer, "means": r.means,
+                        "coverage": r.coverage, "capability": r.capability}
+                       for r in routes_for(name)],
+        })
+    out["tally"] = tally
+    out["mapped"] = sum(1 for i in out["ideas"] if i["routes"])
+    out["unmapped"] = len(out["ideas"]) - out["mapped"]
     return out
 
 
