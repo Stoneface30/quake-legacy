@@ -465,17 +465,113 @@ def test_the_report_ranks_gaps_by_how_close_and_how_costly_they_are():
     rows = r["unmeasured"]
     assert len(rows) == 6
     # nearest first: a runtime that exists but is unswept beats missing tech
-    assert rows[0]["capability"] == et.RUNTIME_EXISTS_UNSWEPT
-    assert rows[-1]["capability"] in (et.REQUIRES_NEW_TECH,
-                                      et.REQUIRES_CREATIVE_SEED)
+    assert rows[0]["capability"] in (et.RUNTIME_EXISTS_UNSWEPT,
+                                     et.POST_COMPOSITOR_EXISTS_UNSWEPT)
     distances = [x["distance"] for x in rows]
     assert distances == sorted(distances), "gaps are ordered by how far away"
-    # the nearest gap is also the one that unlocks the most
-    assert rows[0]["primitive"] == "CAMERA_HANDOFF"
-    assert rows[0]["templates_waiting_count"] >= 10
+    # reach alone would start somewhere else, and the report says so instead
+    # of letting the sort win an argument it was never given
+    assert r["derived_disagrees"] is True
+    assert et.next_gap() == et.P_CAMERA_SPLINE
+    assert r["director_priority"][0] == et.P_CAMERA_SPLINE
+    spline = next(x for x in rows if x["primitive"] == et.P_CAMERA_SPLINE)
+    assert spline["templates_waiting_count"] >= 9 and spline["distance"] == 1
+    # an authored duration is not a gap a sweep could close, so it sorts last
+    assert rows[-1]["capability"] == et.AUTHOR_DEFINED
 
 
 def test_every_waiting_template_really_depends_on_that_primitive():
     for row in et.capability_report()["unmeasured"]:
         for tid in row["templates_waiting"]:
             assert row["primitive"] in et.components_of(tid)
+
+
+# ── the camera is two primitives ────────────────────────────────────────────
+
+def test_a_cut_and_a_spline_move_are_not_the_same_operator():
+    """A cut has no duration to discover. A spline move is the whole
+    question."""
+    cut = et.PRIMITIVES[et.P_CAMERA_CUT]
+    spline = et.PRIMITIVES[et.P_CAMERA_SPLINE]
+    assert cut.measured and not spline.measured
+    assert cut.capability == et.MEASURED
+    assert spline.capability == et.RUNTIME_EXISTS_UNSWEPT
+    assert "inherited" in cut.finding, (
+        "a cut's evidence comes from the insert sweep and must say so")
+
+
+def test_cinematic_moves_use_the_spline_and_an_insert_uses_the_cut():
+    for tid in ("SIDE_REPLAY", "PROJECTILE_REPLAY", "PROJECTILE_FOLLOW",
+                "GRENADE_ARC", "ROCKET_FLYBY_BRIDGE", "WALL_XRAY"):
+        assert et.P_CAMERA_SPLINE in et.components_of(tid), tid
+        assert et.P_CAMERA_CUT not in et.components_of(tid), tid
+    assert et.P_CAMERA_CUT in et.components_of("ENEMY_POV_INSERT")
+
+
+def test_the_spline_is_the_gap_the_director_asked_for_first():
+    assert et.next_gap() == et.P_CAMERA_SPLINE
+    spline = et.PRIMITIVES[et.P_CAMERA_SPLINE]
+    assert "four semantic situations" in spline.measurable_when, (
+        "the sweep must vary the situation, not only the duration")
+
+
+# ── the compositor already exists ───────────────────────────────────────────
+
+def test_information_reveal_is_unswept_not_missing():
+    """The compositor already draws information. Calling it missing sent the
+    work to the wrong queue."""
+    p = et.PRIMITIVES[et.P_INFORMATION_REVEAL]
+    assert p.capability == et.POST_COMPOSITOR_EXISTS_UNSWEPT
+    assert p.distance == et.CAPABILITY_DISTANCE[et.RUNTIME_EXISTS_UNSWEPT]
+    assert p.distance < et.CAPABILITY_DISTANCE[et.RUNTIME_MISSING]
+    for phase in ("reveal", "hold", "update", "hide"):
+        assert phase in p.blocked_by or phase in p.measurable_when
+
+
+def test_world_transform_really_is_missing():
+    """The contrast that makes the reclassification meaningful."""
+    assert et.PRIMITIVES[et.P_WORLD_TRANSFORM].capability == et.RUNTIME_MISSING
+
+
+# ── authored duration is not discovered ─────────────────────────────────────
+
+def test_authored_animation_has_no_primitive_envelope_to_find():
+    p = et.PRIMITIVES[et.P_SYNTHETIC_ANIMATION]
+    assert p.capability == et.AUTHOR_DEFINED and p.author_defined
+    assert not et.AUTHORED_ANIMATIONS, "nothing has been authored yet"
+    with pytest.raises(KeyError, match="not an oversight"):
+        et.animation_envelope("XAERO_CROSS_SIGN")
+
+
+def test_an_authored_piece_supplies_its_own_range():
+    a = et.AuthoredAnimation("XAERO_CROSS_SIGN", authored_us=450 * MS,
+                             musical_structure="two beats")
+    env = a.envelope()
+    assert env.hard_min_us == env.hard_max_us == 450 * MS, (
+        "an animation does not stretch")
+    assert env.provenance == et.DESIGN_ESTIMATE and not a.verified
+    assert a.delivery_error_us is None
+
+
+def test_what_the_primitive_verifies_is_fidelity_not_a_range():
+    a = et.AuthoredAnimation("XAERO_CROSS_SIGN", authored_us=450 * MS,
+                             delivered_us=450 * MS + et.FRAME_US)
+    assert a.verified and a.delivery_error_us == et.FRAME_US
+    assert a.envelope().provenance == et.RUNTIME_MEASURED
+
+
+def test_two_pieces_of_the_same_kind_may_want_different_durations():
+    """The reason a global envelope would be a fiction."""
+    short = et.AuthoredAnimation("SIGN_SHORT", authored_us=450 * MS)
+    long = et.AuthoredAnimation("SIGN_LONG", authored_us=1_200 * MS)
+    assert short.envelope().hard_max_us != long.envelope().hard_max_us
+
+
+# ── the director outranks the sort ──────────────────────────────────────────
+
+def test_reach_does_not_get_to_choose_the_first_move():
+    r = et.capability_report()
+    assert r["derived_order"][0] != r["director_priority"][0]
+    assert r["derived_disagrees"] is True
+    assert et.next_gap() == r["director_priority"][0]
+    assert r["director_priority_reason"]

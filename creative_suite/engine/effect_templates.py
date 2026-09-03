@@ -984,7 +984,11 @@ P_SEQUENTIAL_INSERT = "SEQUENTIAL_INSERT"
 P_SIMULTANEOUS_OVERLAY = "SIMULTANEOUS_OVERLAY"
 P_OVERLAP = "OVERLAP"
 P_MORPH = "MORPH"
-P_CAMERA_HANDOFF = "CAMERA_HANDOFF"
+# A cut and a spline move are not the same operator. One is an edit event
+# with no duration to discover; the other is a genuine temporal visual
+# operator whose artistic envelope is the whole question.
+P_CAMERA_CUT = "CAMERA_CUT"
+P_CAMERA_SPLINE = "CAMERA_SPLINE_HANDOFF"
 P_MATERIAL_TRANSFORM = "MATERIAL_TRANSFORM"
 P_WORLD_TRANSFORM = "WORLD_TRANSFORM"
 P_INFORMATION_REVEAL = "INFORMATION_REVEAL"
@@ -1003,16 +1007,29 @@ PROVENANCE_RANK[PARTIALLY_MEASURED] = 0.5
 # hides which effects are days away and which are months.
 MEASURED = "MEASURED"
 RUNTIME_EXISTS_UNSWEPT = "RUNTIME_EXISTS_UNSWEPT"
+# The compositor can already draw the thing; what nobody has done is time it
+# against gameplay frames. That is a sweep, not a build, and calling it
+# "missing" sent the work to the wrong queue.
+POST_COMPOSITOR_EXISTS_UNSWEPT = "POST_COMPOSITOR_EXISTS_UNSWEPT"
 RUNTIME_MISSING = "RUNTIME_MISSING"
+# Some durations are not discovered. A cross-sign is 450 ms or 1.2 s because
+# somebody chose that. The primitive can only verify that what was authored
+# is what gets delivered; the range belongs to each asset.
+AUTHOR_DEFINED = "AUTHOR_DEFINED"
 REQUIRES_NEW_TECH = "REQUIRES_NEW_TECH"
 REQUIRES_CREATIVE_SEED = "REQUIRES_CREATIVE_SEED"
-CAPABILITIES = (MEASURED, RUNTIME_EXISTS_UNSWEPT, RUNTIME_MISSING,
-                REQUIRES_NEW_TECH, REQUIRES_CREATIVE_SEED)
+CAPABILITIES = (MEASURED, RUNTIME_EXISTS_UNSWEPT,
+                POST_COMPOSITOR_EXISTS_UNSWEPT, RUNTIME_MISSING,
+                AUTHOR_DEFINED, REQUIRES_NEW_TECH, REQUIRES_CREATIVE_SEED)
 
 # How far each state is from a number the solver may trust. Ordering only.
+# AUTHOR_DEFINED sits apart: it is not far from a measurement, it is a
+# different kind of question, so it sorts last rather than pretending to be
+# a gap that a sweep could close.
 CAPABILITY_DISTANCE = {MEASURED: 0, RUNTIME_EXISTS_UNSWEPT: 1,
+                       POST_COMPOSITOR_EXISTS_UNSWEPT: 1,
                        RUNTIME_MISSING: 2, REQUIRES_NEW_TECH: 3,
-                       REQUIRES_CREATIVE_SEED: 3}
+                       REQUIRES_CREATIVE_SEED: 3, AUTHOR_DEFINED: 4}
 
 
 @dataclass(frozen=True)
@@ -1049,6 +1066,12 @@ class PrimitiveTiming:
     @property
     def distance(self) -> int:
         return CAPABILITY_DISTANCE[self.capability]
+
+    @property
+    def author_defined(self) -> bool:
+        """Whether asking for this primitive's duration range is the wrong
+        question. An authored piece supplies its own."""
+        return self.capability == AUTHOR_DEFINED
 
     @property
     def measured(self) -> bool:
@@ -1106,12 +1129,22 @@ PRIMITIVES: dict[str, PrimitiveTiming] = {p.name: p for p in (
        "so nothing knows which point becomes which",
        measurable_when="a correspondence solver exists and can emit an "
        "interpolated frame sequence; then sweep the transition duration"),
-    _p(P_CAMERA_HANDOFF, DESIGN_ESTIMATE, capability=RUNTIME_EXISTS_UNSWEPT,
-       finding="a cut is trivially exact; interpolated handoffs are unmeasured",
+    _p(P_CAMERA_CUT, SYNTHETIC_TEST, PIP_SWEEP, FRAME_US, 0,
+       "a cut costs nothing. The sequential-insert sweep added exactly the "
+       "inserted duration at every point from 600 to 2400 ms, which is only "
+       "possible if both cut boundaries landed on the requested frame. This "
+       "is inherited evidence, not its own sweep, and the frame grid is the "
+       "only quantisation"),
+    _p(P_CAMERA_SPLINE, DESIGN_ESTIMATE, capability=RUNTIME_EXISTS_UNSWEPT,
+       finding="the artistic envelope of an interpolated camera move is "
+       "entirely unknown; this is the highest-value gap in the vocabulary",
        blocked_by="q3mme can already move a camera along a spline, but no "
-       "sweep has measured what an interpolated handoff costs in delivered time",
-       measurable_when="a handoff sweep runs on real captures at 200, 400, 600 "
-       "and 900 ms and the delivered durations are read back from the file"),
+       "sweep has measured what a handoff costs in delivered time, and no "
+       "review has said which durations look right for which situation",
+       measurable_when="a handoff sweep runs on real captures from 100 to "
+       "800 ms in four semantic situations -- projectile replay, threat "
+       "reveal, return to skill, hero payoff -- and both the delivered "
+       "durations and the director's verdicts are recorded"),
     _p(P_MATERIAL_TRANSFORM, DESIGN_ESTIMATE, capability=RUNTIME_EXISTS_UNSWEPT,
        finding="shader and texture replacement exist in the asset system but "
        "their timing is unswept",
@@ -1125,19 +1158,25 @@ PRIMITIVES: dict[str, PrimitiveTiming] = {p.name: p for p in (
        "schedule; the geometry is read but never driven",
        measurable_when="a renderer path can suppress surfaces per frame; the "
        "sweep is then the same shape as the material one"),
-    _p(P_INFORMATION_REVEAL, DESIGN_ESTIMATE, capability=RUNTIME_MISSING,
-       finding="reveal, update and hide timing is unswept",
-       blocked_by="overlays are composited by ffmpeg after the capture, so "
-       "their appearance has never been timed against gameplay frames",
-       measurable_when="an overlay is composited at a stated timestamp and the "
-       "frame it first appears on is read back from the delivered file"),
-    _p(P_SYNTHETIC_ANIMATION, DESIGN_ESTIMATE, capability=REQUIRES_CREATIVE_SEED,
-       finding="authored animation: the duration is free but nothing has been "
-       "built",
-       blocked_by="the duration is whatever the animation is authored to be, "
-       "so there is nothing to measure until something is authored",
-       measurable_when="an actual piece exists; its duration is then a fact "
-       "about that piece and not a property of the primitive"),
+    _p(P_INFORMATION_REVEAL, DESIGN_ESTIMATE,
+       capability=POST_COMPOSITOR_EXISTS_UNSWEPT,
+       finding="the compositor already draws information; what is unknown is "
+       "when it lands and how long each phase should be",
+       blocked_by="reveal, hold, update and hide have never been timed "
+       "against gameplay frames, so nothing knows whether a number appears on "
+       "the frame it was asked for",
+       measurable_when="a reveal/hold/update/hide sweep is composited at "
+       "stated timestamps over real gameplay and the frames each phase lands "
+       "on are read back from the delivered file"),
+    _p(P_SYNTHETIC_ANIMATION, DESIGN_ESTIMATE, capability=AUTHOR_DEFINED,
+       finding="there is no universal envelope to find. A cross-sign is 450 "
+       "ms or 1.2 s because somebody authored it that way, so a global range "
+       "would be a fiction averaged over pieces that do not exist yet",
+       blocked_by="asking for this primitive's duration range is the wrong "
+       "question; each asset carries its own",
+       measurable_when="an authored piece is delivered and its authored "
+       "duration is compared with its delivered duration. What that verifies "
+       "is fidelity and insert timing, never a range"),
 )}
 
 # Which primitives each semantic template composes. A template with no entry
@@ -1150,12 +1189,12 @@ _OPERATOR_PRIMITIVE = {
 }
 
 COMPONENTS: dict[str, tuple[str, ...]] = {
-    "PLAYER_FREEZE_POSE": (P_FREEZE, P_SYNTHETIC_ANIMATION, P_CAMERA_HANDOFF),
-    "GRENADE_GAG": (P_SYNTHETIC_ANIMATION, P_CAMERA_HANDOFF),
+    "PLAYER_FREEZE_POSE": (P_FREEZE, P_SYNTHETIC_ANIMATION, P_CAMERA_SPLINE),
+    "GRENADE_GAG": (P_SYNTHETIC_ANIMATION, P_CAMERA_SPLINE),
     "MODEL_MORPH": (P_MORPH, P_MATERIAL_TRANSFORM),
     "WORLD_STRIP": (P_WORLD_TRANSFORM, P_FREEZE),
     "WORLD_REBUILD": (P_WORLD_TRANSFORM,),
-    "WALL_XRAY": (P_WORLD_TRANSFORM, P_FREEZE, P_CAMERA_HANDOFF),
+    "WALL_XRAY": (P_WORLD_TRANSFORM, P_FREEZE, P_CAMERA_SPLINE),
     "MAP_CONSTRUCTION": (P_WORLD_TRANSFORM, P_MATERIAL_TRANSFORM, P_SYNTHETIC_ANIMATION),
     "LOW_HP_WORLD": (P_MATERIAL_TRANSFORM,),
     "TEXTURE_TEXT_REVEAL": (P_MATERIAL_TRANSFORM, P_INFORMATION_REVEAL),
@@ -1169,19 +1208,19 @@ COMPONENTS: dict[str, tuple[str, ...]] = {
     "MOSAIC_TILE_STEP": (P_STUTTER, P_MATERIAL_TRANSFORM),
     "MODEL_PULSE": (P_SIMULTANEOUS_OVERLAY, P_MATERIAL_TRANSFORM),
     "MATERIAL_FLASH": (P_SIMULTANEOUS_OVERLAY, P_MATERIAL_TRANSFORM),
-    "CAMERA_JOLT": (P_SIMULTANEOUS_OVERLAY, P_CAMERA_HANDOFF),
-    "SIDE_REPLAY": (P_REPLAY, P_RETIME, P_CAMERA_HANDOFF),
-    "PROJECTILE_REPLAY": (P_REPLAY, P_RETIME, P_CAMERA_HANDOFF),
-    "PROJECTILE_FOLLOW": (P_REPLAY, P_RETIME, P_CAMERA_HANDOFF),
-    "GRENADE_ARC": (P_REPLAY, P_RETIME, P_CAMERA_HANDOFF),
-    "ENEMY_POV_INSERT": (P_SEQUENTIAL_INSERT, P_CAMERA_HANDOFF),
+    "CAMERA_JOLT": (P_SIMULTANEOUS_OVERLAY, P_CAMERA_SPLINE),
+    "SIDE_REPLAY": (P_REPLAY, P_RETIME, P_CAMERA_SPLINE),
+    "PROJECTILE_REPLAY": (P_REPLAY, P_RETIME, P_CAMERA_SPLINE),
+    "PROJECTILE_FOLLOW": (P_REPLAY, P_RETIME, P_CAMERA_SPLINE),
+    "GRENADE_ARC": (P_REPLAY, P_RETIME, P_CAMERA_SPLINE),
+    "ENEMY_POV_INSERT": (P_SEQUENTIAL_INSERT, P_CAMERA_CUT),
     "POV_PIP": (P_SIMULTANEOUS_OVERLAY,),
     "DEATH_REWIND": (P_REVERSE, P_REPLAY),
     "MICRO_REWIND": (P_REVERSE,),
     "DEATH_FLASH_MONTAGE": (P_FRAME_REPEAT,),
     "TIME_ECHO": (P_FRAME_REPEAT, P_SIMULTANEOUS_OVERLAY),
     "FREEZE_DECOMPOSITION": (P_FREEZE, P_SIMULTANEOUS_OVERLAY),
-    "ROCKET_FLYBY_BRIDGE": (P_OVERLAP, P_CAMERA_HANDOFF),
+    "ROCKET_FLYBY_BRIDGE": (P_OVERLAP, P_CAMERA_SPLINE),
     "WORLD_MORPH_BRIDGE": (P_OVERLAP, P_MORPH, P_WORLD_TRANSFORM),
     "ROUND_WIN_RELEASE": (P_SEQUENTIAL_INSERT, P_SYNTHETIC_ANIMATION),
     "PROJECT_IDENTITY": (P_SYNTHETIC_ANIMATION,),
@@ -1192,6 +1231,90 @@ COMPONENTS: dict[str, tuple[str, ...]] = {
     "HIGH_SPEED_HOLD": (P_RETIME,),
     "MOVEMENT_ACCENT": (P_SIMULTANEOUS_OVERLAY,),
 }
+
+
+@dataclass(frozen=True)
+class AuthoredAnimation:
+    """One piece somebody actually made, and what it asks of the edit.
+
+    The synthetic-animation primitive has no range of its own. This is where
+    a range comes from, one asset at a time, and it is a fact about the piece
+    rather than a property of the operator.
+    """
+    name: str
+    authored_us: int
+    preferred_us: int | None = None
+    musical_structure: str = ""       # e.g. "one bar", "two beats then hold"
+    delivered_us: int | None = None   # filled in once it has been rendered
+    notes: str = ""
+
+    def __post_init__(self) -> None:
+        if self.authored_us <= 0:
+            raise ValueError(f"{self.name}: an animation with no duration")
+
+    @property
+    def verified(self) -> bool:
+        return self.delivered_us is not None
+
+    @property
+    def delivery_error_us(self) -> int | None:
+        """What the primitive can actually verify: authored against delivered.
+        Never a range."""
+        if self.delivered_us is None:
+            return None
+        return self.delivered_us - self.authored_us
+
+    def envelope(self) -> DurationEnvelope:
+        """This piece's envelope. Not the primitive's."""
+        pref = self.preferred_us or self.authored_us
+        return DurationEnvelope(
+            hard_min_us=self.authored_us, preferred_min_us=pref,
+            preferred_max_us=pref, hard_max_us=self.authored_us,
+            provenance=(RUNTIME_MEASURED if self.verified else DESIGN_ESTIMATE),
+            swept_points_us=((self.delivered_us,) if self.verified else ()),
+            quantisation_us=FRAME_US,
+            calibration=(CALIBRATION_60_X264 if self.verified else None),
+            rationale=f"authored duration of {self.name}; an animation does "
+                      f"not stretch, so its hard range is a single value")
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d.update(verified=self.verified, delivery_error_us=self.delivery_error_us)
+        return d
+
+
+# Nothing has been authored yet. An empty registry is the honest state; the
+# alternative is a global envelope invented from pieces that do not exist.
+AUTHORED_ANIMATIONS: dict[str, AuthoredAnimation] = {}
+
+
+def register_animation(a: AuthoredAnimation) -> AuthoredAnimation:
+    AUTHORED_ANIMATIONS[a.name] = a
+    return a
+
+
+def animation_envelope(name: str) -> DurationEnvelope:
+    if name not in AUTHORED_ANIMATIONS:
+        raise KeyError(
+            f"{name!r} has not been authored. The synthetic-animation "
+            f"primitive has no range to fall back on -- that is the point of "
+            f"AUTHOR_DEFINED, not an oversight")
+    return AUTHORED_ANIMATIONS[name].envelope()
+
+
+# The order the director asked for, 2026-09-03. Reach and distance can be
+# derived; which gap is worth closing first is a judgement, and when the two
+# disagree the report says so rather than letting a sort win an argument it
+# was never given.
+DIRECTOR_PRIORITY: tuple[str, ...] = (
+    P_CAMERA_SPLINE, P_MATERIAL_TRANSFORM, P_INFORMATION_REVEAL,
+    P_WORLD_TRANSFORM,
+)
+DIRECTOR_PRIORITY_REASON = (
+    "camera spline first: it is the nearest genuine unknown and it opens "
+    "FPV to cinematic and back, which every other treatment sits inside. "
+    "Model morph is deliberately last: expensive research for two effects"
+)
 
 
 def capability_report() -> dict[str, Any]:
@@ -1219,8 +1342,28 @@ def capability_report() -> dict[str, Any]:
                      "templates_waiting": waiting,
                      "templates_waiting_count": len(waiting)})
     rows.sort(key=lambda r: (r["distance"], -r["templates_waiting_count"]))
+    for r in rows:
+        r["director_rank"] = (DIRECTOR_PRIORITY.index(r["primitive"]) + 1
+                              if r["primitive"] in DIRECTOR_PRIORITY else None)
+    ranked = [r["primitive"] for r in rows if r["director_rank"]]
+    stated = [n for n in DIRECTOR_PRIORITY if n in ranked]
     return {"version": TEMPLATE_VERSION, "unmeasured": rows,
-            "measured": sorted(n for n, p in PRIMITIVES.items() if p.measured)}
+            "measured": sorted(n for n, p in PRIMITIVES.items() if p.measured),
+            "director_priority": list(DIRECTOR_PRIORITY),
+            "director_priority_reason": DIRECTOR_PRIORITY_REASON,
+            # Reach and distance would have chosen a different first move.
+            # Saying so is the point; the director's order still wins.
+            "derived_disagrees": ranked != stated,
+            "derived_order": ranked}
+
+
+def next_gap() -> str:
+    """The gap to close next. The director's order, not the sort's."""
+    for name in DIRECTOR_PRIORITY:
+        prim = PRIMITIVES.get(name)
+        if prim is not None and not prim.measured:
+            return name
+    return ""
 
 
 def components_of(template_id: str) -> tuple[str, ...]:
