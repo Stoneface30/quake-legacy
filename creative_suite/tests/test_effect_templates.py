@@ -434,3 +434,48 @@ def test_desired_requested_and_delivered_stay_three_different_numbers():
     requested = e.request_for(desired)
     assert requested < desired, "the request compensates for the known bias"
     assert "desired" in e.desired_vs_requested and "delivered" in e.desired_vs_requested
+
+
+# ── capability states ───────────────────────────────────────────────────────
+
+def test_an_unmeasured_primitive_must_name_its_blocker():
+    """"Unmeasured" on its own is a shrug. It has to say what is missing and
+    what would let a sweep run."""
+    for name, p in et.PRIMITIVES.items():
+        if p.measured:
+            continue
+        assert p.blocked_by, f"{name} does not say what blocks it"
+        assert p.measurable_when, f"{name} does not say what would unblock it"
+        assert p.capability != et.MEASURED
+
+
+def test_a_primitive_cannot_claim_measured_without_a_measurement():
+    with pytest.raises(ValueError, match="claims to be measured"):
+        et.PrimitiveTiming("X", et.DESIGN_ESTIMATE, capability=et.MEASURED)
+
+
+def test_an_unmeasured_primitive_cannot_shrug():
+    with pytest.raises(ValueError, match="just a shrug"):
+        et.PrimitiveTiming("X", et.DESIGN_ESTIMATE,
+                           capability=et.RUNTIME_MISSING)
+
+
+def test_the_report_ranks_gaps_by_how_close_and_how_costly_they_are():
+    r = et.capability_report()
+    rows = r["unmeasured"]
+    assert len(rows) == 6
+    # nearest first: a runtime that exists but is unswept beats missing tech
+    assert rows[0]["capability"] == et.RUNTIME_EXISTS_UNSWEPT
+    assert rows[-1]["capability"] in (et.REQUIRES_NEW_TECH,
+                                      et.REQUIRES_CREATIVE_SEED)
+    distances = [x["distance"] for x in rows]
+    assert distances == sorted(distances), "gaps are ordered by how far away"
+    # the nearest gap is also the one that unlocks the most
+    assert rows[0]["primitive"] == "CAMERA_HANDOFF"
+    assert rows[0]["templates_waiting_count"] >= 10
+
+
+def test_every_waiting_template_really_depends_on_that_primitive():
+    for row in et.capability_report()["unmeasured"]:
+        for tid in row["templates_waiting"]:
+            assert row["primitive"] in et.components_of(tid)

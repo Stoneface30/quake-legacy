@@ -996,6 +996,25 @@ PARTIALLY_MEASURED = "PARTIALLY_MEASURED"
 PROVENANCE_RANK[PARTIALLY_MEASURED] = 0.5
 
 
+# What stands between a primitive and a measurement. An unmeasured timing is
+# not merely weak; it is unmeasured FOR A REASON, and the reason decides what
+# would have to happen next. "No runtime" is a build task. "Needs a creative
+# seed" is a decision nobody has made yet. Collapsing the two into one number
+# hides which effects are days away and which are months.
+MEASURED = "MEASURED"
+RUNTIME_EXISTS_UNSWEPT = "RUNTIME_EXISTS_UNSWEPT"
+RUNTIME_MISSING = "RUNTIME_MISSING"
+REQUIRES_NEW_TECH = "REQUIRES_NEW_TECH"
+REQUIRES_CREATIVE_SEED = "REQUIRES_CREATIVE_SEED"
+CAPABILITIES = (MEASURED, RUNTIME_EXISTS_UNSWEPT, RUNTIME_MISSING,
+                REQUIRES_NEW_TECH, REQUIRES_CREATIVE_SEED)
+
+# How far each state is from a number the solver may trust. Ordering only.
+CAPABILITY_DISTANCE = {MEASURED: 0, RUNTIME_EXISTS_UNSWEPT: 1,
+                       RUNTIME_MISSING: 2, REQUIRES_NEW_TECH: 3,
+                       REQUIRES_CREATIVE_SEED: 3}
+
+
 @dataclass(frozen=True)
 class PrimitiveTiming:
     """One thing the pipeline does, and how well its timing is known."""
@@ -1006,12 +1025,30 @@ class PrimitiveTiming:
     quantisation_us: int | None = None
     delivery_bias_us: int = 0
     finding: str = ""
+    capability: str = MEASURED
+    blocked_by: str = ""        # what is missing, in one phrase
+    measurable_when: str = ""   # the concrete thing that unblocks a sweep
 
     def __post_init__(self) -> None:
         if self.provenance not in PROVENANCE:
             raise ValueError(f"{self.name}: unknown provenance")
         if self.provenance in (SYNTHETIC_TEST, RUNTIME_MEASURED) and not self.swept_points_us:
             raise ValueError(f"{self.name}: claims measurement without a sweep")
+        if self.capability not in CAPABILITIES:
+            raise ValueError(f"{self.name}: unknown capability {self.capability!r}")
+        if self.capability == MEASURED and not self.measured:
+            raise ValueError(
+                f"{self.name}: claims to be measured but its timing provenance "
+                f"is {self.provenance}")
+        if self.capability != MEASURED and not (self.blocked_by
+                                                and self.measurable_when):
+            raise ValueError(
+                f"{self.name}: an unmeasured primitive must say what blocks it "
+                f"and what would unblock it, or it is just a shrug")
+
+    @property
+    def distance(self) -> int:
+        return CAPABILITY_DISTANCE[self.capability]
 
     @property
     def measured(self) -> bool:
@@ -1024,15 +1061,18 @@ class PrimitiveTiming:
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["calibration"] = self.calibration.to_dict() if self.calibration else None
-        d.update(measured=self.measured, approved=self.approved)
+        d.update(measured=self.measured, approved=self.approved,
+                 distance=self.distance)
         return d
 
 
-def _p(name, prov, swept=(), quant=None, bias=0, finding="", cal=None):
+def _p(name, prov, swept=(), quant=None, bias=0, finding="", cal=None,
+       capability=MEASURED, blocked_by="", measurable_when=""):
     return PrimitiveTiming(name, prov, cal if cal is not None else
                            (CALIBRATION_60_X264 if prov in
                             (SYNTHETIC_TEST, RUNTIME_MEASURED) else None),
-                           tuple(v * MS for v in swept), quant, bias, finding)
+                           tuple(v * MS for v in swept), quant, bias, finding,
+                           capability, blocked_by, measurable_when)
 
 
 PRIMITIVES: dict[str, PrimitiveTiming] = {p.name: p for p in (
@@ -1059,18 +1099,45 @@ PRIMITIVES: dict[str, PrimitiveTiming] = {p.name: p for p in (
        "picture-in-picture from a cut"),
     _p(P_OVERLAP, SYNTHETIC_TEST, OVERLAP_SWEEP, FRAME_US, 0,
        "removes exactly the time requested, 0.0 ms error across 50-500 ms"),
-    _p(P_MORPH, DESIGN_ESTIMATE, finding="no runtime yet: interpolated model "
-       "and world morphs are not implemented"),
-    _p(P_CAMERA_HANDOFF, DESIGN_ESTIMATE, finding="a cut is trivially exact; "
-       "interpolated handoffs are unmeasured"),
-    _p(P_MATERIAL_TRANSFORM, DESIGN_ESTIMATE, finding="shader and texture "
-       "replacement exist in the asset system but their timing is unswept"),
-    _p(P_WORLD_TRANSFORM, DESIGN_ESTIMATE, finding="geometry strip and rebuild "
-       "have no runtime"),
-    _p(P_INFORMATION_REVEAL, DESIGN_ESTIMATE, finding="reveal, update and hide "
-       "timing is unswept"),
-    _p(P_SYNTHETIC_ANIMATION, DESIGN_ESTIMATE, finding="authored animation: the "
-       "duration is free but nothing has been built"),
+    _p(P_MORPH, DESIGN_ESTIMATE, capability=REQUIRES_NEW_TECH,
+       finding="no runtime yet: interpolated model and world morphs are not "
+       "implemented",
+       blocked_by="there is no vertex correspondence between two MD3 models, "
+       "so nothing knows which point becomes which",
+       measurable_when="a correspondence solver exists and can emit an "
+       "interpolated frame sequence; then sweep the transition duration"),
+    _p(P_CAMERA_HANDOFF, DESIGN_ESTIMATE, capability=RUNTIME_EXISTS_UNSWEPT,
+       finding="a cut is trivially exact; interpolated handoffs are unmeasured",
+       blocked_by="q3mme can already move a camera along a spline, but no "
+       "sweep has measured what an interpolated handoff costs in delivered time",
+       measurable_when="a handoff sweep runs on real captures at 200, 400, 600 "
+       "and 900 ms and the delivered durations are read back from the file"),
+    _p(P_MATERIAL_TRANSFORM, DESIGN_ESTIMATE, capability=RUNTIME_EXISTS_UNSWEPT,
+       finding="shader and texture replacement exist in the asset system but "
+       "their timing is unswept",
+       blocked_by="the photoreal pipeline can already swap a texture, but a "
+       "swap has never been timed against a delivered frame",
+       measurable_when="a zzz_ style pack drives a timed swap during a capture "
+       "and the frame it lands on is read back"),
+    _p(P_WORLD_TRANSFORM, DESIGN_ESTIMATE, capability=RUNTIME_MISSING,
+       finding="geometry strip and rebuild have no runtime",
+       blocked_by="nothing can currently hide or restore BSP geometry on a "
+       "schedule; the geometry is read but never driven",
+       measurable_when="a renderer path can suppress surfaces per frame; the "
+       "sweep is then the same shape as the material one"),
+    _p(P_INFORMATION_REVEAL, DESIGN_ESTIMATE, capability=RUNTIME_MISSING,
+       finding="reveal, update and hide timing is unswept",
+       blocked_by="overlays are composited by ffmpeg after the capture, so "
+       "their appearance has never been timed against gameplay frames",
+       measurable_when="an overlay is composited at a stated timestamp and the "
+       "frame it first appears on is read back from the delivered file"),
+    _p(P_SYNTHETIC_ANIMATION, DESIGN_ESTIMATE, capability=REQUIRES_CREATIVE_SEED,
+       finding="authored animation: the duration is free but nothing has been "
+       "built",
+       blocked_by="the duration is whatever the animation is authored to be, "
+       "so there is nothing to measure until something is authored",
+       measurable_when="an actual piece exists; its duration is then a fact "
+       "about that piece and not a property of the primitive"),
 )}
 
 # Which primitives each semantic template composes. A template with no entry
@@ -1125,6 +1192,35 @@ COMPONENTS: dict[str, tuple[str, ...]] = {
     "HIGH_SPEED_HOLD": (P_RETIME,),
     "MOVEMENT_ACCENT": (P_SIMULTANEOUS_OVERLAY,),
 }
+
+
+def capability_report() -> dict[str, Any]:
+    """What each unmeasured primitive costs, in semantic effects.
+
+    A gap is only worth closing in proportion to what it unlocks. This says
+    which templates are waiting on each one, so the next sweep is chosen by
+    what it buys rather than by what is easiest.
+    """
+    blocked: dict[str, list[str]] = {}
+    for tpl in TEMPLATES:
+        tid = tpl.id if hasattr(tpl, "id") else tpl
+        for p in components_of(tid):
+            prim = PRIMITIVES.get(p)
+            if prim is not None and not prim.measured:
+                blocked.setdefault(p, []).append(tid)
+    rows = []
+    for name, prim in PRIMITIVES.items():
+        if prim.measured:
+            continue
+        waiting = sorted(set(blocked.get(name, [])))
+        rows.append({"primitive": name, "capability": prim.capability,
+                     "distance": prim.distance, "blocked_by": prim.blocked_by,
+                     "measurable_when": prim.measurable_when,
+                     "templates_waiting": waiting,
+                     "templates_waiting_count": len(waiting)})
+    rows.sort(key=lambda r: (r["distance"], -r["templates_waiting_count"]))
+    return {"version": TEMPLATE_VERSION, "unmeasured": rows,
+            "measured": sorted(n for n, p in PRIMITIVES.items() if p.measured)}
 
 
 def components_of(template_id: str) -> tuple[str, ...]:
