@@ -291,3 +291,38 @@ a replay rather than a continuation. The morph closes the slot.
 
 A trimmed version of this runs as a test with one frame of tolerance, so the
 arithmetic can never quietly drift from what the encoder delivers.
+
+## Primitives versus semantic templates (2026-09-03)
+
+"12 of 50 templates" was the wrong denominator. Most of those 50 reuse the same
+machinery, so the thing worth measuring is the **primitive**, and the semantic
+effects that compose it inherit that truth.
+
+**TEMPORAL PRIMITIVES — 9 of 15 measured (60%), 0 human approved**
+
+| measured | unmeasured |
+|---|---|
+| FREEZE, RETIME, FRAME_REPEAT, STUTTER, REVERSE, REPLAY, SEQUENTIAL_INSERT, SIMULTANEOUS_OVERLAY, OVERLAP | MORPH, CAMERA_HANDOFF, MATERIAL_TRANSFORM, WORLD_TRANSFORM, INFORMATION_REVEAL, SYNTHETIC_ANIMATION_INSERT |
+
+Each unmeasured primitive states why: morph and world transform have no runtime;
+material transform exists in the asset system but its timing is unswept; a camera
+cut is trivially exact while an interpolated handoff is not.
+
+**SEMANTIC EFFECT TEMPLATES — 50 total**
+
+| bucket | count |
+|---|---|
+| fully measured | 17 (34%) |
+| partially measured | 18 |
+| design only | 15 |
+| requires new tech or seed | 4 |
+| any measured component | 70% |
+
+**Provenance is per component.** `PLAYER_FREEZE_POSE` reports
+`FREEZE: SYNTHETIC_TEST`, `SYNTHETIC_ANIMATION_INSERT: DESIGN_ESTIMATE`,
+`CAMERA_HANDOFF: DESIGN_ESTIMATE` → overall `PARTIALLY_MEASURED`, which ranks
+between a guess and a sweep. Calling the whole effect an estimate would throw away
+what is known about its freeze.
+
+`measured_only_envelope()` withholds a usable range when any component is unbuilt,
+so future R&D cannot contaminate today's solver.

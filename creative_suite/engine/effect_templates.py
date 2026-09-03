@@ -967,3 +967,255 @@ def slot_verdict(slot_us: int, spec: Sequence[dict[str, Any]]) -> dict[str, Any]
             "preferred_ms": [el.preferred_min_us // MS, el.preferred_max_us // MS],
             "timing_confidence": conf,
             "combination_problems": check_combination(ids)}
+
+
+# ── temporal primitives ─────────────────────────────────────────────────────
+# The small set of things the pipeline actually DOES. Measure each once; the
+# semantic effects that compose them inherit that truth. "12 of 50 templates"
+# was the wrong denominator, because most of those 50 reuse the same machinery.
+
+P_FREEZE = "FREEZE"
+P_RETIME = "RETIME"
+P_FRAME_REPEAT = "FRAME_REPEAT"
+P_STUTTER = "STUTTER"
+P_REVERSE = "REVERSE"
+P_REPLAY = "REPLAY"
+P_SEQUENTIAL_INSERT = "SEQUENTIAL_INSERT"
+P_SIMULTANEOUS_OVERLAY = "SIMULTANEOUS_OVERLAY"
+P_OVERLAP = "OVERLAP"
+P_MORPH = "MORPH"
+P_CAMERA_HANDOFF = "CAMERA_HANDOFF"
+P_MATERIAL_TRANSFORM = "MATERIAL_TRANSFORM"
+P_WORLD_TRANSFORM = "WORLD_TRANSFORM"
+P_INFORMATION_REVEAL = "INFORMATION_REVEAL"
+P_SYNTHETIC_ANIMATION = "SYNTHETIC_ANIMATION_INSERT"
+
+PARTIALLY_MEASURED = "PARTIALLY_MEASURED"
+# Sits between a pure estimate and a swept envelope: some components are
+# measured, so it is worth more than a guess and less than a measurement.
+PROVENANCE_RANK[PARTIALLY_MEASURED] = 0.5
+
+
+@dataclass(frozen=True)
+class PrimitiveTiming:
+    """One thing the pipeline does, and how well its timing is known."""
+    name: str
+    provenance: str
+    calibration: Any = None
+    swept_points_us: tuple[int, ...] = ()
+    quantisation_us: int | None = None
+    delivery_bias_us: int = 0
+    finding: str = ""
+
+    def __post_init__(self) -> None:
+        if self.provenance not in PROVENANCE:
+            raise ValueError(f"{self.name}: unknown provenance")
+        if self.provenance in (SYNTHETIC_TEST, RUNTIME_MEASURED) and not self.swept_points_us:
+            raise ValueError(f"{self.name}: claims measurement without a sweep")
+
+    @property
+    def measured(self) -> bool:
+        return PROVENANCE_RANK[self.provenance] >= PROVENANCE_RANK[SOLVER_TRUSTED_FROM]
+
+    @property
+    def approved(self) -> bool:
+        return self.provenance == HUMAN_APPROVED
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d["calibration"] = self.calibration.to_dict() if self.calibration else None
+        d.update(measured=self.measured, approved=self.approved)
+        return d
+
+
+def _p(name, prov, swept=(), quant=None, bias=0, finding="", cal=None):
+    return PrimitiveTiming(name, prov, cal if cal is not None else
+                           (CALIBRATION_60_X264 if prov in
+                            (SYNTHETIC_TEST, RUNTIME_MEASURED) else None),
+                           tuple(v * MS for v in swept), quant, bias, finding)
+
+
+PRIMITIVES: dict[str, PrimitiveTiming] = {p.name: p for p in (
+    _p(P_FREEZE, SYNTHETIC_TEST, FREEZE_SWEEP, FRAME_US, FRAME_US,
+       "delivery is exact to the frame but always one frame long, at every "
+       "point from 50 to 900 ms; the request is compensated"),
+    _p(P_RETIME, SYNTHETIC_TEST, (300, 800, 4_000, 8_000), FRAME_US, 0,
+       "rates 3/10, 2/5 and 1/1 land exactly; 1/4, 1/2, 55/100 and 7/10 lose "
+       "one frame and deliver a slightly faster effective rate"),
+    _p(P_FRAME_REPEAT, SYNTHETIC_TEST, STUTTER_SWEEP, FRAME_US, 0,
+       "a 33 ms hold survives (two frames); shorter cannot exist at 60 fps"),
+    _p(P_STUTTER, SYNTHETIC_TEST, STUTTER_SWEEP, FRAME_US, 0,
+       "unequal figures survive: 110/230/170 ms within 6.7 ms and "
+       "60/90/45/120 within 1.7 ms; nothing is forced onto an even grid"),
+    _p(P_REVERSE, SYNTHETIC_TEST, REWIND_SWEEP, FRAME_US, 0,
+       "reverse plus forward replay costs exactly twice the slice, with "
+       "0.0 ms error at every point"),
+    _p(P_REPLAY, SYNTHETIC_TEST, (300, 800, 4_000, 8_000), FRAME_US, 0,
+       "shares the retime primitive; the insertion itself is exact"),
+    _p(P_SEQUENTIAL_INSERT, SYNTHETIC_TEST, PIP_SWEEP, FRAME_US, 0,
+       "adds exactly its own duration at every point from 600 to 2400 ms"),
+    _p(P_SIMULTANEOUS_OVERLAY, SYNTHETIC_TEST, PIP_SWEEP, FRAME_US, 0,
+       "adds exactly 0.0 ms at every point; this is what separates a "
+       "picture-in-picture from a cut"),
+    _p(P_OVERLAP, SYNTHETIC_TEST, OVERLAP_SWEEP, FRAME_US, 0,
+       "removes exactly the time requested, 0.0 ms error across 50-500 ms"),
+    _p(P_MORPH, DESIGN_ESTIMATE, finding="no runtime yet: interpolated model "
+       "and world morphs are not implemented"),
+    _p(P_CAMERA_HANDOFF, DESIGN_ESTIMATE, finding="a cut is trivially exact; "
+       "interpolated handoffs are unmeasured"),
+    _p(P_MATERIAL_TRANSFORM, DESIGN_ESTIMATE, finding="shader and texture "
+       "replacement exist in the asset system but their timing is unswept"),
+    _p(P_WORLD_TRANSFORM, DESIGN_ESTIMATE, finding="geometry strip and rebuild "
+       "have no runtime"),
+    _p(P_INFORMATION_REVEAL, DESIGN_ESTIMATE, finding="reveal, update and hide "
+       "timing is unswept"),
+    _p(P_SYNTHETIC_ANIMATION, DESIGN_ESTIMATE, finding="authored animation: the "
+       "duration is free but nothing has been built"),
+)}
+
+# Which primitives each semantic template composes. A template with no entry
+# falls back to the primitive its operator implies.
+_OPERATOR_PRIMITIVE = {
+    t.FREEZE: P_FREEZE, t.RETIME: P_RETIME, t.REPEAT: P_FRAME_REPEAT,
+    t.STUTTER: P_STUTTER, t.REPLAY: P_REPLAY, t.OVERLAP: P_OVERLAP,
+    t.INSERT: P_SEQUENTIAL_INSERT, t.REPLACE: P_SIMULTANEOUS_OVERLAY,
+    t.SYNTHETIC_INSERT: P_SYNTHETIC_ANIMATION, t.TRIM: P_RETIME,
+}
+
+COMPONENTS: dict[str, tuple[str, ...]] = {
+    "PLAYER_FREEZE_POSE": (P_FREEZE, P_SYNTHETIC_ANIMATION, P_CAMERA_HANDOFF),
+    "GRENADE_GAG": (P_SYNTHETIC_ANIMATION, P_CAMERA_HANDOFF),
+    "MODEL_MORPH": (P_MORPH, P_MATERIAL_TRANSFORM),
+    "WORLD_STRIP": (P_WORLD_TRANSFORM, P_FREEZE),
+    "WORLD_REBUILD": (P_WORLD_TRANSFORM,),
+    "WALL_XRAY": (P_WORLD_TRANSFORM, P_FREEZE, P_CAMERA_HANDOFF),
+    "MAP_CONSTRUCTION": (P_WORLD_TRANSFORM, P_MATERIAL_TRANSFORM, P_SYNTHETIC_ANIMATION),
+    "LOW_HP_WORLD": (P_MATERIAL_TRANSFORM,),
+    "TEXTURE_TEXT_REVEAL": (P_MATERIAL_TRANSFORM, P_INFORMATION_REVEAL),
+    "DAMAGE_LEDGER_TICK": (P_INFORMATION_REVEAL,),
+    "ROUND_DAMAGE_TOTAL": (P_INFORMATION_REVEAL,),
+    "ENEMY_COUNT_TICK": (P_INFORMATION_REVEAL,),
+    "RAIL_COOLDOWN_BAR": (P_INFORMATION_REVEAL,),
+    "CA_EXPLAINER_CARD": (P_INFORMATION_REVEAL, P_SYNTHETIC_ANIMATION),
+    "SHAFT_STAT_REVEAL": (P_INFORMATION_REVEAL,),
+    "ENEMY_REVEAL_STEP": (P_INFORMATION_REVEAL, P_WORLD_TRANSFORM),
+    "MOSAIC_TILE_STEP": (P_STUTTER, P_MATERIAL_TRANSFORM),
+    "MODEL_PULSE": (P_SIMULTANEOUS_OVERLAY, P_MATERIAL_TRANSFORM),
+    "MATERIAL_FLASH": (P_SIMULTANEOUS_OVERLAY, P_MATERIAL_TRANSFORM),
+    "CAMERA_JOLT": (P_SIMULTANEOUS_OVERLAY, P_CAMERA_HANDOFF),
+    "SIDE_REPLAY": (P_REPLAY, P_RETIME, P_CAMERA_HANDOFF),
+    "PROJECTILE_REPLAY": (P_REPLAY, P_RETIME, P_CAMERA_HANDOFF),
+    "PROJECTILE_FOLLOW": (P_REPLAY, P_RETIME, P_CAMERA_HANDOFF),
+    "GRENADE_ARC": (P_REPLAY, P_RETIME, P_CAMERA_HANDOFF),
+    "ENEMY_POV_INSERT": (P_SEQUENTIAL_INSERT, P_CAMERA_HANDOFF),
+    "POV_PIP": (P_SIMULTANEOUS_OVERLAY,),
+    "DEATH_REWIND": (P_REVERSE, P_REPLAY),
+    "MICRO_REWIND": (P_REVERSE,),
+    "DEATH_FLASH_MONTAGE": (P_FRAME_REPEAT,),
+    "TIME_ECHO": (P_FRAME_REPEAT, P_SIMULTANEOUS_OVERLAY),
+    "FREEZE_DECOMPOSITION": (P_FREEZE, P_SIMULTANEOUS_OVERLAY),
+    "ROCKET_FLYBY_BRIDGE": (P_OVERLAP, P_CAMERA_HANDOFF),
+    "WORLD_MORPH_BRIDGE": (P_OVERLAP, P_MORPH, P_WORLD_TRANSFORM),
+    "ROUND_WIN_RELEASE": (P_SEQUENTIAL_INSERT, P_SYNTHETIC_ANIMATION),
+    "PROJECT_IDENTITY": (P_SYNTHETIC_ANIMATION,),
+    "TRIBUTE_OUTRO": (P_SYNTHETIC_ANIMATION,),
+    "CHAT_BUBBLE": (P_SIMULTANEOUS_OVERLAY, P_INFORMATION_REVEAL),
+    "GLITCH_INSERT": (P_STUTTER, P_MATERIAL_TRANSFORM),
+    "NOPE_BEAT": (P_SEQUENTIAL_INSERT, P_INFORMATION_REVEAL),
+    "HIGH_SPEED_HOLD": (P_RETIME,),
+    "MOVEMENT_ACCENT": (P_SIMULTANEOUS_OVERLAY,),
+}
+
+
+def components_of(template_id: str) -> tuple[str, ...]:
+    tpl = get(template_id)
+    return COMPONENTS.get(template_id,
+                          (_OPERATOR_PRIMITIVE.get(tpl.operator, P_RETIME),))
+
+
+def component_provenance(template_id: str) -> dict[str, str]:
+    """Per component, not one coarse label for the whole effect."""
+    return {c: PRIMITIVES[c].provenance for c in components_of(template_id)}
+
+
+def template_provenance(template_id: str) -> str:
+    """Derived from the components.
+
+    A composite whose freeze is measured and whose custom animation is not is
+    PARTIALLY_MEASURED, which is far more useful than calling the whole effect
+    an estimate and far more honest than calling it measured.
+    """
+    provs = component_provenance(template_id)
+    if not provs:
+        return DESIGN_ESTIMATE
+    ranks = [PROVENANCE_RANK[p] for p in provs.values()]
+    trusted = PROVENANCE_RANK[SOLVER_TRUSTED_FROM]
+    if all(r >= PROVENANCE_RANK[HUMAN_APPROVED] for r in ranks):
+        return HUMAN_APPROVED
+    if all(r >= trusted for r in ranks):
+        return (RUNTIME_MEASURED
+                if all(p == RUNTIME_MEASURED for p in provs.values())
+                else SYNTHETIC_TEST)
+    if any(r >= trusted for r in ranks):
+        return PARTIALLY_MEASURED
+    return DESIGN_ESTIMATE
+
+
+def coverage_split() -> dict[str, Any]:
+    """Two denominators, each named.
+
+    Reporting a bare percentage without saying what it is a percentage OF is
+    how a number stops meaning anything.
+    """
+    prim = {"total": len(PRIMITIVES),
+            "measured": sorted(n for n, p in PRIMITIVES.items() if p.measured),
+            "human_approved": sorted(n for n, p in PRIMITIVES.items() if p.approved),
+            "unmeasured": sorted(n for n, p in PRIMITIVES.items() if not p.measured)}
+    buckets: dict[str, list[str]] = {SYNTHETIC_TEST: [], RUNTIME_MEASURED: [],
+                                     HUMAN_APPROVED: [], PARTIALLY_MEASURED: [],
+                                     DESIGN_ESTIMATE: []}
+    new_tech: list[str] = []
+    for tpl in TEMPLATES:
+        buckets[template_provenance(tpl.id)].append(tpl.id)
+        if tpl.capability in ("REQUIRES_NEW_TECH", "CREATIVE_SEED"):
+            new_tech.append(tpl.id)
+    fully = sorted(buckets[SYNTHETIC_TEST] + buckets[RUNTIME_MEASURED]
+                   + buckets[HUMAN_APPROVED])
+    return {
+        "primitives": {**prim, "measured_share": round(
+            len(prim["measured"]) / len(PRIMITIVES), 4)},
+        "semantic_templates": {
+            "total": len(TEMPLATES),
+            "fully_measured": fully,
+            "partially_measured": sorted(buckets[PARTIALLY_MEASURED]),
+            "design_only": sorted(buckets[DESIGN_ESTIMATE]),
+            "requires_new_tech_or_seed": sorted(new_tech),
+            "fully_measured_share": round(len(fully) / len(TEMPLATES), 4),
+            "any_measured_share": round(
+                (len(fully) + len(buckets[PARTIALLY_MEASURED])) / len(TEMPLATES), 4)},
+        "version": TEMPLATE_VERSION}
+
+
+def measured_only_envelope(template_id: str) -> dict[str, Any]:
+    """What this effect can do TODAY versus what it is designed to do.
+
+    An effect whose morph is unbuilt still has a usable range from the parts
+    that exist. Reporting only the full design range would let future R&D
+    contaminate today's solver.
+    """
+    tpl = get(template_id)
+    e = tpl.envelope
+    provs = component_provenance(template_id)
+    measured = [c for c, p in provs.items()
+                if PROVENANCE_RANK[p] >= PROVENANCE_RANK[SOLVER_TRUSTED_FROM]]
+    return {"template": template_id,
+            "provenance": template_provenance(template_id),
+            "components": provs,
+            "measured_components": sorted(measured),
+            "full_design_range_ms": [e.hard_min_us // MS, e.hard_max_us // MS],
+            "measured_only_range_ms": (
+                [e.hard_min_us // MS, e.hard_max_us // MS] if len(measured) == len(provs)
+                else None),
+            "note": ("every component is measured" if len(measured) == len(provs)
+                     else f"{len(provs) - len(measured)} of {len(provs)} components "
+                          f"are unmeasured, so the design range is not a promise")}
