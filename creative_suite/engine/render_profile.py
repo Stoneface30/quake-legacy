@@ -1092,9 +1092,14 @@ CAM_POINT_FIELDS: dict[str, dict[str, Any]] = {
     "offset / offsetType": {"used": False,
                             "values": ["INTERP", "FIXED", "PASS"],
                             "note": "per-point positional offset"},
-    "timescale / timescaleInterp": {"used": False, "values": ["float"],
-                                    "note": "a speed ramp carried BY the "
-                                            "camera path itself"},
+    # NOT a v10 field. CG_LoadCamera_f reads timescale and timescaleInterp
+    # only under `if (version < 10)` (cg_consolecmds.c). Claiming the camera
+    # path could carry its own speed ramp was wrong: that capability was
+    # removed in the version we write. A ramp comes from cvarinterp instead.
+    "timescale / timescaleInterp": {"used": False, "available": False,
+                                    "values": [],
+                                    "note": "removed at version 10; use "
+                                            "cvarinterp timescale"},
     "use*Velocity + initial/final": {"used": False,
                                      "values": ["origin", "angles", "xoffset",
                                                 "yoffset", "zoffset", "fov",
@@ -1114,7 +1119,9 @@ CAM_POINT_FIELDS: dict[str, dict[str, Any]] = {
 
 
 def cam_point_unused() -> list[str]:
-    return [k for k, v in CAM_POINT_FIELDS.items() if not v["used"]]
+    """Fields the format carries at version 10 that we leave at defaults."""
+    return [k for k, v in CAM_POINT_FIELDS.items()
+            if not v["used"] and v.get("available", True)]
 
 
 # ── every route to every creative idea ──────────────────────────────────────

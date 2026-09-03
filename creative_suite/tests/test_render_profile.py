@@ -435,10 +435,10 @@ def test_material_routes_are_not_called_morphs():
 
 def test_the_cam10_format_carries_more_than_we_write():
     unused = rp.cam_point_unused()
-    for f in ("viewEnt", "commandStr", "timescale / timescaleInterp"):
+    for f in ("viewEnt", "commandStr", "use*Velocity + initial/final"):
         assert f in unused, f
     assert rp.CAM_POINT_FIELDS["type"]["used"] is True
-    assert len(unused) >= 8
+    assert len(unused) >= 7
 
 
 # ── route coverage is not readiness ─────────────────────────────────────────
@@ -472,3 +472,15 @@ def test_commandstr_is_a_trigger_port_until_measured():
     assert f["port_status"] == rp.ENGINE_TRIGGER_PORT
     assert f["port_status"] != rp.DELIVERY_VERIFIED_SYNC_PORT
     assert "unmeasured" in f["note"] or "nobody has measured" in f["note"]
+
+
+def test_a_field_removed_at_version_ten_is_not_a_capability():
+    """cam10 reads timescale only under `version < 10`. We write version 10,
+    so the camera path cannot carry a speed ramp -- that was a wrong claim."""
+    f = rp.CAM_POINT_FIELDS["timescale / timescaleInterp"]
+    assert f["available"] is False
+    assert "timescale / timescaleInterp" not in rp.cam_point_unused()
+    ramp = [r for r in rp.routes_for("SPEED_SCALED_SLOWMO")
+            if "cam10" in r.means]
+    assert ramp and ramp[0].coverage == "PARTIAL"
+    assert "triggered BY the path, not carried in it" in ramp[0].notes

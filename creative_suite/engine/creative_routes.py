@@ -147,8 +147,10 @@ CORPUS_ROUTES: dict[str, tuple[Implementation, ...]] = {
     "SPEED_SCALED_SLOWMO": (
         _I(ENGINE, "cvarinterp timescale ... real", "FULL", AVAILABLE_NOW,
            "ramped before capture, so particles and blur follow the ramp"),
-        _I(ENGINE, "cam10 per-point timescale", "FULL", AVAILABLE_NOW,
-           "the ramp rides the camera path itself"),
+        # cam10 v10 has no timescale field; the ramp is a scheduled command.
+        _I(ENGINE, "cam10 commandStr fires cvarinterp timescale", "PARTIAL",
+           AVAILABLE_NOW,
+           "the ramp is triggered BY the path, not carried in it"),
         _I(COMPOSITOR, "setpts", "PARTIAL", AVAILABLE_NOW,
            "measured; cannot recover detail the capture never had"),
     ),

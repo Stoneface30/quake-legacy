@@ -212,3 +212,103 @@ def test_master_profile_cfgs_are_lf_only(tmp_path):
     assert cfgs, "no profile cfgs written"
     for cfg in cfgs:
         assert b"\r" not in cfg.read_bytes(), cfg.name
+
+
+# ── per-point fields the format always carried ──────────────────────────────
+
+def test_a_plain_keyframe_is_byte_identical_to_before():
+    """Adding options must not change what existing callers produce."""
+    kfs = [{"t_ms": 0.0, "pos": (0.0, 0.0, 0.0), "angles": (0.0, 0.0, 0.0),
+            "fov": 90.0},
+           {"t_ms": 100.0, "pos": (10.0, 0.0, 0.0), "angles": (0.0, 5.0, 0.0),
+            "fov": 90.0}]
+    out = cw.write_cam10(kfs, 1000)
+    assert "-1  viewEnt" in out
+    assert "0  useOriginVelocity" in out
+    assert "0  commandStrLen" in out
+    assert out.count("camera point number") == 2
+
+
+def test_view_ent_makes_the_engine_do_the_aiming():
+    kfs = [{"t_ms": 0.0, "pos": (0.0, 0.0, 0.0), "angles": (0.0, 0.0, 0.0),
+            "fov": 90.0, "view_ent": 174,
+            "view_type": cw.CAMERA_ANGLES_ENT},
+           {"t_ms": 100.0, "pos": (10.0, 0.0, 0.0), "angles": (0.0, 0.0, 0.0),
+            "fov": 90.0, "view_ent": 174,
+            "view_type": cw.CAMERA_ANGLES_ENT}]
+    out = cw.write_cam10(kfs, 1000)
+    assert "174  viewEnt" in out
+    assert f"{cw.CAMERA_ANGLES_ENT}  viewType" in out
+
+
+def test_offset_follows_without_an_absolute_path():
+    kfs = [{"t_ms": 0.0, "pos": (0.0, 0.0, 0.0), "angles": (0.0, 0.0, 0.0),
+            "fov": 90.0, "offset": (120.0, -40.0, 60.0)},
+           {"t_ms": 100.0, "pos": (0.0, 0.0, 0.0), "angles": (0.0, 0.0, 0.0),
+            "fov": 90.0, "offset": (120.0, -40.0, 60.0)}]
+    out = cw.write_cam10(kfs, 1000)
+    assert "120.000000  xoffset" in out and "-40.000000  yoffset" in out
+
+
+def test_ease_is_a_control_not_an_emergent_property():
+    """The spline lab inferred smoothness from sample density. The format
+    has per-channel initial and final velocity."""
+    kfs = [{"t_ms": 0.0, "pos": (0.0, 0.0, 0.0), "angles": (0.0, 0.0, 0.0),
+            "fov": 90.0, "origin_velocity": (0.0, 250.0)},
+           {"t_ms": 400.0, "pos": (100.0, 0.0, 0.0), "angles": (0.0, 0.0, 0.0),
+            "fov": 90.0, "origin_velocity": (250.0, 0.0)}]
+    out = cw.write_cam10(kfs, 1000)
+    assert "1  useOriginVelocity" in out
+    assert "250.000000  originFinalVelocity" in out
+
+
+def test_a_command_rides_the_point_and_declares_its_length():
+    cmd = "centerprint HERO"
+    kfs = [{"t_ms": 0.0, "pos": (0.0, 0.0, 0.0), "angles": (0.0, 0.0, 0.0),
+            "fov": 90.0},
+           {"t_ms": 100.0, "pos": (1.0, 0.0, 0.0), "angles": (0.0, 0.0, 0.0),
+            "fov": 90.0, "command": cmd}]
+    out = cw.write_cam10(kfs, 1000)
+    assert f"{len(cmd)}  commandStrLen" in out
+    assert cmd in out
+
+
+def test_the_writer_stays_deterministic_with_options():
+    kfs = [{"t_ms": 0.0, "pos": (0.0, 0.0, 0.0), "angles": (0.0, 0.0, 0.0),
+            "fov": 90.0, "view_ent": 174, "command": "centerprint X"},
+           {"t_ms": 100.0, "pos": (1.0, 0.0, 0.0), "angles": (0.0, 0.0, 0.0),
+            "fov": 90.0}]
+    assert cw.write_cam10(kfs, 1000) == cw.write_cam10(kfs, 1000)
+
+
+def test_a_command_is_read_as_raw_bytes_not_as_a_line():
+    """CG_LoadCamera_f reads commandStrLen bytes with trap_FS_Read, then one
+    line for the newline and one for the separator. An extra blank line
+    would make the separator read as the next point's first field."""
+    cmd = "centerprint HERO"
+    kfs = [{"t_ms": 0.0, "pos": (0.0, 0.0, 0.0), "angles": (0.0, 0.0, 0.0),
+            "fov": 90.0, "command": cmd},
+           {"t_ms": 100.0, "pos": (1.0, 0.0, 0.0), "angles": (0.0, 0.0, 0.0),
+            "fov": 90.0}]
+    out = cw.write_cam10(kfs, 1000)
+    body = out.split(f"{len(cmd)}  commandStrLen\n", 1)[1]
+    # exactly: the command bytes, one newline, then the separator
+    assert body.startswith(cmd + "\n-------------------------------------\n")
+    assert not body.startswith(cmd + "\n\n")
+    # and a point WITHOUT a command keeps the blank line that stands in for
+    # the command's own terminator
+    tail = out.split("0  commandStrLen\n", 1)[1]
+    assert tail.startswith("\n-------------------------------------\n")
+
+
+def test_declared_length_matches_the_bytes_written():
+    for cmd in ("centerprint X", "remapshader a b 0 1", "runfx impact"):
+        kfs = [{"t_ms": 0.0, "pos": (0.0, 0.0, 0.0), "angles": (0.0, 0.0, 0.0),
+                "fov": 90.0, "command": cmd},
+               {"t_ms": 50.0, "pos": (1.0, 0.0, 0.0), "angles": (0.0, 0.0, 0.0),
+                "fov": 90.0}]
+        # the loader trusts the declared length absolutely
+        out = cw.write_cam10(kfs, 0)
+        declared = int([l for l in out.splitlines()
+                        if "commandStrLen" in l][0].split()[0])
+        assert declared == len(cmd.encode("ascii"))

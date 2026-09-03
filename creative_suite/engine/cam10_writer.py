@@ -67,16 +67,47 @@ def _f3(v) -> str:
     return "{:.6f} {:.6f} {:.6f}".format(*v)
 
 
-def _write_point(origin, angles, cgtime_ms: float, fov: float) -> str:
+# Per-point options the format carries at version 10 and the writer used to
+# hardcode. Named here so a caller can reach them without touching the line
+# order, which is positional and unforgiving.
+CAMERA_ANGLES_ENT = 4          # cg_camera.h:76 -- aim at viewEnt
+CAMERA_OFFSET_INTERP = 0       # cg_camera.h:102
+# NOT available at version 10: timescale/timescaleInterp are read only under
+# `version < 10`, so the path cannot carry its own speed ramp.
+
+
+def _write_point(origin, angles, cgtime_ms: float, fov: float, *,
+                 view_type: int = CAMERA_ANGLES_INTERP,
+                 view_ent: int = -1,
+                 offset: tuple[float, float, float] = (0.0, 0.0, 0.0),
+                 offset_type: int = CAMERA_OFFSET_INTERP,
+                 origin_velocity: tuple[float, float] | None = None,
+                 angles_velocity: tuple[float, float] | None = None,
+                 command: str = "") -> str:
     """One camera point, exact line order per CG_SaveCamera_f
-    (cg_consolecmds.c:2226-2331). commandStrLen is always 0 — we never
-    attach a per-point console command."""
+    (cg_consolecmds.c:2226-2331).
+
+    The keyword options are fields the format has always carried and this
+    writer used to pin at defaults:
+
+    ``view_ent`` with ``view_type=CAMERA_ANGLES_ENT`` makes the ENGINE aim
+    at an entity every frame, so a follow needs no authored angles at all.
+    ``offset`` moves the camera relative to what it is tracking, which is a
+    follow without an absolute path to collide with. The velocity pairs are
+    (initial, final) ease for that channel. ``command`` is a console command
+    fired when the point is reached -- a trigger port, not yet a proven sync
+    port, because the gap between execution and the delivered frame is
+    unmeasured.
+    """
+    ov = origin_velocity or (0.0, 0.0)
+    av = angles_velocity or (0.0, 0.0)
+    cmd = command or ""
     lines = [
         "0  camera point number",
         f"{_f3(origin)}  origin",
         f"{_f3(angles)}  angles",
         f"{CAMERA_INTERP}  type",
-        f"{CAMERA_ANGLES_INTERP}  viewType",
+        f"{int(view_type)}  viewType",
         f"{CAMERA_ROLL_AS_ANGLES}  rollType",
         f"{ALL_FLAGS}  flags",
         f"{float(cgtime_ms):.4f}  cgtime",
@@ -84,21 +115,21 @@ def _write_point(origin, angles, cgtime_ms: float, fov: float) -> str:
         "0  numSplines",
         f"{_f3((0.0, 0.0, 0.0))}  viewPointOrigin",
         "0  viewPointOriginSet",
-        "-1  viewEnt",
+        f"{int(view_ent)}  viewEnt",
         f"{_f3((0.0, 0.0, 0.0))}  viewEntStartingOrigin",
         "0  viewEntStartingOriginSet",
-        "0  offsetType",
-        "0.000000  xoffset",
-        "0.000000  yoffset",
-        "0.000000  zoffset",
+        f"{int(offset_type)}  offsetType",
+        f"{float(offset[0]):.6f}  xoffset",
+        f"{float(offset[1]):.6f}  yoffset",
+        f"{float(offset[2]):.6f}  zoffset",
         f"{float(fov):.4f}  fov",
         f"{CAMERA_FOV_INTERP}  fovType",
-        "0  useOriginVelocity",
-        "0.000000  originInitialVelocity",
-        "0.000000  originFinalVelocity",
-        "0  useAnglesVelocity",
-        "0.000000  anglesInitialVelocity",
-        "0.000000  anglesFinalVelocity",
+        f"{1 if origin_velocity else 0}  useOriginVelocity",
+        f"{float(ov[0]):.6f}  originInitialVelocity",
+        f"{float(ov[1]):.6f}  originFinalVelocity",
+        f"{1 if angles_velocity else 0}  useAnglesVelocity",
+        f"{float(av[0]):.6f}  anglesInitialVelocity",
+        f"{float(av[1]):.6f}  anglesFinalVelocity",
         "0  useXoffsetVelocity",
         "0.000000  xoffsetInitialVelocity",
         "0.000000  xoffsetFinalVelocity",
@@ -114,9 +145,24 @@ def _write_point(origin, angles, cgtime_ms: float, fov: float) -> str:
         "0  useRollVelocity",
         "0.000000  rollInitialVelocity",
         "0.000000  rollFinalVelocity",
-        "0  commandStrLen",
+        f"{len(cmd)}  commandStrLen",
     ]
-    return "\n".join(lines) + "\n\n-------------------------------------\n"
+    # The trailer differs when a command is present, and the difference is
+    # exact. CG_LoadCamera_f (cg_consolecmds.c:2573) does NOT read the
+    # command as a line: it reads `slen` RAW BYTES with trap_FS_Read, then
+    # consumes one line for the newline that follows and one for the
+    # separator. So a command is followed by a single newline. With no
+    # command nothing is consumed by the read, and the blank line takes the
+    # place of the command's own terminator.
+    #
+    # Emitting the command as an ordinary line, with the usual blank after
+    # it, leaves one newline too many: the separator is then read as the
+    # next point's "camera point number" and every point after it desyncs.
+    # This is the same class of positional bug as the CRLF one.
+    sep = "-------------------------------------\n"
+    if cmd:
+        return "\n".join(lines) + f"\n{cmd}\n" + sep
+    return "\n".join(lines) + "\n\n" + sep
 
 
 def write_cam10(keyframes: list[dict], base_servertime: int) -> str:
@@ -140,7 +186,17 @@ def write_cam10(keyframes: list[dict], base_servertime: int) -> str:
     out = f"WolfcamCamera {CAM_VERSION}\n"
     for kf in sorted(keyframes, key=lambda k: k["t_ms"]):
         cgtime = base + float(kf["t_ms"])
-        out += _write_point(kf["pos"], kf["angles"], cgtime, kf["fov"])
+        # Optional per-point fields ride on the keyframe dict, so a caller
+        # that knows nothing about them is byte-identical to before.
+        out += _write_point(
+            kf["pos"], kf["angles"], cgtime, kf["fov"],
+            view_type=kf.get("view_type", CAMERA_ANGLES_INTERP),
+            view_ent=kf.get("view_ent", -1),
+            offset=kf.get("offset", (0.0, 0.0, 0.0)),
+            offset_type=kf.get("offset_type", CAMERA_OFFSET_INTERP),
+            origin_velocity=kf.get("origin_velocity"),
+            angles_velocity=kf.get("angles_velocity"),
+            command=kf.get("command", ""))
     return out
 
 
