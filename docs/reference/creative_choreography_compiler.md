@@ -189,3 +189,64 @@ proofs and the anchors were moved to where the composition can actually land.
 `docs/visual-record/2026-09-03/temporal_double_air_rocket.png` and
 `temporal_transition_overlap.png`: fixed music on top, the composition on that
 ruler, and an explicit time-added / time-removed accounting underneath.
+
+---
+
+# Effect template library v1 (2026-09-03)
+
+Module: `creative_suite/engine/effect_templates.py`. Atlas:
+`docs/visual-record/2026-09-03/effect_temporal_atlas.png`. Raw canary numbers:
+`docs/reference/effect_canary_measurements.json`.
+
+## Why
+
+The solver knew a freeze adds its duration. It did not know that a 120 ms freeze
+reads as a dropped frame. Those are different kinds of knowledge, and until an
+envelope has been looked at, the solver is working from an estimate and must say so.
+
+**The ladder:** `DESIGN_ESTIMATE` → `SYNTHETIC_TEST` → `RUNTIME_MEASURED` →
+`HUMAN_APPROVED`. `solver_trusted` starts at SYNTHETIC_TEST. Nothing in the library
+is HUMAN_APPROVED yet, and a test asserts that.
+
+**50 templates across all 15 families cover all 60 creative ideas** (55 directly,
+5 by explicit exemption with a stated reason). 8 are swept, 42 are estimates —
+`measured_share` 0.16, reported rather than hidden.
+
+## What the canaries measured (60 fps, generated footage)
+
+| primitive | finding |
+|---|---|
+| **Freeze** | Delivery is exact to the frame but **always one frame long** (+16.6 ms at every point from 50 to 900 ms). The request is now compensated via `request_for()`. |
+| **Stutter** | **Unequal figures survive.** 110/230/170 ms delivered within 6.7 ms; 60/90/45/120 within 1.7 ms. Nothing is forced onto an even grid. A 33 ms hold (two frames) is the floor. |
+| **Rate** | 3/10, 2/5 and 1/1 land **exactly**. 1/4, 1/2, 55/100 and 7/10 lose one frame and deliver a slightly faster effective rate (0.5 → 0.5042). |
+| **Overlap** | Removes **exactly** the time requested: 0.0 ms error at all of 50–500 ms. |
+
+Aesthetic bounds remain the director's. Review clips are in
+`docs/visual-record/2026-09-03/review_{freeze,stutter,rate,overlap}_sweep.mp4`,
+each labelled with its duration.
+
+## Temporal power
+
+MICRO ≤300 ms · SMALL ≤1 s · MEDIUM ≤3 s · LARGE ≤8 s · SEQUENCE ≤60 s. The
+constructor refuses a template whose envelope exceeds its class, which caught two
+misclassifications on first run. This is what stops a four-second death montage
+being reached for to solve a 120 ms deficit.
+
+## Three feasibility questions, kept apart
+
+`MATHEMATICALLY_FEASIBLE` (the arithmetic closes) · `VISUALLY_FEASIBLE` (inside a
+swept envelope) · `HUMAN_APPROVED` (somebody looked). An untested MODEL_MORPH at
+400 ms reports only the first.
+
+## Template-driven solve
+
+`slot_verdict(5850 ms, spec)` → **PREFERRED_FEASIBLE**, hard 1280–15100 ms,
+preferred 2950–8300 ms, and *"2 of 5 envelopes are reasoning, not measurement"*.
+`solve_from_templates` then finds 263 exact compositions with the hero at +1.0 ms,
+every duration drawn from the library rather than hand-picked.
+
+## Combination rules
+
+`good_with` / `bad_with` / `must_precede` / `must_follow` / `can_overlap`.
+WORLD_STRIP with MOSAIC_TILE_STEP is flagged as competing for attention;
+WORLD_REBUILD before WORLD_STRIP is flagged as out of order.
