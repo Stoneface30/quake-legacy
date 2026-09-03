@@ -333,6 +333,32 @@ class ChoreographyFit:
                 "weakest": list(self.weakest)}
 
 
+def temporal_effect_fillability() -> dict[str, Any]:
+    """Can the effect vocabulary actually answer a song's demands, with
+    timings we have measured rather than guessed?
+
+    Separate from gameplay fillability (are the moments there) and from
+    choreography fillability (can the effects be rendered at all). A song
+    full of rhythmic figures is only a good choice if the effects that would
+    answer them have envelopes somebody has looked at.
+    """
+    from creative_suite.engine import effect_templates as et
+    rows = et.atlas_rows()
+    measured = [r for r in rows if r["measured"]]
+    by_power = {p: sum(1 for r in rows if r["power"] == p) for p in et.POWERS}
+    measured_power = {p: sum(1 for r in measured if r["power"] == p)
+                      for p in et.POWERS}
+    # A usable vocabulary needs measured tools at more than one scale: micro
+    # accents cannot close a two-second gap and a montage cannot close 120 ms.
+    scales_covered = sum(1 for p, n in measured_power.items() if n)
+    return {"templates": len(rows), "measured": len(measured),
+            "measured_share": round(len(measured) / max(len(rows), 1), 4),
+            "by_power": by_power, "measured_by_power": measured_power,
+            "measured_scales": scales_covered,
+            "human_approved": sum(1 for r in rows
+                                  if r["provenance"] == et.HUMAN_APPROVED)}
+
+
 def fillability(plans: Sequence[ChoreographyPlan],
                 fits: Sequence[ChoreographyFit]) -> dict[str, Any]:
     """Can the archive actually perform this score?
@@ -393,6 +419,7 @@ class ComposerReadiness:
     music_library_ready: bool
     choreography_scoring_ready: bool
     temporal_solver_ready: bool = False
+    effect_library_ready: bool = False
     blockers: tuple[str, ...] = ()
 
     @property
@@ -413,8 +440,12 @@ def assess_readiness(*, corpus_entries: int, lanes_covered: int,
                      proofs_built: int, gameplay_truth_ready: bool,
                      music_library_ready: bool,
                      temporal_proofs_built: int = 0,
+                     measured_templates: int = 0,
+                     measured_scales: int = 0,
                      min_proofs: int = 10,
-                     min_temporal_proofs: int = 5) -> ComposerReadiness:
+                     min_temporal_proofs: int = 5,
+                     min_measured_templates: int = 6,
+                     min_measured_scales: int = 3) -> ComposerReadiness:
     """Every condition is named, and a missing one is a blocker, not a warning."""
     blockers: list[str] = []
     if corpus_entries <= 0:
@@ -429,17 +460,29 @@ def assess_readiness(*, corpus_entries: int, lanes_covered: int,
         blockers.append(f"{temporal_proofs_built}/{min_temporal_proofs} temporal "
                         f"solver proofs exist: without them the composer can find "
                         f"material but cannot fit it to a fixed song")
+    if measured_templates < min_measured_templates:
+        blockers.append(f"only {measured_templates}/{min_measured_templates} effect "
+                        f"templates have swept timing: ranking songs on estimated "
+                        f"envelopes would be false precision")
+    if measured_scales < min_measured_scales:
+        blockers.append(f"measured effects cover {measured_scales}/"
+                        f"{min_measured_scales} temporal scales: without tools at "
+                        f"several scales the solver cannot close both a 120 ms and "
+                        f"a two-second gap")
     if not music_library_ready:
         blockers.append("the music library has unresolved source or duration defects")
     creative = [b for b in blockers if "corpus" in b or "lanes" in b
                 or "choreography proofs" in b]
     temporal_ready = temporal_proofs_built >= min_temporal_proofs
+    library_ready = (measured_templates >= min_measured_templates
+                     and measured_scales >= min_measured_scales)
     return ComposerReadiness(
         corpus_entries=corpus_entries, lanes_covered=lanes_covered,
         proofs_built=proofs_built, gameplay_truth_ready=gameplay_truth_ready,
         music_library_ready=music_library_ready,
         choreography_scoring_ready=not creative,
-        temporal_solver_ready=temporal_ready, blockers=tuple(blockers))
+        temporal_solver_ready=temporal_ready,
+        effect_library_ready=library_ready, blockers=tuple(blockers))
 
 
 def elements_from_temporal(plan: Any, lane_of: dict[str, str] | None = None,

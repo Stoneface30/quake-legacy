@@ -226,19 +226,25 @@ def test_the_song_shortlist_stays_shut_until_choreography_is_ready():
     assert not blocked.may_shortlist_songs
     assert blocked.state == ch.SHORTLIST_BLOCKED and len(blocked.blockers) >= 4
     from creative_suite.engine import temporal_proofs as tpf
+    f = ch.temporal_effect_fillability()
     ready = ch.assess_readiness(corpus_entries=len(cc.CORPUS), lanes_covered=len(ch.LANES),
                                 proofs_built=len(cp.PROOFS), gameplay_truth_ready=True,
                                 music_library_ready=True,
-                                temporal_proofs_built=len(tpf.PROOFS))
+                                temporal_proofs_built=len(tpf.PROOFS),
+                                measured_templates=f["measured"],
+                                measured_scales=f["measured_scales"])
     assert ready.may_shortlist_songs and ready.state == ch.SHORTLIST_READY
 
 
 def test_music_defects_alone_still_block_the_shortlist():
     from creative_suite.engine import temporal_proofs as tpf
+    f = ch.temporal_effect_fillability()
     r = ch.assess_readiness(corpus_entries=len(cc.CORPUS), lanes_covered=len(ch.LANES),
                             proofs_built=len(cp.PROOFS), gameplay_truth_ready=True,
                             music_library_ready=False,
-                            temporal_proofs_built=len(tpf.PROOFS))
+                            temporal_proofs_built=len(tpf.PROOFS),
+                            measured_templates=f["measured"],
+                            measured_scales=f["measured_scales"])
     assert not r.may_shortlist_songs
     assert r.choreography_scoring_ready       # the composer is ready; the library is not
 

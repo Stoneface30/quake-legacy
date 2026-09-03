@@ -268,3 +268,42 @@ def test_the_atlas_says_which_rows_are_measured():
 def test_the_atlas_renders(tmp_path):
     p = et.render_atlas(tmp_path / "atlas.png")
     assert p.exists() and p.stat().st_size > 10_000
+
+
+# ── fillability and readiness ───────────────────────────────────────────────
+
+def test_temporal_effect_fillability_is_its_own_measure():
+    from creative_suite.engine import choreography as ch
+    f = ch.temporal_effect_fillability()
+    assert f["templates"] == len(et.TEMPLATES)
+    assert 0 < f["measured"] < f["templates"], "some measured, some not"
+    assert f["human_approved"] == 0, "nobody has reviewed the envelopes yet"
+    assert f["measured_scales"] >= 2
+    assert sum(f["by_power"].values()) == f["templates"]
+
+
+def test_ranking_songs_on_estimated_envelopes_is_blocked():
+    from creative_suite.engine import (choreography as ch, choreography_proofs as cp,
+                                       temporal_proofs as tpf)
+    common = dict(corpus_entries=len(cc.CORPUS), lanes_covered=len(ch.LANES),
+                  proofs_built=len(cp.PROOFS), gameplay_truth_ready=True,
+                  music_library_ready=True, temporal_proofs_built=len(tpf.PROOFS))
+    guessing = ch.assess_readiness(measured_templates=0, measured_scales=0, **common)
+    assert not guessing.may_shortlist_songs and not guessing.effect_library_ready
+    assert any("false precision" in b for b in guessing.blockers)
+    f = ch.temporal_effect_fillability()
+    now = ch.assess_readiness(measured_templates=f["measured"],
+                              measured_scales=f["measured_scales"], **common)
+    assert now.effect_library_ready == (f["measured"] >= 6 and f["measured_scales"] >= 3)
+
+
+def test_a_vocabulary_measured_at_only_one_scale_is_not_enough():
+    from creative_suite.engine import (choreography as ch, choreography_proofs as cp,
+                                       temporal_proofs as tpf)
+    r = ch.assess_readiness(
+        corpus_entries=len(cc.CORPUS), lanes_covered=len(ch.LANES),
+        proofs_built=len(cp.PROOFS), gameplay_truth_ready=True,
+        music_library_ready=True, temporal_proofs_built=len(tpf.PROOFS),
+        measured_templates=20, measured_scales=1)
+    assert not r.may_shortlist_songs
+    assert any("temporal scales" in b for b in r.blockers)
