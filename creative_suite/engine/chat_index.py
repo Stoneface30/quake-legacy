@@ -19,7 +19,12 @@ from typing import Any, Sequence
 
 from creative_suite.engine import demo_truth as dt
 
-CHAT_INDEX_VERSION = "chat-index-v1.0.0"
+CHAT_INDEX_VERSION = "chat-index-v1.1.0"
+
+# How confidently a line was attributed to a client slot.
+RESOLVED = "RESOLVED"
+AMBIGUOUS = "AMBIGUOUS"
+UNRESOLVED = "UNKNOWN"
 RECOGNITION_DB = dt.RECOGNITION_DB
 
 _COLOR = re.compile(r"\^[0-9a-zA-Z]")
@@ -36,6 +41,7 @@ class ChatHit:
     kind: str                       # chat | tchat | print | cp
     sender_client: int | None
     text: str
+    sender_state: str = UNRESOLVED
     nearest_frag_id: int | None = None
     ms_to_nearest_frag: int | None = None
 
@@ -59,20 +65,48 @@ def scrub(raw: str, known_names: dict[str, int] | None = None
     return slot, text
 
 
-def _names_for(db: sqlite3.Connection, content_hash: str) -> dict[str, int]:
-    """Lower-cased display name -> client slot, from the demo's own
-    configstrings, resolved through the recognition scan's player table when
-    present. Used only to turn a name back into a number."""
-    out: dict[str, int] = {}
+def name_timeline(db: sqlite3.Connection, content_hash: str
+                  ) -> list[tuple[int, int, str]]:
+    """(server_time_ms, client, normalised name) from the demo's own
+    configstrings, in order. Internal only."""
     try:
-        for name, client in db.execute(
-                "SELECT lower(player_name), client_num FROM demo_player_stats "
-                "WHERE demo_id IN (SELECT id FROM demos WHERE filename=?)",
-                (content_hash,)):
-            out[str(name)] = int(client)
+        rows = db.execute(
+            "SELECT server_time_ms, client, name FROM player_names_v1 "
+            "WHERE content_hash=? ORDER BY server_time_ms", (content_hash,)).fetchall()
     except sqlite3.OperationalError:
-        pass
-    return out
+        return []
+    return [(int(t), int(c), normalise(str(n))) for t, c, n in rows]
+
+
+def normalise(name: str) -> str:
+    """Colour codes stripped, case folded, spaces squashed. Two players whose
+    names differ only by colour are the same display identity."""
+    return " ".join(_COLOR.sub("", name).split()).strip().lower()
+
+
+def slot_at(timeline: Sequence[tuple[int, int, str]], name: str, t_ms: int
+            ) -> tuple[int | None, str]:
+    """Which client held this display name at this instant.
+
+    Names change mid-match: renames, reconnects, a freed slot taken by
+    somebody else. A single static map for a whole demo would credit a line
+    to whoever holds the slot LAST, so the lookup is time-aware: for each
+    client, the last name set at or before `t_ms` is the name it held. When
+    two clients held the same name at once the answer is AMBIGUOUS, never a
+    coin toss.
+    """
+    key = normalise(name)
+    held: dict[int, str] = {}
+    for t, client, n in timeline:
+        if t > t_ms:
+            break
+        held[client] = n
+    matches = sorted(c for c, n in held.items() if n == key)
+    if len(matches) == 1:
+        return matches[0], RESOLVED
+    if len(matches) > 1:
+        return None, AMBIGUOUS
+    return None, UNRESOLVED
 
 
 def search(query: str, *, content_hash: str | None = None,
@@ -96,12 +130,16 @@ def search(query: str, *, content_hash: str | None = None,
             rows = db.execute(sql, args).fetchall()
         except sqlite3.OperationalError:
             return []
+        timelines: dict[str, list[tuple[int, int, str]]] = {}
         for h, t, rnd, kind, text in rows:
-            slot, clean = scrub(text)
+            raw_name = _sender_name(text)
+            tl = timelines.setdefault(h, name_timeline(db, h))
+            slot, state = slot_at(tl, raw_name, int(t)) if raw_name else (None, UNRESOLVED)
+            _, clean = scrub(text)
             frag = db.execute(
                 "SELECT id, server_time_ms FROM recognized_frags WHERE content_hash=? "
                 "ORDER BY ABS(server_time_ms-?) LIMIT 1", (h, t)).fetchone()
-            hits.append(ChatHit(h, int(t), rnd, kind, slot, clean,
+            hits.append(ChatHit(h, int(t), rnd, kind, slot, clean, state,
                                 frag[0] if frag else None,
                                 (int(t) - frag[1]) if frag else None))
     return hits
@@ -125,8 +163,23 @@ def near_frag(frag_id: int, *, window_ms: int = 15_000,
                 (h, t - window_ms, t + window_ms)).fetchall()
         except sqlite3.OperationalError:
             return []
-    return [ChatHit(h, int(ct), rnd, kind, *scrub(text), frag_id, int(ct) - t)
-            for ct, rnd, kind, text in rows]
+    out: list[ChatHit] = []
+    with sqlite3.connect(path, timeout=30) as db:
+        tl = name_timeline(db, h)
+    for ct, rnd, kind, text in rows:
+        raw_name = _sender_name(text)
+        slot, state = slot_at(tl, raw_name, int(ct)) if raw_name else (None, UNRESOLVED)
+        out.append(ChatHit(h, int(ct), rnd, kind, slot, scrub(text)[1], state,
+                           frag_id, int(ct) - t))
+    return out
+
+
+def _sender_name(raw: str) -> str:
+    """The sender's display name as written, for slot lookup only. It never
+    leaves this module."""
+    plain = _COLOR.sub("", raw).strip().strip(chr(34))
+    m = _SENDER.match(plain)
+    return m.group("name").strip() if m else ""
 
 
 def contains_name(hit: ChatHit, names: Sequence[str]) -> bool:

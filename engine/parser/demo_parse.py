@@ -509,6 +509,7 @@ class DM73Parser:
         self._ps_prev_seq: int | None = None
         self._ps_events: list[dict] = []     # recorder events, edge-deduped by eventSequence
         self._team_changes: list[dict] = []  # (time, client, team) as configstrings change
+        self._name_changes: list[dict] = []  # (time, client, name) as configstrings change
         self._huff   = _get_huff()
         # Player metadata keyed by client number
         self._players: dict[int, dict] = {}
@@ -591,6 +592,7 @@ class DM73Parser:
             'round_results': self._round_results,
             'missiles':     self._missile_track,
             'team_changes': self._team_changes,
+            'name_changes': self._name_changes,
             'accuracy':     self._acc_track,
             'packet_errors': self._packet_errors,
             'first_packet_error': self._first_packet_error,
@@ -663,6 +665,13 @@ class DM73Parser:
             name   = self._cs_field(val, 'n') or f'CLIENT_{client}'
             team   = self._cs_field(val, 't')
             entry  = self._players.setdefault(client, {})
+            # Names change mid-match: renames, reconnects, a freed slot taken
+            # by somebody else. One static name->slot map for a whole demo
+            # would attribute a chat line to whoever holds the slot LAST, so
+            # keep the timeline and let consumers resolve at the chat's time.
+            if entry.get('name') != name:
+                self._name_changes.append({'server_time_ms': self._last_server_time,
+                                           'client': client, 'name': name})
             entry['name'] = name
             entry['team'] = _TEAM_NAMES.get(team, team)
             # Side switches matter for round attribution: keep the timeline.

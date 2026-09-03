@@ -34,7 +34,7 @@ from demo_parse import DM73Parser  # noqa: E402
 ROOT = Path(__file__).resolve().parents[2]
 DB = ROOT / "creative_suite" / "database" / "frag_recognition.db"
 DEMOS = ROOT / "demos"
-ENRICH_VERSION = "semantic-events-v1.0.3"
+ENRICH_VERSION = "semantic-events-v1.0.4"
 
 # Everything demo_parse emits that the corpus caches did not already hold.
 KEEP_EVENTS = ("jump", "jump_pad", "teleport_in", "teleport_out",
@@ -73,6 +73,14 @@ CREATE TABLE IF NOT EXISTS team_changes_v1(
   content_hash TEXT NOT NULL, server_time_ms INTEGER NOT NULL,
   client INTEGER NOT NULL, team TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS ix_teamchg_hash ON team_changes_v1(content_hash);
+CREATE TABLE IF NOT EXISTS player_names_v1(
+  content_hash TEXT, server_time_ms INTEGER, client INTEGER, name TEXT);
+CREATE INDEX IF NOT EXISTS ix_names_hash ON player_names_v1(content_hash, client, server_time_ms);
+CREATE TABLE IF NOT EXISTS teleport_transits_v1(
+  content_hash TEXT, server_time_ms INTEGER, client INTEGER, outcome TEXT,
+  out_x REAL, out_y REAL, out_z REAL, in_x REAL, in_y REAL, in_z REAL,
+  teleporter TEXT, components TEXT, nearest_at_dest INTEGER, kind TEXT);
+CREATE INDEX IF NOT EXISTS ix_tp_hash ON teleport_transits_v1(content_hash, server_time_ms);
 CREATE TABLE IF NOT EXISTS player_teams_v1(
   content_hash TEXT NOT NULL, client INTEGER NOT NULL, team TEXT NOT NULL,
   PRIMARY KEY(content_hash, client));
@@ -147,6 +155,9 @@ def enrich_one(con: sqlite3.Connection, chash: str, path: Path) -> dict:
     # Slot -> team only. Names stay out of every enrichment table.
     team_rows = [(chash, int(client), str(info.get("team") or "UNKNOWN"))
                  for client, info in (out.get("players") or {}).items()]
+    name_rows = [(chash, n["server_time_ms"], int(n["client"]), str(n["name"]))
+                 for n in out.get("name_changes", [])]
+    tp_rows = _teleport_rows(chash, out)
     ms_rows = [(chash, m["server_time_ms"], m["entity_num"], m.get("owner"),
                 m.get("other"), m.get("weapon"), m.get("origin_x"), m.get("origin_y"),
                 m.get("origin_z"), m.get("vel_x"), m.get("vel_y"),
@@ -156,18 +167,58 @@ def enrich_one(con: sqlite3.Connection, chash: str, path: Path) -> dict:
         for table in ("semantic_events_v1", "round_state_v1", "server_text_v1",
                       "missile_samples_v1", "player_teams_v1"):
             con.execute(f"DELETE FROM {table} WHERE content_hash=?", (chash,))
-        con.execute("DELETE FROM team_changes_v1 WHERE content_hash=?", (chash,))
+        for table in ("team_changes_v1", "player_names_v1", "teleport_transits_v1"):
+            con.execute(f"DELETE FROM {table} WHERE content_hash=?", (chash,))
         con.executemany("INSERT INTO semantic_events_v1 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", ev_rows)
         con.executemany("INSERT INTO team_changes_v1 VALUES (?,?,?,?)", tc_rows)
         con.executemany("INSERT INTO round_state_v1 VALUES (?,?,?,?,?)", rs_rows)
         con.executemany("INSERT INTO server_text_v1 VALUES (?,?,?,?,?)", tx_rows)
         con.executemany("INSERT INTO missile_samples_v1 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)", ms_rows)
         con.executemany("INSERT OR REPLACE INTO player_teams_v1 VALUES (?,?,?)", team_rows)
+        con.executemany("INSERT INTO player_names_v1 VALUES (?,?,?,?)", name_rows)
+        con.executemany("INSERT INTO teleport_transits_v1 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)", tp_rows)
         con.execute("INSERT OR REPLACE INTO enrichment_runs_v1 VALUES (?,?,datetime('now'),?,?,?,?,?,?)",
                     (chash, ENRICH_VERSION, parse_ms, len(ev_rows), len(ms_rows),
                      len(tx_rows), len(rs_rows), out.get("packet_errors", 0)))
     return {"parse_ms": parse_ms, "events": len(ev_rows), "missiles": len(ms_rows),
-            "text": len(tx_rows), "rounds": len(rs_rows), "collapsed": collapsed}
+            "text": len(tx_rows), "rounds": len(rs_rows), "collapsed": collapsed,
+            "names": len(name_rows), "teleports": len(tp_rows)}
+
+
+def _teleport_rows(chash: str, out: dict) -> list[tuple]:
+    """Attribute this demo's teleports. A map we cannot load still yields
+    transits -- only the map-pair evidence component is missing."""
+    try:
+        from engine.parser import bsp_geometry as bg
+        from creative_suite.engine import teleport_attribution as ta
+    except Exception:
+        return []
+    try:
+        m = bg.load_map(out.get("map") or "")
+        tps, spawns = bg.teleporters(m), bg.spawn_points(m)
+    except Exception:
+        tps, spawns = [], []
+    try:
+        transits, spawn_ins = ta.pair_transits(out["events"], teleporters=tps,
+                                               spawn_points=spawns)
+        if not transits:
+            return []
+        rec = None
+        for c, info in (out.get("players") or {}).items():
+            if info.get("is_recorder"):
+                rec = int(c)
+        samples = ta.all_samples(out.get("entities", []), out.get("snapshots", []), rec)
+        rows = []
+        for a in ta.attribute_all(transits, samples, teleporters=tps):
+            t = a.transit
+            rows.append((chash, t.t_ms, a.client, a.outcome,
+                         t.out_pos[0], t.out_pos[1], t.out_pos[2],
+                         t.in_pos[0], t.in_pos[1], t.in_pos[2],
+                         t.teleporter_target, ",".join(a.components),
+                         a.nearest_at_destination, "TRANSIT"))
+        return rows
+    except Exception:
+        return []
 
 
 def main(limit: int | None = None, verify_hash: bool = False) -> int:

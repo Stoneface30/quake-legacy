@@ -383,3 +383,61 @@ def test_recovery_fills_a_gap_but_never_breaks_a_tie():
     rows = [(0, 6, "0"), (0, 7, "0"), (9_000, 6, "1"), (10_000, 662, "-1"),
             (12_000, 7, "1"), (30_000, 662, "-1")]
     assert dt.round_outcomes(rows, recorder_team="RED")[0].winner_team == dt.ROUND_UNKNOWN
+
+
+# ── time-aware chat sender resolution ───────────────────────────────────────
+
+def test_a_name_is_resolved_at_the_time_the_line_was_said():
+    """Slots get reused. A single static map for the whole demo would credit
+    a line to whoever holds the slot last."""
+    tl = [(0, 3, "foo"), (5000, 3, "bar"), (6000, 7, "foo")]
+    assert ci.slot_at(tl, "foo", 1000) == (3, ci.RESOLVED)
+    assert ci.slot_at(tl, "foo", 5500) == (None, ci.UNRESOLVED)   # nobody is foo yet
+    assert ci.slot_at(tl, "foo", 7000) == (7, ci.RESOLVED)        # a different player
+    assert ci.slot_at(tl, "bar", 7000) == (3, ci.RESOLVED)
+
+
+def test_two_clients_holding_one_name_is_ambiguous_not_a_coin_toss():
+    tl = [(0, 3, "foo"), (100, 9, "foo")]
+    assert ci.slot_at(tl, "foo", 1000) == (None, ci.AMBIGUOUS)
+
+
+def test_colour_codes_and_spacing_do_not_change_identity():
+    tl = [(0, 4, ci.normalise("^1Pan^7theon"))]
+    assert ci.slot_at(tl, "^3PANTHEON", 10) == (4, ci.RESOLVED)
+    assert ci.normalise("^1a^2b   c") == "ab c"
+
+
+def test_a_resolved_chat_line_reports_its_slot_and_never_the_name(tmp_path):
+    p, h = _db(tmp_path)
+    db = sqlite3.connect(p)
+    db.execute("CREATE TABLE player_names_v1(content_hash TEXT, server_time_ms INTEGER, client INTEGER, name TEXT)")
+    db.execute("INSERT INTO player_names_v1 VALUES (?,?,?,?)", (h, 0, 5, "^2Foo"))
+    db.execute("INSERT INTO server_text_v1 VALUES (?,?,?,?,?)", (h, 8500, 1, "chat", '^2Foo^7: GG that was sick'))
+    db.execute("INSERT INTO recognized_frags VALUES (?,?,?,?,?)", (77, h, 8000, 1, "ROCKET"))
+    db.commit(); db.close()
+    hit = ci.search("gg", db_path=p)[0]
+    assert hit.sender_client == 5 and hit.sender_state == ci.RESOLVED
+    assert hit.text == "GG that was sick" and "Foo" not in hit.text
+    assert not ci.contains_name(hit, ["Foo"])
+    assert hit.nearest_frag_id == 77 and hit.ms_to_nearest_frag == 500
+
+
+def test_a_line_from_an_unknown_name_stays_unresolved(tmp_path):
+    p, h = _db(tmp_path)
+    db = sqlite3.connect(p)
+    db.execute("CREATE TABLE player_names_v1(content_hash TEXT, server_time_ms INTEGER, client INTEGER, name TEXT)")
+    db.execute("INSERT INTO server_text_v1 VALUES (?,?,?,?,?)", (h, 8500, 1, "chat", 'Stranger: lol'))
+    db.commit(); db.close()
+    hit = ci.search("lol", db_path=p)[0]
+    assert hit.sender_client is None and hit.sender_state == ci.UNRESOLVED
+    assert hit.text == "lol"
+
+
+def test_a_missing_names_table_degrades_to_unresolved(tmp_path):
+    p, h = _db(tmp_path)
+    db = sqlite3.connect(p)
+    db.execute("INSERT INTO server_text_v1 VALUES (?,?,?,?,?)", (h, 8500, 1, "chat", '^2Foo^7: gg'))
+    db.commit(); db.close()
+    hit = ci.search("gg", db_path=p)[0]
+    assert hit.sender_state == ci.UNRESOLVED and hit.text == "gg"
