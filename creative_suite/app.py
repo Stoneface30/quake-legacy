@@ -67,6 +67,7 @@ def create_app() -> FastAPI:
         packs,
         parts,
         phase1,
+        review,
         scene_editor,
         studio,
         variants,
@@ -90,6 +91,7 @@ def create_app() -> FastAPI:
     app.include_router(director.router)
     app.include_router(director_draft.router)
     app.include_router(scene_editor.router)
+    app.include_router(review.router)
 
     # Spec §11.3 mitigation: check img2img workflow placeholders at boot.
     # This only logs — it never aborts startup, so a ComfyUI update that

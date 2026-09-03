@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<title>PANTHEON — Career Review</title>
+<style>
+  :root{
+    --bg:#0d0d10; --panel:#16161c; --line:#26262f; --dim:#7d7d8a; --fg:#e8e8ee;
+    --t1:#e0b341; --t2:#4c9f70; --t3:#5b8fd6; --t4:#8a8a96; --t5:#5a4550;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:14px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+  header{display:flex;gap:24px;align-items:baseline;padding:10px 18px;
+         border-bottom:1px solid var(--line);background:var(--panel)}
+  header b{font-size:16px;letter-spacing:.5px}
+  .counts{margin-left:auto;display:flex;gap:14px;font-size:12px;color:var(--dim)}
+  .counts b{color:var(--fg)}
+  main{display:grid;grid-template-columns:1fr 300px;gap:16px;padding:16px;
+       max-width:1500px;margin:0 auto}
+  .stage{background:#000;border:1px solid var(--line);border-radius:6px;
+         position:relative;overflow:hidden;aspect-ratio:16/9}
+  video{width:100%;height:100%;display:block;background:#000}
+  .placeholder{position:absolute;inset:0;display:flex;flex-direction:column;
+               align-items:center;justify-content:center;gap:10px;color:var(--dim);
+               text-align:center;padding:24px}
+  .placeholder .big{font-size:15px;color:var(--fg)}
+  /* the frag instant, marked on the clip's own timeline */
+  .track{height:6px;background:#1e1e26;border-radius:3px;margin-top:8px;
+         position:relative}
+  .track .played{height:100%;background:#3a3a48;border-radius:3px;width:0}
+  .track .mark{position:absolute;top:-4px;width:2px;height:14px;background:#d9534f}
+  .buttons{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:14px}
+  .buttons button{padding:16px 8px;border:1px solid var(--line);border-radius:6px;
+                  background:var(--panel);color:var(--fg);cursor:pointer;
+                  font:inherit;text-align:left;transition:.08s}
+  .buttons button:hover{border-color:#4a4a58;transform:translateY(-1px)}
+  .buttons .k{display:block;font-size:11px;color:var(--dim);margin-bottom:3px}
+  .buttons .n{display:block;font-weight:600;font-size:13px}
+  .buttons .h{display:block;font-size:11px;color:var(--dim);margin-top:4px}
+  #b1{border-left:3px solid var(--t1)} #b2{border-left:3px solid var(--t2)}
+  #b3{border-left:3px solid var(--t3)} #b4{border-left:3px solid var(--t4)}
+  #b5{border-left:3px solid var(--t5)}
+  aside{background:var(--panel);border:1px solid var(--line);border-radius:6px;
+        padding:14px;height:fit-content}
+  aside h3{margin:0 0 10px;font-size:12px;letter-spacing:.8px;color:var(--dim);
+           text-transform:uppercase;font-weight:600}
+  .row{display:flex;justify-content:space-between;gap:10px;padding:4px 0;
+       border-bottom:1px solid #1e1e26;font-size:13px}
+  .row:last-child{border:0}
+  .row .k{color:var(--dim)}
+  .row .val{text-align:right;word-break:break-word}
+  .why{margin-top:10px;padding:8px 10px;background:#12121a;border-radius:4px;
+       font-size:12px;color:#b9b9c6}
+  textarea{width:100%;margin-top:10px;background:#12121a;color:var(--fg);
+           border:1px solid var(--line);border-radius:4px;padding:8px;
+           font:inherit;resize:vertical;min-height:60px}
+  .keys{margin-top:12px;font-size:11px;color:var(--dim);line-height:1.8}
+  kbd{background:#12121a;border:1px solid var(--line);border-radius:3px;
+      padding:1px 5px;font-size:11px}
+  .verdict{margin-top:10px;padding:6px 10px;border-radius:4px;font-size:12px;
+           display:none;background:#1b2a20}
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);
+         background:var(--panel);border:1px solid var(--line);border-radius:6px;
+         padding:8px 16px;font-size:13px;opacity:0;transition:.2s;
+         pointer-events:none}
+  .toast.on{opacity:1}
+</style>
+
+<header>
+  <b>PANTHEON</b>
+  <span style="color:var(--dim)">career review</span>
+  <span id="order" style="color:var(--dim);font-size:12px"></span>
+  <div class="counts" id="counts"></div>
+</header>
+
+<main>
+  <div>
+    <div class="stage">
+      <video id="v" playsinline></video>
+      <div class="placeholder" id="ph" hidden></div>
+    </div>
+    <div class="track"><div class="played" id="played"></div>
+      <div class="mark" id="mark"></div></div>
+    <div class="buttons">
+      <button id="b1" data-role="T1_FEATURE_FX"><span class="k">1</span>
+        <span class="n">FEATURE / FX</span>
+        <span class="h">hero, cinematic, big effect</span></button>
+      <button id="b2" data-role="T2_TRANSITION"><span class="k">2</span>
+        <span class="n">TRANSITION</span>
+        <span class="h">connects two scenes</span></button>
+      <button id="b3" data-role="T3_RHYTHM_MONTAGE"><span class="k">3</span>
+        <span class="n">RHYTHM / MONTAGE</span>
+        <span class="h">one of many, cut to music</span></button>
+      <button id="b4" data-role="T4_KEEP_NORMAL"><span class="k">4</span>
+        <span class="n">KEEP / NORMAL</span>
+        <span class="h">good, plain gameplay</span></button>
+      <button id="b5" data-role="T5_PASS_FILLER"><span class="k">5</span>
+        <span class="n">PASS / FILLER</span>
+        <span class="h">kept forever, never primary</span></button>
+    </div>
+  </div>
+
+  <aside>
+    <h3>Current item</h3>
+    <div id="meta"></div>
+    <div class="why" id="why"></div>
+    <div class="verdict" id="verdict"></div>
+    <textarea id="note" placeholder="optional note — saved without choosing a role"></textarea>
+    <div class="keys">
+      <kbd>1</kbd>–<kbd>5</kbd> verdict, auto-advance<br>
+      <kbd>Space</kbd> pause · <kbd>R</kbd> replay<br>
+      <kbd>&larr;</kbd> previous · <kbd>&rarr;</kbd> skip, no verdict<br>
+      <kbd>N</kbd> note · <kbd>U</kbd> undo last
+    </div>
+  </aside>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+// Rule UI-1: nothing reaches the DOM as markup. Notes are the user's own
+// text and machine strings come from the database; both are inserted as
+// text nodes. Demo names are deliberately never displayed at all -- Quake
+// Live demo filenames embed opponent nicknames, and this is a public repo.
+const API = "/api/review";
+let items = [], idx = 0, offset = 0, order = "WORST_FIRST", cur = null;
+const $ = id => document.getElementById(id);
+const v = $("v");
+
+function el(tag, cls, text){
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined && text !== null) n.textContent = String(text);
+  return n;
+}
+
+function toast(msg){
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("on");
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove("on"), 1400);
+}
+
+async function loadQueue(off){
+  const r = await fetch(API + "/queue?order=" + order + "&offset=" + off + "&limit=30");
+  const d = await r.json();
+  items = d.items; offset = d.offset; idx = 0;
+  $("order").textContent = order === "WORST_FIRST" ? "worst → best"
+                                                   : "best → worst";
+  if (items.length) show(); else toast("queue exhausted");
+}
+
+async function progress(){
+  const p = await (await fetch(API + "/progress")).json();
+  const r = p.roles;
+  const box = $("counts");
+  const parts = [
+    ["reviewed", p.reviewed.toLocaleString() + " / " + p.total.toLocaleString()],
+    ["FEATURE", r.T1_FEATURE_FX], ["TRANS", r.T2_TRANSITION],
+    ["RHYTHM", r.T3_RHYTHM_MONTAGE], ["KEEP", r.T4_KEEP_NORMAL],
+    ["PASS", r.T5_PASS_FILLER],
+  ];
+  box.replaceChildren(...parts.map(([k, val]) => {
+    const s = el("span", null, k + " ");
+    s.appendChild(el("b", null, val));
+    return s;
+  }));
+}
+
+function meta(it){
+  const rows = [
+    ["item", it.item_id],
+    ["machine rank", it.machine_rank.toLocaleString() + " / " +
+                     it.total_items.toLocaleString()],
+    ["machine score", it.machine_score],
+    ["weapon", it.weapon || "—"],
+    ["round", it.round_no === null ? "—" : it.round_no],
+    ["victim slot", it.victim === null ? "—" : it.victim],
+    ["clip", it.duration_s.toFixed(1) + "s, frag at +" +
+             it.frag_offset_s.toFixed(1) + "s"],
+  ];
+  $("meta").replaceChildren(...rows.map(([k, val]) => {
+    const row = el("div", "row");
+    row.appendChild(el("span", "k", k));
+    row.appendChild(el("span", "val", val));
+    return row;
+  }));
+  $("why").textContent = it.why || "no class detected";
+  const vd = $("verdict");
+  if (it.human_role){
+    vd.style.display = "block";
+    vd.textContent = "already reviewed: " + it.human_role;
+  } else {
+    vd.style.display = "none";
+    vd.textContent = "";
+  }
+  $("note").value = it.note || "";
+}
+
+function placeholder(state, error){
+  const ph = $("ph");
+  const kids = [];
+  if (state === "ERROR" || state === "FAILED"){
+    kids.push(el("div", "big", "clip unavailable"));
+    if (error) kids.push(el("div", null, error));
+    kids.push(el("div", null, "you can still judge and move on"));
+  } else {
+    kids.push(el("div", "big", "rendering this clip…"));
+    kids.push(el("div", null, "state: " + state));
+    kids.push(el("div", null, "verdicts do not wait for it"));
+  }
+  ph.replaceChildren(...kids);
+}
+
+async function show(){
+  cur = items[idx];
+  if (!cur){ await loadQueue(offset + 30); return; }
+  const mine = cur;
+  meta(cur);
+  $("mark").style.left = (cur.frag_offset_s / cur.duration_s * 100) + "%";
+  $("played").style.width = "0";
+  const st = await (await fetch(API + "/media_state/" + cur.item_id)).json();
+  if (mine !== items[idx]) return;          // user moved on while we asked
+  if (st.ready){
+    $("ph").hidden = true;
+    v.hidden = false;
+    v.src = API + "/media/" + cur.item_id;
+    v.loop = true;
+    v.play().catch(() => {});
+  } else {
+    v.hidden = true;
+    v.removeAttribute("src");
+    $("ph").hidden = false;
+    placeholder(st.state, st.error);
+    // Poll gently. The worker spends roughly forty seconds of wolfcam on
+    // each clip, so a tight loop would only add load to the thing we are
+    // waiting for.
+    clearTimeout(show._p);
+    show._p = setTimeout(() => { if (mine === items[idx]) show(); }, 4000);
+  }
+}
+
+v.addEventListener("timeupdate", () => {
+  if (v.duration) $("played").style.width = (v.currentTime / v.duration * 100) + "%";
+});
+
+async function verdict(role){
+  if (!cur) return;
+  const note = $("note").value.trim();
+  await fetch(API + "/verdict", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({item_id: cur.item_id, role: role,
+                          note: note || null})
+  });
+  toast(role.replace(/^T\d_/, "").replace(/_/g, " "));
+  progress();
+  idx++;
+  show();
+}
+
+document.querySelectorAll(".buttons button").forEach(b => {
+  b.onclick = () => verdict(b.dataset.role);
+});
+
+document.addEventListener("keydown", async e => {
+  if (e.target.tagName === "TEXTAREA"){
+    if (e.key === "Escape") e.target.blur();
+    return;
+  }
+  const k = e.key.toLowerCase();
+  if ("12345".indexOf(e.key) !== -1){
+    e.preventDefault();
+    verdict($("b" + e.key).dataset.role);
+  } else if (e.code === "Space"){
+    e.preventDefault();
+    if (v.paused) v.play().catch(() => {}); else v.pause();
+  } else if (k === "r"){
+    v.currentTime = 0; v.play().catch(() => {});
+  } else if (e.key === "ArrowRight"){
+    idx++; show();
+  } else if (e.key === "ArrowLeft"){
+    if (idx > 0){ idx--; show(); }
+  } else if (k === "n"){
+    e.preventDefault(); $("note").focus();
+  } else if (k === "u"){
+    const r = await fetch(API + "/undo", {method: "POST"});
+    if (r.ok){
+      const d = await r.json();
+      toast("undid " + d.undone);
+      progress();
+    } else {
+      toast("nothing to undo");
+    }
+  }
+});
+
+$("note").addEventListener("blur", async () => {
+  if (!cur) return;
+  const note = $("note").value.trim();
+  if (note === (cur.note || "")) return;
+  await fetch(API + "/note", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({item_id: cur.item_id, note: note})
+  });
+  cur.note = note;
+  toast("note saved");
+});
+
+progress();
+loadQueue(0);
+</script>
