@@ -217,14 +217,41 @@ def test_a_bound_control_must_say_what_happens_when_the_value_lands():
         rp.RenderControl("x", rp.AVAILABLE_NOW, "r_x")
 
 
-def test_latched_controls_go_to_shot_setup_not_the_schedule():
+def test_latched_controls_reach_launch_or_are_reported_not_applied():
+    """r_picmip rides +set at launch (case A) and is shot configuration.
+    r_fullbright is never set by the pipeline; a cfg line for it would
+    execute after the renderer initialised and change nothing (case C)."""
     job = rp.compile_wolfcam(_reveal(), lambda us: us // 1000)
-    setup = {c.cvar for c in job.shot_setup}
     sched = {c.cvar for c in job.scheduled}
-    assert "r_picmip" in setup and "r_fullbright" in setup
+    assert "r_picmip" in job.launch_sets
+    assert "r_fullbright" not in job.launch_sets
+    assert "fullbright" in job.latched_not_applied
     assert "r_picmip" not in sched and "r_fullbright" not in sched
     assert "picmip" in job.not_animatable and "fullbright" in job.not_animatable
     assert job.unmet == ()
+
+
+def test_set_stage_is_read_from_the_pipeline_not_asserted():
+    assert rp.CONTROLS["picmip"].set_stage == rp.LAUNCH_SET
+    assert rp.CONTROLS["picmip"].application == "SHOT_SETUP_ONLY"
+    assert rp.CONTROLS["fullbright"].set_stage == rp.NOT_SET
+    assert rp.CONTROLS["fullbright"].application == rp.LATCHED_NOT_APPLIED
+    assert rp.CONTROLS["gamma"].application == "LIVE"
+
+
+def test_source_flags_are_not_capture_truth():
+    """Every bound control starts at SOURCE_DECLARED. Only a captured frame
+    moves it. Exactly one has been moved, by the runtime-truth canary."""
+    promoted = [c.name for c in rp.CONTROLS.values()
+                if c.capability == rp.AVAILABLE_NOW
+                and c.truth != rp.SOURCE_DECLARED]
+    assert promoted == ["gamma"]
+    g = rp.CONTROLS["gamma"]
+    assert g.truth == rp.CAPTURE_VISIBLE and g.liveness_provenance == rp.MEASURED
+    assert g.truth != rp.TIMING_MEASURED, "capture-visible is not timed"
+    rows = rp.application_report()
+    assert any(r["application"] == rp.LATCHED_NOT_APPLIED for r in rows)
+    assert any(r["application"] == "SHOT_SETUP_ONLY" for r in rows)
 
 
 def test_a_live_ramp_does_schedule():

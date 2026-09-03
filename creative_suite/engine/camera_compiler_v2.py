@@ -483,12 +483,16 @@ def compile_dense_camera(keyframes: list[dict], base_servertime: int,
     ``hz`` is silently-but-visibly clamped for FREECAM_SAMPLED
     (``hz_clamped`` is reported, never hidden) so the compiled cfg never
     exceeds MAX_CAMERA_SAMPLES; NATIVE_CAM10 is instead clamped against
-    ``cam10_writer.MAX_CAMERAPOINTS`` (512), a ceiling dense cinematic
-    shots are unlikely to hit. A shot needing MORE samples than either
+    ``cam10_writer.CAM10_USABLE_POINTS`` (509: the engine's 512-slot array
+    minus the three scratch points its update walks past the end). A 27 s
+    orbit at 60 Hz hits this ceiling. A shot needing MORE samples than either
     backend's ceiling allows still needs a chained multi-window capture
     (not yet built).
     """
-    max_samples = (cam10_writer.MAX_CAMERAPOINTS
+    # Not MAX_CAMERAPOINTS: the engine keeps three scratch points past the
+    # loaded ones (see cam10_writer.CAM10_USABLE_POINTS). 512 loads and
+    # then overflows on the first camera update.
+    max_samples = (cam10_writer.CAM10_USABLE_POINTS
                    if backend == cam10_writer.BACKEND_NATIVE_CAM10
                    else MAX_CAMERA_SAMPLES)
     effective_hz, clamped = _clamp_hz_to_budget(keyframes, hz, max_samples)

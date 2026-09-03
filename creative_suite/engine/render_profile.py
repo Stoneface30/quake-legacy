@@ -85,6 +85,29 @@ FROM_SOURCE = "FROM_SOURCE"
 MEASURED = "MEASURED"
 ASSUMED = "ASSUMED"
 
+# How far a control's claim has been carried. Source flags establish what
+# the engine means to do; only a captured frame establishes that the movie
+# changed. Nothing is production-capable on the strength of the source.
+SOURCE_DECLARED = "SOURCE_DECLARED"
+ENGINE_APPLIED = "ENGINE_APPLIED"
+CAPTURE_VISIBLE = "CAPTURE_VISIBLE"
+TIMING_MEASURED = "TIMING_MEASURED"
+VISUALLY_APPROVED = "VISUALLY_APPROVED"
+TRUTH_LADDER = (SOURCE_DECLARED, ENGINE_APPLIED, CAPTURE_VISIBLE,
+                TIMING_MEASURED, VISUALLY_APPROVED)
+
+# Where, in the capture lifecycle, a latched value is actually set. Read off
+# creative_suite/engine/master_profile.LAUNCH_SETS and wolfcam_capture:
+#   LAUNCH_SET     +set on the command line, before the renderer starts  (A)
+#   POSTINIT_CFG   only in a cfg exec'd via cgamepostinit.cfg, after     (C)
+#   NOT_SET        never set by the pipeline; engine default             (C)
+# Only A is usable shot-level configuration. C is LATCHED_NOT_APPLIED: the
+# line executes and the picture does not change.
+LAUNCH_SET = "LAUNCH_SET"
+POSTINIT_CFG = "POSTINIT_CFG"
+NOT_SET = "NOT_SET"
+LATCHED_NOT_APPLIED = "LATCHED_NOT_APPLIED"
+
 
 # ── profiles: how much the machine may spend ────────────────────────────────
 
@@ -198,8 +221,11 @@ class RenderControl:
     integer: bool = True           # most cvars are; the engine truncates floats
     liveness: str = UNKNOWN
     liveness_provenance: str = ASSUMED
+    truth: str = SOURCE_DECLARED
 
     def __post_init__(self) -> None:
+        if self.truth not in TRUTH_LADDER:
+            raise ValueError(f"{self.name}: unknown truth rung {self.truth!r}")
         if self.capability not in CAPABILITIES:
             raise ValueError(f"{self.name}: unknown capability")
         if self.liveness not in LIVENESS:
@@ -228,10 +254,54 @@ class RenderControl:
         frame."""
         return self.usable_now and self.liveness in ANIMATABLE
 
+    @property
+    def set_stage(self) -> str:
+        """Where the current pipeline sets this cvar, from the code itself."""
+        if self.liveness != LATCHED:
+            return LAUNCH_SET if self.backend_binding in _launch_sets() else NOT_SET
+        if self.backend_binding in _launch_sets():
+            return LAUNCH_SET
+        if self.backend_binding in _postinit_cvars():
+            return POSTINIT_CFG
+        return NOT_SET
+
+    @property
+    def shot_setup_usable(self) -> bool:
+        """A latched control is shot configuration only if it reaches the
+        engine before the renderer initialises."""
+        return self.liveness == LATCHED and self.set_stage == LAUNCH_SET
+
+    @property
+    def application(self) -> str:
+        if self.liveness != LATCHED:
+            return "LIVE" if self.animatable else self.liveness
+        return "SHOT_SETUP_ONLY" if self.shot_setup_usable else LATCHED_NOT_APPLIED
+
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d.update(usable_now=self.usable_now, animatable=self.animatable)
         return d
+
+
+def _launch_sets() -> dict:
+    try:
+        from creative_suite.engine import master_profile
+        return dict(master_profile.LAUNCH_SETS)
+    except Exception:            # pragma: no cover - import environment
+        return {}
+
+
+def _postinit_cvars() -> set:
+    """Cvars that only ever reach the engine through a cfg exec'd after
+    cgame init. Read from the master profile's cfg dictionaries."""
+    try:
+        from creative_suite.engine import master_profile
+        out: set = set()
+        for prof in getattr(master_profile, "PROFILES", {}).values():
+            out.update(prof.keys() if isinstance(prof, dict) else ())
+        return out - set(_launch_sets())
+    except Exception:            # pragma: no cover
+        return set()
 
 
 # Every binding below was read from the master profile or the scene
@@ -266,9 +336,16 @@ CONTROLS: dict[str, RenderControl] = {c.name: c for c in (
     RenderControl("dynamic_lights", AVAILABLE_NOW, "r_dynamiclight", 0, 1,
                   "LOW", "weapon and projectile light contribution",
                   liveness=LIVE_DISCRETE, liveness_provenance=FROM_SOURCE),
+    # The one control carried past the source: two captures of the same
+    # 8.5 s window at r_gamma 1.0 and 1.8 differed by 88.8 mean grey levels
+    # with rank correlation 0.956 (docs/reference/runtime_truth_canary.json).
+    # The gamma table is rebuilt on modification (tr_cmds.c:461) and applied
+    # to the video buffer in software under r_ignorehwgamma 1.
     RenderControl("gamma", AVAILABLE_NOW, "r_gamma", 0.5, 3.0, "MEDIUM",
+                  "the only render control proven to reach the captured "
+                  "frame; timing still unswept",
                   integer=False, liveness=LIVE_CONTINUOUS,
-                  liveness_provenance=FROM_SOURCE),
+                  liveness_provenance=MEASURED, truth=CAPTURE_VISIBLE),
     RenderControl("player_shadows", AVAILABLE_NOW, "cg_shadows", 0, 3, "LOW",
                   liveness=LIVE_DISCRETE, liveness_provenance=ASSUMED),
     RenderControl("impact_marks", AVAILABLE_NOW, "cg_marks", 0, 1,
@@ -786,23 +863,27 @@ def _to_engine_value(ctrl: RenderControl, unit: float) -> tuple[str, float]:
 class WolfcamJob:
     """What the current engine will actually be told, and what it will not.
 
-    `shot_setup` is applied once before vid_restart: the latched cvars. Only
+    `launch_sets` are latched cvars that reach the engine as `+set` before
+    the renderer starts -- the only way a latched value takes effect. Only
     `scheduled` animates. `not_animatable` lists every control the treatment
-    keyframed that the engine cannot change while running, so a director who
-    asked for a live picmip ramp learns that here and not from a flat render.
+    keyframed that the engine cannot change while running, and
+    `latched_not_applied` lists latched controls the pipeline has no launch
+    route for, so a director learns both here and not from a flat render.
     """
-    shot_setup: tuple[ScheduledCvar, ...]
+    launch_sets: dict[str, str]
     scheduled: tuple[ScheduledCvar, ...]
     not_animatable: tuple[str, ...]
+    latched_not_applied: tuple[str, ...]
     unmet: tuple[str, ...]
 
     def lines(self) -> list[str]:
         return [c.line() for c in self.scheduled]
 
     def to_dict(self) -> dict[str, Any]:
-        return {"shot_setup": [c.to_dict() for c in self.shot_setup],
+        return {"launch_sets": dict(self.launch_sets),
                 "scheduled": [c.to_dict() for c in self.scheduled],
                 "not_animatable": list(self.not_animatable),
+                "latched_not_applied": list(self.latched_not_applied),
                 "unmet": list(self.unmet)}
 
 
@@ -834,9 +915,18 @@ def compile_wolfcam(t: RenderTreatment, edit_to_demo_ms, step_us: int = 100_000
 
     first_state = t.state_at(t.keyframes[0].at_us) if t.keyframes else t.base()
     t0 = int(edit_to_demo_ms(t.keyframes[0].at_us if t.keyframes else 0))
-    setup = tuple(make(n, u, t0) for n, u in first_state.items()
-                  if n in CONTROLS and CONTROLS[n].capability == AVAILABLE_NOW
-                  and CONTROLS[n].liveness == LATCHED)
+    # Latched values go to the command line or nowhere. A cfg line for one
+    # would execute and change nothing, which is worse than refusing.
+    launch: dict[str, str] = {}
+    not_applied: list[str] = []
+    for n, u in first_state.items():
+        c = CONTROLS.get(n)
+        if c is None or c.capability != AVAILABLE_NOW or c.liveness != LATCHED:
+            continue
+        if c.shot_setup_usable:
+            launch[c.backend_binding] = _to_engine_value(c, u)[0]
+        else:
+            not_applied.append(n)
 
     lines: list[ScheduledCvar] = []
     if not t.keyframes:
@@ -844,7 +934,8 @@ def compile_wolfcam(t: RenderTreatment, edit_to_demo_ms, step_us: int = 100_000
             c = CONTROLS[n]
             if c.animatable and c.name != "fx_cue":
                 lines.append(make(n, u, t0))
-        return WolfcamJob(setup, tuple(lines), not_anim, unmet)
+        return WolfcamJob(launch, tuple(lines), not_anim,
+                          tuple(sorted(not_applied)), unmet)
 
     start, end = t.keyframes[0].at_us, t.keyframes[-1].at_us
     at = start
@@ -860,7 +951,22 @@ def compile_wolfcam(t: RenderTreatment, edit_to_demo_ms, step_us: int = 100_000
                 lines.append(sc)
                 last[n] = sc.value
         at += step_us
-    return WolfcamJob(setup, tuple(lines), not_anim, unmet)
+    return WolfcamJob(launch, tuple(lines), not_anim,
+                      tuple(sorted(not_applied)), unmet)
+
+
+def application_report() -> list[dict[str, Any]]:
+    """For every control bound to the current engine: how it is applied,
+    where the pipeline sets it, and how far its claim has been carried."""
+    out = []
+    for c in CONTROLS.values():
+        if c.capability != AVAILABLE_NOW:
+            continue
+        out.append({"control": c.name, "cvar": c.backend_binding,
+                    "liveness": c.liveness, "set_stage": c.set_stage,
+                    "application": c.application, "truth": c.truth,
+                    "liveness_provenance": c.liveness_provenance})
+    return out
 
 
 def separation_report() -> dict[str, Any]:

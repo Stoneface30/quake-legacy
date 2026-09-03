@@ -31,6 +31,15 @@ CAMERA_RUNTIME_BACKEND = "wolfcamql-cam10"
 # (MAX_AT_COMMANDS=128, camera_compiler_v2.py) since native playback
 # doesn't consume the shared "at" command queue at all.
 MAX_CAMERAPOINTS = 512
+# The usable ceiling is three lower. CG_UpdateCameraInfoExt
+# (cg_consolecmds.c:2855) walks `i < cg.numCameraPoints + 3` -- three scratch
+# points past the loaded ones -- and the interactive add-point path guards at
+# `numCameraPoints >= MAX_CAMERAPOINTS - 3` for exactly that reason. The
+# loader itself has no cap, so a file with 512 points loads fine and then
+# overflows cameraPoints[] by three on the first update. That overflow
+# worked by luck on 2026-09-01 (the verified proof used an 8-point file)
+# and crashed the engine with rc=1 on 2026-09-03 with a 512-point one.
+CAM10_USABLE_POINTS = MAX_CAMERAPOINTS - 3
 
 BACKEND_NATIVE_CAM10 = "NATIVE_CAM10"
 

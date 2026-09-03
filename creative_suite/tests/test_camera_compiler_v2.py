@@ -288,3 +288,17 @@ def test_projectile_track_from_recognition_real_cache_row():
     track = v2.projectile_track_from_recognition(path_json)
     assert len(track) == len(path_json["points"])
     assert track[0][0] == path_json["launch"]["t"]
+
+
+
+def test_native_cam10_never_writes_more_points_than_the_engine_can_update(tmp_path):
+    """CG_UpdateCameraInfoExt walks three points past numCameraPoints, and the
+    loader has no cap. 512 points load and then overflow; 509 is the real
+    ceiling. A 27 s orbit at 60 Hz would otherwise ask for 1640."""
+    long_shot = [kf(0, (0, 0, 0)), kf(27_000, (100, 0, 0))]
+    result = v2.compile_dense_camera(
+        long_shot, base_servertime=0, gamedir=tmp_path,
+        camera_name="cap_test", hz=60.0, backend=cw.BACKEND_NATIVE_CAM10)
+    assert result["used_sample_count"] <= cw.CAM10_USABLE_POINTS
+    assert cw.CAM10_USABLE_POINTS == cw.MAX_CAMERAPOINTS - 3 == 509
+    assert result["hz_clamped"] is True
