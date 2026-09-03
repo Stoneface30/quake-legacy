@@ -326,3 +326,57 @@ what is known about its freeze.
 
 `measured_only_envelope()` withholds a usable range when any component is unbuilt,
 so future R&D cannot contaminate today's solver.
+
+## Three approval levels (2026-09-03)
+
+Module: `creative_suite/engine/effect_approval.py`.
+
+The synthetic sweeps proved the machine obeys milliseconds. They cannot say what
+looks good, because a generated counter has no frag, no target, no camera and no
+tension to judge against. So approval is three separate questions:
+
+| level | question | who answers |
+|---|---|---|
+| `DELIVERY_VERIFIED` | does the operator produce the milliseconds it was asked for | a canary |
+| `VISUALLY_APPROVED` | does this duration look good on real Quake footage | the director |
+| `SEMANTICALLY_APPROVED` | does the complete grammar work where it is meant to be used | the director |
+
+**Current state: 9 delivery verified, 0 visually approved, 0 semantically approved,
+9 awaiting the eye, 6 unverified.** None promotes into another automatically.
+
+The module refuses a visual verdict recorded against synthetic footage, and refuses
+one for a primitive whose delivery has never been verified. Approving the freeze
+envelope does not approve the danger-cross gag that uses it; a test asserts that.
+
+## TemporalBudget and the no-filler rule
+
+Module: `creative_suite/engine/temporal_budget.py`.
+
+```
+SCORE SLOT    8400 ms
+RAW GAMEPLAY  4250 ms
+COMPOSED      7830 ms
+NEED          +570 ms  ->  SOLVABLE
+
+AVAILABLE LEGAL TEMPORAL TOOLS
+  FREEZE_HOLD             +100..+900 ms   preferred +200..+500   SYNTHETIC_TEST     SMALL
+  MICRO_REWIND            +120..+800 ms   preferred +200..+450   SYNTHETIC_TEST     SMALL
+  TIME_ECHO                +60..+600 ms   preferred +100..+300   SYNTHETIC_TEST     SMALL
+  RHYTHMIC_IMAGE_STUTTER  +120..+2000 ms  preferred +200..+900   SYNTHETIC_TEST     MEDIUM
+  MOSAIC_TILE_STEP        +200..+2400 ms  preferred +400..+1200  PARTIALLY_MEASURED MEDIUM
+```
+
+**Three independent gates**, and passing two is not passing:
+
+- `TEMPORAL_FIT` — it can move this many milliseconds
+- `CREATIVE_JUSTIFICATION` — its purpose serves this narrative, and the moment
+  carries the evidence the effect requires
+- `VISUAL_FIT` — the duration sits in a range we trust
+
+An enemy reveal is refused in a moment with no alive-state evidence *even though it
+fits temporally*. A freeze is refused in a comedy slot over movement gameplay *even
+though it fits temporally and visually*. A picture-in-picture can never close a
+deficit because it adds no time.
+
+When nothing passes all three the verdict is `DOES_NOT_FIT`: **this moment belongs
+in a different slot**, not "we found something to pad it with".
