@@ -61,6 +61,30 @@ AVAILABLE_VIA_ASSETS = "AVAILABLE_VIA_ASSETS"  # needs a pk3 (texture pack, grad
 FUTURE_BACKEND = "FUTURE_BACKEND"              # needs a renderer we do not have
 CAPABILITIES = (AVAILABLE_NOW, AVAILABLE_VIA_ASSETS, FUTURE_BACKEND)
 
+# `at <t> <cvar> <value>` will execute for any cvar. That says nothing about
+# what the engine does when the value lands. r_picmip is CVAR_LATCH in the
+# vendored source: it takes effect on the next vid_restart, so a scheduled
+# staircase would execute every line and change nothing on screen. Every
+# control must say how it actually behaves once set.
+LIVE_CONTINUOUS = "LIVE_CONTINUOUS"      # any value, takes effect next frame
+LIVE_DISCRETE = "LIVE_DISCRETE"          # a few values, takes effect next frame
+LIVE_STEP_ONLY = "LIVE_STEP_ONLY"        # live, but visibly a staircase
+LATCHED = "LATCHED"                      # CVAR_LATCH: needs vid_restart
+RELOAD_REQUIRED = "RELOAD_REQUIRED"      # needs the map / assets reloaded
+RESTART_REQUIRED = "RESTART_REQUIRED"    # needs the engine relaunched
+UNSUPPORTED = "UNSUPPORTED"              # no runtime path at all
+UNKNOWN = "UNKNOWN"                      # not yet read from source or measured
+LIVENESS = (LIVE_CONTINUOUS, LIVE_DISCRETE, LIVE_STEP_ONLY, LATCHED,
+            RELOAD_REQUIRED, RESTART_REQUIRED, UNSUPPORTED, UNKNOWN)
+ANIMATABLE = (LIVE_CONTINUOUS, LIVE_DISCRETE, LIVE_STEP_ONLY)
+
+# Where a liveness claim comes from. Reading CVAR_LATCH off the source is a
+# fact about the source; whether wolfcam's build changed it is a separate
+# fact that only a canary can supply.
+FROM_SOURCE = "FROM_SOURCE"
+MEASURED = "MEASURED"
+ASSUMED = "ASSUMED"
+
 
 # ── profiles: how much the machine may spend ────────────────────────────────
 
@@ -87,6 +111,8 @@ class RenderProfile:
     texture_quality: str = "STOCK"     # STOCK / UHD / PANTHEON packs
     intermediate: str = "mjpeg"        # capture codec before the encoder
     exists_today: bool = True
+    timing_authoritative: bool = True  # may an editorial decision rest on it
+    verified: bool = False             # has one end-to-end canary run at this size
     notes: str = ""
 
     def __post_init__(self) -> None:
@@ -94,11 +120,12 @@ class RenderProfile:
             raise ValueError(f"unknown render profile {self.name!r}")
         if self.backend not in BACKENDS:
             raise ValueError(f"unknown backend {self.backend!r}")
-        if self.fps != 60:
+        if self.timing_authoritative and self.fps != 60:
             raise ValueError(
-                "every profile delivers 60 distinct frames; a proxy is cheaper "
-                "in pixels and lighting, never in time, or its timing would "
-                "not be the master's timing")
+                "a profile that editorial decisions rest on delivers 60 "
+                "distinct frames; a proxy is cheaper in pixels and lighting, "
+                "never in time. Thumbnails and contact sheets may be cheaper, "
+                "and they say so by not being timing-authoritative")
         if self.exists_today and self.backend != BACKEND_WOLFCAM:
             raise ValueError(
                 f"{self.name}: claims to exist today on a backend we do not "
@@ -120,15 +147,20 @@ class RenderProfile:
 PROFILES: dict[str, RenderProfile] = {p.name: p for p in (
     RenderProfile(PREVIEW_FAST, BACKEND_WOLFCAM, 1920, 1080,
                   aa_samples=0, motion_blur_frames=0, texture_quality="STOCK",
-                  notes="fast deterministic proxy; same edit_us as the master"),
+                  verified=True,
+                  notes="fast deterministic proxy; same edit_us as the master. "
+                        "1080p60 MJPEG is what the bench captures are"),
     RenderProfile(REVIEW, BACKEND_WOLFCAM, 2560, 1440,
                   aa_samples=4, motion_blur_frames=8, texture_quality="UHD",
-                  notes="near-final look for sign-off"),
+                  verified=True,
+                  notes="near-final look for sign-off; q90_1440.avi exists"),
     RenderProfile(MASTER_RASTER, BACKEND_WOLFCAM, 3840, 2160,
                   internal_scale=1.5, aa_samples=4, motion_blur_frames=16,
                   texture_quality="PANTHEON", intermediate="huffyuv",
-                  notes="current engine pushed as far as it goes: oversample "
-                        "and downsample, lossless intermediate"),
+                  verified=False,
+                  notes="CANDIDATE. 6K internal has not been captured end to "
+                        "end; framebuffer, depth resolution, stability and "
+                        "disk throughput are unproven until one canary runs"),
     RenderProfile(MASTER_HERO, BACKEND_MODERN_RASTER, 3840, 2160,
                   internal_scale=2.0, aa_samples=8, motion_blur_frames=32,
                   texture_quality="PANTHEON", intermediate="huffyuv",
@@ -146,6 +178,11 @@ def available_profiles() -> list[str]:
     return [n for n, p in PROFILES.items() if p.exists_today]
 
 
+def proven_profiles() -> list[str]:
+    """Exists AND has been captured end to end at its stated size."""
+    return [n for n, p in PROFILES.items() if p.exists_today and p.verified]
+
+
 # ── controls: what the image can be told to do ──────────────────────────────
 
 @dataclass(frozen=True)
@@ -159,10 +196,20 @@ class RenderControl:
     readability_risk: str = "LOW"  # LOW / MEDIUM / HIGH: how it hurts a skill
     notes: str = ""
     integer: bool = True           # most cvars are; the engine truncates floats
+    liveness: str = UNKNOWN
+    liveness_provenance: str = ASSUMED
 
     def __post_init__(self) -> None:
         if self.capability not in CAPABILITIES:
             raise ValueError(f"{self.name}: unknown capability")
+        if self.liveness not in LIVENESS:
+            raise ValueError(f"{self.name}: unknown liveness {self.liveness!r}")
+        if self.liveness_provenance not in (FROM_SOURCE, MEASURED, ASSUMED):
+            raise ValueError(f"{self.name}: unknown liveness provenance")
+        if self.capability == AVAILABLE_NOW and self.liveness == UNKNOWN:
+            raise ValueError(
+                f"{self.name}: bound to a cvar but does not say what happens "
+                f"when the value lands; schedulable is not animatable")
         if self.capability == AVAILABLE_NOW and not self.backend_binding:
             raise ValueError(
                 f"{self.name}: claims to be available now but names no cvar "
@@ -174,9 +221,16 @@ class RenderControl:
     def usable_now(self) -> bool:
         return self.capability != FUTURE_BACKEND
 
+    @property
+    def animatable(self) -> bool:
+        """Whether a keyframe on this control changes the picture while the
+        engine is running. A latched cvar is usable per shot and not per
+        frame."""
+        return self.usable_now and self.liveness in ANIMATABLE
+
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
-        d["usable_now"] = self.usable_now
+        d.update(usable_now=self.usable_now, animatable=self.animatable)
         return d
 
 
@@ -184,44 +238,70 @@ class RenderControl:
 # compiler, not assumed. The values are unitless 0..1 in a treatment and
 # the backend adapter maps them onto the cvar's real range.
 CONTROLS: dict[str, RenderControl] = {c.name: c for c in (
+    # Latched in the vendored source (CVAR_ARCHIVE | CVAR_LATCH). Set per
+    # shot before vid_restart; a keyframe on any of these does nothing.
     RenderControl("picmip", AVAILABLE_NOW, "r_picmip", 0, 16, "HIGH",
-                  "texture resolution stripping; the world-reveal primitive"),
-    RenderControl("texture_filtering", AVAILABLE_NOW, "r_textureMode", 0, 1,
-                  "MEDIUM", "GL_NEAREST through trilinear"),
-    RenderControl("anisotropy", AVAILABLE_NOW, "r_ext_max_anisotropy", 1, 16),
-    RenderControl("lod_bias", AVAILABLE_NOW, "r_lodbias", -2, 2, "MEDIUM"),
-    RenderControl("dynamic_lights", AVAILABLE_NOW, "r_dynamiclight", 0, 1,
-                  "LOW", "weapon and projectile light contribution"),
-    RenderControl("player_shadows", AVAILABLE_NOW, "cg_shadows", 0, 3, "LOW"),
-    RenderControl("impact_marks", AVAILABLE_NOW, "cg_marks", 0, 1),
-    RenderControl("rail_trail_time", AVAILABLE_NOW, "cg_railTrailTime",
-                  0, 3000, "LOW"),
-    RenderControl("motion_blur", AVAILABLE_NOW, "mme_blurFrames", 0, 64,
-                  "HIGH", "temporal supersampling; blinds a tracking duel"),
-    RenderControl("depth_of_field", AVAILABLE_NOW, "mme_dofFrames", 0, 64,
-                  "HIGH"),
-    RenderControl("anti_alias", AVAILABLE_NOW, "r_fboAntiAlias", 0, 8),
-    RenderControl("gamma", AVAILABLE_NOW, "r_gamma", 0.5, 3.0, "MEDIUM",
-                  integer=False),
+                  "texture resolution stripping, per shot only; NOT a live "
+                  "reveal primitive", liveness=LATCHED,
+                  liveness_provenance=FROM_SOURCE),
+    RenderControl("anisotropy", AVAILABLE_NOW, "r_ext_max_anisotropy", 1, 16,
+                  liveness=LATCHED, liveness_provenance=FROM_SOURCE),
+    RenderControl("anti_alias", AVAILABLE_NOW, "r_fboAntiAlias", 0, 8,
+                  liveness=LATCHED, liveness_provenance=FROM_SOURCE),
     RenderControl("overbright", AVAILABLE_NOW, "r_overBrightBits", 0, 2,
-                  "MEDIUM"),
+                  "MEDIUM", liveness=LATCHED, liveness_provenance=FROM_SOURCE),
     RenderControl("map_brightness", AVAILABLE_NOW, "r_mapOverBrightBits",
-                  0, 3, "MEDIUM"),
+                  0, 3, "MEDIUM", liveness=LATCHED,
+                  liveness_provenance=FROM_SOURCE),
     RenderControl("fullbright", AVAILABLE_NOW, "r_fullbright", 0, 1,
-                  "MEDIUM", "flattens all lighting; a treatment, not a look"),
-    RenderControl("fov", AVAILABLE_NOW, "cg_fov", 60, 140, "MEDIUM"),
-    RenderControl("weapon_draw", AVAILABLE_NOW, "cg_drawGun", 0, 1),
+                  "MEDIUM", "flattens all lighting, per shot only",
+                  liveness=LATCHED, liveness_provenance=FROM_SOURCE),
+    # Live in the source (CVAR_ARCHIVE only). Wolfcam's own additions are
+    # believed live and marked ASSUMED until a canary says so.
+    RenderControl("texture_filtering", AVAILABLE_NOW, "r_textureMode", 0, 1,
+                  "MEDIUM", "GL_NEAREST through trilinear",
+                  liveness=LIVE_DISCRETE, liveness_provenance=FROM_SOURCE),
+    RenderControl("lod_bias", AVAILABLE_NOW, "r_lodbias", -2, 2, "MEDIUM",
+                  liveness=LIVE_STEP_ONLY, liveness_provenance=FROM_SOURCE),
+    RenderControl("dynamic_lights", AVAILABLE_NOW, "r_dynamiclight", 0, 1,
+                  "LOW", "weapon and projectile light contribution",
+                  liveness=LIVE_DISCRETE, liveness_provenance=FROM_SOURCE),
+    RenderControl("gamma", AVAILABLE_NOW, "r_gamma", 0.5, 3.0, "MEDIUM",
+                  integer=False, liveness=LIVE_CONTINUOUS,
+                  liveness_provenance=FROM_SOURCE),
+    RenderControl("player_shadows", AVAILABLE_NOW, "cg_shadows", 0, 3, "LOW",
+                  liveness=LIVE_DISCRETE, liveness_provenance=ASSUMED),
+    RenderControl("impact_marks", AVAILABLE_NOW, "cg_marks", 0, 1,
+                  liveness=LIVE_DISCRETE, liveness_provenance=ASSUMED),
+    RenderControl("rail_trail_time", AVAILABLE_NOW, "cg_railTrailTime",
+                  0, 3000, "LOW", liveness=LIVE_STEP_ONLY,
+                  liveness_provenance=ASSUMED),
+    RenderControl("motion_blur", AVAILABLE_NOW, "mme_blurFrames", 0, 64,
+                  "HIGH", "temporal supersampling; blinds a tracking duel",
+                  liveness=LIVE_STEP_ONLY, liveness_provenance=ASSUMED),
+    RenderControl("depth_of_field", AVAILABLE_NOW, "mme_dofFrames", 0, 64,
+                  "HIGH", liveness=LIVE_STEP_ONLY, liveness_provenance=ASSUMED),
+    RenderControl("fov", AVAILABLE_NOW, "cg_fov", 60, 140, "MEDIUM",
+                  liveness=LIVE_STEP_ONLY, liveness_provenance=ASSUMED),
+    RenderControl("weapon_draw", AVAILABLE_NOW, "cg_drawGun", 0, 1,
+                  liveness=LIVE_DISCRETE, liveness_provenance=ASSUMED),
     RenderControl("depth_pass", AVAILABLE_NOW, "mme_saveDepth", 0, 1, "LOW",
-                  "a depth buffer per frame, for outlines and fog in post"),
+                  "a depth buffer per frame, for outlines and fog in post",
+                  liveness=LIVE_DISCRETE, liveness_provenance=ASSUMED),
     RenderControl("fx_cue", AVAILABLE_NOW, "at <t> runfx <name>", 0, 1,
-                  "MEDIUM", "any authored .fx script at an instant"),
+                  "MEDIUM", "any authored .fx script at an instant",
+                  liveness=LIVE_DISCRETE, liveness_provenance=MEASURED),
     RenderControl("texture_pack", AVAILABLE_VIA_ASSETS, "zzz_uhd_*.pk3", 0, 1,
-                  "LOW", "UHD textures; changes what is on the walls"),
+                  "LOW", "UHD textures; changes what is on the walls",
+                  liveness=RELOAD_REQUIRED, liveness_provenance=FROM_SOURCE),
     RenderControl("color_grade", AVAILABLE_VIA_ASSETS,
                   "zzz_zz_pantheon_grade.pk3 (colorcorrect.fs)", 0, 1, "LOW",
-                  "post grade; per-scene variants need one pk3 each"),
+                  "post grade; per-scene variants need one pk3 each",
+                  liveness=RELOAD_REQUIRED, liveness_provenance=ASSUMED),
     RenderControl("material_swap", AVAILABLE_VIA_ASSETS, "zzz_*.pk3 shader",
-                  0, 1, "MEDIUM", "the material-transform primitive"),
+                  0, 1, "MEDIUM", "a material state, per shot; the live "
+                  "transform is the Effect Lab's question",
+                  liveness=RELOAD_REQUIRED, liveness_provenance=ASSUMED),
     RenderControl("bloom", FUTURE_BACKEND, "", 0, 1, "HIGH"),
     RenderControl("exposure", FUTURE_BACKEND, "", -4, 4, "MEDIUM"),
     RenderControl("tone_response", FUTURE_BACKEND, "", 0, 1, "MEDIUM"),
@@ -237,6 +317,177 @@ CONTROLS: dict[str, RenderControl] = {c.name: c for c in (
     RenderControl("particle_density", FUTURE_BACKEND, "", 0, 1, "MEDIUM"),
     RenderControl("path_tracing", FUTURE_BACKEND, "", 0, 1, "HIGH"),
 )}
+
+
+def animatable_controls() -> list[str]:
+    return [c.name for c in CONTROLS.values() if c.animatable]
+
+
+# ── where an effect is realised ─────────────────────────────────────────────
+# The director asks for WORLD_REVEAL. Which layer delivers it is the
+# backend's business, and a picmip staircase is one candidate among several,
+# not the meaning of the idea. Keeping the creative concept apart from its
+# implementation is what lets the same treatment survive a renderer change.
+
+ENGINE = "ENGINE"                  # a cvar or command while capturing
+CAPTURE_PASS = "CAPTURE_PASS"      # an extra pass the engine can write
+COMPOSITOR = "COMPOSITOR"          # ffmpeg / offline post on delivered frames
+SYNTHETIC = "SYNTHETIC"            # authored animation or external 3D
+LAYERS = (ENGINE, CAPTURE_PASS, COMPOSITOR, SYNTHETIC)
+
+
+@dataclass(frozen=True)
+class Implementation:
+    """One way a creative treatment could be realised, and how much of the
+    idea it actually delivers."""
+    layer: str
+    means: str
+    coverage: str            # FULL / PARTIAL / STYLISED
+    capability: str
+    notes: str = ""
+
+    def __post_init__(self) -> None:
+        if self.layer not in LAYERS:
+            raise ValueError(f"unknown layer {self.layer!r}")
+        if self.coverage not in ("FULL", "PARTIAL", "STYLISED"):
+            raise ValueError(f"unknown coverage {self.coverage!r}")
+        if self.capability not in CAPABILITIES:
+            raise ValueError(f"unknown capability {self.capability!r}")
+
+
+# The creative corpus is the spec of record. These are candidate routes to
+# a few of its ideas; an idea with no FULL route today is not "done" because
+# a stylised approximation exists.
+IMPLEMENTATIONS: dict[str, tuple[Implementation, ...]] = {
+    "WORLD_REVEAL": (
+        Implementation(ENGINE, "r_picmip per shot", "STYLISED", AVAILABLE_NOW,
+                       "texture reduction, latched; not a live reveal"),
+        Implementation(CAPTURE_PASS, "mme_saveDepth + depth compositing",
+                       "PARTIAL", AVAILABLE_NOW,
+                       "geometry emerges from depth; textures do not fade"),
+        Implementation(ENGINE, "shader replacement pack", "PARTIAL",
+                       AVAILABLE_VIA_ASSETS, "per shot, reload required"),
+        Implementation(ENGINE, "geometry suppression per frame", "FULL",
+                       FUTURE_BACKEND, "the world-transform primitive"),
+    ),
+    "WALL_XRAY": (
+        Implementation(CAPTURE_PASS, "depth pass + mask compositing",
+                       "PARTIAL", AVAILABLE_NOW),
+        Implementation(ENGINE, "surface suppression", "FULL", FUTURE_BACKEND),
+    ),
+    "MAP_CONSTRUCTION": (
+        Implementation(SYNTHETIC, "authored build animation", "FULL",
+                       FUTURE_BACKEND, "author-defined duration"),
+    ),
+    "GEOMETRY_REBUILD": (
+        Implementation(ENGINE, "geometry suppression per frame", "FULL",
+                       FUTURE_BACKEND),
+    ),
+    "MATERIAL_PULSE": (
+        Implementation(ENGINE, "r_gamma keyframes", "STYLISED", AVAILABLE_NOW,
+                       "whole-frame, live, continuous"),
+        Implementation(COMPOSITOR, "selective grade on delivered frames",
+                       "PARTIAL", AVAILABLE_NOW),
+        Implementation(ENGINE, "live material response", "FULL",
+                       FUTURE_BACKEND),
+    ),
+    "RHYTHMIC_IMAGE_STUTTER": (
+        Implementation(COMPOSITOR, "frame hold / repeat on delivered frames",
+                       "FULL", AVAILABLE_NOW, "measured; the stutter primitive"),
+    ),
+    "TIME_ECHO": (
+        Implementation(COMPOSITOR, "frame blend on delivered frames", "FULL",
+                       AVAILABLE_NOW),
+    ),
+    "MOSAIC_TILE_STEP": (
+        Implementation(COMPOSITOR, "tile region stepping", "FULL",
+                       AVAILABLE_NOW, "driven by unequal gesture IOIs"),
+    ),
+    "POV_PIP": (
+        Implementation(COMPOSITOR, "overlay of a second capture", "FULL",
+                       AVAILABLE_NOW, "measured: adds exactly zero time"),
+    ),
+    "INFORMATION_REVEAL": (
+        Implementation(COMPOSITOR, "text / number overlays", "FULL",
+                       AVAILABLE_NOW, "post-compositor exists, unswept"),
+    ),
+}
+
+
+def routes_for(treatment: str) -> tuple[Implementation, ...]:
+    return IMPLEMENTATIONS.get(treatment, ())
+
+
+def best_route_now(treatment: str) -> Implementation | None:
+    """The most complete implementation available today, if any. Returns
+    None rather than a stylised stand-in when nothing reaches PARTIAL."""
+    order = {"FULL": 0, "PARTIAL": 1, "STYLISED": 2}
+    now = [r for r in routes_for(treatment) if r.capability != FUTURE_BACKEND]
+    now.sort(key=lambda r: order[r.coverage])
+    return now[0] if now and now[0].coverage != "STYLISED" else None
+
+
+# ── capture passes the engine can write ─────────────────────────────────────
+
+PASSES: dict[str, dict[str, Any]] = {
+    "beauty": {"capability": AVAILABLE_NOW, "binding": "video avi",
+               "notes": "the frame itself"},
+    "depth": {"capability": AVAILABLE_NOW, "binding": "mme_saveDepth",
+              "notes": "per-frame depth; outlines, haze and masks in post"},
+    "stencil": {"capability": AVAILABLE_NOW, "binding": "mme_saveStencil",
+                "notes": "present in the mme lineage; unverified on this build",
+                "verified": False},
+    "object_id": {"capability": FUTURE_BACKEND, "binding": "",
+                  "notes": "per-pixel entity id; no runtime path"},
+    "isolated_subject": {"capability": FUTURE_BACKEND, "binding": "",
+                         "notes": "player or weapon alone; would need id masks "
+                                  "or a second capture with the world hidden"},
+}
+
+
+# ── how a backend earns its place ───────────────────────────────────────────
+
+@dataclass(frozen=True)
+class BackendEvaluation:
+    """A future renderer is judged by what it does for the creative corpus,
+    not by its feature list."""
+    backend: str
+    creative_ideas_unlocked: tuple[str, ...]
+    existing_protocols_improved: tuple[str, ...]
+    image_quality_gain: str          # LOW / MEDIUM / HIGH
+    implementation_cost: str         # REQUIRES_INTEGRATION_SPIKE until proven
+    pipeline_risk: str
+    determinism: str
+    multipass_support: str
+    offline_render_value: str
+    notes: str = ""
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+
+REQUIRES_INTEGRATION_SPIKE = "REQUIRES_INTEGRATION_SPIKE"
+
+BACKEND_EVALUATIONS: dict[str, BackendEvaluation] = {
+    BACKEND_MODERN_RASTER: BackendEvaluation(
+        BACKEND_MODERN_RASTER,
+        creative_ideas_unlocked=("WORLD_REVEAL", "GEOMETRY_REBUILD",
+                                 "WALL_XRAY", "LOW_HP_WORLD"),
+        existing_protocols_improved=("MATERIAL_PULSE", "MODEL_PULSE",
+                                     "ROUND_WIN_RELEASE", "PROJECTILE_FOLLOW"),
+        image_quality_gain="HIGH", implementation_cost=REQUIRES_INTEGRATION_SPIKE,
+        pipeline_risk="MEDIUM", determinism="EXPECTED_DETERMINISTIC",
+        multipass_support="LIKELY", offline_render_value="HIGH",
+        notes="no calendar estimate until a spike proves the cgame seam"),
+    BACKEND_PATH_TRACED: BackendEvaluation(
+        BACKEND_PATH_TRACED,
+        creative_ideas_unlocked=(),
+        existing_protocols_improved=("PROJECTILE_REPLAY", "MAP_CONSTRUCTION"),
+        image_quality_gain="HIGH", implementation_cost=REQUIRES_INTEGRATION_SPIKE,
+        pipeline_risk="HIGH", determinism="SEED_DEPENDENT",
+        multipass_support="UNKNOWN", offline_render_value="SELECTIVE",
+        notes="parked; rare hero shots only"),
+}
 
 
 def controls_by_capability() -> dict[str, list[str]]:
@@ -486,62 +737,130 @@ def editorial_key(*, scene_hash: str, camera_hash: str,
 
 @dataclass(frozen=True)
 class ScheduledCvar:
-    """One backend-specific instruction the current engine understands."""
+    """One backend-specific instruction, with its quantisation on record.
+
+    The director asked for a semantic value; the engine got an integer; the
+    picture did whatever it did. All three are kept so a mismatch between
+    intent and delivery is visible rather than absorbed.
+    """
     at_ms: int
     cvar: str
-    value: str
+    value: str                       # what the engine is told
+    control: str = ""
+    requested_unit: float | None = None   # 0..1 semantic value from the plan
+    compiled_value: float | None = None   # after range mapping, before rounding
+    delivered: str | None = None          # what a canary observed, if any
 
     def line(self) -> str:
         return f"at {self.at_ms} {self.cvar} {self.value}"
 
+    @property
+    def quantisation_error(self) -> float | None:
+        if self.compiled_value is None:
+            return None
+        try:
+            return float(self.value) - self.compiled_value
+        except ValueError:
+            return None
 
-def _to_engine_value(ctrl: RenderControl, unit: float) -> str:
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d["quantisation_error"] = self.quantisation_error
+        return d
+
+
+def _to_engine_value(ctrl: RenderControl, unit: float) -> tuple[str, float]:
+    """Engine string and the unrounded value it came from."""
     v = ctrl.lo + (ctrl.hi - ctrl.lo) * max(0.0, min(1.0, unit))
     if ctrl.name == "texture_filtering":
-        return ("GL_LINEAR_MIPMAP_LINEAR" if unit >= 0.5 else "GL_NEAREST")
+        return (("GL_LINEAR_MIPMAP_LINEAR" if unit >= 0.5 else "GL_NEAREST"), v)
     if ctrl.integer:
         # A ramp on an integer cvar is a staircase. The treatment may ask for
         # 0.417 of fullbright; the engine has 0 and 1, and pretending
         # otherwise would schedule a value it silently truncates.
-        return str(int(round(v)))
-    return f"{v:.3f}"
+        return (str(int(round(v))), v)
+    return (f"{v:.3f}", v)
+
+
+@dataclass(frozen=True)
+class WolfcamJob:
+    """What the current engine will actually be told, and what it will not.
+
+    `shot_setup` is applied once before vid_restart: the latched cvars. Only
+    `scheduled` animates. `not_animatable` lists every control the treatment
+    keyframed that the engine cannot change while running, so a director who
+    asked for a live picmip ramp learns that here and not from a flat render.
+    """
+    shot_setup: tuple[ScheduledCvar, ...]
+    scheduled: tuple[ScheduledCvar, ...]
+    not_animatable: tuple[str, ...]
+    unmet: tuple[str, ...]
+
+    def lines(self) -> list[str]:
+        return [c.line() for c in self.scheduled]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"shot_setup": [c.to_dict() for c in self.shot_setup],
+                "scheduled": [c.to_dict() for c in self.scheduled],
+                "not_animatable": list(self.not_animatable),
+                "unmet": list(self.unmet)}
 
 
 def compile_wolfcam(t: RenderTreatment, edit_to_demo_ms, step_us: int = 100_000
-                    ) -> tuple[list[ScheduledCvar], list[str]]:
-    """Turn a treatment into `at <t> <cvar> <value>` lines for the current
-    engine, and say what it could not express.
+                    ) -> WolfcamJob:
+    """Turn a treatment into what the current engine can honour.
 
     This is the only place that knows the backend. A future rasteriser gets
     its own compile_* and the treatment does not change.
+
+    A cvar the source marks CVAR_LATCH is set once at shot setup from the
+    treatment's FIRST state and never scheduled: `at` would execute the line
+    and the picture would not change. The keyframes that asked for it are
+    reported in `not_animatable`.
     """
+    unmet = tuple(t.unmet())
+    keyed: set[str] = set()
+    for k in t.keyframes:
+        keyed.update(k.values)
+    not_anim = tuple(sorted(
+        n for n in keyed
+        if n in CONTROLS and CONTROLS[n].usable_now
+        and not CONTROLS[n].animatable))
+
+    def make(name: str, unit: float, at_ms: int) -> ScheduledCvar:
+        c = CONTROLS[name]
+        val, raw = _to_engine_value(c, unit)
+        return ScheduledCvar(at_ms, c.backend_binding, val, name, unit, raw)
+
+    first_state = t.state_at(t.keyframes[0].at_us) if t.keyframes else t.base()
+    t0 = int(edit_to_demo_ms(t.keyframes[0].at_us if t.keyframes else 0))
+    setup = tuple(make(n, u, t0) for n, u in first_state.items()
+                  if n in CONTROLS and CONTROLS[n].capability == AVAILABLE_NOW
+                  and CONTROLS[n].liveness == LATCHED)
+
     lines: list[ScheduledCvar] = []
-    unmet = t.unmet()
     if not t.keyframes:
-        st = t.base()
-        for name, unit in st.items():
-            c = CONTROLS[name]
-            if c.capability == AVAILABLE_NOW and c.name != "fx_cue":
-                lines.append(ScheduledCvar(int(edit_to_demo_ms(0)),
-                                           c.backend_binding,
-                                           _to_engine_value(c, unit)))
-        return lines, unmet
+        for n, u in first_state.items():
+            c = CONTROLS[n]
+            if c.animatable and c.name != "fx_cue":
+                lines.append(make(n, u, t0))
+        return WolfcamJob(setup, tuple(lines), not_anim, unmet)
+
     start, end = t.keyframes[0].at_us, t.keyframes[-1].at_us
     at = start
     last: dict[str, str] = {}
     while at <= end:
         st = t.state_at(at)
-        for name, unit in st.items():
-            c = CONTROLS[name]
-            if c.capability != AVAILABLE_NOW or c.name == "fx_cue":
+        for n, u in st.items():
+            c = CONTROLS[n]
+            if not c.animatable or c.name == "fx_cue":
                 continue
-            val = _to_engine_value(c, unit)
-            if last.get(name) != val:
-                lines.append(ScheduledCvar(int(edit_to_demo_ms(at)),
-                                           c.backend_binding, val))
-                last[name] = val
+            sc = make(n, u, int(edit_to_demo_ms(at)))
+            if last.get(n) != sc.value:
+                lines.append(sc)
+                last[n] = sc.value
         at += step_us
-    return lines, unmet
+    return WolfcamJob(setup, tuple(lines), not_anim, unmet)
 
 
 def separation_report() -> dict[str, Any]:
@@ -568,4 +887,9 @@ def separation_report() -> dict[str, Any]:
             "same RenderTreatment, camera plan and edit_us map, and returning "
             "backend instructions plus the list of controls it could not "
             "honour. The director never sees a cvar"),
+        "fx_emission": (
+            "compile_fx_cfg_lines in pantheon_scene.py is already one isolated "
+            "function with only test callers; relocating it is cosmetic and "
+            "was not done"),
+        "modern_raster_estimate": REQUIRES_INTEGRATION_SPIKE,
     }

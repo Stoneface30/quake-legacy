@@ -30,11 +30,24 @@ def test_a_profile_cannot_claim_a_backend_we_do_not_have():
                          exists_today=True)
 
 
-def test_every_profile_keeps_sixty_distinct_frames():
-    """A proxy is cheaper in pixels and lighting, never in time."""
+def test_timing_authoritative_profiles_keep_sixty_distinct_frames():
+    """A proxy is cheaper in pixels and lighting, never in time. A contact
+    sheet is not a proxy and may say so."""
     with pytest.raises(ValueError, match="never in time"):
         rp.RenderProfile(rp.PREVIEW_FAST, rp.BACKEND_WOLFCAM, 960, 540, fps=30)
-    assert all(p.fps == 60 for p in rp.PROFILES.values())
+    sheet = rp.RenderProfile(rp.PREVIEW_FAST, rp.BACKEND_WOLFCAM, 960, 540,
+                             fps=15, timing_authoritative=False)
+    assert sheet.fps == 15
+    assert all(p.fps == 60 for p in rp.PROFILES.values()
+               if p.timing_authoritative)
+
+
+def test_six_k_is_a_candidate_until_a_canary_runs():
+    m = rp.PROFILES[rp.MASTER_RASTER]
+    assert not m.verified and "CANDIDATE" in m.notes
+    assert rp.MASTER_RASTER in rp.available_profiles()
+    assert rp.MASTER_RASTER not in rp.proven_profiles()
+    assert rp.PREVIEW_FAST in rp.proven_profiles()
 
 
 def test_master_oversamples_then_downsamples():
@@ -47,7 +60,7 @@ def test_master_oversamples_then_downsamples():
 
 def test_a_control_available_now_names_its_binding():
     with pytest.raises(ValueError, match="hope, not a capability"):
-        rp.RenderControl("x", rp.AVAILABLE_NOW, "")
+        rp.RenderControl("x", rp.AVAILABLE_NOW, "", liveness=rp.LIVE_DISCRETE)
     for c in rp.CONTROLS.values():
         if c.capability == rp.AVAILABLE_NOW:
             assert c.backend_binding, c.name
@@ -187,22 +200,66 @@ def test_a_timing_change_changes_the_editorial_key():
 
 # ── the backend seam ────────────────────────────────────────────────────────
 
-def test_compile_emits_scheduled_cvars_the_engine_understands():
-    lines, unmet = rp.compile_wolfcam(_reveal(), lambda us: us // 1000)
-    assert lines and all(l.line().startswith("at ") for l in lines)
-    picmip = [l for l in lines if l.cvar == "r_picmip"]
-    assert picmip and picmip[0].value == "0"
-    assert any(int(l.value) > 0 for l in picmip), "the ramp happens"
-    assert unmet == []
+def test_schedulable_is_not_animatable():
+    """`at` will execute any cvar. r_picmip is CVAR_LATCH in the vendored
+    source and takes effect on vid_restart, so a scheduled staircase would
+    run every line and change nothing."""
+    assert rp.CONTROLS["picmip"].usable_now
+    assert not rp.CONTROLS["picmip"].animatable
+    assert rp.CONTROLS["picmip"].liveness == rp.LATCHED
+    assert rp.CONTROLS["picmip"].liveness_provenance == rp.FROM_SOURCE
+    assert rp.CONTROLS["gamma"].animatable
+    assert rp.CONTROLS["gamma"].liveness == rp.LIVE_CONTINUOUS
+
+
+def test_a_bound_control_must_say_what_happens_when_the_value_lands():
+    with pytest.raises(ValueError, match="schedulable is not animatable"):
+        rp.RenderControl("x", rp.AVAILABLE_NOW, "r_x")
+
+
+def test_latched_controls_go_to_shot_setup_not_the_schedule():
+    job = rp.compile_wolfcam(_reveal(), lambda us: us // 1000)
+    setup = {c.cvar for c in job.shot_setup}
+    sched = {c.cvar for c in job.scheduled}
+    assert "r_picmip" in setup and "r_fullbright" in setup
+    assert "r_picmip" not in sched and "r_fullbright" not in sched
+    assert "picmip" in job.not_animatable and "fullbright" in job.not_animatable
+    assert job.unmet == ()
+
+
+def test_a_live_ramp_does_schedule():
+    t = rp.RenderTreatment("s", rp.QL_CLEAN, (
+        rp.Keyframe(0, {"gamma": 0.2}), rp.Keyframe(1_000 * MS, {"gamma": 0.8})))
+    job = rp.compile_wolfcam(t, lambda us: us // 1000)
+    gam = [c for c in job.scheduled if c.cvar == "r_gamma"]
+    assert len(gam) > 2, "a continuous control ramps across the interval"
+    assert gam[0].value != gam[-1].value
+    assert job.not_animatable == ()
+
+
+def test_the_quantisation_is_on_record():
+    """Requested, compiled, delivered: three values, kept apart."""
+    t = rp.RenderTreatment("s", rp.QL_CLEAN, (
+        rp.Keyframe(0, {"motion_blur": 0.0}),
+        rp.Keyframe(1_000 * MS, {"motion_blur": 0.1})))
+    job = rp.compile_wolfcam(t, lambda us: us // 1000)
+    blur = [c for c in job.scheduled if c.cvar == "mme_blurFrames"]
+    assert blur
+    mid = blur[len(blur) // 2]
+    assert mid.control == "motion_blur"
+    assert mid.requested_unit is not None and mid.compiled_value is not None
+    assert "." not in mid.value, "an integer cvar gets an integer"
+    assert mid.quantisation_error is not None and abs(mid.quantisation_error) <= 0.5
+    assert mid.delivered is None, "nothing has been measured yet"
 
 
 def test_compile_reports_what_it_could_not_express():
     t = rp.RenderTreatment("s", rp.PANTHEON_HERO, (
         rp.Keyframe(0, {"bloom": 0.0, "picmip": 0.0}),
         rp.Keyframe(500 * MS, {"bloom": 1.0})))
-    lines, unmet = rp.compile_wolfcam(t, lambda us: us // 1000)
-    assert "bloom" in unmet
-    assert not any("bloom" in l.cvar for l in lines)
+    job = rp.compile_wolfcam(t, lambda us: us // 1000)
+    assert "bloom" in job.unmet
+    assert not any("bloom" in c.cvar for c in job.scheduled)
 
 
 def test_the_director_never_sees_a_cvar():
@@ -211,14 +268,55 @@ def test_the_director_never_sees_a_cvar():
     assert "r_picmip" not in str(t.to_dict())
     rep = rp.separation_report()
     assert "compile_<backend>()" in rep["minimum_seam"]
-    assert any("pantheon_scene.py" in e for e in rep["entanglements"])
+    assert rep["modern_raster_estimate"] == rp.REQUIRES_INTEGRATION_SPIKE
+
+
+# ── creative concept vs implementation ──────────────────────────────────────
+
+def test_a_creative_idea_is_not_its_cheapest_implementation():
+    """A picmip staircase is a stylised stand-in for WORLD_REVEAL, not the
+    idea itself, and it does not count as having it."""
+    routes = rp.routes_for("WORLD_REVEAL")
+    assert any(r.means.startswith("r_picmip") and r.coverage == "STYLISED"
+               for r in routes)
+    best = rp.best_route_now("WORLD_REVEAL")
+    assert best is not None and best.coverage == "PARTIAL"
+    assert best.layer == rp.CAPTURE_PASS, "depth compositing, not picmip"
+    assert rp.best_route_now("GEOMETRY_REBUILD") is None
+    assert rp.best_route_now("MAP_CONSTRUCTION") is None
+
+
+def test_compositor_native_effects_are_full_today():
+    for name in ("RHYTHMIC_IMAGE_STUTTER", "POV_PIP", "INFORMATION_REVEAL",
+                 "MOSAIC_TILE_STEP"):
+        best = rp.best_route_now(name)
+        assert best is not None and best.layer == rp.COMPOSITOR, name
+        assert best.coverage == "FULL", name
+
+
+def test_passes_do_not_invent_what_the_engine_cannot_write():
+    assert rp.PASSES["depth"]["capability"] == rp.AVAILABLE_NOW
+    assert rp.PASSES["object_id"]["capability"] == rp.FUTURE_BACKEND
+    assert rp.PASSES["stencil"].get("verified") is False
+
+
+def test_a_backend_is_judged_by_the_ideas_it_unlocks():
+    ev = rp.BACKEND_EVALUATIONS[rp.BACKEND_MODERN_RASTER]
+    assert ev.creative_ideas_unlocked and ev.existing_protocols_improved
+    assert ev.implementation_cost == rp.REQUIRES_INTEGRATION_SPIKE
+    pt = rp.BACKEND_EVALUATIONS[rp.BACKEND_PATH_TRACED]
+    assert pt.creative_ideas_unlocked == (), "spectacle, not vocabulary"
+    assert "parked" in pt.notes
 
 
 def test_integer_cvars_are_never_sent_fractions():
     """A ramp on an integer cvar is a staircase; the engine truncates
     anything else silently."""
-    lines, _ = rp.compile_wolfcam(_reveal(), lambda us: us // 1000)
-    for l in lines:
-        if l.cvar in ("r_picmip", "r_fullbright", "cg_shadows", "mme_blurFrames"):
-            assert "." not in l.value, (l.cvar, l.value)
+    t = rp.RenderTreatment("s", rp.QL_CLEAN, (
+        rp.Keyframe(0, {"motion_blur": 0.0, "player_shadows": 0.0}),
+        rp.Keyframe(1_000 * MS, {"motion_blur": 0.3, "player_shadows": 1.0})))
+    job = rp.compile_wolfcam(t, lambda us: us // 1000)
+    for c in job.scheduled:
+        if c.cvar in ("mme_blurFrames", "cg_shadows"):
+            assert "." not in c.value, (c.cvar, c.value)
     assert rp.CONTROLS["gamma"].integer is False
