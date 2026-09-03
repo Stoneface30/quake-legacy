@@ -418,8 +418,10 @@ def test_readiness_now_requires_the_temporal_solver():
         music_library_ready=True, temporal_proofs_built=0)
     assert not without.may_shortlist_songs and not without.temporal_solver_ready
     assert any("temporal" in b for b in without.blockers)
+    f = ch.temporal_effect_fillability()
     with_solver = ch.assess_readiness(
         corpus_entries=len(cc.CORPUS), lanes_covered=len(ch.LANES),
         proofs_built=len(cp2.PROOFS), gameplay_truth_ready=True,
-        music_library_ready=True, temporal_proofs_built=len(tpf.PROOFS))
+        music_library_ready=True, temporal_proofs_built=len(tpf.PROOFS),
+        measured_templates=f["measured"], measured_scales=f["measured_scales"])
     assert with_solver.may_shortlist_songs and with_solver.temporal_solver_ready
