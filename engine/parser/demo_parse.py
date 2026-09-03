@@ -120,6 +120,13 @@ _EV_NAMES: dict[int, str] = {
 _CAPTURE_EVENTS: frozenset[int] = frozenset(_EV_NAMES.keys())
 
 # Means of death names (MOD_*)
+# WP_* launcher space (bg_public.h weapon_t), Quake Live numbering.
+_WP_NAMES = {
+    1: 'GAUNTLET', 2: 'MACHINEGUN', 3: 'SHOTGUN', 4: 'GRENADE_LAUNCHER',
+    5: 'ROCKET_LAUNCHER', 6: 'LIGHTNING', 7: 'RAILGUN', 8: 'PLASMAGUN', 9: 'BFG',
+    10: 'GRAPPLING_HOOK', 11: 'NAILGUN', 12: 'PROX_LAUNCHER', 13: 'CHAINGUN', 14: 'HMG',
+}
+
 _MOD_NAMES = {
     0: 'UNKNOWN',      1: 'SHOTGUN',      2: 'GAUNTLET',   3: 'MACHINEGUN',
     4: 'GRENADE',      5: 'GRENADE_SPLASH', 6: 'ROCKET',   7: 'ROCKET_SPLASH',
@@ -164,6 +171,16 @@ _PS_PITCH     =  7   # viewangles[0] — float
 _PS_ORIGIN_Z  =  9   # float
 _PS_VEL_Z     = 10   # float
 _PS_CLIENT    = 40   # clientNum (8 bits)
+# Enrichment 2026-09-02: the recorder's own events live in the playerstate,
+# not in entity events. Indices from the canonical playerStateFields table;
+# their bit widths (16, 8, 8, 8, 8) match _PS_BITS at these positions.
+_PS_EVENT_SEQ = 13   # eventSequence (16 bits)
+_PS_EVENT0    = 16   # events[0] (8 bits)
+_PS_EVENT1    = 18   # events[1] (8 bits)
+_PS_EVPARM0   = 38   # eventParms[0] (8 bits)
+_PS_EVPARM1   = 39   # eventParms[1] (8 bits)
+_MAX_PS_EVENTS = 2
+_PS_GROUND    = 20   # groundEntityNum (10 bits); 1023 = airborne
 _PS_WEAPON    = 41   # weapon slot (5 bits)
 
 # ---------------------------------------------------------------------------
@@ -489,6 +506,9 @@ class DM73Parser:
         self._missile_track: list[dict] = []
         self._server_text: list[dict] = []
         self._round_results: list[dict] = []
+        self._ps_prev_seq: int | None = None
+        self._ps_events: list[dict] = []     # recorder events, edge-deduped by eventSequence
+        self._team_changes: list[dict] = []  # (time, client, team) as configstrings change
         self._huff   = _get_huff()
         # Player metadata keyed by client number
         self._players: dict[int, dict] = {}
@@ -570,6 +590,7 @@ class DM73Parser:
             'server_text':  self._server_text,
             'round_results': self._round_results,
             'missiles':     self._missile_track,
+            'team_changes': self._team_changes,
             'accuracy':     self._acc_track,
             'packet_errors': self._packet_errors,
             'first_packet_error': self._first_packet_error,
@@ -644,6 +665,11 @@ class DM73Parser:
             entry  = self._players.setdefault(client, {})
             entry['name'] = name
             entry['team'] = _TEAM_NAMES.get(team, team)
+            # Side switches matter for round attribution: keep the timeline.
+            if not self._team_changes or self._team_changes[-1].get('client') != client \
+                    or self._team_changes[-1].get('team') != entry['team']:
+                self._team_changes.append({'server_time_ms': self._last_server_time,
+                                           'client': client, 'team': entry['team']})
         if idx in (6, 7, 661, 662, 705):
             # Recorded WITHOUT consuming the index: 662 is also
             # _CS_ROUND_START below, and an elif here silently zeroed the
@@ -774,6 +800,21 @@ class DM73Parser:
         snap['server_time_ms'] = server_time
         snap['round_num']      = self._cur_round
         snapshots.append(snap)
+        if self._ps_events:
+            for pe in self._ps_events:
+                code = pe['event_code']
+                if code in _CAPTURE_EVENTS:
+                    events.append({
+                        'type': _EV_NAMES.get(code, f'ev_{code}'),
+                        'event_code': code, 'entity_num': None,
+                        'server_time_ms': server_time, 'round': self._cur_round,
+                        'client_num': self._ps_state.get(_PS_CLIENT),
+                        'pos_x': snap.get('origin_x'), 'pos_y': snap.get('origin_y'),
+                        'pos_z': snap.get('origin_z'),
+                        'weapon': self._ps_state.get(_PS_WEAPON), 'weapon_name': None,
+                        'event_parm': pe['parm'], 'source': 'playerstate',
+                    })
+            self._ps_events = []
 
         # Read all entity deltas
         while True:
@@ -936,7 +977,11 @@ class DM73Parser:
                             _EV_NOAMMO, _EV_RAILTRAIL, _EV_MISSILE_HIT,
                             _EV_MISSILE_MISS, _EV_GIB_PLAYER):
             ev['weapon']      = accumulated.get(_F_WEAPON)
-            ev['weapon_name'] = _MOD_NAMES.get(ev['weapon'], None)
+            # Entity-sourced missile events carry the MISSILE's s.weapon, which is
+            # the WP_ launcher space (g_missile.c: bolt->s.weapon = WP_*), not the
+            # MOD_ means-of-death space used by obituaries. Measured 2026-09-02
+            # over v1.0.3 demos: grenade frags -> 4, rocket -> 5, plasma -> 8.
+            ev['weapon_name'] = _WP_NAMES.get(ev['weapon'], None)
             ev['event_parm']  = accumulated.get(_F_EVPARM)
         elif event_code == _EV_ITEM_PICKUP:
             ev['event_parm'] = accumulated.get(_F_EVPARM)   # item type
@@ -981,8 +1026,22 @@ class DM73Parser:
                     if c & (1 << j): s.readlong()
 
         ps = self._ps_state
+        seq = ps.get(_PS_EVENT_SEQ)
+        if seq is not None:
+            if self._ps_prev_seq is None:
+                self._ps_prev_seq = seq          # first snapshot: no edge yet
+            else:
+                start = max(self._ps_prev_seq, seq - _MAX_PS_EVENTS)
+                for i in range(start, seq):
+                    code = ps.get(_PS_EVENT0 if (i & 1) == 0 else _PS_EVENT1, 0)
+                    parm = ps.get(_PS_EVPARM0 if (i & 1) == 0 else _PS_EVPARM1, 0)
+                    code = (code or 0) & ~0x300
+                    if code:
+                        self._ps_events.append({'seq': i, 'event_code': code, 'parm': parm})
+                self._ps_prev_seq = seq
         ox = ps.get(_PS_ORIGIN_X)
         oy = ps.get(_PS_ORIGIN_Y)
+        ps_ground = ps.get(_PS_GROUND)
         oz = ps.get(_PS_ORIGIN_Z)
         vx = ps.get(_PS_VEL_X)
         vy = ps.get(_PS_VEL_Y)
@@ -1007,6 +1066,7 @@ class DM73Parser:
             'client_num':  ps.get(_PS_CLIENT),
             'weapon':      ps.get(_PS_WEAPON),
             'origin_x':    ox,
+            'airborne':    (ps_ground == _ENTITYNUM_NONE) if ps_ground is not None else None,
             'origin_y':    oy,
             'origin_z':    oz,
             'vel_x':       vx,

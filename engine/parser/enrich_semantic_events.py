@@ -34,7 +34,7 @@ from demo_parse import DM73Parser  # noqa: E402
 ROOT = Path(__file__).resolve().parents[2]
 DB = ROOT / "creative_suite" / "database" / "frag_recognition.db"
 DEMOS = ROOT / "demos"
-ENRICH_VERSION = "semantic-events-v1.0.2"
+ENRICH_VERSION = "semantic-events-v1.0.3"
 
 # Everything demo_parse emits that the corpus caches did not already hold.
 KEEP_EVENTS = ("jump", "jump_pad", "teleport_in", "teleport_out",
@@ -51,7 +51,8 @@ CREATE TABLE IF NOT EXISTS enrichment_runs_v1(
 CREATE TABLE IF NOT EXISTS semantic_events_v1(
   content_hash TEXT NOT NULL, server_time_ms INTEGER NOT NULL,
   round INTEGER, type TEXT NOT NULL, entity_num INTEGER, client_num INTEGER,
-  victim INTEGER, weapon INTEGER, x REAL, y REAL, z REAL, parm INTEGER);
+  victim INTEGER, weapon INTEGER, x REAL, y REAL, z REAL, parm INTEGER,
+  source TEXT NOT NULL DEFAULT 'entity');
 CREATE INDEX IF NOT EXISTS ix_sem_hash_t ON semantic_events_v1(content_hash, server_time_ms);
 CREATE INDEX IF NOT EXISTS ix_sem_type ON semantic_events_v1(type);
 CREATE TABLE IF NOT EXISTS round_state_v1(
@@ -68,6 +69,10 @@ CREATE TABLE IF NOT EXISTS missile_samples_v1(
   x REAL, y REAL, z REAL, vx REAL, vy REAL, vz REAL, eflags INTEGER,
   removed INTEGER NOT NULL DEFAULT 0);
 CREATE INDEX IF NOT EXISTS ix_missile_hash_t ON missile_samples_v1(content_hash, server_time_ms);
+CREATE TABLE IF NOT EXISTS team_changes_v1(
+  content_hash TEXT NOT NULL, server_time_ms INTEGER NOT NULL,
+  client INTEGER NOT NULL, team TEXT NOT NULL);
+CREATE INDEX IF NOT EXISTS ix_teamchg_hash ON team_changes_v1(content_hash);
 CREATE TABLE IF NOT EXISTS player_teams_v1(
   content_hash TEXT NOT NULL, client INTEGER NOT NULL, team TEXT NOT NULL,
   PRIMARY KEY(content_hash, client));
@@ -89,20 +94,52 @@ def resolve(demo_name: str) -> Path | None:
     return None
 
 
+# Temp-entity events that the server spawns once per observer and that the
+# parser sees as distinct entity slots on the SAME tick. One physical
+# teleport is one row.
+COLLAPSE_KINDS = ("teleport_in", "teleport_out", "jump_pad")
+COLLAPSE_RADIUS = 64.0
+
+
+def collapse_same_tick(events: list) -> tuple[list, int]:
+    kept: list = []
+    dropped = 0
+    last: dict[tuple, tuple] = {}
+    for e in events:
+        k = e.get("type")
+        if k not in COLLAPSE_KINDS or e.get("source") == "playerstate":
+            kept.append(e)
+            continue
+        key = (k, e.get("server_time_ms"))
+        pos = (e.get("pos_x"), e.get("pos_y"), e.get("pos_z"))
+        prev = last.get(key)
+        if prev is not None and None not in pos and None not in prev:
+            if sum((a - b) ** 2 for a, b in zip(pos, prev)) ** 0.5 <= COLLAPSE_RADIUS:
+                dropped += 1
+                continue
+        last[key] = pos
+        kept.append(e)
+    return kept, dropped
+
+
 def enrich_one(con: sqlite3.Connection, chash: str, path: Path) -> dict:
     t0 = time.monotonic()
     out = DM73Parser(path, track_missiles=True).parse()
     parse_ms = int((time.monotonic() - t0) * 1000)
+    events, collapsed = collapse_same_tick(out["events"])
     ev_rows = []
-    for e in out["events"]:
+    for e in events:
         if e.get("type") not in KEEP_EVENTS:
             continue
-        ev_rows.append((chash, e.get("server_time_ms"), e.get("round_num"),
+        ev_rows.append((chash, e.get("server_time_ms"), e.get("round_num", e.get("round")),
                         e["type"], e.get("entity_num"), e.get("client_num"),
                         e.get("victim"), e.get("weapon"),
                         e.get("pos_x", e.get("origin_x")),
                         e.get("pos_y", e.get("origin_y")),
-                        e.get("pos_z", e.get("origin_z")), e.get("event_parm")))
+                        e.get("pos_z", e.get("origin_z")), e.get("event_parm"),
+                        e.get("source", "entity")))
+    tc_rows = [(chash, t["server_time_ms"], int(t["client"]), str(t["team"] or "UNKNOWN"))
+               for t in out.get("team_changes", [])]
     rs_rows = [(chash, r["server_time_ms"], r["round"], r["cs"], r["value"])
                for r in out["round_results"]]
     tx_rows = [(chash, t["server_time_ms"], t["round"], t["kind"], t["text"])
@@ -119,7 +156,9 @@ def enrich_one(con: sqlite3.Connection, chash: str, path: Path) -> dict:
         for table in ("semantic_events_v1", "round_state_v1", "server_text_v1",
                       "missile_samples_v1", "player_teams_v1"):
             con.execute(f"DELETE FROM {table} WHERE content_hash=?", (chash,))
-        con.executemany("INSERT INTO semantic_events_v1 VALUES (?,?,?,?,?,?,?,?,?,?,?,?)", ev_rows)
+        con.execute("DELETE FROM team_changes_v1 WHERE content_hash=?", (chash,))
+        con.executemany("INSERT INTO semantic_events_v1 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)", ev_rows)
+        con.executemany("INSERT INTO team_changes_v1 VALUES (?,?,?,?)", tc_rows)
         con.executemany("INSERT INTO round_state_v1 VALUES (?,?,?,?,?)", rs_rows)
         con.executemany("INSERT INTO server_text_v1 VALUES (?,?,?,?,?)", tx_rows)
         con.executemany("INSERT INTO missile_samples_v1 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)", ms_rows)
@@ -128,15 +167,18 @@ def enrich_one(con: sqlite3.Connection, chash: str, path: Path) -> dict:
                     (chash, ENRICH_VERSION, parse_ms, len(ev_rows), len(ms_rows),
                      len(tx_rows), len(rs_rows), out.get("packet_errors", 0)))
     return {"parse_ms": parse_ms, "events": len(ev_rows), "missiles": len(ms_rows),
-            "text": len(tx_rows), "rounds": len(rs_rows)}
+            "text": len(tx_rows), "rounds": len(rs_rows), "collapsed": collapsed}
 
 
 def main(limit: int | None = None, verify_hash: bool = False) -> int:
     con = sqlite3.connect(DB)
     cols = [r[1] for r in con.execute("PRAGMA table_info(missile_samples_v1)")]
     if cols and "other" not in cols:
-        # Dry-run rows from v1.0.0 lack the owner field; rebuild them.
         con.executescript("DROP TABLE missile_samples_v1; DELETE FROM enrichment_runs_v1;")
+    ecols = [r[1] for r in con.execute("PRAGMA table_info(semantic_events_v1)")]
+    if ecols and "source" not in ecols:
+        # v1.0.2 rows have no source column; recreate and let the version filter redo every demo.
+        con.executescript("DROP TABLE semantic_events_v1;")
     con.executescript(SCHEMA)
     done = {r[0] for r in con.execute(
         "SELECT content_hash FROM enrichment_runs_v1 WHERE version=?", (ENRICH_VERSION,))}
