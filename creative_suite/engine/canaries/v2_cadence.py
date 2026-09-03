@@ -22,6 +22,10 @@ import numpy as np
 FFMPEG = Path("G:/QUAKE_LEGACY/creative_suite/tools/ffmpeg/ffmpeg.exe")
 WORK = Path("C:/Users/STONEF~1/AppData/Local/Temp/claude/G--QUAKE-LEGACY/"
             "d45475ae-45f3-46d3-a1c3-d4282ba81b1e/scratchpad/cadence")
+# The committed measurement. Written ONLY with --write-reference, so a
+# diff here is always a decision and never a side effect of a run.
+REFERENCE = (Path(__file__).resolve().parents[3] / "docs" / "reference"
+             / "v2_frame_cadence.json")
 
 
 def thumbs(video: Path, out_dir: Path, count: int, start: int = 0):
@@ -87,7 +91,7 @@ def cadence(fp, label):
     return out
 
 
-def main():
+def main(write_reference: bool = False):
     target = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(
         "G:/QUAKE_LEGACY/output/demo_v2/_bench/clean_pov.avi")
     print(f"file: {target.name}")
@@ -126,11 +130,24 @@ def main():
                    "UNKNOWN")
     out = {"file": target.name, "container": probe, "windows": results,
            "cadence": verdict}
-    dest = Path("G:/QUAKE_LEGACY/docs/reference/v2_frame_cadence.json")
+    # Committed reference data is overwritten only on purpose.
+    #
+    # This used to write into docs/reference on every run, against
+    # whichever AVI it happened to find, which makes a tracked
+    # measurement disagree with itself for reasons nobody can
+    # reconstruct. The default is scratch; --write-reference is the
+    # explicit act of re-recording the truth.
+    dest = REFERENCE if write_reference else WORK / "v2_frame_cadence.json"
+    dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(json.dumps(out, indent=2), encoding="utf-8")
     print(f"\n  CADENCE OF THE ACTIVE V2 PATH: {verdict}")
     print(f"  written: {dest}")
+    if not write_reference:
+        print("  (tracked reference left untouched; pass "
+              "--write-reference to re-record it)")
+    return out
 
 
 if __name__ == "__main__":
-    main()
+    import sys as _sys
+    main(write_reference="--write-reference" in _sys.argv)

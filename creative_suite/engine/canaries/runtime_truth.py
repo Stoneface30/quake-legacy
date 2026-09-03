@@ -30,6 +30,11 @@ from pathlib import Path
 import numpy as np
 
 REPO = Path("G:/QUAKE_LEGACY")
+# The committed measurement. Written ONLY with --write-reference, so a
+# diff here is always a decision and never a side effect of a run.
+REFERENCE = REPO / "docs" / "reference" / "runtime_truth_canary.json"
+# Scratch destination for an ordinary run.
+SCRATCH = REPO / ".tmp" / "canaries" / "runtime_truth_canary.json"
 sys.path.insert(0, str(REPO))
 os.environ["CS_PREVIEW_KEEP_RAW"] = "1"
 os.environ["CS_PREVIEW_ENGINE_LOG"] = "1"      # persist the engine console
@@ -293,7 +298,7 @@ def analyse_camera(orbit: Path, fpv: Path, work: Path) -> dict:
 
 # ── main ────────────────────────────────────────────────────────────────────
 
-def main() -> None:
+def main(write_reference: bool = False) -> None:
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(
         "G:/QUAKE_LEGACY/output/demo_v2/_canary_runtime_truth")
     out.mkdir(parents=True, exist_ok=True)
@@ -335,10 +340,13 @@ def main() -> None:
         results["gamma"] = {"verdict": "NO_RAW", "meaning": "a capture produced no AVI"}
     log(f"gamma: {results['gamma']['verdict']} -- {results['gamma']['meaning']}")
 
-    dest = REPO / "docs/reference/runtime_truth_canary.json"
+    _dest = REFERENCE if write_reference else SCRATCH
+    _dest.parent.mkdir(parents=True, exist_ok=True)
+    dest = _dest
     dest.write_text(json.dumps(results, indent=2), encoding="utf-8")
     log(f"DONE written {dest}")
 
 
 if __name__ == "__main__":
-    main()
+    import sys as _sys
+    main(write_reference="--write-reference" in _sys.argv)

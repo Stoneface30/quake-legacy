@@ -22,6 +22,11 @@ import sys
 from pathlib import Path
 
 REPO = Path("G:/QUAKE_LEGACY")
+# The committed measurement. Written ONLY with --write-reference, so a
+# diff here is always a decision and never a side effect of a run.
+REFERENCE = REPO / "docs" / "reference" / "camera_case_a.json"
+# Scratch destination for an ordinary run.
+SCRATCH = REPO / ".tmp" / "canaries" / "camera_case_a.json"
 FFMPEG = REPO / "creative_suite/tools/ffmpeg/ffmpeg.exe"
 
 # The interesting stretch, in shot-relative seconds: a beat of locked FPV,
@@ -89,7 +94,7 @@ def delivered_handoff(raw: Path, launch_s: float, requested_ms: int) -> dict:
             "first_moving_frame_s": round(t0 + int(above[0]) / 60.0, 3)}
 
 
-def main() -> None:
+def main(write_reference: bool = False) -> None:
     d = Path(sys.argv[1]) if len(sys.argv) > 1 else REPO / "output/demo_v2/_case_a"
     data = json.loads((d / "case_a.json").read_text())
     # The DELIVERED artefact, not the raw capture. The raw AVI still carries
@@ -152,7 +157,9 @@ def main() -> None:
               f"{dh.get('delivered_ms')} ms ({dh.get('moving_frames')} frames, "
               f"error {dh.get('error_ms')} ms)")
     (d / "case_a.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
-    (REPO / "docs/reference/camera_case_a.json").write_text(
+    _dest = REFERENCE if write_reference else SCRATCH
+    _dest.parent.mkdir(parents=True, exist_ok=True)
+    _dest.write_text(
         json.dumps(data, indent=2), encoding="utf-8")
 
     # The filter goes in a file. Passed inline this exact graph is rejected
@@ -188,4 +195,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    import sys as _sys
+    main(write_reference="--write-reference" in _sys.argv)

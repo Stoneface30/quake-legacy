@@ -44,8 +44,23 @@ RECOGNITION_DB = REPO_ROOT / "creative_suite" / "database" / "frag_recognition.d
 # span a viewer reads as "that was one burst".
 MULTIKILL_WINDOW_MS = 3000
 
-FULL = "FULL_RECORDER_STATE"
-OBSERVED = "OBSERVED_ONLY"
+# What kind of state was actually readable for this clip.
+#
+# FULL_ACTOR_STATE is the honest name for the case we can serve: the actor
+# WAS the recorder, so the player state in that demo is the actor's own and
+# an `actor_` prefix is literally true.
+#
+# EVENT_ONLY is the other case. When the actor did not hold the camera, the
+# only player state in the demo belongs to somebody else. We do NOT relabel
+# that as the actor's, and we do not ship it under a `recorder_` prefix
+# either -- a voter judging the actor has no use for how fast the cameraman
+# was moving, and every extra field is another thing to misread.
+FULL_ACTOR = "FULL_ACTOR_STATE"
+EVENT_ONLY = "EVENT_ONLY"
+
+# Kept as aliases so nothing that referenced the old names breaks quietly.
+FULL = FULL_ACTOR
+OBSERVED = EVENT_ONLY
 
 # Measurements worth showing a stranger, mapped from the recogniser's own
 # attribute names to names that mean something without this codebase. Only
@@ -112,22 +127,29 @@ def universal_stats(content_hash: str, server_time_ms: int,
                 "SELECT COUNT(*) FROM kill_events_v1 WHERE content_hash=? "
                 "AND killer_client=? AND killer_class='PLAYER' AND round=?",
                 (content_hash, killer_client, round_no)).fetchone()[0])
+    # Named WITHOUT an actor_ prefix on purpose. These are event facts, not
+    # player-state measurements, and the prefix is reserved so that
+    # `actor_` can mean exactly one thing: read from the actor's own state.
+    # Keeping a single unambiguous rule is worth a slightly plainer name.
     return {
         "round": round_no,
         "multikill_size": len(near),
-        "actor_kills_this_round": in_round,
-        "ms_since_actors_prev_kill": (server_time_ms - prev) if prev is not None else None,
-        "ms_to_actors_next_kill": (nxt - server_time_ms) if nxt is not None else None,
+        "kills_in_round": in_round,
+        "ms_since_previous_kill": (server_time_ms - prev) if prev is not None else None,
+        "ms_to_next_kill": (nxt - server_time_ms) if nxt is not None else None,
     }
 
 
-def recorder_stats(content_hash: str, server_time_ms: int,
-                   db: Path = RECOGNITION_DB
-                   ) -> tuple[dict[str, Any], dict[str, Any]]:
-    """Measurements and sub-scores from the recogniser, when they exist.
+def actor_stats(content_hash: str, server_time_ms: int,
+                db: Path = RECOGNITION_DB
+                ) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Measurements of the ACTOR, and only when they are the actor's.
 
-    They exist only where the actor held the camera. Returns ({}, {}) rather
-    than zeros when they do not -- a zero would be read as a measurement.
+    The recogniser computes these from the recorder's player state, so they
+    describe the actor exactly when the actor was the recorder. This function
+    must only be called on that case -- see `for_clip`. Returns ({}, {})
+    rather than zeros when nothing exists, because a zero reads as a
+    measurement and an absence does not.
     """
     with _conn(db) as c:
         row = c.execute(
@@ -167,18 +189,22 @@ def for_clip(content_hash: str, server_time_ms: int,
                             round_no, db)
     subs: dict[str, Any] = {}
     if is_actor_pov:
-        measured, subs = recorder_stats(content_hash, server_time_ms, db)
+        # Only here. The whole namespace rule is this one branch: an actor_
+        # field exists if and only if the actor's own state was readable.
+        measured, subs = actor_stats(content_hash, server_time_ms, db)
         stats.update(measured)
     return {
         "stats": stats,
         "machine_subscores": subs,
-        "stats_availability": FULL if is_actor_pov else OBSERVED,
+        "stats_availability": FULL_ACTOR if is_actor_pov else EVENT_ONLY,
         "stats_note": (
-            "measurements in game units, milliseconds and degrees; "
+            "the actor held the camera, so every actor_ field is the actor's "
+            "own state. Measurements in game units, milliseconds and degrees; "
             "machine_subscores are the recogniser's own scale, not percentages"
             if is_actor_pov else
-            "the actor did not hold the camera, so nothing derived from their "
-            "aim, health, speed or view exists for this clip. The stats "
-            "present are read from the kill events themselves and hold for "
-            "any actor. Absent fields are unmeasurable here, not zero"),
+            "the actor did not hold the camera. The only player state in this "
+            "demo belongs to the recorder, and it is NOT relabelled as the "
+            "actor's -- so no actor_ field is emitted at all. What remains is "
+            "read from the kill events themselves and holds for any actor. "
+            "Absent fields are unmeasurable here, not zero"),
     }

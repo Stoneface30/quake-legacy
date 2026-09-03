@@ -100,23 +100,38 @@ def test_a_corpus_says_out_loud_that_foreign_frags_are_unscored():
     assert "recorder" in st["scoring"]
 
 
-def test_the_roster_matches_names_not_the_substring_pTn():
-    """A tag is a costume. Membership is the roster, normalized -- never a
-    LIKE on 'pTn' appearing somewhere in a name."""
+def test_the_roster_matches_confirmed_names_not_the_substring_pTn():
+    """A tag is a costume. Membership is the CONFIRMED roster, normalized --
+    never a LIKE on 'pTn' appearing somewhere in a name, and never everything
+    the tag evidence turned up."""
     norms = rc.roster_norms()
     assert {"naikomarie", "sereke", "s73rn", "jibyjibs", "b3nto",
             "tr4sh"} <= norms
     where, params = rc._kill_where(rc.CLAN_FRAG)
     assert "killer_name_norm IN" in where
     assert "LIKE" not in where.upper()
-    assert set(params) == norms
+    # The clan queue excludes the user, who is separately a member.
+    assert set(params) == norms - rc.user_norms()
 
 
-def test_a_clan_frag_is_never_the_recorders_own_scored_frag():
-    """MY_FRAGS owns the recorder's kills, where a real score exists.
-    CLAN_FRAG is what was observed from outside, and the two do not overlap."""
-    where, _ = rc._kill_where(rc.CLAN_FRAG)
-    assert "is_recorder_killer = 0" in where
+def test_an_unconfirmed_identity_set_selects_nothing(monkeypatch):
+    """An unanswered identity question is not permission to guess. An empty
+    confirmed set must match zero rows, never every row."""
+    monkeypatch.setattr(rc, "user_norms", set)
+    where, params = rc._kill_where(rc.USER_FRAG)
+    assert params == [] and "IN (NULL)" in where
+    assert rc.count_items(rc.USER_FRAG) == 0
+
+
+def test_a_clan_frag_is_the_clanmates_kill_not_a_camera_accident():
+    """Membership is by identity, so a clanmate's frag belongs to them
+    whichever camera recorded it. The old rule keyed on "the killer held the
+    camera", which is a statement about recording, not about who made the
+    kill."""
+    where, params = rc._kill_where(rc.CLAN_FRAG)
+    assert "is_recorder_killer" not in where
+    assert "killer_name_norm IN" in where
+    assert "tr4sh" not in params, "the user is served by USER_FRAGS"
 
 
 def test_the_clan_tag_is_blue_pTn_and_a_yellow_dot():
@@ -345,7 +360,7 @@ def test_the_item_type_is_generic_from_the_start():
     deaths = rc.queue(item_type=rc.DEATH, limit=3)
     assert deaths and all(d.item_type == rc.DEATH for d in deaths)
     where, _ = rc._kill_where(rc.DEATH)
-    assert where == "k.is_recorder_victim = 1", "the user's own deaths"
+    assert "victim_name_norm IN" in where, "the user's own deaths, by identity"
 
 
 def test_a_dodge_is_a_feature_of_a_frag_not_a_moment_of_its_own():

@@ -84,24 +84,27 @@ ROLE_BY_KEY = {str(i + 1): r for i, r in enumerate(ROLES)}
 # Only families that exist in the caches today. Inventing a type to pad the
 # list would put the user in front of an empty queue.
 
+# FRAG is the historical archive family: `recognized_frags`, built on "the
+# killer recorded this demo". It is kept for provenance and is NOT the user's
+# frags -- see RECORDER_OWN_ARCHIVE below.
 FRAG = "FRAG"
 TELEFRAG = "TELEFRAG"
 DEATH = "DEATH"
+USER_FRAG = "USER_FRAG"
 CLAN_FRAG = "CLAN_FRAG"
 ALL_KILL = "ALL_KILL"
 TELEPORT = "TELEPORT"
 DODGE = "DODGE"
 LG_TRACKING = "LG_TRACKING"
 PROJECTILE = "PROJECTILE"
-ITEM_TYPES = (FRAG, TELEFRAG, DEATH, CLAN_FRAG, ALL_KILL, TELEPORT, DODGE,
-              LG_TRACKING, PROJECTILE)
+ITEM_TYPES = (USER_FRAG, FRAG, TELEFRAG, DEATH, CLAN_FRAG, ALL_KILL,
+              TELEPORT, DODGE, LG_TRACKING, PROJECTILE)
 
-# Which families read from `kill_events_v1` rather than `recognized_frags`.
-# The split is not cosmetic: `recognized_frags` is the recorder's own
-# killer-attributed set with a full feature vector behind every score, and
-# `kill_events_v1` is every observed kill including ones the recogniser never
-# scored because the features it needs are the recorder's.
-KILL_BACKED = (DEATH, CLAN_FRAG, ALL_KILL)
+# Families served by the CANONICAL OCCURRENCE layer rather than by raw
+# observations. A kill happened once; several demos may have recorded it. One
+# historical frag gets one review, shown through its best observation, and
+# the alternatives stay available.
+KILL_BACKED = (USER_FRAG, DEATH, CLAN_FRAG, ALL_KILL)
 
 # The teleport queue reads its own cache. Only the recorder's OWN transits,
 # and only the ones the attribution actually confirmed -- an UNKNOWN or
@@ -156,11 +159,30 @@ MOD_TELEFRAG = 18
 # persisted. Until a derivation pass writes it, a pTn corpus could only be
 # guessed, and a guess about who killed whom is exactly what this project
 # does not do.
-MY_FRAGS = "MY_FRAGS"
+# WHOSE moments. The names are exact on purpose: three different datasets
+# were previously all called "my frags", and the user was about to spend
+# hours curating one of them under a label that did not describe it.
+#
+# USER_FRAGS       killer is a CONFIRMED USER identity. The default.
+# RECORDER_OWN_ARCHIVE  the historical `recognized_frags` set, built on
+#                  "killer recorded this demo". Preserved, never deleted,
+#                  and no longer presented as the user's own.
+# PTN_FRAGS        killer is a CONFIRMED clan member, excluding the user.
+# USER_AND_PTN     union by canonical occurrence, so a frag that is both
+#                  appears once.
+# ALL_PLAYERS      every canonical player-kill occurrence.
+USER_FRAGS = "USER_FRAGS"
+RECORDER_OWN_ARCHIVE = "RECORDER_OWN_ARCHIVE"
 PTN_FRAGS = "PTN_FRAGS"
-MY_AND_PTN = "MY_AND_PTN"
+USER_AND_PTN = "USER_AND_PTN"
 ALL_PLAYERS = "ALL_PLAYERS"
-CORPORA = (MY_FRAGS, PTN_FRAGS, MY_AND_PTN, ALL_PLAYERS)
+CORPORA = (USER_FRAGS, RECORDER_OWN_ARCHIVE, PTN_FRAGS, USER_AND_PTN,
+           ALL_PLAYERS)
+
+# The old names, kept so nothing that referenced them breaks silently. They
+# are deliberately not in CORPORA: "MY_FRAGS" was the misnomer.
+MY_FRAGS = RECORDER_OWN_ARCHIVE
+MY_AND_PTN = USER_AND_PTN
 
 # ── the pTn clan tag ────────────────────────────────────────────────────────
 # The tag is NOT part of a player name. It is set with /clan and the server
@@ -232,11 +254,24 @@ PTN_ALIAS_CANDIDATES: dict[str, dict[str, Any]] = {
 # serves it. MY_FRAGS keeps the recognized_frags path: it is scored, ranked,
 # and the user is already reviewing it.
 CORPUS_ITEM_TYPE = {
-    MY_FRAGS: FRAG,
+    USER_FRAGS: USER_FRAG,
+    RECORDER_OWN_ARCHIVE: FRAG,
     PTN_FRAGS: CLAN_FRAG,
-    MY_AND_PTN: ALL_KILL,      # narrowed by roster + recorder in the SQL
+    USER_AND_PTN: ALL_KILL,    # narrowed to user + roster in the SQL
     ALL_PLAYERS: ALL_KILL,
 }
+
+# What the user is actually looking at, in words, so a denominator is never
+# ambiguous.
+CORPUS_LABEL = {
+    USER_FRAGS: "CONFIRMED USER FRAGS",
+    RECORDER_OWN_ARCHIVE: "RECORDER-OWN ARCHIVE FRAGS",
+    PTN_FRAGS: "pTn CONFIRMED-MEMBER FRAGS",
+    USER_AND_PTN: "USER + pTn (unique occurrences)",
+    ALL_PLAYERS: "ALL CANONICAL PLAYER KILLS",
+}
+
+DEFAULT_CORPUS = USER_FRAGS
 
 
 # The user's own recorder identity. Only what is certain: "Tr4sH" wears the
@@ -295,19 +330,38 @@ def recorder_identity_spread(limit: int = 20) -> dict[str, Any]:
 
 def corpus_status(corpus: str) -> dict[str, Any]:
     """Whether a corpus can be reviewed, and if not, exactly what is missing."""
-    if corpus == MY_FRAGS:
-        return {"corpus": corpus, "available": True, "total": count_items(FRAG),
-                "item_type": FRAG,
-                "scored": True,
-                "note": "the recorder's own kills, fully scored and ranked",
-                # Surfaced, not silently filtered: see recorder_identity_spread.
+    if corpus == RECORDER_OWN_ARCHIVE:
+        return {"corpus": corpus, "label": CORPUS_LABEL[corpus],
+                "available": True, "total": count_items(FRAG),
+                "item_type": FRAG, "scored": True,
+                "note": ("the historical archive set, built on 'the killer "
+                         "recorded this demo'. Kept for provenance. This is "
+                         "NOT the user's own frags -- see USER_FRAGS"),
                 "recorder_identity": recorder_identity_spread(limit=8)}
-    if corpus in (PTN_FRAGS, MY_AND_PTN, ALL_PLAYERS):
+    if corpus == USER_FRAGS:
+        total = count_items(USER_FRAG)
+        from creative_suite.engine import identity as idn
+        st = idn.status()
+        out = {"corpus": corpus, "label": CORPUS_LABEL[corpus],
+               "item_type": USER_FRAG, "available": total > 0, "total": total,
+               "confirmed_identities": st["user_confirmed"],
+               "unanswered_recorder_identities": st["unanswered"],
+               "scoring": ("machine scores exist only where the actor IS the "
+                           "recorder. Foreign-camera frags are unscored, not "
+                           "scored zero, and the two are not comparable"),
+               "note": ("canonical occurrences whose killer is a CONFIRMED "
+                        "user identity. Grows as the user confirms aliases; "
+                        "nothing is merged on resemblance")}
+        if total == 0:
+            out["blocked_by"] = ("no confirmed user identity has any "
+                                 "attributed kill")
+        return out
+    if corpus in (PTN_FRAGS, USER_AND_PTN, ALL_PLAYERS):
         it = CORPUS_ITEM_TYPE[corpus]
         total = count_items(it, corpus=corpus)
         out = {
-            "corpus": corpus, "item_type": it, "available": total > 0,
-            "total": total,
+            "corpus": corpus, "label": CORPUS_LABEL[corpus],
+            "item_type": it, "available": total > 0, "total": total,
             "roster": PTN_ROSTER,
             "alias_candidates": PTN_ALIAS_CANDIDATES,
             "tag": PTN_TAG, "tag_colours": PTN_TAG_COLOURS,
@@ -339,13 +393,20 @@ def corpus_status(corpus: str) -> dict[str, Any]:
 # substring "pTn", which is a costume anyone can wear.
 
 def roster_norms() -> set[str]:
-    out: set[str] = set()
-    for member, info in PTN_ROSTER.items():
-        for n in (member, *info.get("names", ())):
-            v = _strip_colors(n).strip().lower()
-            if v:
-                out.add(v)
-    return out
+    """CONFIRMED clan identities, from the identity store.
+
+    Not a string match on "pTn", and not everything the tag evidence turned
+    up. Membership is the user's answer; candidates are surfaced separately
+    by `identity.ptn_candidates()` and are not in here.
+    """
+    from creative_suite.engine import identity as idn
+    return idn.confirmed_ptn_identities()
+
+
+def user_norms() -> set[str]:
+    """CONFIRMED user identities. Starts as the one the project asserts."""
+    from creative_suite.engine import identity as idn
+    return idn.confirmed_user_identities()
 
 
 import re as _re                                                # noqa: E402
@@ -356,26 +417,43 @@ def _strip_colors(name: str) -> str:
     return _COLOR_RE.sub("", name or "")
 
 
+def _in(names: set[str]) -> tuple[str, list[Any]]:
+    ns = sorted(names)
+    if not ns:
+        # An empty confirmed set must select NOTHING, not everything. An
+        # unanswered identity question is not permission to guess. `IN (NULL)`
+        # is valid SQL that matches no row -- a bare 0 was not.
+        return "(NULL)", []
+    return "(" + ",".join("?" * len(ns)) + ")", ns
+
+
 def _kill_where(item_type: str, corpus: str | None = None
                 ) -> tuple[str, list[Any]]:
-    """The WHERE clause for one kill-event family, plus its parameters."""
+    """The WHERE clause for one occurrence family, plus its parameters.
+
+    Identity is by CONFIRMED NAME, never by "the killer held the camera".
+    Those are different claims and conflating them is what produced a corpus
+    labelled "my frags" that was 5% somebody else's.
+    """
+    users, up = _in(user_norms())
+    if item_type == USER_FRAG:
+        return f"o.killer_class = 'PLAYER' AND o.killer_name_norm IN {users}", up
     if item_type == DEATH:
-        # The user's own deaths. Not "kills they were present for" -- the
-        # victim slot has to be the recorder.
-        return "k.is_recorder_victim = 1", []
-    norms = sorted(roster_norms())
-    marks = ",".join("?" * len(norms))
+        # The user's own deaths, by identity -- not "a death the recorder
+        # happened to be the victim of", which is a different set whenever
+        # the recorder is not the user.
+        return f"o.victim_name_norm IN {users}", up
+    clan, cp = _in(roster_norms() - user_norms())
     if item_type == CLAN_FRAG:
-        # A clanmate's frag, observed. is_recorder_killer = 0 keeps the
-        # recorder's own kills in MY_FRAGS where they are scored.
-        return (f"k.killer_class = 'PLAYER' AND k.is_recorder_killer = 0 "
-                f"AND k.killer_name_norm IN ({marks})", norms)
-    if item_type == ALL_KILL and corpus == MY_AND_PTN:
-        return (f"k.killer_class = 'PLAYER' AND (k.is_recorder_killer = 1 "
-                f"OR k.killer_name_norm IN ({marks}))", norms)
+        return (f"o.killer_class = 'PLAYER' AND o.killer_name_norm IN {clan}",
+                cp)
+    if item_type == ALL_KILL and corpus == USER_AND_PTN:
+        both, bp = _in(roster_norms() | user_norms())
+        return (f"o.killer_class = 'PLAYER' AND o.killer_name_norm IN {both}",
+                bp)
     if item_type == ALL_KILL:
-        return "k.killer_class = 'PLAYER'", []
-    raise ValueError(f"not a kill-backed family: {item_type!r}")
+        return "o.killer_class = 'PLAYER'", []
+    raise ValueError(f"not an occurrence-backed family: {item_type!r}")
 
 
 _TELEPORT_SELECT = """
@@ -407,15 +485,45 @@ def _teleport_item(r: sqlite3.Row, rank: int, total: int,
 def _kill_table_exists() -> bool:
     with _rec() as c:
         return c.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
-                         "AND name='kill_events_v1'").fetchone() is not None
+                         "AND name='kill_occurrences_v1'").fetchone() is not None
 
+
+# One row per CANONICAL OCCURRENCE, shown through the observation chosen for
+# review. The observation supplies the media; the occurrence supplies the
+# identity of the historical event.
+# A death is watched from the dying player's camera, a frag from the
+# killer's. Same occurrence, different question, so the observation the media
+# comes from depends on which queue is asking.
+_DEATH_SELECT = """
+SELECT o.occurrence_id AS id, k.content_hash, s.demo_name, o.server_time_ms,
+       o.round, o.mod_name, o.mod, o.victim_client, o.killer_client, o.map,
+       k.killer_name_raw, k.victim_name_raw, o.death_cause, o.killer_class,
+       k.is_recorder_killer, k.is_recorder_victim, r.highlight_score,
+       o.n_observations, o.actor_pov_available,
+       CASE WHEN k.is_recorder_victim THEN 'VICTIM_POV'
+            WHEN k.is_recorder_killer THEN 'ACTOR_POV'
+            ELSE 'OTHER_POV' END AS best_observation_pov,
+       o.merge_confidence
+FROM kill_occurrences_v1 o
+JOIN kill_events_v1 k
+  ON k.kill_event_id = COALESCE(o.victim_pov_observation_id,
+                                o.best_observation_id)
+JOIN scanned_demos s ON s.content_hash = k.content_hash
+LEFT JOIN recognized_frags r
+       ON r.content_hash = k.content_hash
+      AND r.server_time_ms = k.server_time_ms
+      AND k.is_recorder_killer = 1
+"""
 
 _KILL_SELECT = """
-SELECT k.kill_event_id AS id, k.content_hash, s.demo_name, k.server_time_ms,
-       k.round, k.mod_name, k.mod, k.victim_client, k.killer_client, k.map,
-       k.killer_name_raw, k.victim_name_raw, k.death_cause, k.killer_class,
-       k.is_recorder_killer, k.is_recorder_victim, r.highlight_score
-FROM kill_events_v1 k
+SELECT o.occurrence_id AS id, k.content_hash, s.demo_name, o.server_time_ms,
+       o.round, o.mod_name, o.mod, o.victim_client, o.killer_client, o.map,
+       k.killer_name_raw, k.victim_name_raw, o.death_cause, o.killer_class,
+       k.is_recorder_killer, k.is_recorder_victim, r.highlight_score,
+       o.n_observations, o.actor_pov_available, o.best_observation_pov,
+       o.merge_confidence
+FROM kill_occurrences_v1 o
+JOIN kill_events_v1 k ON k.kill_event_id = o.best_observation_id
 JOIN scanned_demos s ON s.content_hash = k.content_hash
 LEFT JOIN recognized_frags r
        ON r.content_hash = k.content_hash
@@ -426,15 +534,17 @@ LEFT JOIN recognized_frags r
 
 def _kill_why(row: sqlite3.Row) -> str:
     """What is known about this moment. For a foreign-camera frag that is
-    genuinely less than for the recorder's own, and saying so is better than
+    genuinely less than for the actor's own, and saying so is better than
     padding it out."""
     who = _strip_colors(row["killer_name_raw"] or "") or "unknown"
     weap = row["mod_name"] or "kill"
+    n = row["n_observations"] if "n_observations" in row.keys() else 1
+    extra = f", {n} camera angles" if n and n > 1 else ""
     if row["is_recorder_victim"]:
-        return f"killed by {who}, {weap}"
+        return f"killed by {who}, {weap}{extra}"
     if row["is_recorder_killer"]:
-        return f"{weap}, own camera"
-    return f"{who}, {weap}, observed from another camera"
+        return f"{weap}, actor's own camera{extra}"
+    return f"{who}, {weap}, observed from another camera{extra}"
 
 
 @dataclass(frozen=True)
@@ -461,6 +571,12 @@ class ReviewItem:
     actor_name: str | None = None
     is_actor_pov: bool = True
     death_cause: str | None = None
+    # How many demos recorded this one historical kill, and which camera the
+    # review is being shown through. One frag, one review -- the alternatives
+    # are preserved, not shown.
+    n_observations: int = 1
+    observation_pov: str | None = None
+    merge_confidence: str | None = None
     # False when the recogniser never scored this moment, which is every
     # moment whose actor is not the recorder. Distinct from a low score.
     scored: bool = True
@@ -660,12 +776,13 @@ def _why(row: sqlite3.Row) -> str:
 def _kill_rows(order: str, limit: int, offset: int, unreviewed_only: bool,
                item_type: str, corpus: str | None) -> list[sqlite3.Row]:
     where, params = _kill_where(item_type, corpus)
+    select = _DEATH_SELECT if item_type == DEATH else _KILL_SELECT
     direction = "ASC" if order == ORDER_WORST_FIRST else "DESC"
     # Unscored rows sort after scored ones in both directions rather than
     # being treated as a score of zero. A missing score is not a low score.
-    sql = (f"{_KILL_SELECT} WHERE {where} "
+    sql = (f"{select} WHERE {where} "
            f"ORDER BY (r.highlight_score IS NULL), r.highlight_score {direction}, "
-           "k.kill_event_id ASC LIMIT ? OFFSET ?")
+           "o.occurrence_id ASC LIMIT ? OFFSET ?")
     with _rec() as c:
         rows = c.execute(sql, (*params, limit, offset)).fetchall()
     if not unreviewed_only:
@@ -692,6 +809,9 @@ def _kill_item(r: sqlite3.Row, item_type: str, rank: int, total: int,
         actor_name=_strip_colors(r["killer_name_raw"] or "") or None,
         is_actor_pov=bool(r["is_recorder_killer"]),
         death_cause=r["death_cause"],
+        n_observations=int(r["n_observations"] or 1),
+        observation_pov=r["best_observation_pov"],
+        merge_confidence=r["merge_confidence"],
         scored=score is not None,
         human_role=(rv.get("human_role") or None) or None,
         note=rv.get("note") or "")
@@ -764,7 +884,7 @@ def count_items(item_type: str = FRAG, corpus: str | None = None) -> int:
         where, params = _kill_where(item_type, corpus)
         with _rec() as c:
             return int(c.execute(
-                f"SELECT COUNT(*) FROM kill_events_v1 k WHERE {where}",
+                f"SELECT COUNT(*) FROM kill_occurrences_v1 o WHERE {where}",
                 params).fetchone()[0])
     if item_type == TELEPORT:
         with _rec() as c:
@@ -798,7 +918,8 @@ def item(item_id: str) -> ReviewItem | None:
         if not _kill_table_exists():
             return None
         with _rec() as c:
-            r = c.execute(f"{_KILL_SELECT} WHERE k.kill_event_id = ?",
+            sel = _DEATH_SELECT if kind == DEATH else _KILL_SELECT
+            r = c.execute(f"{sel} WHERE o.occurrence_id = ?",
                           (int(sid),)).fetchone()
         if not r:
             return None

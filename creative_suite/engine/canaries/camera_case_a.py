@@ -47,6 +47,11 @@ import time
 from pathlib import Path
 
 REPO = Path("G:/QUAKE_LEGACY")
+# The committed measurement. Written ONLY with --write-reference, so a
+# diff here is always a decision and never a side effect of a run.
+REFERENCE = REPO / "docs" / "reference" / "camera_case_a.json"
+# Scratch destination for an ordinary run.
+SCRATCH = REPO / ".tmp" / "canaries" / "camera_case_a.json"
 sys.path.insert(0, str(REPO))
 os.environ["CS_PREVIEW_KEEP_RAW"] = "1"
 
@@ -406,7 +411,7 @@ def capture(scene: dict, duration_ms: int, out: Path, compile_only: bool) -> dic
     return row
 
 
-def main() -> None:
+def main(write_reference: bool = False) -> None:
     out = Path(sys.argv[1]) if len(sys.argv) > 1 else (
         REPO / "output/demo_v2/_case_a")
     compile_only = "--compile-only" in sys.argv
@@ -434,10 +439,13 @@ def main() -> None:
                              "cam10_usable_points": cw.CAM10_USABLE_POINTS},
               "ladder": rows}
     (out / "case_a.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
-    (REPO / "docs/reference/camera_case_a.json").write_text(
+    _dest = REFERENCE if write_reference else SCRATCH
+    _dest.parent.mkdir(parents=True, exist_ok=True)
+    _dest.write_text(
         json.dumps(result, indent=2), encoding="utf-8")
     log(f"DONE {out/'case_a.json'}")
 
 
 if __name__ == "__main__":
-    main()
+    import sys as _sys
+    main(write_reference="--write-reference" in _sys.argv)

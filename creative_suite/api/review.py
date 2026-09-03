@@ -200,3 +200,57 @@ def ui():
     if not p.exists():
         raise HTTPException(404, "review.html missing")
     return HTMLResponse(p.read_text(encoding="utf-8"))
+
+
+# ── identity review ─────────────────────────────────────────────────────────
+# A different question from the five-button creative review, so it gets its
+# own endpoints and its own small page. "Is this recorder me?" is a matter of
+# fact the user knows and the code cannot infer.
+
+class IdentityDecision(BaseModel):
+    name_norm: str
+    user_state: str | None = None
+    ptn_state: str | None = None
+    alias_of: str | None = None
+    note: str | None = None
+
+
+@router.get("/identity/status")
+def identity_status():
+    from creative_suite.engine import identity as idn
+    return idn.status()
+
+
+@router.get("/identity/recorders")
+def identity_recorders(limit: int = Query(200, le=500)):
+    from creative_suite.engine import identity as idn
+    return {"candidates": idn.recorder_candidates(limit=limit),
+            "user_states": list(idn.USER_STATES),
+            "ptn_states": list(idn.PTN_STATES)}
+
+
+@router.get("/identity/ptn")
+def identity_ptn(min_lines: int = 20):
+    from creative_suite.engine import identity as idn
+    return {"candidates": idn.ptn_candidates(min_lines=min_lines),
+            "user_supplied": list(idn.USER_SUPPLIED_PTN),
+            "primary": idn.PRIMARY_USER,
+            "user_defined_aliases": idn.USER_DEFINED_ALIASES}
+
+
+@router.post("/identity/decide")
+def identity_decide(d: IdentityDecision):
+    from creative_suite.engine import identity as idn
+    try:
+        return idn.decide(d.name_norm, d.user_state, d.ptn_state,
+                          d.alias_of, d.note, decided_by=idn.BY_USER)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.get("/identity/ui", response_class=HTMLResponse)
+def identity_ui():
+    p = FRONTEND / "identity.html"
+    if not p.exists():
+        raise HTTPException(404, "identity.html missing")
+    return HTMLResponse(p.read_text(encoding="utf-8"))

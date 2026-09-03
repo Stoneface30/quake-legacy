@@ -127,7 +127,7 @@
 // Live demo filenames embed opponent nicknames, and this is a public repo.
 const API = "/api/review";
 let items = [], idx = 0, offset = 0, order = "WORST_FIRST", cur = null;
-let itemType = "FRAG", corpus = null;
+let itemType = "USER_FRAG", corpus = "USER_FRAGS";
 const $ = id => document.getElementById(id);
 const v = $("v");
 
@@ -197,6 +197,15 @@ function meta(it){
   if (it.actor_name) rows.splice(1, 0, ["actor", it.actor_name]);
   if (it.is_actor_pov === false)
     rows.splice(2, 0, ["camera", "another player's demo — not the actor's view"]);
+  // One historical kill, several demos that recorded it. The review shows
+  // the best one and says the others exist rather than asking for a second
+  // verdict on the same moment.
+  if (it.n_observations > 1)
+    rows.push(["observations", it.n_observations + " demos recorded this kill; "
+               + "showing " + (it.observation_pov || "best") ]);
+  if (it.merge_confidence && it.merge_confidence !== "SINGLE_OBSERVATION"
+      && it.merge_confidence !== "HIGH_CONFIDENCE_SAME")
+    rows.push(["merge", it.merge_confidence + " — kept separate"]);
   if (it.death_cause && it.death_cause !== "PLAYER_KILL")
     rows.push(["cause", it.death_cause]);
   $("meta").replaceChildren(...rows.map(([k, val]) => {
@@ -337,9 +346,13 @@ async function corpora(){
   g1.append(...d.corpora.map(c => {
     const o = document.createElement("option");
     o.value = "corpus:" + c.corpus;
+    // The LABEL, not the constant. Three different datasets were once all
+    // called "my frags"; a denominator the user cannot name is worse than
+    // no denominator.
+    const lab = c.label || c.corpus;
     o.textContent = c.available
-      ? c.corpus + " (" + c.total.toLocaleString() + ")"
-      : c.corpus + " — " + (c.blocked_by || "unavailable");
+      ? lab + " (" + c.total.toLocaleString() + ")"
+      : lab + " — " + (c.blocked_by || "unavailable");
     o.disabled = !c.available;
     return o;
   }));
@@ -359,10 +372,10 @@ async function corpora(){
   }));
   groups.push(g2);
   sel.replaceChildren(...groups);
-  sel.value = "corpus:MY_FRAGS";
+  sel.value = "corpus:USER_FRAGS";
   sel.onchange = () => {
     const [kind, val] = sel.value.split(":");
-    if (kind === "corpus"){ corpus = val; itemType = "FRAG"; }
+    if (kind === "corpus"){ corpus = val; itemType = ""; }
     else { corpus = null; itemType = val; }
     progress(); loadQueue(0);
   };

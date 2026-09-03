@@ -305,9 +305,9 @@ def test_universal_stats_hold_for_any_actor(kill_db):
     from creative_suite.engine import clip_stats
     s = clip_stats.universal_stats("h1", 60000, 3, 1, db=kill_db)
     assert s["round"] == 1 and s["multikill_size"] == 1
-    assert s["actor_kills_this_round"] == 1
-    assert s["ms_since_actors_prev_kill"] is None
-    assert s["ms_to_actors_next_kill"] is None      # client 3 kills once
+    assert s["kills_in_round"] == 1
+    assert s["ms_since_previous_kill"] is None
+    assert s["ms_to_next_kill"] is None      # client 3 kills once
 
 
 def test_a_broken_attribute_blob_costs_the_stats_not_the_clip(
@@ -341,3 +341,42 @@ def test_refresh_drops_a_row_whose_clip_is_gone(kill_db, mock_capture, tmp_path)
     px.export(px.candidates_from_kill_events(limit=2, db=kill_db), root=root)
     next(iter((root / px.CLIP_DIR_NAME).glob("*.mp4"))).unlink()
     assert px.refresh_manifest(root, db=kill_db)["dropped"] == 1
+
+
+def test_no_actor_field_survives_when_the_actor_was_not_the_camera():
+    """The namespace rule, as a guard rather than a convention. Every actor_
+    measurement is computed from the recorder's player state, so labelling
+    one as the actor's when the actor did not hold the camera would be a
+    false statement about whose speed, health or aim is being reported."""
+    from creative_suite.engine import clip_stats
+    b = clip_stats.for_clip("nope", 0, 3, 1, is_actor_pov=False)
+    assert b["stats_availability"] == clip_stats.EVENT_ONLY
+    assert not [k for k in b["stats"] if k.startswith("actor_")]
+    assert not [k for k in b["stats"] if k.startswith("recorder_")], \
+        "recorder state is omitted, not renamed"
+    assert b["machine_subscores"] == {}
+
+
+def test_actor_fields_are_only_named_actor_when_they_are_the_actors():
+    from creative_suite.engine import clip_stats
+    b = clip_stats.for_clip("nope", 0, 3, 1, is_actor_pov=True)
+    assert b["stats_availability"] == clip_stats.FULL_ACTOR
+    assert "the actor held the camera" in b["stats_note"]
+
+
+def test_the_live_export_has_no_mislabelled_actor_stats():
+    """Against the real manifest: no exported observed clip may carry an
+    actor_ measurement."""
+    import json as _json
+    from pathlib import Path as _P
+    m = _P(px.EXPORT_ROOT) / px.MANIFEST_NAME
+    if not m.exists():
+        pytest.skip("nothing exported yet")
+    for line in m.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        row = _json.loads(line)
+        if row.get("is_actor_pov"):
+            continue
+        bad = [k for k in row.get("stats", {}) if k.startswith("actor_")]
+        assert not bad, f"{row['external_source_id']} carries {bad}"
