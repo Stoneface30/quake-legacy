@@ -37,6 +37,13 @@ def create_app() -> FastAPI:
             return response
 
     app.add_middleware(NoCacheStaticMiddleware)
+    # Cloudflare Access, enforced at the origin as well as the edge. The
+    # window this closes is a hostname that exists before its Access
+    # application does -- during which the edge has no policy and forwards
+    # everything. Default closed: no token, no answer. Loopback is exempt so
+    # local use is unchanged.
+    from creative_suite.api.access_guard import CloudflareAccessMiddleware
+    app.add_middleware(CloudflareAccessMiddleware)
 
     from creative_suite.api._render_worker import JobQueue
 
