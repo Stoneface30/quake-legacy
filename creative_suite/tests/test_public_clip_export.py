@@ -269,3 +269,75 @@ def test_the_lock_is_released_even_when_capture_fails(monkeypatch, tmp_path,
     px.export(px.candidates_from_kill_events(limit=1, db=kill_db),
               root=tmp_path / "x")
     assert released["n"] == 1
+
+
+# ── stats ───────────────────────────────────────────────────────────────────
+
+def test_measurements_and_machine_opinions_are_separate_blocks():
+    """distance_units is a fact. accuracy_score is the recogniser's opinion on
+    its own scale. Merging them would invite a voter to read a 7.5 as a
+    percentage."""
+    from creative_suite.engine import clip_stats
+    b = clip_stats.for_clip("nope", 0, 3, 1, is_actor_pov=True)
+    assert set(b) == {"stats", "machine_subscores", "stats_availability",
+                      "stats_note"}
+    assert "not percentages" in b["stats_note"]
+
+
+def test_an_observed_clip_gets_universal_stats_and_says_what_is_missing():
+    """Everything derived from aim, health, speed or view comes from the
+    RECORDER's player state. When the actor is not the recorder there is no
+    such state -- and a shorter dictionary that looks complete is worse than
+    one that states the limit."""
+    from creative_suite.engine import clip_stats
+    b = clip_stats.for_clip("nope", 0, 3, 1, is_actor_pov=False)
+    assert b["stats_availability"] == clip_stats.OBSERVED
+    assert b["machine_subscores"] == {}
+    assert "unmeasurable here, not zero" in b["stats_note"]
+    # No recorder-derived measurement may appear on an observed clip.
+    for out, _ in clip_stats.MEASURED.values():
+        assert out not in b["stats"]
+
+
+def test_universal_stats_hold_for_any_actor(kill_db):
+    """An obituary is a server fact, not an observation of one player, so a
+    multi-kill is countable even for a frag seen from another camera."""
+    from creative_suite.engine import clip_stats
+    s = clip_stats.universal_stats("h1", 60000, 3, 1, db=kill_db)
+    assert s["round"] == 1 and s["multikill_size"] == 1
+    assert s["actor_kills_this_round"] == 1
+    assert s["ms_since_actors_prev_kill"] is None
+    assert s["ms_to_actors_next_kill"] is None      # client 3 kills once
+
+
+def test_a_broken_attribute_blob_costs_the_stats_not_the_clip(
+        kill_db, mock_capture, tmp_path, monkeypatch):
+    """An unreadable stats source is not a reason to lose a captured clip."""
+    from creative_suite.engine import clip_stats
+    monkeypatch.setattr(clip_stats, "for_clip",
+                        lambda *a, **k: (_ for _ in ()).throw(ValueError("bad")))
+    out = px.export(px.candidates_from_kill_events(limit=1, db=kill_db),
+                    root=tmp_path / "x")
+    assert out["written"] == 1
+    assert out["rows"][0]["stats_availability"] == "UNAVAILABLE"
+
+
+def test_refresh_rebuilds_metadata_without_recapturing(kill_db, mock_capture,
+                                                       tmp_path, monkeypatch):
+    """Metadata improves; captured media does not. Attaching a new stat must
+    not cost forty seconds of wolfcam per clip."""
+    root = tmp_path / "x"
+    px.export(px.candidates_from_kill_events(limit=2, db=kill_db), root=root)
+    monkeypatch.setattr(px, "_capture",
+                        lambda *a: (_ for _ in ()).throw(
+                            AssertionError("refresh must not capture")))
+    out = px.refresh_manifest(root, db=kill_db)
+    assert out == {"refreshed": 2, "dropped": 0}
+
+
+def test_refresh_drops_a_row_whose_clip_is_gone(kill_db, mock_capture, tmp_path):
+    """A manifest entry without its media is not a handoff."""
+    root = tmp_path / "x"
+    px.export(px.candidates_from_kill_events(limit=2, db=kill_db), root=root)
+    next(iter((root / px.CLIP_DIR_NAME).glob("*.mp4"))).unlink()
+    assert px.refresh_manifest(root, db=kill_db)["dropped"] == 1

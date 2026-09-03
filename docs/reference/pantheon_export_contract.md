@@ -113,6 +113,45 @@ So a foreign-camera frag carries `machine_score: null`, not `0`. The two are
 not comparable, and treating null as a low score would rank observed frags
 last for a reason that has nothing to do with how good they are.
 
+### `stats`, `machine_subscores`, `stats_availability`
+
+A voter looking at ten seconds of Quake cannot see how far the rail went, how
+fast the victim was moving, or that this was the second kill in a 100 ms
+burst. Those separate a good play from a lucky one and are already measured.
+
+Three kinds of number, kept apart:
+
+- **`stats`** are **measurements** — game units, milliseconds, degrees,
+  health. They mean the same thing to anyone: `distance_units`,
+  `actor_speed_ups`, `victim_speed_ups`, `victim_air_height_units`,
+  `flick_degrees`, `flick_duration_ms`, `flick_speed_deg_per_s`,
+  `target_visible_ms`, `actor_health`, `actor_armor`,
+  `lg_damage_dealt_3s`, `damage_taken_in_fight`, `incoming_hit_ratio`,
+  `lowest_health_in_fight`, plus `recognised_as` (the classes the recogniser
+  detected, e.g. `DODGE_TO_KILL`).
+- **`machine_subscores`** are the recogniser's **opinions on its own scale** —
+  `accuracy_score`, `tracking_score`, `movement_score` and the rest. They are
+  components of the highlight score, **not percentages**. Reading a 7.5
+  "accuracy" as 7.5% or 75% would both be wrong.
+- **`stats_availability`** is `FULL_RECORDER_STATE` or `OBSERVED_ONLY`.
+
+**Universal stats hold for every actor**, because an obituary is a server
+fact rather than an observation of one player: `round`, `multikill_size`,
+`actor_kills_this_round`, `ms_since_actors_prev_kill`,
+`ms_to_actors_next_kill`.
+
+Everything else comes from the **recorder's** player state. When the actor
+did not hold the camera, there is no such state and those fields are simply
+absent — `OBSERVED_ONLY`.
+
+> **A missing field is unmeasurable, not zero.** Treating an absent
+> `distance_units` as "close range" would be a conclusion the data does not
+> support. `stats_note` says this in words on every observed clip.
+
+Metadata can be rebuilt without re-capturing: `refresh_manifest()` recomputes
+every row for clips already on disk. Media is expensive (~40 s of WolfcamQL
+per clip); metadata is not, and a new stat should never cost a re-render.
+
 ### `public_eligible` — default `false`
 
 Ten years of archive footage was not recorded with the internet in mind. No

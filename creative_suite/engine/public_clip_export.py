@@ -123,6 +123,8 @@ class ExportCandidate:
     machine_score: float | None
     machine_score_version: str | None
     demo_name: str                   # local only, never enters the manifest
+    killer_client: int | None = None
+    round_no: int | None = None
 
 
 def _conn(db: Path = RECOGNITION_DB) -> sqlite3.Connection:
@@ -171,7 +173,9 @@ def candidates_from_kill_events(where: str = "killer_class='PLAYER'",
                 is_actor_pov=bool(r["is_recorder_killer"]),
                 machine_score=None,
                 machine_score_version=None,
-                demo_name=r["demo_name"]))
+                demo_name=r["demo_name"],
+                killer_client=r["killer_client"],
+                round_no=r["round"]))
     return out
 
 
@@ -223,6 +227,24 @@ def probe_duration_ms(path: Path) -> int | None:
         return None
 
 
+def _stats_block(cand: ExportCandidate) -> dict[str, Any]:
+    """Measurements a voter cannot see in ten seconds of footage.
+
+    A failure here costs the clip its stats, not the export -- an unreadable
+    attribute blob is not a reason to lose a captured clip, and the empty
+    availability field says the numbers are absent.
+    """
+    from creative_suite.engine import clip_stats
+    try:
+        return clip_stats.for_clip(cand.content_hash, cand.event_time_ms,
+                                   cand.killer_client, cand.round_no,
+                                   cand.is_actor_pov)
+    except (sqlite3.Error, ValueError, TypeError, KeyError) as exc:
+        return {"stats": {}, "machine_subscores": {},
+                "stats_availability": "UNAVAILABLE",
+                "stats_note": f"{type(exc).__name__}: {exc}"}
+
+
 def manifest_row(cand: ExportCandidate, clip_rel: str, clip_hash: str,
                  event_offset_ms: int, duration_ms: int | None,
                  note: str | None = None,
@@ -253,6 +275,7 @@ def manifest_row(cand: ExportCandidate, clip_rel: str, clip_hash: str,
         "is_actor_pov": cand.is_actor_pov,
         "machine_score": cand.machine_score,
         "machine_score_version": cand.machine_score_version,
+        **_stats_block(cand),
         "source_note": note,
         "source_demo_ref": cand.content_hash,
         "source_provenance": "QUAKE_LEGACY/RECORDED_OBSERVED/DEMO_EV_OBITUARY",
@@ -388,6 +411,42 @@ def export(cands: list[ExportCandidate], root: Path = EXPORT_ROOT,
             "failed": len(failures), "failures": failures,
             "elapsed_s": round(time.monotonic() - t0, 1),
             "rows": written}
+
+
+def refresh_manifest(root: Path = EXPORT_ROOT,
+                     db: Path = RECOGNITION_DB) -> dict[str, Any]:
+    """Rebuild manifest rows for clips already on disk.
+
+    Metadata improves; captured media does not. When a new stat becomes
+    available there is no reason to spend forty seconds of wolfcam per clip
+    to attach it. Only rows whose media is still present are rebuilt -- a
+    manifest entry without its clip is dropped rather than carried.
+    """
+    manifest = root / MANIFEST_NAME
+    if not manifest.exists():
+        return {"refreshed": 0, "dropped": 0}
+    old = [json.loads(x) for x in
+           manifest.read_text(encoding="utf-8").splitlines() if x.strip()]
+    by_id = {r["external_source_id"]: r for r in old}
+    every = candidates_from_kill_events(limit=1_000_000, db=db)
+    cands = {c.external_source_id: c for c in every if c.external_source_id in by_id}
+    cands = {c.external_source_id: c
+             for c in attach_machine_scores(list(cands.values()), db=db)}
+    rows, dropped = [], 0
+    for r in old:
+        sid = r["external_source_id"]
+        clip = root / CLIP_DIR_NAME / f"{sid}.mp4"
+        cand = cands.get(sid)
+        if not clip.exists() or cand is None:
+            dropped += 1
+            continue
+        rows.append(manifest_row(
+            cand, r["clip_path"], r["content_hash"], r["event_offset_ms"],
+            r["duration_ms"], r.get("source_note"),
+            bool(r.get("public_eligible", ELIGIBLE_DEFAULT))))
+    manifest.write_text("".join(json.dumps(x) + chr(10) for x in rows),
+                        encoding="utf-8")
+    return {"refreshed": len(rows), "dropped": dropped}
 
 
 def export_summary(root: Path = EXPORT_ROOT) -> dict[str, Any]:

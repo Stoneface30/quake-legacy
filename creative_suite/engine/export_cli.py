@@ -30,6 +30,10 @@ def _select(args) -> list[px.ExportCandidate]:
     params: list[object] = []
     if args.mine:
         where.append("is_recorder_killer = 1")
+    if args.observed:
+        # Frags seen from a camera that is not the actor's. The manifest
+        # marks these is_actor_pov=false and they carry no machine score.
+        where.append("is_recorder_killer = 0")
     if args.clan:
         norms = sorted(rc.roster_norms())
         where.append(f"killer_name_norm IN ({','.join('?' * len(norms))})")
@@ -61,6 +65,8 @@ def main(argv: list[str] | None = None) -> int:
     q = sub.add_parser("query", help="select by attribute and export")
     q.add_argument("--mine", action="store_true", help="the recorder's own kills")
     q.add_argument("--clan", action="store_true", help="anyone on the pTn roster")
+    q.add_argument("--observed", action="store_true",
+                   help="only frags seen from a camera that is not the actor's")
     q.add_argument("--actor", help="one normalized actor name")
     q.add_argument("--weapon", help="MOD name, e.g. ROCKET or RAILGUN")
     q.add_argument("--map")
