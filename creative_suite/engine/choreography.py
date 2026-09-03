@@ -392,6 +392,7 @@ class ComposerReadiness:
     gameplay_truth_ready: bool
     music_library_ready: bool
     choreography_scoring_ready: bool
+    temporal_solver_ready: bool = False
     blockers: tuple[str, ...] = ()
 
     @property
@@ -411,7 +412,9 @@ class ComposerReadiness:
 def assess_readiness(*, corpus_entries: int, lanes_covered: int,
                      proofs_built: int, gameplay_truth_ready: bool,
                      music_library_ready: bool,
-                     min_proofs: int = 10) -> ComposerReadiness:
+                     temporal_proofs_built: int = 0,
+                     min_proofs: int = 10,
+                     min_temporal_proofs: int = 5) -> ComposerReadiness:
     """Every condition is named, and a missing one is a blocker, not a warning."""
     blockers: list[str] = []
     if corpus_entries <= 0:
@@ -422,12 +425,50 @@ def assess_readiness(*, corpus_entries: int, lanes_covered: int,
         blockers.append(f"{proofs_built}/{min_proofs} choreography proofs exist")
     if not gameplay_truth_ready:
         blockers.append("gameplay truth closure is incomplete")
+    if temporal_proofs_built < min_temporal_proofs:
+        blockers.append(f"{temporal_proofs_built}/{min_temporal_proofs} temporal "
+                        f"solver proofs exist: without them the composer can find "
+                        f"material but cannot fit it to a fixed song")
     if not music_library_ready:
         blockers.append("the music library has unresolved source or duration defects")
-    chore_ready = not blockers or blockers == ["the music library has unresolved "
-                                               "source or duration defects"]
+    creative = [b for b in blockers if "corpus" in b or "lanes" in b
+                or "choreography proofs" in b]
+    temporal_ready = temporal_proofs_built >= min_temporal_proofs
     return ComposerReadiness(
         corpus_entries=corpus_entries, lanes_covered=lanes_covered,
         proofs_built=proofs_built, gameplay_truth_ready=gameplay_truth_ready,
         music_library_ready=music_library_ready,
-        choreography_scoring_ready=bool(chore_ready), blockers=tuple(blockers))
+        choreography_scoring_ready=not creative,
+        temporal_solver_ready=temporal_ready, blockers=tuple(blockers))
+
+
+def elements_from_temporal(plan: Any, lane_of: dict[str, str] | None = None,
+                           purpose_of: dict[str, str] | None = None
+                           ) -> tuple[ChoreographyElement, ...]:
+    """Turn a solved temporal plan into choreography elements.
+
+    The times come from the COMPOSED timeline, so an element's peak is where
+    it actually lands once every freeze, replay and overlap has been counted --
+    not where the raw source would have put it.
+    """
+    lanes = dict(lane_of or {})
+    purposes = dict(purpose_of or {})
+    default_lane = {"RETIME": LANE_TIME, "REPLAY": LANE_CAMERA,
+                    "FREEZE": LANE_TIME, "STUTTER": LANE_FX,
+                    "REPEAT": LANE_FX, "INSERT": LANE_TRANSITION,
+                    "SYNTHETIC_INSERT": LANE_ANIMATION,
+                    "OVERLAP": LANE_TRANSITION, "TRIM": LANE_TIME,
+                    "REPLACE": LANE_PIP}
+    out: list[ChoreographyElement] = []
+    for row, choice in zip(plan.timeline(), plan.choices):
+        op = choice.operator
+        if row["end_us"] <= row["start_us"]:
+            continue                       # an overlap occupies no span of its own
+        out.append(ChoreographyElement(
+            lane=lanes.get(op.label, default_lane.get(op.kind, LANE_FX)),
+            action=op.label, start_us=row["start_us"], end_us=row["end_us"],
+            purpose=purposes.get(op.label, op.purpose or "MUSICAL_PUNCTUATION"),
+            peak_us=row["peak_us"], trigger=op.anchor_kind,
+            musical_relation=op.anchor_kind, capability=op.capability,
+            notes=op.notes))
+    return tuple(out)

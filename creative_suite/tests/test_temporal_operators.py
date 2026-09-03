@@ -353,3 +353,73 @@ def test_no_temporal_debt_is_repaid_by_acceleration():
             r = c.rate
             if r is not None and c.operator.kind in (t.REPLAY,):
                 assert r <= 1, "a replay never runs faster than life to repay time"
+
+
+# ── song-locked mode ────────────────────────────────────────────────────────
+
+def test_the_song_cannot_be_moved_to_fit_the_picture():
+    lock = t.SongLock("h" * 64, 258_000 * MS, "4:18.000")
+    assert lock.duration_us == 258_000 * MS
+    with pytest.raises(t.SongMoved, match="stays"):
+        lock.retimed(260_000 * MS)
+    with pytest.raises(t.SongMoved, match="does not fit inside the song"):
+        lock.slot(250_000 * MS, 260_000 * MS)
+    assert lock.slot(0, 5_850 * MS) == (0, 5_850 * MS)
+
+
+def test_slots_must_tile_the_song_without_gap_or_overlap():
+    lock = t.SongLock("h" * 64, 10_000 * MS)
+    assert lock.check_tiling([(0, 4_000 * MS), (4_000 * MS, 10_000 * MS)]) == []
+    gap = lock.check_tiling([(0, 4_000 * MS), (4_500 * MS, 10_000 * MS)])
+    assert any("gap of" in c for c in gap)
+    over = lock.check_tiling([(0, 4_500 * MS), (4_000 * MS, 10_000 * MS)])
+    assert any("overlap" in c for c in over)
+    short = lock.check_tiling([(0, 4_000 * MS)])
+    assert any("the song ends at" in c for c in short)
+
+
+def test_song_locked_verification_catches_a_plan_that_misses_its_slot():
+    lock = t.SongLock("h" * 64, 4_000 * MS)
+    good = t.TemporalPlan("a", 4_000 * MS,
+                          (t.OperatorChoice(_retime("a", 4_000 * MS), 4_000 * MS),))
+    assert t.verify_song_locked(lock, [good]) == []
+    bad = t.TemporalPlan("a", 4_000 * MS,
+                         (t.OperatorChoice(_retime("a", 2_000 * MS), 2_000 * MS),))
+    problems = t.verify_song_locked(lock, [bad])
+    assert any("occupies 2000000 us of a 4000000 us slot" in p for p in problems)
+
+
+# ── the two layers meet ─────────────────────────────────────────────────────
+
+def test_choreography_elements_take_their_times_from_the_composed_timeline():
+    from creative_suite.engine import choreography as ch
+    plan = tpf.double_air_rocket().best.plan
+    els = ch.elements_from_temporal(plan)
+    assert els, "the solved plan yields elements"
+    assert all(e.peak_us is not None for e in els)
+    # the last element ends where the composition ends, overlaps excluded
+    spans = [(e.start_us, e.end_us) for e in els]
+    assert spans[0][0] == 0
+    assert all(a[1] <= b[1] for a, b in zip(spans, spans[1:]))
+    # and every one of them fits in a plan built on the same slot
+    cp = ch.ChoreographyPlan("s", 0, max(e.end_us for e in els), "DROP",
+                             elements=els)
+    assert cp.lanes_used and cp.density()["visual_events_per_s"] > 0
+    replay = next(e for e in els if e.action == "side_replay")
+    assert replay.peak_us == plan.event_us("side_replay")
+
+
+def test_readiness_now_requires_the_temporal_solver():
+    from creative_suite.engine import (choreography as ch, choreography_proofs as cp2,
+                                       creative_corpus as cc)
+    without = ch.assess_readiness(
+        corpus_entries=len(cc.CORPUS), lanes_covered=len(ch.LANES),
+        proofs_built=len(cp2.PROOFS), gameplay_truth_ready=True,
+        music_library_ready=True, temporal_proofs_built=0)
+    assert not without.may_shortlist_songs and not without.temporal_solver_ready
+    assert any("temporal" in b for b in without.blockers)
+    with_solver = ch.assess_readiness(
+        corpus_entries=len(cc.CORPUS), lanes_covered=len(ch.LANES),
+        proofs_built=len(cp2.PROOFS), gameplay_truth_ready=True,
+        music_library_ready=True, temporal_proofs_built=len(tpf.PROOFS))
+    assert with_solver.may_shortlist_songs and with_solver.temporal_solver_ready

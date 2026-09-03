@@ -543,3 +543,77 @@ def compose(plan: TemporalPlan) -> ComposedTimeMap:
             row["start_us"], row["end_us"], op.kind, origin,
             op.src_in_us, op.src_out_us, c.rate, op.label))
     return ComposedTimeMap(tuple(spans), plan.slot_us)
+
+
+# ── song-locked mode ────────────────────────────────────────────────────────
+
+class SongMoved(RuntimeError):
+    """Raised when something tries to move the music to fit the picture."""
+
+
+@dataclass(frozen=True)
+class SongLock:
+    """The chosen song, and the fact that it does not move.
+
+    In song-locked mode the sequence duration IS the song duration -- a
+    4:18.000 track means exactly 258.000 s of movie, and the visual timeline
+    is what bends. Slots are carved out of that fixed ruler and must tile it
+    without gap or overlap, because a gap is silence nobody authored and an
+    overlap is two things claiming the same instant.
+    """
+    track_hash: str
+    duration_us: int
+    title: str = ""
+
+    def __post_init__(self) -> None:
+        if self.duration_us <= 0:
+            raise ValueError("a song with no duration cannot be a ruler")
+
+    def slot(self, start_us: int, end_us: int) -> tuple[int, int]:
+        if not (0 <= start_us < end_us <= self.duration_us):
+            raise SongMoved(
+                f"a slot {start_us}..{end_us} does not fit inside the song "
+                f"(0..{self.duration_us}). The picture bends, the song does not.")
+        return (start_us, end_us)
+
+    def check_tiling(self, slots: Sequence[tuple[int, int]]) -> list[str]:
+        """Every complaint about how the slots cover the song."""
+        out: list[str] = []
+        ordered = sorted(slots)
+        if not ordered:
+            return [f"nothing covers the song's {self.duration_us} us"]
+        if ordered[0][0] != 0:
+            out.append(f"the song starts at 0 but the first slot starts at "
+                       f"{ordered[0][0]}")
+        for a, b in zip(ordered, ordered[1:]):
+            if b[0] > a[1]:
+                out.append(f"gap of {b[0] - a[1]} us between {a[1]} and {b[0]}")
+            elif b[0] < a[1]:
+                out.append(f"slots overlap by {a[1] - b[0]} us at {b[0]}")
+        if ordered[-1][1] != self.duration_us:
+            out.append(f"the song ends at {self.duration_us} but the last slot "
+                       f"ends at {ordered[-1][1]}")
+        return out
+
+    def retimed(self, new_duration_us: int) -> "SongLock":
+        raise SongMoved(
+            f"the song is {self.duration_us} us and stays {self.duration_us} us. "
+            f"Fitting the picture is what the temporal operators are for.")
+
+    def to_dict(self) -> dict[str, Any]:
+        return {"track_hash": self.track_hash, "duration_us": self.duration_us,
+                "title": self.title, "song_locked": True}
+
+
+def verify_song_locked(lock: SongLock, plans: Sequence[TemporalPlan]) -> list[str]:
+    """Every plan occupies its slot exactly and the slots tile the song."""
+    problems: list[str] = []
+    cursor = 0
+    slots: list[tuple[int, int]] = []
+    for p in plans:
+        if not p.exact:
+            problems.append(f"{p.slot_id} occupies {p.total_us} us of a "
+                            f"{p.slot_us} us slot ({p.residual_us:+d})")
+        slots.append((cursor, cursor + p.slot_us))
+        cursor += p.slot_us
+    return problems + lock.check_tiling(slots)
