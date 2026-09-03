@@ -73,6 +73,12 @@ PUBLIC_DURATION_MS = PUBLIC_PRE_MS + PUBLIC_POST_MS
 # later that half your export never happened.
 MAX_BATCH = 50
 
+# How long a clip waits for the shared capture lock before the export gives
+# up on it. Long enough to sit behind one review proxy, short enough that a
+# stuck worker does not hold a batch open all afternoon.
+LOCK_WAIT_S = 300.0
+LOCK_POLL_S = 5.0
+
 # Disclosure defaults. Conservative, and the user moves them, not the code.
 ELIGIBLE_DEFAULT = False
 VISIBILITY_AFTER_VOTE = "AFTER_VOTE"
@@ -277,6 +283,26 @@ def _capture(cand: ExportCandidate, start_ms: int, end_ms: int,
              str(dest)], check=True, capture_output=True, timeout=300)
         return
 
+    # WolfcamQL is one-at-a-time, and the review proxy worker drives it too.
+    # Without the shared marker the two would launch the engine concurrently
+    # and fight over the same staging directory and demo file locks.
+    from creative_suite.engine import review_proxy as rp
+    waited = 0.0
+    while not rp._try_acquire_lock():
+        if waited >= LOCK_WAIT_S:
+            raise ExportRefused(
+                "another capture holds output/demo_v2/_capture.lock; "
+                "the review proxy worker is busy -- try again later")
+        time.sleep(LOCK_POLL_S)
+        waited += LOCK_POLL_S
+    try:
+        _capture_locked(cand, start_ms, end_ms, dest)
+    finally:
+        rp._release_lock()
+
+
+def _capture_locked(cand: ExportCandidate, start_ms: int, end_ms: int,
+                    dest: Path) -> None:
     from creative_suite.engine import wolfcam_capture as wc
     wc.ensure_install()
     demo_path = REPO_ROOT / "demos" / cand.demo_name

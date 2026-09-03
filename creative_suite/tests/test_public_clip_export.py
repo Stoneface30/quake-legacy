@@ -239,3 +239,33 @@ def test_dry_run_captures_nothing(tmp_path, monkeypatch, capsys):
     assert export_cli.main(["query", "--limit", "2", "--dry-run"]) == 0
     assert "nothing captured" in capsys.readouterr().out
     assert not (tmp_path / "x").exists()
+
+
+def test_the_export_waits_for_the_shared_capture_lock(monkeypatch, tmp_path,
+                                                      kill_db):
+    """WolfcamQL is one-at-a-time and the review proxy worker drives it too.
+    Two engines launched at once would fight over the same staging directory
+    and demo file locks."""
+    monkeypatch.delenv("CS_EXPORT_MOCK", raising=False)
+    from creative_suite.engine import review_proxy as rp
+    monkeypatch.setattr(rp, "_try_acquire_lock", lambda: False)
+    monkeypatch.setattr(px, "LOCK_WAIT_S", 0.0)
+    cands = px.candidates_from_kill_events(limit=1, db=kill_db)
+    out = px.export(cands, root=tmp_path / "x")
+    assert out["written"] == 0 and out["failed"] == 1
+    assert "_capture.lock" in out["failures"][0]["error"]
+
+
+def test_the_lock_is_released_even_when_capture_fails(monkeypatch, tmp_path,
+                                                      kill_db):
+    monkeypatch.delenv("CS_EXPORT_MOCK", raising=False)
+    from creative_suite.engine import review_proxy as rp
+    released = {"n": 0}
+    monkeypatch.setattr(rp, "_try_acquire_lock", lambda: True)
+    monkeypatch.setattr(rp, "_release_lock",
+                        lambda: released.__setitem__("n", released["n"] + 1))
+    monkeypatch.setattr(px, "_capture_locked",
+                        lambda *a: (_ for _ in ()).throw(RuntimeError("boom")))
+    px.export(px.candidates_from_kill_events(limit=1, db=kill_db),
+              root=tmp_path / "x")
+    assert released["n"] == 1
