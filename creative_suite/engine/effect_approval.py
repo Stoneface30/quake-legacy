@@ -183,10 +183,18 @@ class Approval:
 # answer what looks good.
 
 _CAL = "60fps/libx264/AVTB/scratchpad/effect_canaries.py"
+# The cut proof ran at the archive footage's native rate. Forcing 30 fps
+# source to 60 duplicates every frame, which makes frame identity
+# undecidable, so this is a different pipeline rather than the same one.
+_CAL_CUT = "30fps/libx264/AVTB/concat/scratchpad/cut_identity.py"
 
 
-def _d(canary, swept, err, finding):
-    return DeliveryEvidence(canary, _CAL, tuple(v * MS for v in swept), err, finding)
+def _d(canary, swept, err, finding, cal=None):
+    """Delivery evidence. `cal` overrides the default pipeline, because a
+    measurement belongs to the pipeline that produced it -- the cut proof ran
+    at the footage's native rate, not at the 60 fps the sweeps used."""
+    return DeliveryEvidence(canary, cal or _CAL, tuple(v * MS for v in swept),
+                            err, finding)
 
 
 APPROVALS: dict[str, Approval] = {a.subject: a for a in (
@@ -217,9 +225,12 @@ APPROVALS: dict[str, Approval] = {a.subject: a for a in (
     Approval("OVERLAP", _d("effect_canaries.py", (50, 100, 150, 200, 250, 300, 400, 500),
                            0, "removes exactly the time requested")),
     Approval("MORPH"),
-    # Neither camera primitive is proven. The cut needs a frame-identity
-    # check, not a duration sweep; the spline needs the whole envelope.
-    Approval("CAMERA_CUT"),
+    # The cut is proven by frame identity, not by duration. The spline still
+    # needs its whole motion envelope.
+    Approval("CAMERA_CUT", _d("cut_identity.py", (30, 54), 0,
+                              "all four boundary frames carry the identity "
+                              "the edit asked for",
+                              cal=_CAL_CUT)),
     Approval("CAMERA_SPLINE_HANDOFF"),
     Approval("MATERIAL_TRANSFORM"),
     Approval("WORLD_TRANSFORM"),

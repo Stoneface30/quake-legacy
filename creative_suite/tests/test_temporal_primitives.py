@@ -26,11 +26,12 @@ def test_a_primitive_cannot_claim_measurement_without_a_sweep():
 def test_the_measured_primitives_are_the_ones_a_canary_actually_swept():
     measured = {n for n, p in et.PRIMITIVES.items() if p.measured}
     for name in (et.P_FREEZE, et.P_STUTTER, et.P_OVERLAP, et.P_REVERSE,
-                 et.P_SEQUENTIAL_INSERT, et.P_SIMULTANEOUS_OVERLAY):
+                 et.P_SEQUENTIAL_INSERT, et.P_SIMULTANEOUS_OVERLAY,
+                 et.P_CAMERA_CUT):
         assert name in measured, name
     for name in (et.P_MORPH, et.P_WORLD_TRANSFORM, et.P_MATERIAL_TRANSFORM,
                  et.P_INFORMATION_REVEAL, et.P_CAMERA_SPLINE,
-                 et.P_CAMERA_CUT, et.P_SYNTHETIC_ANIMATION):
+                 et.P_SYNTHETIC_ANIMATION):
         assert name not in measured, f"{name} has no runtime yet"
         assert et.PRIMITIVES[name].finding, f"{name} should say why"
 
@@ -38,7 +39,10 @@ def test_the_measured_primitives_are_the_ones_a_canary_actually_swept():
 def test_every_measured_primitive_carries_its_calibration_and_finding():
     for name, p in et.PRIMITIVES.items():
         if p.measured:
-            assert p.calibration is not None and p.calibration.fps == 60, name
+            # A measurement belongs to the pipeline that produced it. The
+            # cut proof ran at the footage's native rate, not at 60.
+            assert p.calibration is not None, name
+            assert p.calibration.fps in (30, 60), name
             assert p.swept_points_us and p.finding, name
         else:
             assert p.calibration is None, name

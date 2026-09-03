@@ -331,8 +331,21 @@ CALIBRATION_60_X264 = DeliveryCalibration(
     notes="freeze returns one frame long; overlap exact; rates 3/10, 2/5 and "
           "1/1 land exactly while 1/2 and 55/100 lose a frame")
 
+# The cut proof runs on the archive footage at its own native rate. The
+# source AVIs are 30 fps, and forcing them to 60 duplicates every frame,
+# which makes "which frame is this?" undecidable by construction. So the
+# boundary identity is established where the frames are distinct, and this is
+# a different calibration from the 60 fps one rather than the same result at
+# another rate.
+CALIBRATION_30_X264_CONCAT = DeliveryCalibration(
+    fps=30, encoder="libx264", pipeline="scratchpad/cut_identity.py",
+    timebase="AVTB", measured_on="2026-09-03",
+    notes="concat demuxer, native-rate archive footage; all four frames "
+          "either side of a cut carry the identity the edit asked for")
+
 # Measured under CALIBRATION_60_X264. One frame is 16 667 us there.
 FRAME_US = CALIBRATION_60_X264.frame_us
+CUT_IDENTITY_SWEEP = (30, 54)      # the two cut boundaries, in frame indices
 FREEZE_SWEEP = (50, 100, 133, 150, 200, 250, 300, 400, 500, 650, 900)
 STUTTER_SWEEP = (33, 45, 60, 90, 110, 120, 150, 170, 180, 230)
 RATE_SWEEP_EXACT = ("3/10", "2/5", "1/1")     # land on the frame grid exactly
@@ -1129,17 +1142,13 @@ PRIMITIVES: dict[str, PrimitiveTiming] = {p.name: p for p in (
        "so nothing knows which point becomes which",
        measurable_when="a correspondence solver exists and can emit an "
        "interpolated frame sequence; then sweep the transition duration"),
-    _p(P_CAMERA_CUT, DESIGN_ESTIMATE, capability=RUNTIME_EXISTS_UNSWEPT,
-       finding="the insert sweep showed the inserted duration is exact, which "
-       "is necessary but not sufficient: two equal and opposite boundary "
-       "offsets preserve the total while putting both cuts on the wrong "
-       "frame. Duration evidence cannot prove boundary identity",
-       blocked_by="no test has checked which frames actually sit either side "
-       "of a cut, only how much time the whole insert occupied",
-       measurable_when="four frame identities agree in one delivered file: "
-       "the last outgoing source frame, the first inserted frame, the last "
-       "inserted frame, and the first source frame after the return. This is "
-       "a single short render, not a sweep"),
+    _p(P_CAMERA_CUT, SYNTHETIC_TEST, CUT_IDENTITY_SWEEP, FRAME_US, 0,
+       "all four frames either side of a cut carry the identity the edit "
+       "asked for. Matched against real footage by nearest thumbnail: "
+       "distances 0.10 to 0.19 grey levels, which is re-encode noise, and "
+       "margins over the runner-up of 13.8 to 32.8. Duration was exact too, "
+       "but that was never the part in doubt",
+       cal=CALIBRATION_30_X264_CONCAT),
     _p(P_CAMERA_SPLINE, DESIGN_ESTIMATE, capability=RUNTIME_EXISTS_UNSWEPT,
        finding="the artistic envelope of an interpolated camera move is "
        "entirely unknown; this is the highest-value gap in the vocabulary",
@@ -1317,13 +1326,12 @@ def animation_envelope(name: str) -> DurationEnvelope:
 # disagree the report says so rather than letting a sort win an argument it
 # was never given.
 DIRECTOR_PRIORITY: tuple[str, ...] = (
-    P_CAMERA_CUT, P_CAMERA_SPLINE, P_MATERIAL_TRANSFORM, P_INFORMATION_REVEAL,
+    P_CAMERA_SPLINE, P_MATERIAL_TRANSFORM, P_INFORMATION_REVEAL,
     P_WORLD_TRANSFORM,
 )
 DIRECTOR_PRIORITY_REASON = (
-    "the cut's four-frame identity proof comes first only because it is one "
-    "short render rather than a sweep. Then the spline: it is the nearest "
-    "genuine unknown and it opens "
+    "the cut's four-frame identity proof is done, so the spline is next: it "
+    "is the nearest genuine unknown and it opens "
     "FPV to cinematic and back, which every other treatment sits inside. "
     "Model morph is deliberately last: expensive research for two effects"
 )

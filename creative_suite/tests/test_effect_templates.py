@@ -463,7 +463,7 @@ def test_an_unmeasured_primitive_cannot_shrug():
 def test_the_report_ranks_gaps_by_how_close_and_how_costly_they_are():
     r = et.capability_report()
     rows = r["unmeasured"]
-    assert len(rows) == 7
+    assert len(rows) == 6
     # nearest first: a runtime that exists but is unswept beats missing tech
     assert rows[0]["capability"] in (et.RUNTIME_EXISTS_UNSWEPT,
                                      et.POST_COMPOSITOR_EXISTS_UNSWEPT)
@@ -472,8 +472,8 @@ def test_the_report_ranks_gaps_by_how_close_and_how_costly_they_are():
     # reach alone would start somewhere else, and the report says so instead
     # of letting the sort win an argument it was never given
     assert r["derived_disagrees"] is True
-    assert et.next_gap() == et.P_CAMERA_CUT
-    assert r["director_priority"][0] == et.P_CAMERA_CUT
+    assert et.next_gap() == et.P_CAMERA_SPLINE
+    assert r["director_priority"][0] == et.P_CAMERA_SPLINE
     spline = next(x for x in rows if x["primitive"] == et.P_CAMERA_SPLINE)
     assert spline["templates_waiting_count"] >= 9 and spline["distance"] == 1
     # an authored duration is not a gap a sweep could close, so it sorts last
@@ -493,10 +493,10 @@ def test_a_cut_and_a_spline_move_are_not_the_same_operator():
     question."""
     cut = et.PRIMITIVES[et.P_CAMERA_CUT]
     spline = et.PRIMITIVES[et.P_CAMERA_SPLINE]
-    assert not cut.measured and not spline.measured
-    # Neither is proven, but they need different evidence: the cut needs four
-    # frame identities from one render, the spline needs a whole envelope.
-    assert "not a sweep" in cut.measurable_when
+    # They needed different evidence and got different answers: the cut is
+    # settled by four frame identities, the spline still owes a whole
+    # motion envelope.
+    assert cut.measured and not spline.measured
     assert "four semantic situations" in spline.measurable_when
 
 
@@ -578,14 +578,15 @@ def test_reach_does_not_get_to_choose_the_first_move():
 
 # ── the cut is not proven by duration alone ─────────────────────────────────
 
-def test_exact_insert_duration_does_not_prove_the_cut_boundaries():
-    """Two equal and opposite boundary offsets preserve the total while
-    putting both cuts on the wrong frame."""
+def test_the_cut_is_proven_by_frame_identity_not_by_duration():
+    """Duration evidence was never enough: two equal and opposite boundary
+    offsets preserve the total while putting both cuts on the wrong frame.
+    Four frame identities settle it."""
     cut = et.PRIMITIVES[et.P_CAMERA_CUT]
-    assert not cut.measured, "duration evidence is necessary, not sufficient"
-    assert cut.capability == et.RUNTIME_EXISTS_UNSWEPT
-    assert "not sufficient" in cut.finding
-    assert et.P_CAMERA_CUT not in ea_delivery_verified()
+    assert cut.measured and cut.capability == et.MEASURED
+    assert "identity the edit asked for" in cut.finding
+    assert "never the part in doubt" in cut.finding
+    assert et.P_CAMERA_CUT in ea_delivery_verified()
 
 
 def ea_delivery_verified():
@@ -593,18 +594,14 @@ def ea_delivery_verified():
     return ea.status()["delivery_verified"]
 
 
-def test_the_cut_names_the_four_frame_identities_it_needs():
-    m = et.PRIMITIVES[et.P_CAMERA_CUT].measurable_when
-    for phrase in ("last outgoing", "first inserted", "last inserted",
-                   "first source frame after"):
-        assert phrase in m, phrase
-    assert "not a sweep" in m, "this is one short render, not a campaign"
-
-
-def test_the_cheap_proof_comes_before_the_expensive_sweep():
-    assert et.next_gap() == et.P_CAMERA_CUT
-    order = et.capability_report()["director_priority"]
-    assert order.index(et.P_CAMERA_CUT) < order.index(et.P_CAMERA_SPLINE)
+def test_the_cut_measurement_belongs_to_its_own_pipeline():
+    """The proof ran on 30 fps archive footage. Forcing that to 60 duplicates
+    every frame, which makes frame identity undecidable, so this is not the
+    60 fps sweeps' calibration under another name."""
+    cal = et.PRIMITIVES[et.P_CAMERA_CUT].calibration
+    assert cal is not None and cal.fps == 30
+    assert cal is not et.CALIBRATION_60_X264
+    assert "cut_identity" in cal.pipeline
 
 
 def test_the_spline_needs_a_motion_envelope_not_a_duration_one():
