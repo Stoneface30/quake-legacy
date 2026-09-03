@@ -29,7 +29,7 @@ a human can disagree with the label while keeping the measurements.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict, field
+from dataclasses import dataclass, asdict, field, replace
 import hashlib
 import json
 from typing import Any, Sequence
@@ -393,6 +393,126 @@ class SlotEvidence:
         return asdict(self)
 
 
+# ── boundary flexibility ────────────────────────────────────────────────────
+# The song is fixed and its anchors are evidence. Where one editorial region
+# ends and the next begins is not: a section detector chose that instant, and
+# refusing to move it can destroy a choreography that was otherwise perfect.
+#
+# A boundary may only move to somewhere the music already agrees is a
+# boundary. Every candidate below is a real grid point read from the track,
+# never an invented window.
+
+PHRASE_LOCKED = "PHRASE_LOCKED"      # sits on a phrase edge; may take another
+BAR_FLEXIBLE = "BAR_FLEXIBLE"        # may slide across bars inside its phrase
+BEAT_FLEXIBLE = "BEAT_FLEXIBLE"      # no bar grid; beats are all we have
+RIGID = "RIGID"                      # the track ends here, or nothing to move to
+RIGIDITIES = (RIGID, PHRASE_LOCKED, BAR_FLEXIBLE, BEAT_FLEXIBLE)
+
+
+@dataclass(frozen=True)
+class BoundaryFlex:
+    """Where an editorial boundary is allowed to sit instead."""
+    at_us: int
+    rigidity: str
+    earliest_us: int
+    latest_us: int
+    candidates_us: tuple[int, ...]
+    on_phrase: bool
+    on_bar: bool
+    reason: str
+
+    def __post_init__(self) -> None:
+        if self.rigidity not in RIGIDITIES:
+            raise ValueError(f"unknown rigidity {self.rigidity!r}")
+        if self.at_us not in self.candidates_us:
+            raise ValueError(
+                "a boundary must remain one of its own candidates; otherwise "
+                "the current cut is being called invalid")
+
+    @property
+    def movable(self) -> bool:
+        return len(self.candidates_us) > 1
+
+    @property
+    def slack_us(self) -> int:
+        return self.latest_us - self.earliest_us
+
+    def may_move_to(self, us: int) -> bool:
+        return us in self.candidates_us
+
+    def nearest_to(self, wanted_us: int) -> int:
+        """The structurally valid position closest to what the edit wants."""
+        return min(self.candidates_us, key=lambda c: abs(c - wanted_us))
+
+    def to_dict(self) -> dict[str, Any]:
+        d = asdict(self)
+        d.update(movable=self.movable, slack_us=self.slack_us)
+        return d
+
+
+def _near(grid: Sequence[int], us: int, tol_us: int) -> bool:
+    return any(abs(g - us) <= tol_us for g in grid)
+
+
+def boundary_flex(timeline: "ScoreTimelineV1", at_us: int,
+                  tol_us: int = 40_000) -> BoundaryFlex:
+    """How far this boundary may move, and to exactly which instants.
+
+    The rule is the musical form, not a tolerance in milliseconds. A boundary
+    on a phrase edge may take another phrase edge. One inside a phrase may
+    slide across the bars of that phrase and no further. With no bar grid at
+    all, the beats are the only honest candidates.
+    """
+    phrases = tuple(int(x) for x in timeline.phrases_us)
+    bars = tuple(int(x) for x in timeline.bars_us)
+    beats = tuple(int(x) for x in timeline.beats_us)
+    end = int(timeline.duration_us)
+
+    if at_us <= 0 or at_us >= end:
+        return BoundaryFlex(at_us, RIGID, at_us, at_us, (at_us,),
+                            _near(phrases, at_us, tol_us),
+                            _near(bars, at_us, tol_us),
+                            "the track begins and ends where it begins and ends")
+
+    on_phrase = _near(phrases, at_us, tol_us)
+    on_bar = _near(bars, at_us, tol_us)
+
+    if on_phrase and len(phrases) > 1:
+        # the neighbouring phrase edges, and this one
+        below = [p for p in phrases if p < at_us - tol_us]
+        above = [p for p in phrases if p > at_us + tol_us]
+        cands = sorted({at_us, *([max(below)] if below else []),
+                        *([min(above)] if above else [])})
+        return BoundaryFlex(
+            at_us, PHRASE_LOCKED, min(cands), max(cands), tuple(cands),
+            True, on_bar,
+            "the cut sits on a phrase edge, so it may only take another one")
+
+    if bars:
+        # bounded by the phrase this boundary lives in
+        lo = max([p for p in phrases if p <= at_us], default=0)
+        hi = min([p for p in phrases if p > at_us], default=end)
+        cands = sorted({at_us, *[b for b in bars if lo <= b <= hi]})
+        return BoundaryFlex(
+            at_us, BAR_FLEXIBLE, min(cands), max(cands), tuple(cands),
+            False, on_bar,
+            f"inside one phrase, so it may slide across that phrase's "
+            f"{len(cands) - 1} bar lines and no further")
+
+    if beats:
+        lo = max([b for b in beats if b <= at_us], default=0)
+        hi = min([b for b in beats if b > at_us], default=end)
+        cands = tuple(sorted({at_us, lo, hi}))
+        return BoundaryFlex(
+            at_us, BEAT_FLEXIBLE, min(cands), max(cands), cands, False, False,
+            "no bar grid on this track, so only the adjacent beats are "
+            "defensible")
+
+    return BoundaryFlex(at_us, RIGID, at_us, at_us, (at_us,), False, False,
+                        "this track has no usable grid, so nothing says where "
+                        "else the cut could go")
+
+
 @dataclass(frozen=True)
 class ScoreSlot:
     """An interval of music that could accept material, and why."""
@@ -404,6 +524,10 @@ class ScoreSlot:
     desired_event_count: int | None = None      # MONTAGE only
     cadence_us: int | None = None               # MONTAGE only
     note: str = ""
+    # Where these edges may legitimately move. Metadata only: nothing consumes
+    # it yet, and the global optimiser that will is not built.
+    start_flex: BoundaryFlex | None = None
+    end_flex: BoundaryFlex | None = None
 
     def __post_init__(self) -> None:
         if self.role not in SLOT_ROLES:
@@ -420,10 +544,18 @@ class ScoreSlot:
     def contains(self, us: int) -> bool:
         return self.start_us <= us < self.end_us
 
+    @property
+    def boundaries_movable(self) -> bool:
+        return bool((self.start_flex and self.start_flex.movable)
+                    or (self.end_flex and self.end_flex.movable))
+
     def to_dict(self) -> dict[str, Any]:
         d = asdict(self)
         d["evidence"] = self.evidence.to_dict()
         d["duration_us"] = self.duration_us
+        d["start_flex"] = self.start_flex.to_dict() if self.start_flex else None
+        d["end_flex"] = self.end_flex.to_dict() if self.end_flex else None
+        d["boundaries_movable"] = self.boundaries_movable
         return d
 
 
@@ -522,13 +654,18 @@ def derive_slots(timeline: ScoreTimelineV1, *,
                              cadence_us=cadence,
                              note="distinct short moments sharing a motif")
         slots.append(slot)
+    # Record where each edge could move. This is metadata: it changes no cut
+    # today, and exists so a later solver is not forced to treat a detector's
+    # guess as though it were the song.
+    slots = [replace(s_, start_flex=boundary_flex(timeline, s_.start_us),
+                     end_flex=boundary_flex(timeline, s_.end_us))
+             for s_ in slots]
     # The loudest hero slot becomes the climax: the film needs one peak.
     heroes = [s for s in slots if s.role == SLOT_HERO]
     if heroes:
         top = max(heroes, key=lambda s: s.evidence.mean_energy)
-        slots = [ScoreSlot(s.start_us, s.end_us, SLOT_CLIMAX, s.evidence,
-                           INTENSITY_SPECTACLE, s.desired_event_count,
-                           s.cadence_us, "highest-energy hero section")
+        slots = [replace(s, role=SLOT_CLIMAX, intensity=INTENSITY_SPECTACLE,
+                         note="highest-energy hero section")
                  if s is top else s for s in slots]
     return tuple(slots)
 
