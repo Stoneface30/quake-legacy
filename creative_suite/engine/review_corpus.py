@@ -103,6 +103,13 @@ ITEM_TYPES = (FRAG, TELEFRAG, DEATH, CLAN_FRAG, ALL_KILL, TELEPORT, DODGE,
 # scored because the features it needs are the recorder's.
 KILL_BACKED = (DEATH, CLAN_FRAG, ALL_KILL)
 
+# The teleport queue reads its own cache. Only the recorder's OWN transits,
+# and only the ones the attribution actually confirmed -- an UNKNOWN or
+# AMBIGUOUS outcome is a transit we could not attribute, and putting it in
+# front of the user as "your teleport" would be asserting what the
+# attribution declined to.
+TELEPORT_CONFIRMED = "TELEPORT_PLAYER_CONFIRMED"
+
 # Why a family is not offered as a review queue. A machine feature is not a
 # review moment, and the difference is not visible from the row count.
 #
@@ -313,6 +320,32 @@ def _kill_where(item_type: str, corpus: str | None = None
     if item_type == ALL_KILL:
         return "k.killer_class = 'PLAYER'", []
     raise ValueError(f"not a kill-backed family: {item_type!r}")
+
+
+_TELEPORT_SELECT = """
+SELECT t.rowid AS id, t.content_hash, s.demo_name, t.server_time_ms,
+       t.client, t.outcome, t.teleporter, t.kind, s.recorder_client
+FROM teleport_transits_v1 t
+JOIN scanned_demos s ON s.content_hash = t.content_hash
+                    AND s.recorder_client = t.client
+WHERE t.outcome = ?
+"""
+
+
+def _teleport_item(r: sqlite3.Row, rank: int, total: int,
+                   rv: dict[str, Any]) -> ReviewItem:
+    return ReviewItem(
+        item_id=f"{TELEPORT}:{r['id']}", item_type=TELEPORT,
+        source_id=int(r["id"]), content_hash=r["content_hash"] or "",
+        demo_name=r["demo_name"] or "",
+        server_time_ms=int(r["server_time_ms"]),
+        # A transit has no highlight score and never had one. -1.0 is the
+        # sentinel for unscored, and `scored` says so plainly.
+        machine_score=-1.0, machine_rank=rank, total_items=total,
+        why=f"teleport, {r['outcome'].lower().replace('_', ' ')}",
+        scored=False,
+        human_role=(rv.get("human_role") or None) or None,
+        note=rv.get("note") or "")
 
 
 def _kill_table_exists() -> bool:
@@ -621,6 +654,19 @@ def queue(order: str = ORDER_WORST_FIRST, limit: int = 50, offset: int = 0,
         raise ValueError(f"unknown order {order!r}")
     if corpus is not None and item_type in (FRAG, None):
         item_type = CORPUS_ITEM_TYPE.get(corpus, item_type)
+    if item_type == TELEPORT:
+        total = count_items(TELEPORT)
+        with _rec() as c:
+            rows = c.execute(
+                f"{_TELEPORT_SELECT} ORDER BY t.rowid LIMIT ? OFFSET ?",
+                (TELEPORT_CONFIRMED, limit, offset)).fetchall()
+        ids = [f"{TELEPORT}:{r['id']}" for r in rows]
+        got = reviews(ids)
+        if unreviewed_only:
+            rows = [r for r in rows if f"{TELEPORT}:{r['id']}" not in got]
+        return [_teleport_item(r, offset + i + 1, total,
+                               got.get(f"{TELEPORT}:{r['id']}") or {})
+                for i, r in enumerate(rows)]
     if item_type in KILL_BACKED:
         if not _kill_table_exists():
             return []
@@ -664,6 +710,13 @@ def count_items(item_type: str = FRAG, corpus: str | None = None) -> int:
             return int(c.execute(
                 f"SELECT COUNT(*) FROM kill_events_v1 k WHERE {where}",
                 params).fetchone()[0])
+    if item_type == TELEPORT:
+        with _rec() as c:
+            return int(c.execute(
+                "SELECT COUNT(*) FROM teleport_transits_v1 t "
+                "JOIN scanned_demos s ON s.content_hash = t.content_hash "
+                "AND s.recorder_client = t.client WHERE t.outcome = ?",
+                (TELEPORT_CONFIRMED,)).fetchone()[0])
     if item_type == FRAG:
         with _rec() as c:
             return int(c.execute("SELECT COUNT(*) FROM recognized_frags")
@@ -677,6 +730,14 @@ def count_items(item_type: str = FRAG, corpus: str | None = None) -> int:
 
 def item(item_id: str) -> ReviewItem | None:
     kind, _, sid = item_id.partition(":")
+    if kind == TELEPORT:
+        with _rec() as c:
+            r = c.execute(f"{_TELEPORT_SELECT} AND t.rowid = ?",
+                          (TELEPORT_CONFIRMED, int(sid))).fetchone()
+        if not r:
+            return None
+        return _teleport_item(r, 0, count_items(TELEPORT),
+                              reviews([item_id]).get(item_id) or {})
     if kind in KILL_BACKED:
         if not _kill_table_exists():
             return None

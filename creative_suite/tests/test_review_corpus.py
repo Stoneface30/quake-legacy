@@ -358,3 +358,25 @@ def test_a_dodge_is_a_feature_of_a_frag_not_a_moment_of_its_own():
     why = rc.NOT_A_REVIEW_MOMENT[rc.DODGE]
     assert "19,877" in why and "per-frag feature" in why
     assert rc.queue(item_type=rc.DODGE) == []
+
+
+def test_the_teleport_queue_is_the_recorders_own_confirmed_transits():
+    """Only the recorder's transits, and only the ones attribution actually
+    confirmed. An UNKNOWN or AMBIGUOUS outcome is a transit we could not
+    attribute, and offering it as 'your teleport' would assert what the
+    attribution declined to."""
+    n = rc.count_items(rc.TELEPORT)
+    assert 0 < n < 53503, "the recorder's own subset, not every transit"
+    q = rc.queue(item_type=rc.TELEPORT, limit=3)
+    assert q and all(i.item_type == rc.TELEPORT for i in q)
+    assert all(i.scored is False for i in q), "a transit never had a score"
+    assert rc.TELEPORT_CONFIRMED == "TELEPORT_PLAYER_CONFIRMED"
+
+
+def test_every_family_uses_the_same_six_second_window():
+    """One window, so a verdict means the same thing whatever was reviewed."""
+    for t in (rc.FRAG, rc.TELEFRAG, rc.DEATH, rc.CLAN_FRAG, rc.TELEPORT):
+        it = rc.queue(item_type=t, limit=1)
+        if not it:
+            continue
+        assert it[0].end_ms - it[0].start_ms <= rc.PRE_MS + rc.POST_MS
