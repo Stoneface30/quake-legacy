@@ -336,12 +336,20 @@ _REVIEW_V2 = {
     "cg_enemyLegsColor": "0x2a8000",
     "cg_forceModel": 1,
     "cg_disallowEnemyModelForTeammates": 1,
+    # Clan Arena is a team game, and cg_players.c forces red/blue TEAM SKINS
+    # over the enemy model whenever cg_useDefaultTeamSkins is on
+    # (cg_players.c:402 and :483). That is why the enemy stayed orange after
+    # cg_enemyModel started applying: the model changed, the skin did not.
+    # The enemy COLOUR block at cg_players.c:6097 is additionally gated on
+    # cg_useCustomRedBlueModels != 2.
+    "cg_useDefaultTeamSkins": 0,
+    "cg_useCustomRedBlueModels": 0,
     # Exposure lives in REVIEW_LAUNCH_SETS below, NOT here. Every cvar that
     # controls it is CVAR_LATCH: the renderer reads it once at startup, so a
     # value written into a cfg is read, stored, and has no effect on the
     # picture. Setting r_mapOverBrightBits here would have looked like a fix
     # and changed nothing.
-    "r_gamma": 1.0,          # not latched; safe in the cfg
+    # r_gamma is set in REVIEW_LAUNCH_SETS with the rest of the exposure.
 }
 
 # Command-line sets for a REVIEW capture. The exposure cvars are CVAR_LATCH
@@ -360,7 +368,21 @@ REVIEW_LAUNCH_SETS = {
     "r_ignorehwgamma": 0,
     "r_mapOverBrightBits": 1,
     "r_mapOverBrightBitsValue": 1.0,
-    "r_intensity": 1,
+    # Measured on one real frame against three alternatives, with the LG beam
+    # and impact bloom masked OUT -- a whole-frame clipping number is the
+    # wrong instrument, because effects are SUPPOSED to burn.
+    #
+    #   variant                 env mean   blown%   crushed%   contrast
+    #   overbright 1 (was)          79.7     8.54       9.22       85.0
+    #   overbright 0                21.8     6.03      85.79       65.8   <-- unusable
+    #   overbright 0, gamma .9      20.4     5.33      86.18       63.8   <-- unusable
+    #   THIS: gamma/intensity .85   65.8     6.36      16.90       76.2
+    #
+    # r_mapOverBrightBits 0 is the obvious next move and it is wrong: it
+    # crushes 86% of the environment to near-black. Darkening through gamma
+    # and intensity instead keeps the shadows readable.
+    "r_intensity": 0.85,
+    "r_gamma": 0.85,
 }
 
 _SPEED_REVIEW = {
