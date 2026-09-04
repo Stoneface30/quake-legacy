@@ -381,6 +381,7 @@ async function renderRound(it){
 
 async function show(){
   cur = items[idx];
+  saveSession();
   if (!cur){ await loadQueue(offset + 30); return; }
   const mine = cur;
   meta(cur);
@@ -558,8 +559,36 @@ async function facets(){
   };
 }
 
-facets();
-corpora();
-progress();
-loadQueue(0);
+// Where the user was, restored from the server rather than the browser --
+// the point is to survive a refresh, a restart and a different machine.
+async function saveSession(){
+  try{
+    await fetch(API + "/session", {method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({corpus, item_type: itemType, order,
+                            filters, offset,
+                            last_item_id: cur ? cur.item_id : null})});
+  }catch(e){ /* losing a bookmark must never break a verdict */ }
+}
+
+async function restoreSession(){
+  let d;
+  try{ d = await (await fetch(API + "/session")).json(); }
+  catch(e){ return; }
+  if (!d || !d.found) return;
+  if (d.corpus) corpus = d.corpus;
+  if (d.item_type) itemType = d.item_type;
+  if (d.order) order = d.order;
+  if (d.filters) filters = d.filters;
+  if (typeof d.offset === "number") offset = d.offset;
+  toast("resumed where you stopped");
+}
+
+(async () => {
+  await restoreSession();
+  await facets();
+  await corpora();
+  await progress();
+  await loadQueue(offset || 0);
+})();
 </script>

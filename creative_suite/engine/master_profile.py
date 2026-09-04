@@ -292,7 +292,36 @@ _DIRECTOR_SESSION = {
     **_CLEAN_POV,
 }
 
+# Movement review. The engine measures speed itself and can print it, which
+# is ground truth where our derivation is an estimate: movement moments are
+# reconstructed from inter-jump displacement, and this is the number the game
+# actually had.
+#
+# The cvar is cg_drawSpeedometer, NOT cg_speedometer. `cg_speedometer` is the
+# Quake Live client's name for it; every capture here goes through WolfcamQL,
+# whose own cvar inventory lists cg_drawSpeedometer plus Scale, Pos, Format
+# and Alignment. Setting the QL name in a wolfcam cfg does nothing at all.
+#
+# cg_draw2D must be ON or the whole 2D layer is suppressed and the readout
+# with it -- which is why the clean-POV profile cannot simply have the
+# speedometer added to it.
+_SPEED_REVIEW = {
+    **_GAMEPLAY_MASTER_V2,
+    "cg_draw2D": 1,
+    "cg_drawSpeedometer": 1,
+    # Noted while adding this, NOT fixed here: the other profiles carry
+    # "cg_drawSpeed", which appears ZERO times in wolfcam's cvar inventory
+    # while cg_drawSpeedometer appears five. It has always been a no-op.
+    # Nothing is visually wrong -- the clean profiles suppress the readout
+    # with cg_draw2D 0 regardless -- and correcting it would change their
+    # profile_id, which is part of the proxy cache key and would orphan every
+    # cached review clip. Left alone deliberately.
+    "cg_drawSpeedometerScale": 1.0,
+    "cg_drawSpeedometerAlignment": "center",
+}
+
 PROFILES = {
+    "TR4SH_SPEED_REVIEW": {**_QUALITY, **_SPEED_REVIEW},
     "TR4SH_GAMEPLAY_MASTER_V2": {**_QUALITY, **_GAMEPLAY_MASTER_V2},
     "TR4SH_GAMEPLAY_MASTER": {**_QUALITY, **_GAMEPLAY_MASTER},   # historical
     "TR4SH_MASTER_POV_CLEAN": {**_QUALITY, **_CLEAN_POV},
@@ -303,6 +332,7 @@ PROFILES = {
 }
 
 _CFG_FILES = {
+    "TR4SH_SPEED_REVIEW": "wolfcam_tr4sh_speed_review.cfg",
     "TR4SH_GAMEPLAY_MASTER_V2": "wolfcam_tr4sh_master_capture.cfg",
     "TR4SH_GAMEPLAY_MASTER": "wolfcam_tr4sh_gameplay_v1_historical.cfg",
     "TR4SH_MASTER_POV_CLEAN": "wolfcam_tr4sh_cinematic_clean.cfg",
@@ -314,6 +344,9 @@ _CFG_FILES = {
 
 PROFILE_NAME = "TR4SH_GAMEPLAY_MASTER_V2"   # weapon visible (display mandate)
 DIRECTOR_PROFILE_NAME = "TR4SH_DIRECTOR_SESSION"
+# Used for movement moments so the user sees the engine's own UPS
+# beside our derived figure.
+SPEED_PROFILE_NAME = "TR4SH_SPEED_REVIEW"
 
 
 def cfg_text(profile: str = PROFILE_NAME) -> str:

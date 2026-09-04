@@ -14,7 +14,7 @@ import threading
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from pydantic import BaseModel
 
@@ -97,7 +97,8 @@ def get_queue(order: str = rc.ORDER_WORST_FIRST, offset: int = 0,
     with _lock:
         _state["order"] = order
         _state["cursor"] = offset
-    _prefetch(items[:PREFETCH])
+    _prefetch(items[:PREFETCH],
+              key=f"{corpus}|{item_type}|{order}|{sorted(filters.items())}")
     return {"order": order, "offset": offset, "item_type": item_type,
             "corpus": corpus,
             "filters": filters,
@@ -170,8 +171,25 @@ def _proxy_for(it: rc.ReviewItem) -> dict[str, Any]:
         return {"state": "ERROR", "error": f"{type(e).__name__}: {e}"}
 
 
-def _prefetch(items: list[rc.ReviewItem]) -> None:
+_active_queue: dict[str, Any] = {"key": None}
+
+
+def _prefetch(items: list[rc.ReviewItem], key: str | None = None) -> None:
+    """Render ahead of the queue the user is ACTUALLY on.
+
+    The worker used to keep draining whatever it had been given, so changing
+    filter left it rendering forty clips nobody was going to watch while the
+    new queue rendered behind them. The key is the active selection; work
+    queued under a stale one is abandoned rather than finished.
+    """
+    with _lock:
+        if key is not None:
+            _active_queue["key"] = key
+        current = _active_queue["key"]
     for it in items:
+        with _lock:
+            if _active_queue["key"] != current:
+                return             # the user moved on; stop spending wolfcam
         try:
             _proxy_for(it)
         except Exception:
@@ -382,3 +400,70 @@ def get_facets(corpus: str = rc.DEFAULT_CORPUS):
             "roles": list(rc.ROLES), "role_labels": rc.ROLE_LABEL,
             "traits": rc.trait_vocabulary(limit=40),
             "trait_note": rc.TRAIT_NOTE}
+
+
+# ── session persistence ─────────────────────────────────────────────────────
+# Reviewing 33,316 moments is not one sitting. Losing your place to a browser
+# refresh, a server restart or closing a laptop is the kind of friction that
+# ends a curation habit, so where the user was is persisted server-side --
+# not in the browser, because the point is to survive the browser.
+
+class SessionState(BaseModel):
+    corpus: str | None = None
+    item_type: str | None = None
+    order: str | None = None
+    filters: dict[str, Any] | None = None
+    offset: int | None = None
+    last_item_id: str | None = None
+
+
+_SESSION_SCHEMA = """
+CREATE TABLE IF NOT EXISTS review_session (
+    who        TEXT PRIMARY KEY,
+    state      TEXT NOT NULL,
+    updated_at TEXT NOT NULL);
+"""
+
+
+def _session_conn():
+    import sqlite3 as _s
+    c = _s.connect(rc.EDITORIAL_DB, timeout=30)
+    c.row_factory = _s.Row
+    c.executescript(_SESSION_SCHEMA)
+    return c
+
+
+def _who(request: Request) -> str:
+    """The Access identity when there is one, otherwise the local operator.
+
+    Keyed per person so a shared link never resumes into somebody else's
+    position -- and so a future second reviewer does not inherit this one's.
+    """
+    return getattr(request.state, "access_email", None) or "LOCAL"
+
+
+@router.get("/session")
+def get_session(request: Request):
+    import json as _j
+    with _session_conn() as c:
+        r = c.execute("SELECT * FROM review_session WHERE who=?",
+                      (_who(request),)).fetchone()
+    if r is None:
+        return {"found": False, "corpus": rc.DEFAULT_CORPUS,
+                "order": rc.ORDER_WORST_FIRST, "filters": {}, "offset": 0}
+    return {"found": True, "updated_at": r["updated_at"], **_j.loads(r["state"])}
+
+
+@router.post("/session")
+def post_session(s: SessionState, request: Request):
+    import json as _j
+    from datetime import datetime, timezone
+    state = {k: v for k, v in s.model_dump().items() if v is not None}
+    with _session_conn() as c:
+        c.execute(
+            "INSERT INTO review_session(who, state, updated_at) VALUES (?,?,?) "
+            "ON CONFLICT(who) DO UPDATE SET state=excluded.state, "
+            "updated_at=excluded.updated_at",
+            (_who(request), _j.dumps(state),
+             datetime.now(timezone.utc).isoformat(timespec="seconds")))
+    return {"saved": True, **state}
