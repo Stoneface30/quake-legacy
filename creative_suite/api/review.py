@@ -251,11 +251,19 @@ def get_media(item_id: str, v: str | None = None):
     st = _proxy_for(it)
     path = st.get("mp4_path")
     if st.get("state") == "READY" and path and Path(path).exists():
+        from creative_suite.engine import media_provenance as mprov
         if v == "mobile":
             small = _mobile_variant(Path(path))
             if small is not None:
-                return FileResponse(small, media_type="video/mp4")
-        return FileResponse(path, media_type="video/mp4")
+                # Labelled so a lossy delivery copy can never later be taken
+                # for the master when something wants the best pixels.
+                return FileResponse(
+                    small, media_type="video/mp4",
+                    headers={"X-Media-Provenance":
+                             mprov.V2_REVIEW_DELIVERY_DERIVATIVE})
+        return FileResponse(path, media_type="video/mp4",
+                            headers={"X-Media-Provenance":
+                                     mprov.RAW_DEMO_CAPTURE})
     # Not an error: the clip is being made, or could not be. The reviewer is
     # told which, and can still judge and move on.
     raise HTTPException(
@@ -529,3 +537,58 @@ def post_session(s: SessionState, request: Request):
             (_who(request), _j.dumps(state),
              datetime.now(timezone.utc).isoformat(timespec="seconds")))
     return {"saved": True, **state}
+
+
+# ── creative annotation ─────────────────────────────────────────────────────
+# The verdict says where a moment belongs; the annotation says what to do with
+# it. Both are production input, and the raw wording is never rewritten.
+
+class RoundAnnotation(BaseModel):
+    item_id: str
+    annotation: str
+
+
+@router.get("/annotation/vocabulary")
+def annotation_vocabulary():
+    from creative_suite.engine import creative_annotation as ca
+    return {"vocabulary": list(ca.VOCABULARY),
+            "note": ("suggestions, not a closed set. Typing stays freeform "
+                     "and a word that is not here is not wrong -- the list "
+                     "exists so common ideas spell themselves the same way "
+                     "twice, which is what makes them searchable later")}
+
+
+@router.get("/annotation/search")
+def annotation_search(q: str, role: str | None = None,
+                      item_type: str | None = None,
+                      limit: int = Query(200, le=500)):
+    from creative_suite.engine import creative_annotation as ca
+    try:
+        return ca.search(q, role=role, item_type=item_type, limit=limit)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.get("/annotation/status")
+def annotation_status():
+    from creative_suite.engine import creative_annotation as ca
+    return ca.status()
+
+
+@router.get("/annotation/round/{item_id}")
+def get_round_annotation(item_id: str):
+    from creative_suite.engine import creative_annotation as ca
+    it = rc.item(item_id)
+    if it is None or it.round_no is None:
+        raise HTTPException(404, f"no round for {item_id}")
+    got = ca.get_round_annotation(it.content_hash, it.round_no)
+    return got or {"annotation": "", "round": it.round_no}
+
+
+@router.post("/annotation/round")
+def post_round_annotation(a: RoundAnnotation):
+    from creative_suite.engine import creative_annotation as ca
+    it = rc.item(a.item_id)
+    if it is None or it.round_no is None:
+        raise HTTPException(404, f"no round for {a.item_id}")
+    return ca.set_round_annotation(it.content_hash, it.round_no, a.annotation)

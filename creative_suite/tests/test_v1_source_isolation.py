@@ -69,9 +69,15 @@ def test_there_is_no_authoritative_provenance_for_a_v1_render():
     """The refusal has a name so it can be reported; it is not a value any
     asset may hold."""
     assert mp.V1_RENDER_SOURCE not in mp.AUTHORITATIVE
-    assert set(mp.AUTHORITATIVE) == {
+    assert mp.V1_RENDER_SOURCE not in mp.MASTER_GRADE
+    # Every eligible provenance traces to a raw demo or to something derived
+    # from one. The 720p phone copy is eligible to be SHOWN but is not master
+    # grade -- it is for looking at, not for cutting.
+    assert set(mp.MASTER_GRADE) == {
         "RAW_DEMO_CAPTURE", "DERIVED_ROUND_CAPTURE",
         "RECONSTRUCTED_CURRENT", "SYNTHETIC_CURRENT"}
+    assert set(mp.AUTHORITATIVE) == set(mp.MASTER_GRADE) | {
+        "V2_REVIEW_DELIVERY_DERIVATIVE"}
 
 
 def test_no_media_module_references_a_v1_directory():

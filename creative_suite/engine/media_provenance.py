@@ -38,8 +38,21 @@ RAW_DEMO_CAPTURE = "RAW_DEMO_CAPTURE"
 DERIVED_ROUND_CAPTURE = "DERIVED_ROUND_CAPTURE"
 RECONSTRUCTED_CURRENT = "RECONSTRUCTED_CURRENT"
 SYNTHETIC_CURRENT = "SYNTHETIC_CURRENT"
+
+# A re-encode of a V2 capture for delivery -- the 720p variant a phone gets.
+# Same window, same frames, same timing, fewer bits. It is NOT a capture, and
+# labelling it RAW_DEMO_CAPTURE would let a lossy delivery copy be mistaken
+# for the master later, when something wants the best available pixels.
+V2_REVIEW_DELIVERY_DERIVATIVE = "V2_REVIEW_DELIVERY_DERIVATIVE"
+
 AUTHORITATIVE = (RAW_DEMO_CAPTURE, DERIVED_ROUND_CAPTURE,
-                 RECONSTRUCTED_CURRENT, SYNTHETIC_CURRENT)
+                 RECONSTRUCTED_CURRENT, SYNTHETIC_CURRENT,
+                 V2_REVIEW_DELIVERY_DERIVATIVE)
+
+# Which of those may be treated as the best available pixels for production.
+# The delivery derivative may not: it is for looking at, not for cutting.
+MASTER_GRADE = (RAW_DEMO_CAPTURE, DERIVED_ROUND_CAPTURE,
+                RECONSTRUCTED_CURRENT, SYNTHETIC_CURRENT)
 
 # Not a provenance a V2 asset may hold. Named so a refusal can say what it
 # refused.
