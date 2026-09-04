@@ -305,6 +305,64 @@ _DIRECTOR_SESSION = {
 # cg_draw2D must be ON or the whole 2D layer is suppressed and the readout
 # with it -- which is why the clean-POV profile cannot simply have the
 # speedometer added to it.
+# ── the review capture profile ──────────────────────────────────────────────
+# Review is not production. This view exists so a person can JUDGE a moment:
+# see the enemy, read the aim, tell a wall from a floor. It is a normalized
+# instrument view and is never the historical master presentation, which is
+# why it carries its own profile id and its own cache identity.
+#
+# TWO DEFECTS THE FIRST REAL REVIEW EXPOSED, both traced to this file.
+#
+# ENEMIES WERE INVISIBLE-ISH. The gameplay profile sets cg_enemyModel to ""
+# (line ~201), deliberately, to de-game the cinematic view. Wolfcam's own
+# defaults are already what review wants -- cg_enemyModel "keel/bright" with
+# cg_enemyHeadColor / TorsoColor / LegsColor at 0x2a8000, a green -- so the
+# fix is to stop clearing them, not to invent a scheme.
+# cg_disallowEnemyModelForTeammates defaults to 1, so teammates keep their
+# own presentation and SELF / TEAMMATE / ENEMY stay distinguishable.
+#
+# THE PICTURE WAS BLOWN OUT. r_mapOverBrightBits defaults to 2, which
+# multiplies the lightmap by four, and the profile additionally forced
+# r_ignorehwgamma 1 while setting no gamma of its own. Together they push
+# floors and walls to white and destroy the texture detail needed to judge
+# distance, aim and composition. Both are CVAR_LATCH, so they are read at
+# startup and belong on the command line, not in a live cfg.
+_REVIEW_V2 = {
+    # Enemy readability.
+    "cg_enemyModel": "keel/bright",
+    "cg_enemyHeadModel": "keel/bright",
+    "cg_enemyHeadColor": "0x2a8000",
+    "cg_enemyTorsoColor": "0x2a8000",
+    "cg_enemyLegsColor": "0x2a8000",
+    "cg_forceModel": 1,
+    "cg_disallowEnemyModelForTeammates": 1,
+    # Exposure lives in REVIEW_LAUNCH_SETS below, NOT here. Every cvar that
+    # controls it is CVAR_LATCH: the renderer reads it once at startup, so a
+    # value written into a cfg is read, stored, and has no effect on the
+    # picture. Setting r_mapOverBrightBits here would have looked like a fix
+    # and changed nothing.
+    "r_gamma": 1.0,          # not latched; safe in the cfg
+}
+
+# Command-line sets for a REVIEW capture. The exposure cvars are CVAR_LATCH
+# and belong here.
+#
+# r_ignorehwgamma is 1 for the gameplay master -- it bakes gamma into the
+# textures at load, which is deterministic for a render farm but is half of
+# why the review picture is blown out. Review turns it back to the engine
+# default of 0.
+#
+# r_mapOverBrightBits defaults to 2, a x4 lightmap multiply. 1 halves that
+# rather than removing it; 0 crushes the shadowed areas the other way, which
+# is the opposite failure and just as bad for judging a dark corner.
+REVIEW_LAUNCH_SETS = {
+    **LAUNCH_SETS,
+    "r_ignorehwgamma": 0,
+    "r_mapOverBrightBits": 1,
+    "r_mapOverBrightBitsValue": 1.0,
+    "r_intensity": 1,
+}
+
 _SPEED_REVIEW = {
     **_GAMEPLAY_MASTER_V2,
     "cg_draw2D": 1,
@@ -321,6 +379,7 @@ _SPEED_REVIEW = {
 }
 
 PROFILES = {
+    "TR4SH_REVIEW_V2": {**_QUALITY, **_GAMEPLAY_MASTER_V2, **_REVIEW_V2},
     "TR4SH_SPEED_REVIEW": {**_QUALITY, **_SPEED_REVIEW},
     "TR4SH_GAMEPLAY_MASTER_V2": {**_QUALITY, **_GAMEPLAY_MASTER_V2},
     "TR4SH_GAMEPLAY_MASTER": {**_QUALITY, **_GAMEPLAY_MASTER},   # historical
@@ -332,6 +391,7 @@ PROFILES = {
 }
 
 _CFG_FILES = {
+    "TR4SH_REVIEW_V2": "wolfcam_tr4sh_review_v2.cfg",
     "TR4SH_SPEED_REVIEW": "wolfcam_tr4sh_speed_review.cfg",
     "TR4SH_GAMEPLAY_MASTER_V2": "wolfcam_tr4sh_master_capture.cfg",
     "TR4SH_GAMEPLAY_MASTER": "wolfcam_tr4sh_gameplay_v1_historical.cfg",
@@ -347,6 +407,11 @@ DIRECTOR_PROFILE_NAME = "TR4SH_DIRECTOR_SESSION"
 # Used for movement moments so the user sees the engine's own UPS
 # beside our derived figure.
 SPEED_PROFILE_NAME = "TR4SH_SPEED_REVIEW"
+# The profile every review proxy is captured with. Changing it changes
+# profile_id, which is part of the proxy cache key -- so old over-bright
+# clips can never be served as current review clips. Regeneration is on
+# demand; nothing is mass recaptured.
+REVIEW_PROFILE_NAME = "TR4SH_REVIEW_V2"
 
 
 def cfg_text(profile: str = PROFILE_NAME) -> str:
@@ -357,8 +422,20 @@ def cfg_text(profile: str = PROFILE_NAME) -> str:
     return "\n".join(lines) + "\n"
 
 
+def launch_sets_for(profile: str = PROFILE_NAME) -> dict:
+    """The command line a profile is captured with.
+
+    Latched renderer cvars only take effect from here, so the review profile
+    has its own set -- and profile_id must include it or two visually
+    different captures would share a cache key and the old washed-out clips
+    would keep being served.
+    """
+    return REVIEW_LAUNCH_SETS if profile == REVIEW_PROFILE_NAME else LAUNCH_SETS
+
+
 def profile_id(profile: str = PROFILE_NAME) -> str:
-    payload = cfg_text(profile) + json.dumps(LAUNCH_SETS, sort_keys=True)
+    payload = cfg_text(profile) + json.dumps(launch_sets_for(profile),
+                                             sort_keys=True)
     return hashlib.sha256(payload.encode()).hexdigest()[:12]
 
 

@@ -139,7 +139,11 @@ def _profile_id() -> str:
     if os.getenv("CS_PROXY_MOCK"):
         return "mockprofile"
     from creative_suite.engine import master_profile
-    return master_profile.profile_id()
+    # The REVIEW profile, not the gameplay master. Its id is part of the
+    # cache key, so correcting the exposure and the enemy model
+    # automatically invalidates every over-bright clip -- they can never be
+    # served as current review media. Regeneration is on demand.
+    return master_profile.profile_id(master_profile.REVIEW_PROFILE_NAME)
 
 
 def proxy_key(content_hash: str, start_ms: int, end_ms: int, profile_id: str) -> str:
@@ -353,9 +357,10 @@ def _generate(job: dict[str, Any]) -> None:
         raise RuntimeError(f"demo file missing: {demo_path}")
     safe = wc.stage_demo(demo_path)
     clip_name = f"rp_{key[:16]}"
+    from creative_suite.engine import master_profile as _mp
     res = wc.capture_demo(
-        safe, [{"clip_name": clip_name, "start_ms": start_ms, "end_ms": end_ms}]
-    )
+        safe, [{"clip_name": clip_name, "start_ms": start_ms, "end_ms": end_ms}],
+        profile=_mp.REVIEW_PROFILE_NAME)
     if not res["ok"]:
         raise RuntimeError(res.get("error") or "wolfcam capture failed")
     avi = Path(res["avis"][clip_name])
