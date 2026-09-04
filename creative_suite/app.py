@@ -42,6 +42,12 @@ def create_app() -> FastAPI:
     # application does -- during which the edge has no policy and forwards
     # everything. Default closed: no token, no answer. Loopback is exempt so
     # local use is unchanged.
+    # Order matters. Starlette runs the LAST added middleware outermost, so
+    # the Access guard must be added after the host router: authenticate
+    # first, then decide what this hostname is allowed to serve. An
+    # unauthenticated request never learns which routes exist.
+    from creative_suite.api.review_host import ReviewHostMiddleware
+    app.add_middleware(ReviewHostMiddleware)
     from creative_suite.api.access_guard import CloudflareAccessMiddleware
     app.add_middleware(CloudflareAccessMiddleware)
 

@@ -1,135 +1,199 @@
 <!DOCTYPE html>
 <meta charset="utf-8">
-<title>PANTHEON — Career Review</title>
+<!-- Without this a phone lays the page out at ~980px and scales it down, so
+     every control is tiny and the page scrolls sideways. It was missing. -->
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d0d10">
+<title>PANTHEON REVIEW</title>
 <style>
+  /* Mobile first. The phone layout is the base and the desktop layout is the
+     enhancement, because the loop -- watch, decide, next -- is the same on
+     both, and the small screen is the one with no room for anything else. */
   :root{
     --bg:#0d0d10; --panel:#16161c; --line:#26262f; --dim:#7d7d8a; --fg:#e8e8ee;
-    --t1:#e0b341; --t2:#4c9f70; --t3:#5b8fd6; --t4:#8a8a96; --t5:#5a4550;
+    --t1:#e0b341; --t2:#4c9f70; --t3:#5b8fd6; --t4:#8a8a96; --t5:#6b5560;
+    --gold:#c9a227;
+    --safe: env(safe-area-inset-bottom, 0px);
   }
   *{box-sizing:border-box}
+  html,body{max-width:100%;overflow-x:hidden}
   body{margin:0;background:var(--bg);color:var(--fg);
-       font:14px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
-  header{display:flex;gap:24px;align-items:baseline;padding:10px 18px;
-         border-bottom:1px solid var(--line);background:var(--panel)}
-  header b{font-size:16px;letter-spacing:.5px}
-  .counts{margin-left:auto;display:flex;gap:14px;font-size:12px;color:var(--dim)}
+       font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;
+       -webkit-text-size-adjust:100%}
+
+  header{position:sticky;top:0;z-index:30;background:var(--bg);
+         border-bottom:1px solid var(--line);padding:8px 12px;
+         display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .brand{font-weight:700;letter-spacing:.16em;font-size:13px;white-space:nowrap}
+  .brand span{color:var(--gold)}
+  #corpus{background:#12121a;color:var(--fg);border:1px solid var(--line);
+          border-radius:4px;padding:5px 6px;font:inherit;font-size:12px;
+          flex:1 1 150px;min-width:0;max-width:100%}
+  .counts{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--dim);
+          width:100%;order:5}
   .counts b{color:var(--fg)}
-  main{display:grid;grid-template-columns:1fr 300px;gap:16px;padding:16px;
-       max-width:1500px;margin:0 auto}
-  .stage{background:#000;border:1px solid var(--line);border-radius:6px;
-         position:relative;overflow:hidden;aspect-ratio:16/9}
-  video{width:100%;height:100%;display:block;background:#000}
+  #order{color:var(--dim);font-size:11px;white-space:nowrap}
+  .hbtn{background:#15151f;color:var(--fg);border:1px solid var(--line);
+        border-radius:4px;padding:6px 10px;font-size:11px;letter-spacing:.08em;
+        cursor:pointer;min-height:34px}
+  .hbtn:hover{border-color:var(--gold)}
+
+  #fdrawer{display:none;background:#0e0e14;border-bottom:1px solid var(--line);
+           padding:10px 12px}
+  #fdrawer.open{display:block}
+  .frow{display:grid;grid-template-columns:1fr;gap:8px 10px;
+        font-size:11px;letter-spacing:.05em;color:var(--dim)}
+  .frow label{text-transform:uppercase;display:block}
+  .frow select{background:#12121a;color:var(--fg);border:1px solid var(--line);
+               padding:7px 6px;font-size:12px;border-radius:4px;width:100%;
+               min-width:0;min-height:38px;margin-top:3px}
+  .frow button{background:#15151f;color:var(--dim);border:1px solid var(--line);
+               padding:9px;font-size:11px;cursor:pointer;border-radius:4px;
+               letter-spacing:.08em;min-height:40px}
+  #filtercount{color:var(--gold);font-size:12px}
+  .fnote{color:#55555f;font-size:11px;margin-top:8px}
+
+  main{padding:0 0 8px}
+  .stage{position:relative;width:100%;aspect-ratio:16/9;background:#000;
+         overflow:hidden}
+  .stage video{width:100%;height:100%;object-fit:contain;display:block;
+               background:#000}
   .placeholder{position:absolute;inset:0;display:flex;flex-direction:column;
-               align-items:center;justify-content:center;gap:10px;color:var(--dim);
-               text-align:center;padding:24px}
+               align-items:center;justify-content:center;gap:6px;
+               color:var(--dim);font-size:12px;text-align:center;padding:16px}
   .placeholder .big{font-size:15px;color:var(--fg)}
-  /* the frag instant, marked on the clip's own timeline */
-  .track{height:6px;background:#1e1e26;border-radius:3px;margin-top:8px;
-         position:relative}
-  .track .played{height:100%;background:#3a3a48;border-radius:3px;width:0}
-  .track .mark{position:absolute;top:-4px;width:2px;height:14px;background:#d9534f}
-  .buttons{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:14px}
-  .buttons button{padding:16px 8px;border:1px solid var(--line);border-radius:6px;
-                  background:var(--panel);color:var(--fg);cursor:pointer;
-                  font:inherit;text-align:left;transition:.08s}
-  .buttons button:hover{border-color:#4a4a58;transform:translateY(-1px)}
-  .buttons .k{display:block;font-size:11px;color:var(--dim);margin-bottom:3px}
-  .buttons .n{display:block;font-weight:600;font-size:13px}
-  .buttons .h{display:block;font-size:11px;color:var(--dim);margin-top:4px}
+  .track{position:relative;height:4px;background:#1c1c24}
+  .played{position:absolute;left:0;top:0;bottom:0;background:#3a3a4a;width:0}
+  .mark{position:absolute;top:-3px;width:2px;height:10px;background:var(--gold)}
+
+  .buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px}
+  .buttons button{display:flex;flex-direction:column;align-items:flex-start;
+                  gap:2px;background:var(--panel);color:var(--fg);
+                  border:1px solid var(--line);border-radius:6px;
+                  padding:11px 12px;cursor:pointer;text-align:left;
+                  min-height:58px;font:inherit;touch-action:manipulation}
+  .buttons button:nth-child(5){grid-column:1/-1}
+  .buttons button:active{transform:scale(.985)}
+  .buttons .k{font-size:10px;color:var(--dim);letter-spacing:.1em}
+  .buttons .n{font-size:13px;font-weight:600;letter-spacing:.03em;
+              line-height:1.25}
+  .buttons .h{display:none}
   #b1{border-left:3px solid var(--t1)} #b2{border-left:3px solid var(--t2)}
   #b3{border-left:3px solid var(--t3)} #b4{border-left:3px solid var(--t4)}
   #b5{border-left:3px solid var(--t5)}
-  aside{background:var(--panel);border:1px solid var(--line);border-radius:6px;
-        padding:14px;height:fit-content}
-  aside h3{margin:0 0 10px;font-size:12px;letter-spacing:.8px;color:var(--dim);
-           text-transform:uppercase;font-weight:600}
-  .row{display:flex;justify-content:space-between;gap:10px;padding:4px 0;
-       border-bottom:1px solid #1e1e26;font-size:13px}
-  .row:last-child{border:0}
-  .row .k{color:var(--dim)}
-  .row .val{text-align:right;word-break:break-word}
-  .why{margin-top:10px;padding:8px 10px;background:#12121a;border-radius:4px;
-       font-size:12px;color:#b9b9c6}
-  textarea{width:100%;margin-top:10px;background:#12121a;color:var(--fg);
-           border:1px solid var(--line);border-radius:4px;padding:8px;
-           font:inherit;resize:vertical;min-height:60px}
-  .keys{margin-top:12px;font-size:11px;color:var(--dim);line-height:1.8}
-  kbd{background:#12121a;border:1px solid var(--line);border-radius:3px;
-      padding:1px 5px;font-size:11px}
-  .verdict{margin-top:10px;padding:6px 10px;border-radius:4px;font-size:12px;
-           display:none;background:#1b2a20}
-  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);
-         background:var(--panel);border:1px solid var(--line);border-radius:6px;
-         padding:8px 16px;font-size:13px;opacity:0;transition:.2s;
+
+  aside{padding:0 12px 24px}
+  aside h3{font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+           color:var(--dim);margin:14px 0 8px;font-weight:500}
+  details{border-top:1px solid var(--line)}
+  details>summary{list-style:none;cursor:pointer;padding:12px 0;
+                  font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+                  color:var(--dim);display:flex;justify-content:space-between;
+                  align-items:center;min-height:44px}
+  details>summary::-webkit-details-marker{display:none}
+  details>summary::after{content:"+";color:var(--gold);font-size:14px}
+  details[open]>summary::after{content:"\2212"}
+  #meta .row{display:flex;justify-content:space-between;gap:12px;
+             padding:3px 0;font-size:12px;border-bottom:1px solid #14141a}
+  #meta .k{color:var(--dim)} #meta .val{text-align:right;word-break:break-word}
+  .why{color:var(--gold);font-size:12px;margin:10px 0 4px}
+  .verdict{display:none;color:#8fd6a8;font-size:12px;margin:6px 0}
+  #note{width:100%;background:#12121a;color:var(--fg);
+        border:1px solid var(--line);border-radius:6px;padding:10px;
+        font:inherit;font-size:14px;min-height:64px;resize:vertical}
+  .keys{color:#4a4a54;font-size:11px;line-height:1.9;margin-top:12px}
+  kbd{background:#15151f;border:1px solid var(--line);border-radius:3px;
+      padding:1px 5px;font-size:10px}
+
+  #usage{margin:6px 0;font-size:12px;letter-spacing:.04em}
+  #usage .claimed{color:#e0b050;border:1px solid #6a5320;padding:4px 9px;
+                  border-radius:3px;display:inline-block}
+  #usage .free{color:#5f5f6b}
+  #roundbox h3{margin-top:0}
+  .story{color:var(--gold);font-size:12px;margin-bottom:8px}
+  .tl{position:relative;height:34px;margin:6px 0 10px;
+      border-left:1px solid var(--line);border-right:1px solid var(--line)}
+  .tl .bar{position:absolute;top:15px;left:0;right:0;height:1px;
+           background:var(--line)}
+  .tl .ev{position:absolute;top:8px;width:11px;height:11px;margin-left:-5px;
+          border-radius:50%;background:#3a3a46}
+  .tl .ev.user{background:var(--gold)} .tl .ev.team{background:#3266fe}
+  .tl .ev.here{box-shadow:0 0 0 3px rgba(201,162,39,.30);background:#fff}
+  .tl .ev.rev{border:1px solid #8fd6a8}
+  .rlist{font-size:12px;line-height:1.7}
+  .rlist div{display:flex;gap:8px;color:var(--dim);flex-wrap:wrap}
+  .rlist .t{min-width:46px;color:#5a5a66;font-variant-numeric:tabular-nums}
+  .rlist .me{color:var(--gold)} .rlist .tm{color:#7f9ffe}
+  .rlist .cur{color:#fff} .rlist .tag{color:#8fd6a8;font-size:11px}
+  .rlist .use{color:#e0b050;font-size:11px}
+  #watchround{margin-top:8px;background:#15151f;color:var(--fg);
+              border:1px solid var(--line);padding:11px 14px;font-size:11px;
+              letter-spacing:.08em;cursor:pointer;border-radius:5px;
+              width:100%;min-height:44px}
+  #watchround:hover{border-color:var(--gold)}
+
+  .toast{position:fixed;left:50%;transform:translateX(-50%);
+         bottom:calc(18px + var(--safe));background:#15151f;
+         border:1px solid var(--gold);padding:9px 18px;border-radius:4px;
+         opacity:0;transition:opacity .2s;font-size:12px;z-index:60;
          pointer-events:none}
   .toast.on{opacity:1}
 
-  /* Round context. Offered beside the frag, never replacing it. */
-  #usage{ margin:8px 0; font-size:12px; letter-spacing:.05em }
-  #usage .claimed{ color:#e0b050; border:1px solid #6a5320; padding:3px 8px;
-                   border-radius:2px; display:inline-block }
-  #usage .free{ color:#6a6a76 }
-  #roundbox{ margin-top:12px; border-top:1px solid #22222c; padding-top:10px }
-  #roundbox h3{ font-size:11px; letter-spacing:.14em; text-transform:uppercase;
-                color:#8a8a96; margin:0 0 8px; font-weight:500 }
-  .story{ color:#c9a227; font-size:12px; margin-bottom:8px }
-  .tl{ position:relative; height:34px; margin:6px 0 10px;
-       border-left:1px solid #22222c; border-right:1px solid #22222c }
-  .tl .bar{ position:absolute; top:15px; left:0; right:0; height:1px;
-            background:#22222c }
-  .tl .ev{ position:absolute; top:9px; width:9px; height:9px; margin-left:-4px;
-           border-radius:50%; background:#3a3a46; cursor:pointer }
-  .tl .ev.user{ background:#c9a227 }
-  .tl .ev.team{ background:#3266fe }
-  .tl .ev.here{ box-shadow:0 0 0 3px rgba(201,162,39,.30); background:#fff }
-  .tl .ev.rev{ border:1px solid #8fd6a8 }
-  .rlist{ font-size:12px; line-height:1.7 }
-  .rlist div{ display:flex; gap:8px; color:#8a8a96 }
-  .rlist .t{ min-width:46px; color:#5a5a66; font-variant-numeric:tabular-nums }
-  .rlist .me{ color:#c9a227 } .rlist .tm{ color:#7f9ffe }
-  .rlist .cur{ color:#fff }
-  .rlist .tag{ color:#8fd6a8; font-size:11px }
-  .rlist .use{ color:#e0b050; font-size:11px }
-  #watchround{ margin-top:8px; background:#15151f; color:#e8e8ec;
-               border:1px solid #22222c; padding:6px 12px; font-size:11px;
-               letter-spacing:.08em; cursor:pointer; border-radius:2px }
-  #watchround:hover{ border-color:#c9a227 }
+  /* Phone: the decisions ride at the bottom, clear of the home indicator. */
+  @media (max-width:719px){
+    .buttons{position:sticky;bottom:0;z-index:20;background:var(--bg);
+             border-top:1px solid var(--line);
+             padding:8px 12px calc(8px + var(--safe))}
+  }
+  /* Landscape phone: give the video the room, keep decisions reachable. */
+  @media (max-height:520px) and (orientation:landscape){
+    .stage{aspect-ratio:auto;height:54vh}
+    .buttons button{min-height:46px}
+    .buttons .n{font-size:12px}
+  }
 
-  /* Filter drawer. Search narrows what is reviewed; it is not a verdict. */
-  #fdrawer{ border-bottom:1px solid #22222c; background:#0e0e14;
-            padding:8px 16px }
-  .frow{ display:flex; gap:10px; align-items:center; flex-wrap:wrap;
-         font-size:11px; letter-spacing:.06em; color:#8a8a96 }
-  .frow label{ text-transform:uppercase }
-  .frow select{ background:#12121a; color:#e8e8ec; border:1px solid #22222c;
-                padding:3px 6px; font-size:11px; border-radius:2px }
-  .frow button{ background:#15151f; color:#8a8a96; border:1px solid #22222c;
-                padding:3px 10px; font-size:11px; cursor:pointer;
-                border-radius:2px; letter-spacing:.08em }
-  .frow button:hover{ border-color:#c9a227; color:#e8e8ec }
-  #filtercount{ margin-left:auto; color:#c9a227 }
-  .fnote{ color:#5a5a66; font-size:11px; margin-top:5px }
+  @media (min-width:720px){
+    body{font-size:14px}
+    .counts{width:auto;order:0;margin-left:auto}
+    #corpus{flex:0 0 auto;max-width:280px}
+    #togglefilters{display:none}
+    #fdrawer{display:block}
+    .frow{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+          align-items:end}
+    #filtercount{grid-column:1/-1;text-align:right}
+    main{display:grid;grid-template-columns:minmax(0,1fr) 340px;
+         gap:0 20px;padding:14px 18px;align-items:start}
+    .stage{border-radius:6px;max-height:70vh}
+    .buttons{grid-template-columns:repeat(5,1fr);padding:12px 0 0}
+    .buttons button:nth-child(5){grid-column:auto}
+    .buttons .h{display:block;font-size:10px;color:var(--dim);line-height:1.3}
+    .buttons button{min-height:72px}
+    aside{padding:0;max-height:calc(100vh - 96px);overflow-y:auto}
+    details>summary{padding:8px 0;min-height:32px}
+  }
+  @media (min-width:1280px){
+    main{grid-template-columns:minmax(0,1fr) 400px}
+  }
 </style>
 
 <header>
-  <b>PANTHEON</b>
-  <span style="color:var(--dim)">career review</span>
-  <span id="order" style="color:var(--dim);font-size:12px"></span>
-  <select id="corpus" style="background:#12121a;color:var(--fg);
-      border:1px solid var(--line);border-radius:4px;padding:3px 6px;
-      font:inherit;font-size:12px"></select>
+  <div class="brand">PANTHEON <span>REVIEW</span></div>
+  <select id="corpus"></select>
+  <span id="order"></span>
+  <button class="hbtn" id="togglefilters">FILTERS</button>
   <div class="counts" id="counts"></div>
 </header>
+
 <div id="fdrawer">
   <div class="frow">
-    <label>weapon</label><select id="f-weapon"></select>
-    <label>map</label><select id="f-map"></select>
-    <label>trait</label><select id="f-trait"></select>
-    <label>cause</label><select id="f-death_cause"></select>
-    <label>round kills &ge;</label><select id="f-min_round_kills"></select>
-    <label>camera</label><select id="f-pov"></select>
-    <label>funny / weird</label><select id="f-funny"></select>
-    <button id="f-clear">CLEAR</button>
+    <label>weapon<select id="f-weapon"></select></label>
+    <label>map<select id="f-map"></select></label>
+    <label>trait<select id="f-trait"></select></label>
+    <label>cause<select id="f-death_cause"></select></label>
+    <label>round kills &ge;<select id="f-min_round_kills"></select></label>
+    <label>camera<select id="f-pov"></select></label>
+    <label>funny / weird<select id="f-funny"></select></label>
+    <button id="f-clear">CLEAR FILTERS</button>
     <span id="filtercount"></span>
   </div>
   <div class="fnote" id="fnote"></div>
@@ -138,7 +202,7 @@
 <main>
   <div>
     <div class="stage">
-      <video id="v" playsinline></video>
+      <video id="v" playsinline webkit-playsinline muted></video>
       <div class="placeholder" id="ph" hidden></div>
     </div>
     <div class="track"><div class="played" id="played"></div>
@@ -163,19 +227,27 @@
   </div>
 
   <aside>
-    <h3>Current item</h3>
-    <div id="meta"></div>
     <div class="why" id="why"></div>
     <div id="usage"></div>
-    <div id="roundbox"></div>
     <div class="verdict" id="verdict"></div>
-    <textarea id="note" placeholder="optional note — saved without choosing a role"></textarea>
-    <div class="keys">
-      <kbd>1</kbd>–<kbd>5</kbd> verdict, auto-advance<br>
-      <kbd>Space</kbd> pause · <kbd>R</kbd> replay<br>
-      <kbd>&larr;</kbd> previous · <kbd>&rarr;</kbd> skip, no verdict<br>
-      <kbd>N</kbd> note · <kbd>U</kbd> undo last
-    </div>
+    <details id="d-round" open>
+      <summary>Round</summary>
+      <div id="roundbox"></div>
+    </details>
+    <details id="d-details">
+      <summary>Details</summary>
+      <div id="meta"></div>
+    </details>
+    <details id="d-note">
+      <summary>Note</summary>
+      <textarea id="note" placeholder="optional note - saved without choosing a role"></textarea>
+      <div class="keys">
+        <kbd>1</kbd>-<kbd>5</kbd> verdict, auto-advance<br>
+        <kbd>Space</kbd> pause &middot; <kbd>R</kbd> replay<br>
+        <kbd>&larr;</kbd> previous &middot; <kbd>&rarr;</kbd> skip, no verdict<br>
+        <kbd>N</kbd> note &middot; <kbd>U</kbd> undo last
+      </div>
+    </details>
   </aside>
 </main>
 
@@ -192,6 +264,10 @@ let items = [], idx = 0, offset = 0, order = "WORST_FIRST", cur = null;
 let itemType = "USER_FRAG", corpus = "USER_FRAGS", filters = {};
 const $ = id => document.getElementById(id);
 const v = $("v");
+// One definition of "small", used for media selection only. Layout is CSS.
+const isSmallScreen = () =>
+  Math.min(window.innerWidth, window.innerHeight) <= 820
+  || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
 
 function el(tag, cls, text){
   const n = document.createElement(tag);
@@ -407,7 +483,9 @@ async function show(){
   if (st.ready){
     $("ph").hidden = true;
     v.hidden = false;
-    v.src = API + "/media/" + cur.item_id;
+    // A phone gets the smaller encode of the SAME clip -- same window, same
+    // frames, fewer bits. The master stays the desktop default.
+    v.src = API + "/media/" + cur.item_id + (isSmallScreen() ? "?v=mobile" : "");
     v.loop = true;
     v.play().catch(() => {});
   } else {
@@ -626,5 +704,17 @@ async function restoreSession(){
     console.error("startup step failed: queue", e);
     toast("could not load the queue — see console");
   }
+})();
+
+// The drawer is a bottom sheet on a phone and a strip on a desktop. Filters
+// are secondary: they must never sit between the user and the next verdict.
+(function wireFilterToggle(){
+  const b = document.getElementById("togglefilters");
+  const d = document.getElementById("fdrawer");
+  if (!b || !d) return;
+  b.onclick = () => {
+    d.classList.toggle("open");
+    b.textContent = d.classList.contains("open") ? "CLOSE" : "FILTERS";
+  };
 })();
 </script>

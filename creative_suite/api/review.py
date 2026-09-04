@@ -198,14 +198,63 @@ def _prefetch(items: list[rc.ReviewItem], key: str | None = None) -> None:
             pass                       # best effort, never blocks the queue
 
 
+# A review proxy is 1920x1080 at 8-23 Mbps -- measured mean 11.8 MiB for a
+# six-second clip. That is the right master for judging a frag on a desktop
+# and punishing on a phone over a tunnel. So a phone gets a smaller ENCODE of
+# the same clip: identical window, identical timing, identical frames, fewer
+# bits. Made once, on demand, cached beside the original.
+#
+# Never a mass transcode: most clips are never watched on a phone, and
+# re-encoding 33,316 of them to find out would cost more than it saves.
+MOBILE_SUFFIX = ".m.mp4"
+MOBILE_HEIGHT = 720
+MOBILE_CRF = "30"
+
+
+def _mobile_variant(src: Path) -> Path | None:
+    """Return a phone-sized encode of an existing proxy, making it if needed.
+
+    Derived from the V2 proxy, which came from a raw demo -- the provenance
+    chain is unbroken and no V1 media is involved.
+    """
+    import subprocess
+    dst = src.with_suffix("").with_suffix(MOBILE_SUFFIX)         if src.suffix == ".mp4" else None
+    dst = src.parent / (src.stem + MOBILE_SUFFIX)
+    if dst.exists() and dst.stat().st_size > 0:
+        return dst
+    ff = review_proxy.FFMPEG
+    if not Path(ff).exists():
+        return None
+    tmp = dst.with_suffix(".tmp.mp4")
+    try:
+        subprocess.run(
+            [str(ff), "-y", "-i", str(src),
+             "-vf", f"scale=-2:{MOBILE_HEIGHT}",
+             "-c:v", "libx264", "-preset", "veryfast", "-crf", MOBILE_CRF,
+             "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+             "-c:a", "aac", "-b:a", "96k", str(tmp)],
+            check=True, capture_output=True, timeout=300)
+        tmp.replace(dst)
+        return dst
+    except Exception:                                          # noqa: BLE001
+        # A failed shrink must never cost the reviewer the clip.
+        if tmp.exists():
+            tmp.unlink(missing_ok=True)
+        return None
+
+
 @router.get("/media/{item_id}")
-def get_media(item_id: str):
+def get_media(item_id: str, v: str | None = None):
     it = rc.item(item_id)
     if it is None:
         raise HTTPException(404, f"no such item: {item_id}")
     st = _proxy_for(it)
     path = st.get("mp4_path")
     if st.get("state") == "READY" and path and Path(path).exists():
+        if v == "mobile":
+            small = _mobile_variant(Path(path))
+            if small is not None:
+                return FileResponse(small, media_type="video/mp4")
         return FileResponse(path, media_type="video/mp4")
     # Not an error: the clip is being made, or could not be. The reviewer is
     # told which, and can still judge and move on.
