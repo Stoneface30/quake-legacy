@@ -120,6 +120,20 @@
       font:inherit;font-size:12px"></select>
   <div class="counts" id="counts"></div>
 </header>
+<div id="fdrawer">
+  <div class="frow">
+    <label>weapon</label><select id="f-weapon"></select>
+    <label>map</label><select id="f-map"></select>
+    <label>trait</label><select id="f-trait"></select>
+    <label>cause</label><select id="f-death_cause"></select>
+    <label>round kills &ge;</label><select id="f-min_round_kills"></select>
+    <label>camera</label><select id="f-pov"></select>
+    <label>funny / weird</label><select id="f-funny"></select>
+    <button id="f-clear">CLEAR</button>
+    <span id="filtercount"></span>
+  </div>
+  <div class="fnote" id="fnote"></div>
+</div>
 
 <main>
   <div>
@@ -188,6 +202,7 @@ function el(tag, cls, text){
 
 function toast(msg){
   const t = $("toast");
+  if (!t) return;                    // never let a notice break the page
   t.textContent = msg;
   t.classList.add("on");
   clearTimeout(t._h);
@@ -551,8 +566,13 @@ async function facets(){
   fill("f-min_round_kills", [2, 3, 4, 5, 6].map(n => ({value: n, label: n})), "any");
   fill("f-pov", ["ACTOR_POV", "VICTIM_POV", "OTHER_POV"], "any");
   fill("f-funny", d.funny_signals || [], "any");
-  $("fnote").textContent = d.trait_note;
-  $("f-clear").onclick = () => {
+  // Defensive: a filter control that is not on the page must never stop
+  // the queue from loading. The reviewer is the point; the drawer is help.
+  const note = $("fnote");
+  if (note) note.textContent = (d.trait_note || "") + "  "
+    + (d.funny_note || "");
+  const clr = $("f-clear");
+  if (clr) clr.onclick = () => {
     filters = {};
     ["weapon", "map", "trait", "death_cause", "min_round_kills", "pov",
      "funny"]
@@ -586,11 +606,25 @@ async function restoreSession(){
   toast("resumed where you stopped");
 }
 
+// Startup, step by step, with each step allowed to fail on its own.
+//
+// The drawer and the resume are conveniences; the QUEUE is the product. A
+// rejection anywhere in a single await chain used to abort the rest of it
+// silently -- an unhandled rejection in the console and, on a bad day, no
+// clips. Each step is now isolated and any failure is said out loud rather
+// than swallowed, because a reviewer staring at an empty page deserves to
+// know which part broke.
 (async () => {
-  await restoreSession();
-  await facets();
-  await corpora();
-  await progress();
-  await loadQueue(offset || 0);
+  for (const [name, step] of [["resume", restoreSession], ["filters", facets],
+                              ["corpora", corpora], ["progress", progress]]) {
+    try { await step(); }
+    catch (e) { console.error("startup step failed:", name, e);
+                toast(name + " unavailable"); }
+  }
+  try { await loadQueue(offset || 0); }
+  catch (e) {
+    console.error("startup step failed: queue", e);
+    toast("could not load the queue — see console");
+  }
 })();
 </script>
