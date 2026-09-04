@@ -279,6 +279,10 @@ def manifest_row(cand: ExportCandidate, clip_rel: str, clip_hash: str,
         "source_note": note,
         "source_demo_ref": cand.content_hash,
         "source_provenance": "QUAKE_LEGACY/RECORDED_OBSERVED/DEMO_EV_OBITUARY",
+        # Where the PIXELS came from, which is a different question from where
+        # the event truth came from. Always a capture made now, from a raw
+        # demo -- never a V1 render.
+        "media_provenance": "RAW_DEMO_CAPTURE",
         # Disclosure is THE_PANTHEON's to make, but the safe answer travels
         # with the clip so an unconfigured importer cannot publish by default.
         "public_eligible": bool(public_eligible),
@@ -333,6 +337,8 @@ def _capture_locked(cand: ExportCandidate, start_ms: int, end_ms: int,
         demo_path = REPO_ROOT / "demos" / f"{cand.demo_name}.dm_73"
     if not demo_path.exists():
         raise ExportRefused(f"demo file missing for {cand.external_source_id}")
+    from creative_suite.engine import media_provenance as mprov
+    mprov.assert_demo_source(demo_path, "public export source")
     safe = wc.stage_demo(demo_path)
     clip_name = f"px_{cand.external_source_id[3:19]}"
     res = wc.capture_demo(safe, [{"clip_name": clip_name,

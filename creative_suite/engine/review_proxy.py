@@ -207,6 +207,14 @@ def request_proxy(
     if content_hash is None:
         return {"state": "FAILED",
                 "error": f"demo not found in frags_rebuilt.db: {demo_name}"}
+    # V1 is closed. demo_source returns whatever path a row holds, and a row
+    # is not a guarantee -- so the source is checked here, where it is about
+    # to become a capture, rather than trusted.
+    from creative_suite.engine import media_provenance as mprov
+    try:
+        mprov.assert_demo_source(demo_path, "review proxy source")
+    except mprov.LegacySourceRefused as exc:
+        return {"state": "FAILED", "error": str(exc)}
     profile = _profile_id()
     key = proxy_key(content_hash, start_ms, end_ms, profile)
     conn = editorial_conn()
@@ -335,8 +343,12 @@ def _generate(job: dict[str, Any]) -> None:
         return
 
     from creative_suite.engine import wolfcam_capture as wc
+    from creative_suite.engine import media_provenance as mprov
     wc.ensure_install()
     demo_path = Path(job["demo_path"])
+    # Checked again at capture time: the queue is crossed by a job dict, and
+    # the guard belongs next to the thing it protects.
+    mprov.assert_demo_source(demo_path, "review proxy capture")
     if not demo_path.exists():
         raise RuntimeError(f"demo file missing: {demo_path}")
     safe = wc.stage_demo(demo_path)
