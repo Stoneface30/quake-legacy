@@ -173,5 +173,9 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int)
     ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--all", action="store_true",
+                    help="every frag, not just clutches and high scores")
     args = ap.parse_args()
+    ALL_FRAGS = args.all
+    globals()["ALL_FRAGS"] = ALL_FRAGS
     print(json.dumps(run(args.limit, args.workers), indent=1))
