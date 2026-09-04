@@ -78,14 +78,16 @@ def get_queue(order: str = rc.ORDER_WORST_FIRST, offset: int = 0,
               trait: str | None = None, death_cause: str | None = None,
               actor: str | None = None, opponent: str | None = None,
               pov: str | None = None, merge: str | None = None,
-              min_round_kills: int | None = None):
+              min_round_kills: int | None = None,
+              funny: str | None = None):
     # Named parameters, not a query string the browser composes. The filter
     # whitelist lives in review_corpus and refuses anything it does not know.
     filters = {k: v for k, v in
                {"weapon": weapon, "map": map, "trait": trait,
                 "death_cause": death_cause, "actor": actor,
                 "opponent": opponent, "pov": pov, "merge": merge,
-                "min_round_kills": min_round_kills}.items() if v}
+                "min_round_kills": min_round_kills,
+                "funny": funny}.items() if v}
     try:
         items = rc.queue(order=order, limit=limit, offset=offset,
                          item_type=item_type, unreviewed_only=unreviewed_only,
@@ -395,8 +397,19 @@ def get_facets(corpus: str = rc.DEFAULT_CORPUS):
         causes = [r[0] for r in c.execute(
             "SELECT death_cause FROM kill_occurrences_v1 GROUP BY 1 "
             "ORDER BY COUNT(*) DESC")]
+    funny: list[str] = []
+    with rc._rec() as c:
+        if c.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND "
+                     "name='funny_runs_v1'").fetchone():
+            import json as _j
+            r = c.execute("SELECT by_signal FROM funny_runs_v1").fetchone()
+            if r:
+                funny = [k for k, _ in sorted(_j.loads(r["by_signal"]).items(),
+                                              key=lambda kv: -kv[1])]
     return {"corpus": corpus, "item_type": it, "weapons": weapons,
-            "maps": maps, "death_causes": causes,
+            "maps": maps, "death_causes": causes, "funny_signals": funny,
+            "funny_note": ("a discovery label, not a quality class -- a flyby "
+                           "may well be FEATURE material"),
             "roles": list(rc.ROLES), "role_labels": rc.ROLE_LABEL,
             "traits": rc.trait_vocabulary(limit=40),
             "trait_note": rc.TRAIT_NOTE}

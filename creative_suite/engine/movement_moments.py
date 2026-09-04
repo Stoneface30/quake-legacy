@@ -213,22 +213,52 @@ def calibrate(db: Path = RECOGNITION_DB, pct: float = 95.0
     return thr, len(speeds), disc
 
 
-def _near_occurrence(c: sqlite3.Connection, chash: str, t_end: int,
-                     window_ms: int = 4000) -> tuple[int | None, int | None,
-                                                     str | None, bool]:
+# Occurrences, loaded ONCE and matched in memory.
+#
+# The first version ran a per-moment query joining kill_occurrences to
+# kill_events and ordering by ABS(time difference). There is no index that
+# serves that shape, so SQLite scanned 206,268 occurrences for each of ~55,000
+# moments. It ran for 35 minutes without finishing. Loading the whole table
+# is 206k rows -- a few seconds and a modest amount of memory -- and turns the
+# lookup into a bisect.
+import bisect as _bisect                                       # noqa: E402
+
+
+def load_occurrences(c: sqlite3.Connection) -> dict[str, tuple[list, list]]:
+    """Per demo: sorted times, and the occurrence rows beside them."""
+    out: dict[str, tuple[list, list]] = {}
+    for r in c.execute(
+            "SELECT k.content_hash h, o.server_time_ms t, o.occurrence_id, "
+            "o.round, o.map, k.is_recorder_victim "
+            "FROM kill_occurrences_v1 o JOIN kill_events_v1 k "
+            "ON k.kill_event_id = o.best_observation_id "
+            "ORDER BY k.content_hash, o.server_time_ms"):
+        ts, rows = out.setdefault(r["h"], ([], []))
+        ts.append(int(r["t"]))
+        rows.append((int(r["occurrence_id"]), r["round"], r["map"],
+                     bool(r["is_recorder_victim"])))
+    return out
+
+
+def _near_occurrence(index: dict[str, tuple[list, list]], chash: str,
+                     t_end: int, window_ms: int = 4000
+                     ) -> tuple[int | None, int | None, str | None, bool]:
     """The canonical frag this action ran into, if any. Linked, never copied."""
-    r = c.execute(
-        "SELECT o.occurrence_id, o.round, o.map, o.killer_name_norm, "
-        "k.is_recorder_killer, k.is_recorder_victim "
-        "FROM kill_occurrences_v1 o JOIN kill_events_v1 k "
-        "ON k.kill_event_id = o.best_observation_id "
-        "WHERE k.content_hash=? AND o.server_time_ms BETWEEN ? AND ? "
-        "ORDER BY ABS(o.server_time_ms - ?) LIMIT 1",
-        (chash, t_end - 500, t_end + window_ms, t_end)).fetchone()
-    if r is None:
+    got = index.get(chash)
+    if not got:
         return None, None, None, False
-    return (int(r["occurrence_id"]), r["round"], r["map"],
-            bool(r["is_recorder_victim"]))
+    ts, rows = got
+    i = _bisect.bisect_left(ts, t_end - 500)
+    best = None
+    while i < len(ts) and ts[i] <= t_end + window_ms:
+        d = abs(ts[i] - t_end)
+        if best is None or d < best[0]:
+            best = (d, rows[i])
+        i += 1
+    if best is None:
+        return None, None, None, False
+    oid, rnd, mp, died = best[1]
+    return oid, rnd, mp, died
 
 
 def build(db: Path = RECOGNITION_DB, progress: bool = False) -> dict[str, Any]:
@@ -294,13 +324,23 @@ def build(db: Path = RECOGNITION_DB, progress: bool = False) -> dict[str, Any]:
             traits = [JUMPPAD_ACTION]
             if air and air >= 1500:
                 traits.append(T_BIG_AIRTIME)
-            if d and air and (d / (air / 1000.0)) >= thr:
+            # Displacement over airtime is a FLIGHT speed, and only when the
+            # next jump is genuinely the landing. If the player ran on before
+            # jumping again, the distance covers the run too and the figure
+            # becomes nonsense -- an early build ranked pads by a 7,015 ups
+            # "peak", which is not a speed anyone has ever moved at. Above the
+            # plausibility ceiling no speed is recorded rather than a wrong
+            # one, and the action is still a moment: airtime and distance
+            # stand on their own.
+            flight = (d / (air / 1000.0)) if (d and air) else None
+            if flight is not None and flight > IMPLAUSIBLE_UPS:
+                flight = None
+            if flight is not None and flight >= thr:
                 traits.append(T_PAD_EXIT)
             end = t + (air or 1200)
             rows.append([chash, JUMPPAD_ACTION, t, t, end, end - t,
-                         (d / (air / 1000.0)) if (d and air) else None,
-                         None, None, None, 1, d, air, None, None, None,
-                         traits, None, RECORDER_PLAYERSTATE])
+                         flight, None, None, None, 1, d, air, None, None,
+                         None, traits, None, RECORDER_PLAYERSTATE])
 
     all_peaks.sort()
 
@@ -316,10 +356,21 @@ def build(db: Path = RECOGNITION_DB, progress: bool = False) -> dict[str, Any]:
                 hi = mid
         return round(lo / len(all_peaks) * 100, 1)
 
+    occ_index = load_occurrences(con)
+    # A movement moment has a map whether or not it ends in a kill. Without
+    # this, every unlinked run showed a blank map in the reviewer.
+    demo_map = {r["h"]: r["m"] for r in con.execute(
+        "SELECT k.content_hash h, MIN(o.map) m FROM kill_occurrences_v1 o "
+        "JOIN kill_events_v1 k ON k.kill_event_id = o.best_observation_id "
+        "GROUP BY 1")}
+    if progress:
+        print(f"  {sum(len(v[0]) for v in occ_index.values()):,} occurrences "
+              f"indexed for linking", flush=True)
     with con:
         con.execute("DELETE FROM movement_moments_v1")
         for r in rows:
-            occ, rnd, mp, died = _near_occurrence(con, r[0], r[4])
+            occ, rnd, mp, died = _near_occurrence(occ_index, r[0], r[4])
+            mp = mp or demo_map.get(r[0])
             traits = list(r[16])
             if occ is not None:
                 traits.append(T_ENDS_IN_DEATH if died else T_ENDS_IN_FRAG)

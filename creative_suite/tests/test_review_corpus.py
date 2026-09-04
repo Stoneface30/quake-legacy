@@ -455,3 +455,71 @@ def test_a_filter_narrows_without_discarding():
     rails = rc.count_items(rc.USER_FRAG, corpus=rc.USER_FRAGS,
                            filters={"weapon": "RAILGUN"})
     assert 0 < rails < everything
+
+
+# ── movement and funny ──────────────────────────────────────────────────────
+
+def test_a_movement_moment_keeps_its_own_duration():
+    """A frag is an instant and uses the +/-3s window. A run is an action
+    with a shape, and truncating it to six seconds would cut off the thing
+    the user is being asked to judge."""
+    frag = rc.queue(item_type=rc.USER_FRAG, limit=1)[0]
+    assert frag.end_ms - frag.start_ms == rc.PRE_MS + rc.POST_MS
+    assert frag.window_start_ms is None
+    for t in rc.MOVEMENT_BACKED:
+        got = rc.queue(item_type=t, order=rc.ORDER_BEST_FIRST, limit=4)
+        assert got, t
+        assert any(i.end_ms - i.start_ms != rc.PRE_MS + rc.POST_MS
+                   for i in got), "movement windows should vary with the action"
+        for i in got:
+            assert i.window_start_ms is not None
+
+
+def test_movement_is_not_a_re_description_of_a_frag():
+    """These are independent actions: most do not end in a kill at all, and
+    the ones that do LINK to the canonical occurrence rather than inventing a
+    second historical event."""
+    import sqlite3 as _s
+    c = _s.connect(f"file:{rc.RECOGNITION_DB}?mode=ro", uri=True)
+    total = c.execute("SELECT COUNT(*) FROM movement_moments_v1").fetchone()[0]
+    linked = c.execute("SELECT COUNT(*) FROM movement_moments_v1 WHERE "
+                       "related_occurrence_id IS NOT NULL").fetchone()[0]
+    assert 0 < linked < total, "some link to a frag, most do not"
+
+
+def test_an_implausible_speed_is_not_recorded_as_a_speed():
+    """Displacement over airtime is only a flight speed when the next jump is
+    the landing. An early build ranked jump pads by a 7,015 ups 'peak', which
+    is not a speed anyone has moved at."""
+    import sqlite3 as _s
+    from creative_suite.engine import movement_moments as mm
+    c = _s.connect(f"file:{rc.RECOGNITION_DB}?mode=ro", uri=True)
+    mx = c.execute("SELECT MAX(peak_speed) FROM movement_moments_v1").fetchone()[0]
+    assert mx is not None and mx <= mm.IMPLAUSIBLE_UPS
+    unrecorded = c.execute("SELECT COUNT(*) FROM movement_moments_v1 WHERE "
+                           "kind='JUMPPAD_ACTION' AND peak_speed IS NULL"
+                           ).fetchone()[0]
+    assert unrecorded > 0, "implausible figures are dropped, not clamped"
+
+
+def test_funny_is_a_tag_on_an_occurrence_not_a_new_item():
+    """A moment with five interesting properties must stay ONE thing to
+    judge. Funny/weird narrows the existing queues; it adds no items."""
+    assert "FUNNY" not in rc.ITEM_TYPES and "WEIRD" not in rc.ITEM_TYPES
+    where, params = rc._filter_sql({"funny": "GAUNTLET_KILL"})
+    assert "funny_candidates_v1" in where and "occurrence_id" in where
+    n_all = rc.count_items(rc.USER_FRAG, corpus=rc.USER_FRAGS)
+    n_fun = rc.count_items(rc.USER_FRAG, corpus=rc.USER_FRAGS,
+                           filters={"funny": True})
+    assert 0 < n_fun < n_all
+
+
+def test_funny_does_not_downgrade_anything():
+    """A discovery label, not a quality class. Nothing in the corpus code may
+    treat a funny candidate as lesser -- it has no role, no score penalty and
+    no separate verdict."""
+    from creative_suite.engine import funny_candidates as fc
+    assert set(fc.WEIGHTS) and all(w > 0 for w in fc.WEIGHTS.values())
+    assert fc.WEIGHTS[fc.CHAT_REACTION] == min(fc.WEIGHTS.values()), \
+        "chat is the weakest signal and never establishes comedy"
+    assert "not a quality class" in fc.summary()["note"]

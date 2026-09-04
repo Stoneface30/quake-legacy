@@ -94,11 +94,17 @@ USER_FRAG = "USER_FRAG"
 CLAN_FRAG = "CLAN_FRAG"
 ALL_KILL = "ALL_KILL"
 TELEPORT = "TELEPORT"
+# Movement is its own action with its own clock -- it does not re-describe a
+# frag, and it does not need to end in one.
+HIGH_SPEED = "HIGH_SPEED"
+JUMPPAD = "JUMPPAD"
+MOVEMENT_BACKED = (HIGH_SPEED, JUMPPAD)
+MOVEMENT_KIND = {HIGH_SPEED: "HIGH_SPEED_MOVEMENT", JUMPPAD: "JUMPPAD_ACTION"}
 DODGE = "DODGE"
 LG_TRACKING = "LG_TRACKING"
 PROJECTILE = "PROJECTILE"
 ITEM_TYPES = (USER_FRAG, FRAG, TELEFRAG, DEATH, CLAN_FRAG, ALL_KILL,
-              TELEPORT, DODGE, LG_TRACKING, PROJECTILE)
+              TELEPORT, HIGH_SPEED, JUMPPAD, DODGE, LG_TRACKING, PROJECTILE)
 
 # Families served by the CANONICAL OCCURRENCE layer rather than by raw
 # observations. A kill happened once; several demos may have recorded it. One
@@ -517,6 +523,16 @@ def _filter_sql(filters: dict[str, Any] | None) -> tuple[str, list[Any]]:
                          "rf.classes LIKE ?)")
             params.append(f'%"{raw}"%')
             continue
+        if key == "funny":
+            # A tag on an occurrence, never a separate item. One moment with
+            # five interesting properties must stay one thing to judge.
+            where.append("EXISTS (SELECT 1 FROM funny_candidates_v1 fc "
+                         "WHERE fc.occurrence_id = o.occurrence_id"
+                         + (" AND fc.signals LIKE ?" if raw is not True else "")
+                         + ")")
+            if raw is not True:
+                params.append(f'%"{raw}"%')
+            continue
         if key == "min_round_kills":
             # Read from the precomputed round sizes. The correlated count it
             # replaces ran once per candidate row and made the filter
@@ -588,6 +604,52 @@ def _teleport_item(r: sqlite3.Row, rank: int, total: int,
         scored=False,
         human_role=(rv.get("human_role") or None) or None,
         note=rv.get("note") or "")
+
+
+_MOVEMENT_SELECT = """
+SELECT m.moment_id AS id, m.content_hash, s.demo_name, m.start_ms,
+       m.peak_ms, m.end_ms, m.duration_ms, m.peak_speed, m.mean_speed,
+       m.distance_units, m.airtime_ms, m.map, m.round,
+       m.related_occurrence_id, m.traits, m.speed_pctile, m.kind
+FROM movement_moments_v1 m
+JOIN scanned_demos s ON s.content_hash = m.content_hash
+"""
+
+
+def _movement_table_exists() -> bool:
+    with _rec() as c:
+        return c.execute("SELECT 1 FROM sqlite_master WHERE type='table' "
+                         "AND name='movement_moments_v1'").fetchone() is not None
+
+
+def _movement_item(r: sqlite3.Row, item_type: str, rank: int, total: int,
+                   rv: dict[str, Any]) -> ReviewItem:
+    import json as _j
+    from creative_suite.engine import movement_moments as mm
+    try:
+        traits = _j.loads(r["traits"] or "[]")
+    except (ValueError, TypeError):
+        traits = []
+    sp = r["peak_speed"]
+    why = ", ".join(traits[:4]) or r["kind"]
+    if sp:
+        why = f"{sp:.0f} ups peak, " + why
+    start, end = mm.media_window(int(r["start_ms"]), int(r["end_ms"]))
+    it = ReviewItem(
+        item_id=f"{item_type}:{r['id']}", item_type=item_type,
+        source_id=int(r["id"]), content_hash=r["content_hash"] or "",
+        demo_name=r["demo_name"] or "",
+        # The moment's own anchor is its peak, not a kill.
+        server_time_ms=int(r["peak_ms"]),
+        machine_score=float(sp) if sp is not None else -1.0,
+        machine_rank=rank, total_items=total,
+        weapon="", map_name=r["map"] or "", round_no=r["round"], why=why,
+        scored=sp is not None,
+        # The action keeps its own duration: padded, never truncated.
+        window_start_ms=start, window_end_ms=end,
+        human_role=(rv.get("human_role") or None) or None,
+        note=rv.get("note") or "")
+    return it
 
 
 def _kill_table_exists() -> bool:
@@ -688,15 +750,25 @@ class ReviewItem:
     # False when the recogniser never scored this moment, which is every
     # moment whose actor is not the recorder. Distinct from a low score.
     scored: bool = True
+    # An event with its own duration supplies its own bounds. A frag has no
+    # duration -- it is an instant -- so it uses the +/-3s window; a movement
+    # run does, and truncating it to six seconds would cut the action the
+    # user is being asked to judge.
+    window_start_ms: int | None = None
+    window_end_ms: int | None = None
     human_role: str | None = None
     note: str = ""
 
     @property
     def start_ms(self) -> int:
+        if self.window_start_ms is not None:
+            return max(0, self.window_start_ms)
         return max(0, self.server_time_ms - PRE_MS)
 
     @property
     def end_ms(self) -> int:
+        if self.window_end_ms is not None:
+            return self.window_end_ms
         return self.server_time_ms + POST_MS
 
     @property
@@ -942,6 +1014,24 @@ def queue(order: str = ORDER_WORST_FIRST, limit: int = 50, offset: int = 0,
         raise ValueError(f"unknown order {order!r}")
     if corpus is not None and item_type in (FRAG, None):
         item_type = CORPUS_ITEM_TYPE.get(corpus, item_type)
+    if item_type in MOVEMENT_BACKED:
+        if not _movement_table_exists():
+            return []
+        total = count_items(item_type)
+        direction = "DESC" if order == ORDER_BEST_FIRST else "ASC"
+        with _rec() as c:
+            rows = c.execute(
+                f"{_MOVEMENT_SELECT} WHERE m.kind = ? "
+                f"ORDER BY (m.peak_speed IS NULL), m.peak_speed {direction}, "
+                "m.moment_id ASC LIMIT ? OFFSET ?",
+                (MOVEMENT_KIND[item_type], limit, offset)).fetchall()
+        ids = [f"{item_type}:{r['id']}" for r in rows]
+        got = reviews(ids)
+        if unreviewed_only:
+            rows = [r for r in rows if f"{item_type}:{r['id']}" not in got]
+        return [_movement_item(r, item_type, offset + i + 1, total,
+                               got.get(f"{item_type}:{r['id']}") or {})
+                for i, r in enumerate(rows)]
     if item_type == TELEPORT:
         total = count_items(TELEPORT)
         with _rec() as c:
@@ -1001,6 +1091,13 @@ def count_items(item_type: str = FRAG, corpus: str | None = None,
                 "SELECT COUNT(*) FROM kill_occurrences_v1 o JOIN "
                 "kill_events_v1 k ON k.kill_event_id = o.best_observation_id "
                 f"WHERE {where}{fw}", params + fp).fetchone()[0])
+    if item_type in MOVEMENT_BACKED:
+        if not _movement_table_exists():
+            return 0
+        with _rec() as c:
+            return int(c.execute(
+                "SELECT COUNT(*) FROM movement_moments_v1 WHERE kind=?",
+                (MOVEMENT_KIND[item_type],)).fetchone()[0])
     if item_type == TELEPORT:
         with _rec() as c:
             return int(c.execute(
@@ -1021,6 +1118,16 @@ def count_items(item_type: str = FRAG, corpus: str | None = None,
 
 def item(item_id: str) -> ReviewItem | None:
     kind, _, sid = item_id.partition(":")
+    if kind in MOVEMENT_BACKED:
+        if not _movement_table_exists():
+            return None
+        with _rec() as c:
+            r = c.execute(f"{_MOVEMENT_SELECT} WHERE m.moment_id = ?",
+                          (int(sid),)).fetchone()
+        if not r:
+            return None
+        return _movement_item(r, kind, 0, count_items(kind),
+                              reviews([item_id]).get(item_id) or {})
     if kind == TELEPORT:
         with _rec() as c:
             r = c.execute(f"{_TELEPORT_SELECT} AND t.rowid = ?",

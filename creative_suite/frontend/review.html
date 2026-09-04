@@ -550,10 +550,12 @@ async function facets(){
   fill("f-death_cause", d.death_causes, "any");
   fill("f-min_round_kills", [2, 3, 4, 5, 6].map(n => ({value: n, label: n})), "any");
   fill("f-pov", ["ACTOR_POV", "VICTIM_POV", "OTHER_POV"], "any");
+  fill("f-funny", d.funny_signals || [], "any");
   $("fnote").textContent = d.trait_note;
   $("f-clear").onclick = () => {
     filters = {};
-    ["weapon", "map", "trait", "death_cause", "min_round_kills", "pov"]
+    ["weapon", "map", "trait", "death_cause", "min_round_kills", "pov",
+     "funny"]
       .forEach(k => { const e = $("f-" + k); if (e) e.value = ""; });
     progress(); loadQueue(0);
   };
