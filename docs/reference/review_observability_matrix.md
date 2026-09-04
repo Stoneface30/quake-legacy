@@ -13,7 +13,7 @@ actually observable and says UNKNOWN everywhere else.*
 
 | field group | status | note |
 |---|---|---|
-| HP / armor | **AVAILABLE** after widening | was 7.4% by design, extraction running |
+| HP / armor | **PARTIAL — 31.4%** | was 7.4% by design; widened pass raised it 4.3x |
 | damage dealt/taken | **PARTIAL** | LG-context only |
 | **outgoing** action accuracy | **DERIVABLE, NOT BUILT** | the path is proven below |
 | cached LG accuracy | **UNAVAILABLE** | the table is an empty scaffold |
@@ -28,7 +28,7 @@ actually observable and says UNKNOWN everywhere else.*
 
 | field | source | status | coverage | scope |
 |---|---|---|---|---|
-| `health_at_frag` | playerstate | OBSERVED | 2,701 / 36,607 (7.4%) → widening | own camera only |
+| `health_at_frag` | playerstate | OBSERVED | **11,501 / 36,607 (31.4%)** | own camera only |
 | `armor_at_frag` | playerstate | OBSERVED | same | own camera only |
 | `engagement_start_health` / `_armor` | playerstate, −10 s | OBSERVED | same | own camera only |
 | `min_health_10s` / `min_armor_10s` | playerstate | OBSERVED | same | own camera only |
@@ -38,9 +38,16 @@ actually observable and says UNKNOWN everywhere else.*
 **The 7.4% was by design, not a data limit.** `extract_health_armor.py`
 selected only CA clutches and MAIN_CA rows scoring ≥ 10 — 2,705 events across
 1,251 demos — because health was then wanted only for likely-used frags. The
-extractor now takes `--all`: **3,424 demos, 14,581 events** to fill. Same
-playerstate series, same fields; only the question of which frags deserve the
-parse changed.
+extractor now takes `--all`. The widened pass ran: **2,272 demos, 8,121
+events filled, 0 failures, 898s** — taking coverage from 2,701 (7.4%) to
+**11,501 (31.4%)**, a 4.3x improvement.
+
+**It did not reach 100%, and that is not yet explained.** The candidate map
+listed 14,581 events across 3,424 demos; the run covered 2,272 demos and
+filled 8,121. The remainder may be demos whose file is missing, or frags
+where the playerstate series does not cover that moment. Worth one bounded
+look before the dossier promises HP on every clip — until then the honest
+figure is 31.4% and the panel must say UNKNOWN for the rest.
 
 **Scope limit that must reach the UI:** health is the RECORDER's. On a
 foreign-camera observation it is the cameraman's health, not the actor's, and
@@ -132,8 +139,8 @@ Available now: weapon, opponent, map, round, time, camera provenance,
 occurrence id, machine score and rank, usage state, round frag counts, alive
 curve (labelled DERIVED), movement, flick, distance, visibility, trait chips.
 
-Available after the running extraction: HP and armor at start / min / frag,
-and the low-HP tags that follow from them.
+Available on 31.4% of frags: HP and armor at start / min / frag, and the
+low-HP tags that follow. The other 68.6% must read UNKNOWN, not 0.
 
 Derivable but NOT BUILT: outgoing action accuracy per weapon, per-engagement
 damage beyond the LG window.
