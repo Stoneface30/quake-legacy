@@ -146,7 +146,7 @@ def test_the_historical_actor_keeps_the_skin_the_demo_authored():
 
 
 def test_the_analysis_tint_is_written_in_the_measured_format():
-    from engine.pantheon.instruction import analysis_visual_cvars
+    from engine.pantheon.color_format import analysis_visual_cvars
     team = analysis_visual_cvars(same_team_as_pov=True)
     enemy = analysis_visual_cvars(same_team_as_pov=False)
     # 0xRRGGBB, the form PROOF 0 and PROOF B both measured

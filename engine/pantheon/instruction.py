@@ -537,14 +537,7 @@ PANTHEON_GREEN = (60, 235, 90)     # readable against grey arena stone,
 ANALYSIS_SKIN = "bright"
 
 
-def analysis_visual_cvars(*, same_team_as_pov: bool,
-                          rgb: tuple[int, int, int] = PANTHEON_GREEN) -> dict:
-    """Cvars that colour the analysis body and leave history alone.
-
-    `same_team_as_pov` decides which half of the family to write, because the
-    engine classifies by team relation and not by anything this layer controls.
-    """
-    from engine.pantheon.color_format import format_for
-    fam = "cg_team" if same_team_as_pov else "cg_enemy"
-    return {f"{fam}{part}Color": format_for(f"{fam}{part}Color", rgb)
-            for part in ("Legs", "Torso", "Head")}
+# HOW the tint reaches a renderer -- which cvars, in which format -- is the
+# backend's business: engine.pantheon.color_format.analysis_visual_cvars.
+# This layer states the intent (PANTHEON_GREEN on the analysis body, chosen
+# by team relation to the POV) and nothing lower.

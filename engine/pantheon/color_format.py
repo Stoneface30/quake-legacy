@@ -94,3 +94,25 @@ def format_for(cvar: str, rgb: RGB) -> str:
 def is_inferred(cvar: str) -> bool:
     """True when the syntax is taken from a shipped default, not a frame."""
     return cvar.lower() in INFERRED
+
+
+# ── the analysis tint, as cvars ───────────────────────────────────────────
+# Moved here from engine.pantheon.instruction (2026-09-05, HL-1): the
+# instruction layer states the intent -- an RGB and "same team as the POV" --
+# and this backend-side module turns it into the cvar family the engine
+# classifies by.
+
+def analysis_visual_cvars(*, same_team_as_pov: bool,
+                          rgb: tuple[int, int, int] | None = None) -> dict:
+    """Cvars that colour the analysis body and leave history alone.
+
+    `same_team_as_pov` decides which half of the family to write, because the
+    engine classifies by team relation and not by anything the instruction
+    layer controls.
+    """
+    if rgb is None:
+        from engine.pantheon.instruction import PANTHEON_GREEN
+        rgb = PANTHEON_GREEN
+    fam = "cg_team" if same_team_as_pov else "cg_enemy"
+    return {f"{fam}{part}Color": format_for(f"{fam}{part}Color", rgb)
+            for part in ("Legs", "Torso", "Head")}

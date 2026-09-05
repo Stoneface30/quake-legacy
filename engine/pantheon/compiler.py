@@ -90,7 +90,7 @@ EVENT_CODE = _event_codes()
 ENTITY_EVENTS = {"fire_weapon", "jump_pad", "jump", "change_weapon", "pain",
                  "death", "drown", "teleport_in", "teleport_out",
                  "item_pickup", "use_item", "noammo", "drop_weapon"}
-TEMP_EVENTS = {"missile_hit", "missile_miss", "railtrail", "gib_player"}
+TEMP_EVENTS = {"missile_hit", "missile_miss", "railtrail", "gib_player", "scoreplum"}
 EV_SEQ_SHIFT = 8            # EV_EVENT_BIT1/2 live at 0x100/0x200
 ENTITYNUM_WORLD = 1022
 EVENT_SLOT0 = 640           # temp-entity slots for recorded impacts

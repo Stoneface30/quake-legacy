@@ -332,6 +332,21 @@ Everything above the bottom row runs without launching a game.
 - **WHAT** BSP, MD3, QL shaders, lightmaps, animation interpolation, effects, particles, marks, PVS, native cgame rendering come from Wolfcam for free. Headless *engine* now; headless *renderer* is a separate project (Route 1 offscreen GL adapter, Route 2 Blender) and blocks nothing.
 - **WHY** Replacing the rasterizer buys no truth. The boundary is what fixes the iteration loop, not the renderer.
 
+### Rule HL-5: Character is not performance
+- **WHAT** A `PerformanceTrace` says how a body moved, aimed and fought; it carries a demo hash and a client slot, never a name. A `roster.PresenterProfile` (model, skin, voice, gesture vocabulary) says WHO performs it. `headless.compile_performance(trace, cast=...)` joins them at compile time and nowhere earlier. Anarki can perform a trace recorded from anyone.
+- **WHERE** `engine/pantheon/headless.py::CastMember` · `engine/pantheon/roster.py::PresenterProfile` · `performance_library.py` references are `PERF:<category>:<hash>:<client>:<t_ms>`.
+- **WHY** Reusable performances are the library; identities are not, and the public repo never carries one.
+
+### Rule HL-6: Observation gaps stay gaps
+- **WHAT** Where the source demo carried no sample of a player (the recorder lost sight, the entity left the snapshot), the trace has no sample, the synthetic holds the last known state, and `compare()` reports the span as `UNOBSERVED`. Nothing interpolates across a multi-second absence and calls it source truth. An event the transform contradicts (a jump pad without a launch, a teleport without a discontinuity) is `rejected` with a reason, never a node.
+- **WHERE** `engine/pantheon/compare.py` (`GAP_MS`, `unobserved_spans_ms`) · `engine/pantheon/action_graph.py` (`rejected`, transform validation) · `performance_index.py::_launched`.
+- **WHY** The false jump-pad attribution on the POV client (flat on the ground at z=600 through the whole "jump") showed an event alone can lie; only the transform can confirm it.
+
+### Rule HL-7: Events and sound are game state, emitted by the compiler
+- **WHAT** Recorded `fire_weapon`, `jump_pad`, `jump`, `pain`, `death`, `teleport_*`, `change_weapon` go out on the player entity with sequence bits; `missile_hit/miss`, `railtrail`, `gib_player`, `scoreplum` go out as `ET_EVENTS` temp entities. The synthetic `.dm_73` therefore parses back to the same event tracks as the source (`event:* = MATCHED`). `FrameTruth.SemanticEvent.sound` names the sound intent (`weapon.fire.ROCKET`, `world.jump_pad`, `impact.ROCKET`, `player.pain`, ...); a backend decides the sample and the mix. Never patch an explosion or a sound into a renderer to cover a missing event.
+- **WHERE** `engine/pantheon/compiler.py` (`ENTITY_EVENTS`, `TEMP_EVENTS`, `EVENT_CODE` from the parser's table) · `engine/pantheon/frame_truth.py::SOUND_INTENT`.
+- **WHY** REAL_ACTION_TRACE_PROOF_01 sat at `events = INTENTIONAL_DIFFERENCE` until the compiler emitted them; now every event track on the real jump-pad rocket is MATCHED, headless, in 168 ms.
+
 ## HARD RULES — Demo Parser & Highlight Criteria
 
 ### Rule P3-A: Own Highlight Criteria Before Demo Extraction

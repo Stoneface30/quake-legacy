@@ -28,6 +28,13 @@ HEADLESS = {
     "performance",      # PerformanceTrace extraction
     "performance_index",  # corpus-wide PerformanceTrace index (SQLite)
     "real_action_proof",  # extract -> compile -> compare, headless
+    "headless",         # the loop: extract / compile / reextract / compare / run
+    "retarget",         # EXACT_WORLD / LOCAL_FRAME rigid transform + map validity
+    "compare",          # PerformanceDiff
+    "action_graph",     # semantic reading of a trace, with evidence
+    "map_spatial_index",  # behavioural geography from real play
+    "performance_library",  # anonymous PERF: references over the index
+    "headless_bench",   # loop timings, no render
     "frame_truth",      # FrameTruth
     "scenario",         # RoundScenario authoring
     "compiler",         # intent -> .dm_73 grammar
@@ -138,3 +145,45 @@ def test_wolfcam_backend_delegates_to_shot_render(monkeypatch, tmp_path: Path):
                           use=backends.BackendUse.REFERENCE_RENDER)
     assert out == tmp_path / "x.avi"
     assert calls == [(sentinel, tmp_path, 1000)]
+
+
+# ── the audit goes past imports: no backend vocabulary in game truth ────────
+
+# Words that belong below the boundary. Found as an identifier or a string
+# literal in a HEADLESS module, they mean a renderer concern leaked upward.
+# Comments and docstrings are exempt: explaining WHY the boundary exists is
+# allowed; depending on what is behind it is not.
+BACKEND_TOKENS = ("wolfcam", "capture.cfg", "cvar", ".avi", "cam10", "Popen",
+                  "subprocess", "r_mode", "cg_", "+set", "fs_homepath")
+# `cvar` is what cvar_probe asks the RUNNING engine about; a headless module
+# has no engine to ask.
+
+
+def _code_tokens(path: Path) -> list[tuple[int, str]]:
+    """Identifiers, attribute names and string literals -- not comments, not
+    docstrings."""
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    doc_nodes: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            body = getattr(node, "body", [])
+            if body and isinstance(body[0], ast.Expr) and isinstance(body[0].value, ast.Constant)                     and isinstance(body[0].value.value, str):
+                doc_nodes.add(id(body[0].value))
+    out = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name):
+            out.append((node.lineno, node.id))
+        elif isinstance(node, ast.Attribute):
+            out.append((node.lineno, node.attr))
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in doc_nodes:
+            out.append((node.lineno, node.value))
+    return out
+
+
+@pytest.mark.parametrize("path", _headless_modules(), ids=lambda p: p.stem)
+def test_headless_module_speaks_no_backend_vocabulary(path: Path):
+    hits = [(ln, tok) for ln, tok in _code_tokens(path)
+            for word in BACKEND_TOKENS if word.lower() in tok.lower()]
+    assert not hits, (f"{path.name} carries backend vocabulary in code: {hits[:5]}. "
+                      "CameraPlan may state intent; a cvar, a capture cfg, an AVI or "
+                      "a process is a backend's business (HL-1).")

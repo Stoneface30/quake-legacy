@@ -1,7 +1,7 @@
 # PANTHEON headless-first — design
 
 **Date:** 2026-09-05 · **Branch:** `feature/pantheon-prologue` · **Rules:** CLAUDE.md HL-1..HL-4
-**Status:** boundary + interface + guard test shipped; retarget/compare loop is the next unit of work.
+**Status:** boundary + interface + guard test shipped (d7b40d77); headless loop, event emission, ActionGraph, MapSpatialIndex, PerformanceLibrary, bench and golden set shipped on `feature/pantheon-headless` (2026-09-05 evening). See §7.
 
 ## 1. The problem
 
@@ -177,3 +177,21 @@ Before continuing the jump-pad rocket reproduction:
    compare frames with the real capture.
 
 No Wolfcam launch before step 4.
+
+## 7. Shipped on `feature/pantheon-headless` (2026-09-05)
+
+| Unit | Module | Proof |
+|---|---|---|
+| Headless API | `engine/pantheon/headless.py` — `extract_performance`, `compile_performance`, `reextract`, `run` | `test_pantheon_headless_api.py` |
+| Retarget | `engine/pantheon/retarget.py` — `EXACT_WORLD`, `LOCAL_FRAME`, `validate_retarget` | same |
+| Compare | `engine/pantheon/compare.py` — `PerformanceDiff`, six statuses, gaps as spans | same |
+| Event emission | `compiler.py` — entity events with sequence bits, temp-entity impacts/trails | REAL_ACTION_TRACE_PROOF_01 `event:* = MATCHED` |
+| Sound intent + recorded pose | `frame_truth.py::SOUND_INTENT`, `ActorTruth.pitch/velocity/legs_anim` | `test_frame_truth_carries_the_recorded_pose_and_the_sound_intent` |
+| ActionGraph | `engine/pantheon/action_graph.py` — evidence-bearing nodes, transform validation, projectile tracks, rail/LG on their own terms, closed category list | `test_action_graph.py`; real trace reads `JUMP_PAD -> AIRBORNE -> FIRE -> PROJECTILE` |
+| MapSpatialIndex | `engine/pantheon/map_spatial_index.py` — 64u cells, layers, adjacency, encounters, floors; feeds `validate_retarget` | `test_map_spatial_index.py` |
+| PerformanceLibrary | `engine/pantheon/performance_library.py` — `PERF:` refs, SQL coarse categories, ActionGraph fine categories | CLI `--counts` |
+| Bench | `engine/pantheon/headless_bench.py` | `creative_suite/generated/pantheon/bench/bench.json` |
+| Golden set | `creative_suite/tests/test_pantheon_golden_headless.py` — real demos, skips without the corpus | run log |
+| Boundary audit | `test_pantheon_headless_boundary.py` — imports AND vocabulary (`wolfcam`, `cvar`, `.avi`, `cam10`, `Popen`, `cg_` ...) | suite |
+
+Rules HL-5 (character != performance), HL-6 (gaps stay gaps), HL-7 (events and sound are game state) added to CLAUDE.md.
