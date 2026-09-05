@@ -70,12 +70,63 @@ def round_state_proof(out_dir: Path, *, map_name: str = "campgrounds"):
     return path, scn
 
 
+def animation_proof(out_dir: Path, *, map_name: str = "campgrounds"):
+    """SYNTHETIC_ANIMATION_PROOF_05 -- one actor, alone, at a readable distance.
+
+    The earlier attempt put the actor among seven others on the same route, so
+    the bodies overlapped and nothing could be judged. Here there is exactly
+    one actor, the camera stands back along the same walked route, and the
+    beats are long enough that consecutive frames land inside one phase.
+
+        0.0-2.0  IDLE
+        2.0-6.0  RUN along a real route
+        6.0-7.5  IDLE (stopped)
+        7.5-9.0  ATTACK
+        9.0-10.5 IDLE
+    """
+    import math
+    nav = NavigationTruth.for_map(map_name, cache=NAV_CACHE)
+    route = nav.route()
+    leg = route.thinned()
+
+    scn = RoundScenario.clan_arena(map_name=map_name,
+                                   hostname="PANTHEON ANIMATION PROOF")
+    # The first attempt used the two ends of a 966-unit route, which put the
+    # actor about 900 units away -- a speck. Pick a viewpoint roughly 260
+    # units from where the actor will be: close enough that legs and torso
+    # read, far enough that the whole body stays in frame.
+    start = leg[2]
+    ideal = 260.0
+    eye = min((p for p in leg if math.dist(p, start) > 120.0),
+              key=lambda p: abs(math.dist(p, start) - ideal), default=leg[-1])
+    scn.observer(eye, yaw=math.degrees(
+        math.atan2(start[1] - eye[1], start[0] - eye[0])) % 360)
+
+    actor = scn.actor("RED_1", Team.RED)
+    actor.spawn(start, yaw=math.degrees(
+        math.atan2(eye[1] - start[1], eye[0] - start[0])) % 360,
+        weapon=Weapon.ROCKET)
+    actor.stand(until=2.0)
+    # a short run, so the actor stays near the camera through the whole cycle
+    run_leg = [p for p in leg if math.dist(p, start) < 300.0][:4] or leg[2:5]
+    actor.move_to(run_leg, during=(2.0, 6.0))
+    actor.stand(until=7.5)
+    actor.fire(Weapon.ROCKET, t=7.5)
+    actor.stand(until=10.5)
+
+    writer = scn.compile(duration=11.0)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = writer.save(out_dir / "SYNTHETIC_ANIMATION_PROOF_05.dm_73")
+    return path, scn
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("proof", choices=["round_state"])
+    ap.add_argument("proof", choices=["round_state", "animation"])
     ap.add_argument("--out", type=Path, default=Path(".tmp/synthetic"))
     args = ap.parse_args()
-    path, scn = round_state_proof(args.out)
+    path, scn = (round_state_proof(args.out) if args.proof == "round_state"
+                 else animation_proof(args.out))
     print(f"wrote {path}  ({path.stat().st_size:,} bytes)")
     for row in scn.timeline():
         print(f"   t={row['t']:6.2f}  {row['feature']:16s} "
