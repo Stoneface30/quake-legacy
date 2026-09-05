@@ -292,7 +292,11 @@ def test_a_performed_entrance_never_uses_move_to():
     built, rep = s.build()
     pres = built.actors["GUIDE~PRESENTER"]
     assert rep["breaks"][0]["entrance"] == "REAL_PERFORMANCE"
-    assert all(k.recorded for k in pres._keys if k.alive and k.stance.name != "DEAD")
+    from engine.pantheon.scenario import Stance
+    # every moving key is a recorded sample; the only authored keys are the
+    # standing ones (gesture, hold, despawn) -- nothing here ran a lerp
+    assert all(k.recorded for k in pres._keys if k.stance is Stance.RUN)
+    assert not any((not k.recorded) and k.stance is Stance.RUN for k in pres._keys)
     assert s.verify_restoration(built)["all_restored"]
     assert built._alive[Team.RED] == 1 and built._alive.get(Team.BLUE, 0) == 0
 
