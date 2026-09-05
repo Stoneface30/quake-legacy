@@ -121,3 +121,36 @@ def test_the_source_scenario_is_never_mutated():
     s.build()
     assert len(s.historical.actors) == before       # no ~ANALYSIS added
     assert "KEEL~ANALYSIS" not in s.historical.actors
+
+
+# ── the analysis look (PROOF B) ───────────────────────────────────────
+
+def test_the_analysis_body_wears_the_only_tintable_skin():
+    # PROOF B: the colour family reaches `bright` and not `sarge/default`.
+    # Giving the analysis body the bright skin is therefore what makes the
+    # tint land on it alone.
+    from engine.pantheon.instruction import ANALYSIS_SKIN
+    s = _scene()
+    built, rep = s.build()
+    ghost = built.actors["KEEL~ANALYSIS"]
+    assert ghost.skin == ANALYSIS_SKIN
+    assert ghost.model == built.actors["KEEL"].model      # same character
+    assert rep["breaks"][0]["analysis_appearance"]["skin"] == ANALYSIS_SKIN
+
+
+def test_the_historical_actor_keeps_the_skin_the_demo_authored():
+    s = _scene()
+    built, _ = s.build()
+    assert built.actors["CRASH"].skin == "trainer"        # untouched
+    assert built.actors["KEEL"].skin == "bright"          # as authored
+
+
+def test_the_analysis_tint_is_written_in_the_measured_format():
+    from engine.pantheon.instruction import analysis_visual_cvars
+    team = analysis_visual_cvars(same_team_as_pov=True)
+    enemy = analysis_visual_cvars(same_team_as_pov=False)
+    # 0xRRGGBB, the form PROOF 0 and PROOF B both measured
+    assert all(v.startswith('"0x') for v in team.values())
+    # the engine classifies by team relation, so only one half is written
+    assert set(team) & set(enemy) == set()
+    assert len(team) == 3

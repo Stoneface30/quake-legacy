@@ -46,10 +46,10 @@ SYNTAX = {
     "cg_railitemcolor": ColorSyntax.PACKED_INT,
     "cg_teamrailitemcolor": ColorSyntax.PACKED_INT,
     "cg_enemyrailitemcolor": ColorSyntax.PACKED_INT,
-    # Same packed form is the SHIPPED DEFAULT of the model colour family
-    # (cg_enemyLegsColor defaults to "0x2a8000"), so they are recorded here as
-    # PACKED_INT -- but flagged: this is inference from the default, and
-    # PROOF B must measure it before a model colour goes on screen.
+    # PROOF B, 2026-09-05: measured, not inferred. cg_teamLegsColor
+    # "0x00ff00" put a keel/bright teammate at (102,225,98) and
+    # cg_enemyLegsColor "0xff00ff" put a keel/bright enemy at (251,83,249),
+    # against neutral (203,201,163) / (213,185,161) with the family cleared.
     "cg_enemylegscolor": ColorSyntax.PACKED_INT,
     "cg_enemytorsocolor": ColorSyntax.PACKED_INT,
     "cg_enemyheadcolor": ColorSyntax.PACKED_INT,
@@ -64,8 +64,8 @@ SYNTAX = {
 }
 
 # Names whose syntax is inferred from a shipped default rather than measured.
-INFERRED = {"cg_enemylegscolor", "cg_enemytorsocolor", "cg_enemyheadcolor",
-            "cg_teamlegscolor", "cg_teamtorsocolor", "cg_teamheadcolor"}
+# Empty since PROOF B: every colour family this project writes has been filmed.
+INFERRED: set[str] = set()
 
 
 def syntax_for(cvar: str) -> str:

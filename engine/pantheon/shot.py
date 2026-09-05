@@ -199,9 +199,25 @@ def render(spec: ShotSpec, out_dir: Path, *, base_ms: int = 1000) -> Path:
     # dozen shot cvars past the master profile's fourteen pushed `+demo` off
     # the end, and the engine sat in the menu and exited 0 with no AVI. A cfg
     # exec'd from cgamepostinit has no such ceiling.
+    # A LATCHED cvar set from capture.cfg does nothing to THIS capture. It is
+    # stored, archived to q3config.cfg, and read at the NEXT startup -- so run
+    # N films at the old value and run N+1 films at the new one. That is worse
+    # than no effect: it makes consecutive captures differ by a variable nobody
+    # declared, which is exactly what a controlled A/B cannot survive. (Caught
+    # on PROOF B: capture 1 came out visibly darker than captures 2 and 3,
+    # which had inherited the exposure the first run had only stored.)
+    # Latched cvars therefore go on the command line, where Com_StartupVariable
+    # applies them before the renderer initialises.
+    from engine.pantheon.ab_scene import CvarInventory
+    inv = CvarInventory.load()
+    latched, live = {}, {}
+    for k, v in spec.visual.cvars().items():
+        c = inv.get(str(k))
+        (latched if (c and c["latched"]) else live)[k] = v
+
     cfg = wc.write_capture_cfg(windows, wc.STAGING, None)
     head, *rest = cfg.splitlines()          # head is `exec <master>.cfg`
-    look = [f"set {k} {v}" for k, v in spec.visual.cvars().items()]
+    look = [f"set {k} {v}" for k, v in live.items()]
     wc.write_engine_file(wc.STAGING / "wolfcam-ql" / "capture.cfg",
                          "".join(f"{ln}\n" for ln in [head, *look, *rest]))
 
@@ -210,7 +226,9 @@ def render(spec: ShotSpec, out_dir: Path, *, base_ms: int = 1000) -> Path:
     for old in videos.glob(f"{spec.shot_id}*.avi"):
         old.unlink()
 
-    cmd = wc.wolfcam_cmd(safe, wc.STAGING)
+    cmd = wc.wolfcam_cmd(safe, wc.STAGING,
+                         extra_sets={k: str(v).strip('"')
+                                     for k, v in latched.items()})
     groups = sum(1 for a in cmd if a.startswith("+"))
     if groups > MAX_CONSOLE_LINES:
         raise RuntimeError(

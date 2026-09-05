@@ -140,8 +140,8 @@ def test_an_unmeasured_colour_cvar_is_refused():
         format_for("cg_someFutureColor", (1, 2, 3))
 
 
-def test_model_colour_syntax_is_flagged_as_inferred():
+def test_no_colour_family_is_left_inferred():
     from engine.pantheon.color_format import is_inferred
-    # Taken from the shipped default "0x2a8000", not from a frame yet.
-    assert is_inferred("cg_enemyLegsColor")
+    # PROOF B filmed the model colour family, so nothing is inferred now.
+    assert not is_inferred("cg_enemyLegsColor")   # measured by PROOF B
     assert not is_inferred("cg_teamRailColor1")

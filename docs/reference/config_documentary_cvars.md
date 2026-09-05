@@ -193,3 +193,63 @@ configstring. **This is also most of the freecam question**: team relation is a
 property of the POV client's configstring, so a followed-player POV resolves it
 by construction. Proof C will use a followed POV and not depend on
 `cg_freecam_useTeamSettings` at all.
+
+---
+
+# PROOF B — CLOSED. Who decides what a player looks like.
+
+Four actors, one frame, three captures. `overkill` high floor band, clustered
+so all four are mutually visible; camera, lighting, position and time are
+shared by construction because the cells are ACTORS, not captures. Only the
+global client cvars vary between captures.
+Stills: `docs/visual-record/2026-09-05/proofb/`.
+
+| cell | authored | client colours set | verdict |
+|---|---|---|---|
+| A1 `keel/bright` **teammate** | (203, 201, 163) | **(102, 225, 98)** | tinted by `cg_team*Color 0x00ff00` |
+| A2 `keel/bright` **enemy** | (213, 185, 161) | **(251, 83, 249)** | tinted by `cg_enemy*Color 0xff00ff` |
+| A3 `sarge/default` teammate | (153, 108, 66) | (153, 109, 66) | **untouched** |
+
+**1. Tint authority is `cg_team*Color` / `cg_enemy*Color`, keyed on the
+subject's TEAM RELATION to the point of view.** Not the model, not the demo's
+`c1`/`c2`, not `cg_forceModel`.
+
+**2. The tint reaches the `bright` skin family and not `sarge/default`.** A3
+measured within one unit of itself across the cleared and set captures.
+
+**3. That is why Keel rendered white in INSTRUCTION_LAYER_PROOF_01.** He was
+BLUE, the same team as the POV, so `cg_teamLegsColor` applied — and it ships as
+`0xffffff`. The hypothesis was reachable from the default value; it is now
+measured.
+
+**4. `0xRRGGBB` is confirmed for the model colour family too.** `format_for`
+emitted `"0x00ff00"` and `"0xff00ff"` and both landed exactly. `color_format`
+no longer flags any family as inferred.
+
+**5. Forced model remains UNPROVEN, not disproven.** `cg_forceModel 1` +
+`cg_enemyModel "keel/bright"` changed nothing on the cells measured — but the
+only cell that could have shown it, A4 (enemy Sarge), sat too far right to
+measure. Do not put that command on screen yet.
+
+## The analysis look falls out of this
+
+The analysis body is the **only** actor wearing a `bright` skin. The tint then
+lands on it and on nothing else, so the explanatory copy is instantly separable
+from the fight **without repainting the fight**. Historical actors keep exactly
+what the demo authored. `instruction.analysis_visual_cvars()` writes the half
+of the family that matches the body's team relation to the POV, because that is
+what the engine classifies on.
+
+## A capture trap PROOF B found
+
+The first PROOF B run came out with capture 1 visibly darker than captures 2
+and 3, at 39.9 MB against 48 MB. The exposure cvars are **LATCHED**: set from
+`capture.cfg` they are stored, archived to `q3config.cfg`, and read at the
+**next** startup. So run N filmed at the old value and run N+1 at the new one —
+consecutive captures differing by a variable nobody declared, which is the one
+thing a controlled A/B cannot survive.
+
+`shot.render` now splits the profile against the runtime inventory and sends
+every latched cvar to the **command line**, where `Com_StartupVariable` applies
+it before the renderer initialises. After the fix the three captures came out
+at 86.8 / 87.5 / 87.0 MB.

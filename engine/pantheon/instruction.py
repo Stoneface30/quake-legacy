@@ -195,7 +195,10 @@ class InstructionScene:
             # from the LEFT.
             e0 = _edit_of(tm, b.at_t, bias="left")
             act = out.actor(f"{b.presenter}~ANALYSIS", hist.team)
-            act.appearance(hist.model, hist.skin, c1=hist.c1, c2=hist.c2)
+            # Same model, ANALYSIS skin. The bright skin is what the colour
+            # family can reach, so wearing it is what makes this body -- and
+            # only this body -- take the PANTHEON tint.
+            act.appearance(hist.model, ANALYSIS_SKIN, c1=hist.c1, c2=hist.c2)
             act.layer = Layer.ANALYSIS
             # He is not in the round. Counting him would make the CA alive
             # counters say one more player is fighting than actually is, which
@@ -291,6 +294,13 @@ class InstructionScene:
                 "armor": frozen.armor},
             "analysis_actor": f"{b.presenter}~ANALYSIS",
             "analysis_actor_layer": Layer.ANALYSIS.value,
+            "analysis_appearance": {
+                "model": src.actors[b.presenter].model,
+                "skin": ANALYSIS_SKIN,
+                "tint_rgb": list(PANTHEON_GREEN),
+                "why": "the tint reaches the bright skin family only, so the "
+                       "analysis body is the only actor wearing it and the "
+                       "historical actors keep what the demo authored"},
             "walk_route": [[round(c, 2) for c in p] for p in route],
             "walk_len_units": round(
                 sum(math.dist(route[i], route[i + 1])
@@ -372,3 +382,39 @@ def _edit_of(tm, historical_t: float, bias: str = "left") -> float:
 def _replace_t(k: _Keyframe, t: float) -> _Keyframe:
     return _Keyframe(t, k.origin, k.yaw, k.stance, k.weapon, k.health,
                      k.armor, k.alive)
+
+
+# ── the analysis look, decided by PROOF B ───────────────────────────────────
+#
+# PROOF B measured three things that together make an analysis-only appearance
+# possible without touching a single historical actor:
+#
+#   1. cg_team*Color / cg_enemy*Color TINT a player, keyed on his team relation
+#      to the point of view;
+#   2. the tint reaches the `bright` skin family and NOT `sarge/default`, which
+#      measured (153,108,66) identically with the family cleared and set;
+#   3. that is also why Keel came out white in PROOF 01 -- he was a teammate of
+#      the POV and cg_teamLegsColor ships as 0xffffff.
+#
+# So the analysis body is the ONLY actor wearing a `bright` skin. The tint then
+# lands on it and on nothing else, and every historical actor keeps exactly the
+# appearance the demo authored. The explanatory copy is instantly separable
+# from the fight without repainting the fight.
+
+PANTHEON_GREEN = (60, 235, 90)     # readable against grey arena stone,
+                                   # and not the nuclear 0x00ff00 of the test
+
+ANALYSIS_SKIN = "bright"
+
+
+def analysis_visual_cvars(*, same_team_as_pov: bool,
+                          rgb: tuple[int, int, int] = PANTHEON_GREEN) -> dict:
+    """Cvars that colour the analysis body and leave history alone.
+
+    `same_team_as_pov` decides which half of the family to write, because the
+    engine classifies by team relation and not by anything this layer controls.
+    """
+    from engine.pantheon.color_format import format_for
+    fam = "cg_team" if same_team_as_pov else "cg_enemy"
+    return {f"{fam}{part}Color": format_for(f"{fam}{part}Color", rgb)
+            for part in ("Legs", "Torso", "Head")}
