@@ -356,8 +356,16 @@ class Actor:
     def _at(self, t: float) -> _Keyframe:
         """Interpolated state at `t`. Position lerps; pose does not."""
         keys = sorted(self._keys, key=lambda k: k.t)
-        if t <= keys[0].t:
-            return keys[0]
+        first = keys[0]
+        if t < first.t:
+            # NOT YET SPAWNED. Returning the first key here made every actor
+            # exist from t=0: the cast sheet stacked twelve characters on one
+            # mark, and a presenter authored to walk in mid-freeze was already
+            # standing in the fight from the first frame.
+            return _Keyframe(t, first.origin, first.yaw, Stance.DEAD,
+                             first.weapon, first.health, first.armor, False)
+        if t == first.t:
+            return first
         for a, b in zip(keys, keys[1:]):
             if a.t <= t <= b.t:
                 span = b.t - a.t

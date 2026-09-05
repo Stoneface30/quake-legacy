@@ -196,3 +196,18 @@ def test_a_dead_actor_stops_being_sent(tmp_path):
     after = [p for t, p in present if t > 4000]
     assert any(victim in p for p in before), "victim should exist before dying"
     assert all(victim not in p for p in after), "victim must be gone after"
+
+
+def test_an_actor_does_not_exist_before_it_spawns():
+    # The cast sheet stacked twelve characters on one mark because _at()
+    # returned the first keyframe, alive, for every t before it.
+    from engine.pantheon.scenario import RoundScenario, Team, Weapon
+    scn = RoundScenario.clan_arena(map_name="overkill", hostname="T")
+    scn.observer((0.0, 0.0, 0.0), yaw=0.0)
+    a = scn.actor("LATE", Team.RED).appearance("orbb", "default")
+    a.spawn((100.0, 0.0, 0.0), yaw=0.0, t=24.0, weapon=Weapon.RAIL)
+    a.stand(until=30.0)
+    assert a._at(0.8).alive is False
+    assert a._at(23.99).alive is False
+    assert a._at(24.0).alive is True
+    assert a._at(27.0).alive is True

@@ -211,8 +211,8 @@ def compile_scenario(scn: "RoundScenario", *,
         ents: dict[int, dict] = {}
         for a in scn.actors.values():
             k = a._at(t)
-            if k.stance is Stance.DEAD:
-                continue                    # eliminated: the body is gone
+            if k.stance is Stance.DEAD or not k.alive:
+                continue                    # eliminated or not yet spawned
             st = dict(_PLAYER_STRUCTURAL)
             st.update({
                 W.ES_ETYPE: W.ET_PLAYER,
