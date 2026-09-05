@@ -53,12 +53,28 @@ def main() -> int:
                     shutil.copy2(side, db.with_name(db.name + suffix))
 
     from creative_suite.engine import creative_annotation as ca
+    from creative_suite.engine import identity as idn
+    from creative_suite.engine import production_usage as pu
+    from creative_suite.engine import reconstruction_queue as rq
     from creative_suite.engine import review_corpus as rc
     from creative_suite.engine import review_proxy as rp
+    from creative_suite.engine import review_tags as rt
 
+    # EVERY module that can write a human row. This list being incomplete is
+    # not a theoretical risk: the tag and workshop modules were added after
+    # this launcher and were NOT redirected, so an automated mobile run wrote
+    # three tags and a reconstruction request into the user's live database,
+    # stamped HUMAN_USER. They were removed by hand. `assert_isolated` below
+    # exists so the next addition fails loudly instead of quietly.
     ca.EDITORIAL_DB = db
     rc.EDITORIAL_DB = db
     rp.EDITORIAL_DB_PATH = db
+    rt.EDITORIAL_DB = db
+    rq.EDITORIAL_DB = db
+    # Usage lifecycle and identity decisions are human production state too.
+    # A rebuild is required to preserve them, so a test must not write them.
+    pu.EDITORIAL_DB = db
+    idn.EDITORIAL_DB = db
 
     real_record = rc.record
 
@@ -70,6 +86,22 @@ def main() -> int:
                            provenance=rc.TEST)
 
     rc.record = test_only_record
+
+    _real_tag = rt.set_tag
+
+    def test_only_tag(occurrence_id, tag, on=True, item_id="",
+                      provenance=rt.HUMAN_USER):
+        return _real_tag(occurrence_id, tag, on, item_id, rt.TEST)
+
+    rt.set_tag = test_only_tag
+
+    _real_request = rq.request
+
+    def test_only_request(occurrence_id, item_id="", reason=rq.UNSPECIFIED,
+                          note="", provenance=rq.HUMAN_USER):
+        return _real_request(occurrence_id, item_id, reason, note, rq.TEST)
+
+    rq.request = test_only_request
 
     def test_only_event_note(event_id, annotation, provenance=ca.HUMAN_USER):
         return _real_event_note(event_id, annotation, ca.TEST)
@@ -84,6 +116,8 @@ def main() -> int:
     _real_round_note = ca.set_round_annotation
     ca.set_round_annotation = test_only_round_note
 
+    assert_isolated(db)
+
     import uvicorn
     from creative_suite.app import create_app
 
@@ -91,6 +125,36 @@ def main() -> int:
     uvicorn.run(create_app(), host="127.0.0.1", port=args.port,
                 log_level="warning")
     return 0
+
+
+LIVE_MODULE_ATTRS = (
+    ("creative_suite.engine.creative_annotation", "EDITORIAL_DB"),
+    ("creative_suite.engine.identity", "EDITORIAL_DB"),
+    ("creative_suite.engine.production_usage", "EDITORIAL_DB"),
+    ("creative_suite.engine.reconstruction_queue", "EDITORIAL_DB"),
+    ("creative_suite.engine.review_corpus", "EDITORIAL_DB"),
+    ("creative_suite.engine.review_proxy", "EDITORIAL_DB_PATH"),
+    ("creative_suite.engine.review_tags", "EDITORIAL_DB"),
+)
+
+
+def assert_isolated(db: Path) -> None:
+    """Refuse to serve if anything still points at the live database.
+
+    A test instance that can reach the user's editorial database is a test
+    instance that can destroy their reviews. Failing to start is a far
+    smaller problem than discovering afterwards which rows were written.
+    """
+    import importlib
+    wrong = []
+    for name, attr in LIVE_MODULE_ATTRS:
+        mod = importlib.import_module(name)
+        got = Path(str(getattr(mod, attr)))
+        if got != Path(str(db)):
+            wrong.append(f"{name}.{attr} -> {got}")
+    if wrong:
+        raise SystemExit("NOT ISOLATED, refusing to start: "
+                         + "; ".join(wrong))
 
 
 if __name__ == "__main__":

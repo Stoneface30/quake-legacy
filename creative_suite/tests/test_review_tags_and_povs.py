@@ -346,3 +346,62 @@ def test_a_situation_filter_uses_an_index():
 def test_an_unknown_situation_is_refused_not_ignored():
     with pytest.raises(ValueError):
         rc._situation_sql("ANYTHING_GOES")
+
+
+# ── the isolation that failed once ──────────────────────────────────────────
+
+def test_the_test_instance_redirects_every_human_writing_module():
+    """A list that goes out of date silently is how live rows get written.
+
+    The tag and workshop modules were added AFTER `review_test_instance.py`
+    and were not redirected, so an automated 390x844 run wrote three tags and
+    a reconstruction request into the user's live database, stamped
+    HUMAN_USER. They were removed by hand.
+
+    This asserts the launcher knows about every module that can write a human
+    row, so the next one added fails here rather than in the user's data.
+    """
+    import importlib
+    import inspect
+    import sys
+    from pathlib import Path
+
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    inst = importlib.import_module("review_test_instance")
+    guarded = {name for name, _attr in inst.LIVE_MODULE_ATTRS}
+
+    # Every engine module that owns an EDITORIAL_DB constant writes human
+    # rows by definition -- that database holds nothing else.
+    engine = REPO_ROOT / "creative_suite" / "engine"
+    writers = set()
+    for py in engine.glob("*.py"):
+        src = py.read_text(encoding="utf-8", errors="replace").upper()
+        if "EDITORIAL_DB" not in src:
+            continue
+        # Naming the database is not writing to it. Only a module that
+        # actually mutates rows needs redirecting.
+        if any(v in src for v in ("INSERT ", "UPDATE ", "DELETE ")):
+            writers.add(f"creative_suite.engine.{py.stem}")
+
+    missing = {m for m in writers if m not in guarded}
+    # review_proxy holds its path under a differently named constant and is
+    # guarded explicitly by that name.
+    # review_proxy holds its path under a differently named constant and is
+    # guarded by that name; director_preview resolves through review_proxy at
+    # call time rather than owning a constant, so redirecting review_proxy
+    # covers it.
+    missing -= {"creative_suite.engine.review_proxy",
+                "creative_suite.engine.director_preview"}
+    assert not missing, (
+        "these modules can write to the editorial database but the test "
+        f"instance does not redirect them: {sorted(missing)}")
+
+
+def test_the_test_instance_refuses_to_start_when_not_isolated(tmp_path):
+    """Failing to start beats finding out afterwards which rows were written."""
+    import importlib
+    import sys
+    sys.path.insert(0, str(REPO_ROOT / "scripts"))
+    inst = importlib.import_module("review_test_instance")
+    with pytest.raises(SystemExit):
+        inst.assert_isolated(tmp_path / "definitely-not-where-they-point.db")

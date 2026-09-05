@@ -176,10 +176,18 @@ const step = (n, msg) => console.log(`  [${n}] ${msg}`);
 
     // ── tags: one keystroke, orthogonal to the verdict ───────────────────
     const before = await page.evaluate(() => cur.item_id);
+    // Idempotent: tags TOGGLE, and a previous run may have left them on. A
+    // test that blindly clicks three times would turn them off and report a
+    // failure that is really its own second run.
+    for (const t of ['PREDICTION', 'ROCKET', 'GOLDEN']) {
+      const on = await page.evaluate(x => curTags.has(x), t);
+      if (on) { await page.evaluate(x => toggleTag(x), t);
+                await page.waitForTimeout(250); }
+    }
     await page.locator('#tagrail button[data-tag="PREDICTION"]').click();
     await page.keyboard.press('o');                   // ROCKET
     await page.locator('#bgold').click();             // GOLDEN
-    await page.waitForTimeout(1200);
+    await page.waitForTimeout(1500);
     const tagged = await page.evaluate(() => [...curTags].sort());
     assert.deepEqual(tagged, ['GOLDEN', 'PREDICTION', 'ROCKET'],
                      'tags did not stick: ' + JSON.stringify(tagged));
@@ -200,16 +208,27 @@ const step = (n, msg) => console.log(`  [${n}] ${msg}`);
 
     // ── unfilmed moments go to the workshop ──────────────────────────────
     const wTarget = await page.evaluate(() => cur.item_id);
+    if (await page.evaluate(() => workshopOn)) {
+      await page.locator('#bwork').click();
+      await page.waitForTimeout(600);
+    }
     await page.locator('#bwork').click();
     await page.waitForTimeout(1200);
     assert.ok(posts.some(p => p.endsWith('/reconstruct')),
               'workshop button posted nothing');
+    // Stored, and correctly NOT in the human-only build queue: this instance
+    // stamps everything TEST, and a reconstruction costs real work so only a
+    // human request may order one. Asserting both proves the gate as well as
+    // the write.
+    const wrec = await (await fetch(`${API}/reconstruct/`
+      + encodeURIComponent(wTarget))).json();
+    assert.ok(wrec.request, 'the workshop request was not stored');
     const wq = await (await fetch(`${API}/reconstruct/queue`)).json();
-    assert.ok(wq.items.some(i => i.item_id === wTarget),
-              'the request never reached the workshop queue');
+    assert.ok(!wq.items.some(i => i.item_id === wTarget),
+              'a TEST request reached the human build queue');
     assert.equal(await page.evaluate(() => cur.item_id), wTarget,
                  'sending to the workshop advanced the reviewer');
-    step(9.3, `sent ${wTarget} to the workshop (${wq.pending} pending)`);
+    step(9.3, `sent ${wTarget} to the workshop; stored, and kept out of the human build queue`);
     results.push('workshop request reaches the build queue');
 
     // ── delete removes the item and undo brings it back ──────────────────

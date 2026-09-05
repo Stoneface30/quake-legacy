@@ -91,6 +91,10 @@ FRAG = "FRAG"
 TELEFRAG = "TELEFRAG"
 DEATH = "DEATH"
 USER_FRAG = "USER_FRAG"
+# Action worth watching that ends in no kill. Its OWN namespace: an ACTION is
+# never a frag, never merges into the kill queue, and never inflates a frag
+# count. `ACTION:<action_id>`, resolved from `action_moments_v1`.
+ACTION = "ACTION"
 CLAN_FRAG = "CLAN_FRAG"
 ALL_KILL = "ALL_KILL"
 TELEPORT = "TELEPORT"
@@ -103,7 +107,7 @@ MOVEMENT_KIND = {HIGH_SPEED: "HIGH_SPEED_MOVEMENT", JUMPPAD: "JUMPPAD_ACTION"}
 DODGE = "DODGE"
 LG_TRACKING = "LG_TRACKING"
 PROJECTILE = "PROJECTILE"
-ITEM_TYPES = (USER_FRAG, FRAG, TELEFRAG, DEATH, CLAN_FRAG, ALL_KILL,
+ITEM_TYPES = (USER_FRAG, FRAG, TELEFRAG, DEATH, CLAN_FRAG, ALL_KILL, ACTION,
               TELEPORT, HIGH_SPEED, JUMPPAD, DODGE, LG_TRACKING, PROJECTILE)
 
 # Families served by the CANONICAL OCCURRENCE layer rather than by raw
@@ -219,8 +223,14 @@ ALL_PLAYERS = "ALL_PLAYERS"
 # leaks into the main queue.
 TELEFRAG_DOC = "TELEFRAG_DOC"
 
+# The no-kill corpus. HIGH confidence only by default: a pain event proves
+# damage, not whose, and at the median the actor fired 18% of the shots in
+# the window. Showing every AMBIGUOUS burst would be showing the reviewer
+# other people's fights.
+NO_KILL_ACTIONS = "NO_KILL_ACTIONS"
+
 CORPORA = (USER_FRAGS, RECORDER_OWN_ARCHIVE, PTN_FRAGS, USER_AND_PTN,
-           ALL_PLAYERS, TELEFRAG_DOC)
+           ALL_PLAYERS, TELEFRAG_DOC, NO_KILL_ACTIONS)
 
 # The old names, kept so nothing that referenced them breaks silently. They
 # are deliberately not in CORPORA: "MY_FRAGS" was the misnomer.
@@ -303,6 +313,7 @@ CORPUS_ITEM_TYPE = {
     USER_AND_PTN: ALL_KILL,    # narrowed to user + roster in the SQL
     ALL_PLAYERS: ALL_KILL,
     TELEFRAG_DOC: ALL_KILL,      # same family, opposite junk rule
+    NO_KILL_ACTIONS: ACTION,
 }
 
 # What the user is actually looking at, in words, so a denominator is never
@@ -314,6 +325,7 @@ CORPUS_LABEL = {
     USER_AND_PTN: "USER + pTn (unique occurrences)",
     ALL_PLAYERS: "ALL CANONICAL PLAYER KILLS",
     TELEFRAG_DOC: "TELEFRAGS (documentary only)",
+    NO_KILL_ACTIONS: "ACTION WITH NO KILL",
 }
 
 DEFAULT_CORPUS = USER_FRAGS
@@ -1255,6 +1267,24 @@ def queue(order: str = ORDER_WORST_FIRST, limit: int = 50, offset: int = 0,
         return [_teleport_item(r, offset + i + 1, total,
                                got.get(f"{TELEPORT}:{r['id']}") or {})
                 for i, r in enumerate(rows)]
+    if item_type == ACTION:
+        if not _action_table_exists():
+            return []
+        total = count_items(ACTION, corpus=corpus)
+        where, params = _action_where(corpus)
+        direction = "ASC" if order == ORDER_WORST_FIRST else "DESC"
+        with _rec() as c:
+            rows = c.execute(
+                f"{_ACTION_SELECT} WHERE {where} ORDER BY a.observed_pain "
+                f"{direction}, a.action_id ASC LIMIT ? OFFSET ?",
+                (*params, limit, offset)).fetchall()
+        ids = [f"{ACTION}:{r['id']}" for r in rows]
+        got = reviews(ids)
+        if unreviewed_only:
+            rows = [r for r in rows if f"{ACTION}:{r['id']}" not in got]
+        return [_action_item(r, offset + i + 1, total,
+                             got.get(f"{ACTION}:{r['id']}") or {})
+                for i, r in enumerate(rows)]
     if item_type in KILL_BACKED:
         if not _kill_table_exists():
             return []
@@ -1293,6 +1323,14 @@ def queue(order: str = ORDER_WORST_FIRST, limit: int = 50, offset: int = 0,
 
 def count_items(item_type: str = FRAG, corpus: str | None = None,
                 filters: dict[str, Any] | None = None) -> int:
+    if item_type == ACTION:
+        if not _action_table_exists():
+            return 0
+        where, params = _action_where(corpus)
+        with _rec() as c:
+            return int(c.execute(
+                f"SELECT COUNT(*) FROM action_moments_v1 a WHERE {where}",
+                params).fetchone()[0])
     if item_type in KILL_BACKED:
         if not _kill_table_exists():
             return 0
@@ -1598,3 +1636,97 @@ def dismiss_risk(item_id: str) -> dict[str, Any]:
                         f"this moment; deleting hides all of them")
     return {"item_id": item_id, "occurrence_id": oid,
             "safe": not reasons, "reasons": reasons}
+
+
+# ── ACTION: worth watching, and nobody died ─────────────────────────────────
+#
+# A SEPARATE NAMESPACE ON PURPOSE. `ACTION:41` and `USER_FRAG:41` are
+# different moments, and the id encodes which. An action never enters a frag
+# queue, never counts toward a frag denominator, and carries its own
+# progress. "Actions are not fake frags."
+
+_ACTION_SELECT = """
+SELECT a.action_id AS id, a.content_hash, a.server_time_ms, a.round, a.map,
+       a.observed_pain, a.distinct_victims, a.actor_shots, a.other_shots,
+       a.missile_hits, a.missile_misses, a.shot_share, a.confidence,
+       a.classes, a.ends_in_kill, a.linked_occurrence_id, a.window_ms
+FROM action_moments_v1 a
+"""
+
+# The window a reviewer watches. The burst is the three seconds AFTER the
+# first pain event, so the clip has to start before it to show the setup.
+ACTION_PRE_MS, ACTION_POST_MS = 4000, 4000
+
+
+def _action_table_exists() -> bool:
+    with _rec() as c:
+        return bool(c.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND "
+            "name='action_moments_v1'").fetchone())
+
+
+def _action_where(corpus: str | None) -> tuple[str, list[Any]]:
+    """Which actions are worth offering.
+
+    HIGH confidence and no kill by default. An AMBIGUOUS burst is one where
+    other people were shooting the same targets; showing it as the user's
+    action would be a claim the pain stream cannot support.
+    """
+    users, up = _in(user_norms())
+    where = ("a.confidence = 'HIGH' AND a.ends_in_kill = 0 "
+             "AND EXISTS (SELECT 1 FROM kill_events_v1 k WHERE "
+             "k.content_hash = a.content_hash AND k.is_recorder_killer = 1 "
+             f"AND k.killer_name_norm IN {users}) "
+             # Warmup is warmup whatever the moment is made of.
+             "AND NOT (a.round = 0 AND EXISTS (SELECT 1 FROM round_kills_v1 "
+             "rk WHERE rk.content_hash = a.content_hash AND rk.round >= 1))")
+    return where, up
+
+
+def _action_why(r: sqlite3.Row) -> str:
+    import json as _json
+    try:
+        cls = [c for c in _json.loads(r["classes"] or "[]")
+               if c != "TRUE_NO_KILL_ACTION"]
+    except Exception:                                          # noqa: BLE001
+        cls = []
+    bits = [f"{r['observed_pain']} pain on {r['distinct_victims']}"]
+    bits.append(f"{r['actor_shots']} of your shots")
+    if cls:
+        bits.append(", ".join(cls[:2]))
+    return " · ".join(bits)
+
+
+def _action_item(r: sqlite3.Row, rank: int, total: int,
+                 rv: dict[str, Any]) -> ReviewItem:
+    return ReviewItem(
+        item_id=f"{ACTION}:{r['id']}", item_type=ACTION,
+        source_id=int(r["id"]), content_hash=r["content_hash"] or "",
+        demo_name="", server_time_ms=int(r["server_time_ms"]),
+        # An action has no highlight score and never had one. -1.0 is the
+        # sentinel for "never scored", not a low score.
+        machine_score=-1.0, machine_rank=rank, total_items=total,
+        weapon="", map_name=r["map"] or "", round_no=r["round"],
+        why=_action_why(r), actor_name=None, is_actor_pov=True,
+        scored=False,
+        window_start_ms=int(r["server_time_ms"]) - ACTION_PRE_MS,
+        window_end_ms=int(r["server_time_ms"]) + ACTION_POST_MS,
+        human_role=(rv.get("human_role") or None) or None,
+        note=rv.get("note") or "")
+
+
+def action_detail(action_id: int) -> dict[str, Any] | None:
+    """Everything measured about one action, named for what was OBSERVED."""
+    with _rec() as c:
+        r = c.execute("SELECT * FROM action_moments_v1 WHERE action_id = ?",
+                      (int(action_id),)).fetchone()
+    if r is None:
+        return None
+    import json as _json
+    d = dict(r)
+    d["classes"] = _json.loads(d.get("classes") or "[]")
+    d.pop("content_hash", None)          # private provenance
+    d["note"] = ("observed pain events are a LOWER BOUND on hits -- the "
+                 "server throttles them -- and prove damage, not whose. "
+                 "Quake Live demos carry no damage figure for another player")
+    return d
