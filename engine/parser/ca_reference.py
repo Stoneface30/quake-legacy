@@ -33,9 +33,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
 
-# Server-text kinds that are pure protocol and cannot contain a nickname.
-# Everything else is redacted to its shape.
-SAFE_TEXT_KINDS = frozenset()
+# A committed fixture may contain normalized anonymous ids (RED_1, BLUE_2) and
+# nothing else that identifies a person. Server text has no safe kind: chat,
+# tchat, print and cp all carry nicknames, so the default output drops the text
+# channel entirely and keeps only its shape.
+SAFE_TEXT_KINDS: frozenset[str] = frozenset()
+
+# Writing identifying output into a directory git tracks is the mistake that
+# already happened once. `--identifying` refuses to target one.
+TRACKED_ROOTS = ("docs/", "creative_suite/", "engine/")
 
 import engine.parser.demo_parse as dp
 from engine.parser.demo_parse import DM73Parser
@@ -134,9 +140,11 @@ def _redact(text_rows: list[dict], keep: bool) -> list[dict]:
     """Chat is the nickname channel. Keep its shape, drop its content."""
     if keep:
         return text_rows
+    # No `text` key at all. A redaction marker in a `text` field invites a
+    # later change to "just put it back for debugging"; a schema with no text
+    # channel does not.
     return [{"server_time_ms": r["server_time_ms"], "kind": r["kind"],
-             "chars": len(r.get("text", "")), "round": r.get("round"),
-             "text": "<redacted: may contain player names>"}
+             "chars": len(r.get("text", "")), "round": r.get("round")}
             for r in text_rows]
 
 
@@ -234,6 +242,15 @@ def main() -> int:
                     help="keep chat text and demo filenames. Local use only -- "
                          "the output must never be committed.")
     args = ap.parse_args()
+    if args.identifying:
+        rel = args.out.resolve().as_posix()
+        repo = Path(__file__).resolve().parents[2].as_posix()
+        inside = rel.startswith(repo)
+        tracked = any(rel.startswith(f"{repo}/{r}") for r in TRACKED_ROOTS)
+        if inside and tracked:
+            raise SystemExit(
+                f"refusing --identifying into a tracked path ({args.out}). "
+                "Identifying output goes somewhere git does not follow.")
     args.out.mkdir(parents=True, exist_ok=True)
 
     merged = PlayerFieldProfile()

@@ -53,3 +53,17 @@ def test_no_committed_trace_carries_chat():
         body = f.read_text(encoding="utf-8", errors="replace")
         assert '"kind": "chat"' not in body or "redacted" in body, f
         assert '"kind": "tchat"' not in body or "redacted" in body, f
+
+
+def test_redacted_rows_have_no_text_channel_at_all():
+    """Not even a placeholder. A `text` key invites someone to repopulate it
+    'just for debugging'; a schema without one does not."""
+    rows = [{"server_time_ms": 1, "kind": "chat", "round": 1, "text": "^1Nick: x"}]
+    out = R._redact(rows, keep=False)
+    assert "text" not in out[0]
+    assert set(out[0]) == {"server_time_ms", "kind", "chars", "round"}
+
+
+def test_no_server_text_kind_is_considered_safe():
+    """chat, tchat, print and cp all carry nicknames in QL."""
+    assert R.SAFE_TEXT_KINDS == frozenset()
