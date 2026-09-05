@@ -77,3 +77,56 @@ def test_the_first_item_dossier_is_truthful():
     assert d["action"]["shots"] and d["action"]["unit"] == "attack ticks"
     assert d["action"]["accuracy_pct"] is None
     assert d["action"]["confidence"] == "NOT_DERIVABLE"
+
+
+# ── ActionTruth is the single authority ─────────────────────────────────────
+
+def test_the_dossier_computes_nothing_of_its_own():
+    """If the reviewer and the choreographer derived the same moment
+    separately, one would eventually lie to the director and there would be
+    no way to tell which."""
+    src = (Path(__file__).resolve().parents[1] / "engine" / "dossier.py"
+           ).read_text(encoding="utf-8")
+    assert "action_truth.for_item" in src
+    for computed in ("SELECT", "json.loads", "def _stack("):
+        assert computed not in src, f"dossier re-derives {computed}"
+
+
+def test_review_and_production_read_the_same_object():
+    from creative_suite.engine import action_truth, dossier
+    a = action_truth.for_item("USER_FRAG:495")
+    b = dossier.build("USER_FRAG:495")
+    if a is None:
+        pytest.skip("corpus not present")
+    assert a == b
+
+
+def test_timing_shows_how_the_scene_builds():
+    from creative_suite.engine import action_truth
+    d = action_truth.for_item("USER_FRAG:106493")
+    if d is None or not d.get("timing", {}).get("available"):
+        pytest.skip("scene not present")
+    t = d["timing"]
+    assert t["frags_in_scene"] >= 2 and t["frag_index"] >= 1
+    assert t["ms_to_next_user_frag"] or t["ms_since_previous_user_frag"]
+
+
+# ── capture determinism ─────────────────────────────────────────────────────
+
+def test_the_review_profile_silences_every_hud_it_does_not_want():
+    """Wolfcam archives CVAR_ARCHIVE values, so anything set in an
+    interactive session survives into the next launch -- a 242ups
+    speedometer once appeared in a capture that never asked for one."""
+    from creative_suite.engine import master_profile as mp
+    prof = mp.PROFILES[mp.REVIEW_PROFILE_NAME]
+    for cvar in ("cg_drawSpeed", "cg_drawSpeedometer", "cg_drawFPS",
+                 "cg_lagometer", "cg_drawAttacker", "cg_drawRewards"):
+        assert prof.get(cvar) == 0, f"{cvar} left to archived state"
+
+
+def test_movement_metrics_live_in_the_dossier_not_the_footage():
+    from creative_suite.engine import action_truth
+    d = action_truth.for_item("USER_FRAG:495")
+    if d is None:
+        pytest.skip("corpus not present")
+    assert "movement" in d and "speed_at_frag" in d["movement"]

@@ -344,6 +344,22 @@ _REVIEW_V2 = {
     # cg_useCustomRedBlueModels != 2.
     "cg_useDefaultTeamSkins": 0,
     "cg_useCustomRedBlueModels": 0,
+    # CAPTURE DETERMINISM. Wolfcam archives CVAR_ARCHIVE values into its own
+    # config, so anything ever set in an interactive session survives into
+    # the next launch -- a 242ups speedometer appeared in a review capture
+    # that no review cvar had asked for. A review clip must look the same
+    # whoever last used the engine, so every HUD element the review view does
+    # not want is set explicitly rather than left to whatever was archived.
+    # Movement metrics belong in the dossier, not burned into the footage.
+    "cg_drawSpeed": 0,
+    "cg_drawSpeedometer": 0,
+    "cg_drawFPS": 0,
+    "cg_lagometer": 0,
+    "cg_drawAmmoWarning": 0,
+    "cg_drawAttacker": 0,
+    "cg_drawRewards": 0,
+    "cg_drawKeys": 0,
+    "cg_drawPickupItems": 0,
     # Exposure lives in REVIEW_LAUNCH_SETS below, NOT here. Every cvar that
     # controls it is CVAR_LATCH: the renderer reads it once at startup, so a
     # value written into a cfg is read, stored, and has no effect on the
@@ -502,6 +518,50 @@ REVIEW_PROFILE_NAME = "TR4SH_REVIEW_V2"
 # one films for strangers, where a name in the picture is a disclosure that
 # cannot be taken back. public_clip_export.py must pass this and nothing else.
 PUBLIC_EXPORT_PROFILE_NAME = "TR4SH_PUBLIC_EXPORT"
+
+
+# ── capture intents ─────────────────────────────────────────────────────────
+# WHAT A CAPTURE IS FOR, which is the only question a caller should have to
+# answer. Everything below the intent -- which cvars, which token gates, which
+# profile hash -- is this module's problem, and asking a caller to remember
+# cg_drawFragMessageTokens is how a name reached a public clip in the first
+# place.
+#
+# PUBLIC_BLIND is the load-bearing one: it is the ONLY intent whose output may
+# be shown to someone outside this repository, and it is the only one that
+# carries a no-identity guarantee. Every other intent films for the director or
+# for the user's own movie, where names on screen are correct and wanted.
+#
+# Adding an intent means adding a profile, not loosening one. If a new caller
+# needs public output with different framing, give it its own profile that also
+# satisfies public_clip_export.assert_capture_profile_is_nameless.
+CAPTURE_INTENT = {
+    "PUBLIC_BLIND":      PUBLIC_EXPORT_PROFILE_NAME,   # strangers, blind vote
+    "GAMEPLAY_MASTER":   PROFILE_NAME,                 # the user's own film
+    "DIRECTOR_REVIEW":   REVIEW_PROFILE_NAME,          # judging a moment
+    "MOVEMENT_REVIEW":   SPEED_PROFILE_NAME,           # engine UPS readout
+    "DIRECTOR_SESSION":  DIRECTOR_PROFILE_NAME,        # live freecam
+    "ARCHIVE_ANALYSIS":  "TR4SH_ANALYSIS_HEADLESS",    # measurement, not beauty
+}
+
+# The one intent that may leave this repository. Named separately so a reader
+# does not have to infer it from a comment.
+PUBLIC_INTENT = "PUBLIC_BLIND"
+
+
+def profile_for_intent(intent: str) -> str:
+    """Resolve a capture intent to its frozen profile name.
+
+    Raises rather than defaulting. A typo must not silently fall back to the
+    batch profile -- that fallback is the exact defect this indirection exists
+    to prevent (see docs/reference/public-export-name-disclosure.md).
+    """
+    try:
+        return CAPTURE_INTENT[intent]
+    except KeyError:
+        raise KeyError(
+            f"unknown capture intent {intent!r}; "
+            f"known: {sorted(CAPTURE_INTENT)}") from None
 
 
 def cfg_text(profile: str = PROFILE_NAME) -> str:

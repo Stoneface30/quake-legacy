@@ -958,6 +958,27 @@ async function renderDossier(it){
     kids.push(rs);
   }
 
+  // How the scene builds. Gaps matter more than events for music and pacing.
+  if (d.timing && d.timing.available){
+    const T = d.timing, ts = el("div", "dsec");
+    ts.appendChild(el("h4", null, "sequence"));
+    const tg = el("div", "dgrid");
+    if (T.frag_index)
+      tg.append(...drow("this frag", "F" + T.frag_index + " of "
+        + T.frags_in_scene));
+    tg.append(...drow("since previous frag", T.ms_since_previous_user_frag
+      ? (T.ms_since_previous_user_frag / 1000).toFixed(2) + "s" : null));
+    tg.append(...drow("to next frag", T.ms_to_next_user_frag
+      ? (T.ms_to_next_user_frag / 1000).toFixed(2) + "s" : null));
+    if (T.nearest_scene_event)
+      tg.append(...drow(T.nearest_scene_event.label,
+        (T.nearest_scene_event.delta_ms > 0 ? "+" : "")
+        + (T.nearest_scene_event.delta_ms / 1000).toFixed(2) + "s"));
+    tg.append(...drow("scene length", (T.scene_duration_ms / 1000).toFixed(1) + "s"));
+    ts.appendChild(tg);
+    kids.push(ts);
+  }
+
   if (d.traits && d.traits.length){
     const t = el("div", "dsec");
     t.appendChild(el("h4", null, "machine traits"));
