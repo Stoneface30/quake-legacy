@@ -110,7 +110,7 @@ def compile_scenario(scn: "RoundScenario", *,
     }
     for a in scn.actors.values():
         cs[W.CS_PLAYERS + a.client] = W.player_configstring(
-            a.name, team=a.team.value, model="sarge")
+            a.name, team=a.team.value, model=f"{a.model}/{a.skin}")
 
     d = W.DemoWriter(client_num=0)
     d.write_gamestate(cs)

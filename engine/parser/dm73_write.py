@@ -116,6 +116,7 @@ ES_LEGS_ANIM = 15
 
 ANIM_TOGGLE = 128
 
+TORSO_GESTURE = 6          # animNumber_t, bg_public.h:1195-1248
 TORSO_ATTACK = 7
 TORSO_DROP = 9
 TORSO_RAISE = 10

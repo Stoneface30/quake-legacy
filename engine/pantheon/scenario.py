@@ -72,17 +72,26 @@ class Stance(Enum):
     JUMP = "jump"
     LAND = "land"
     ATTACK = "attack"
+    GESTURE = "gesture"
     DEAD = "dead"
+
+
+# How long the engine itself holds a gesture: TIMER_GESTURE = 34*66+50 ms
+# (bg_local.h:35), applied in bg_pmove.c when BUTTON_GESTURE is held. Authoring
+# a different duration would desync the pose from what the engine expects.
+GESTURE_MS = 2294
 
 
 # Stance -> the animation numbers real players were observed using.
 # `ca_reference` profiled these; the scenario never sees them.
 _LEGS = {Stance.IDLE: _codec.LEGS_IDLE, Stance.RUN: _codec.LEGS_RUN,
          Stance.JUMP: _codec.LEGS_JUMP, Stance.LAND: _codec.LEGS_LAND,
-         Stance.ATTACK: _codec.LEGS_IDLE, Stance.DEAD: _codec.LEGS_IDLE}
+         Stance.ATTACK: _codec.LEGS_IDLE, Stance.GESTURE: _codec.LEGS_IDLE,
+         Stance.DEAD: _codec.LEGS_IDLE}
 _TORSO = {Stance.IDLE: _codec.TORSO_STAND, Stance.RUN: _codec.TORSO_STAND,
           Stance.JUMP: _codec.TORSO_STAND, Stance.LAND: _codec.TORSO_STAND,
-          Stance.ATTACK: _codec.TORSO_ATTACK, Stance.DEAD: _codec.TORSO_STAND}
+          Stance.ATTACK: _codec.TORSO_ATTACK,
+          Stance.GESTURE: _codec.TORSO_GESTURE, Stance.DEAD: _codec.TORSO_STAND}
 
 # Structural entity fields every rendered player carries. Observed present in
 # 100% of real player samples and never changing. Kept here, once, rather than
@@ -132,6 +141,12 @@ class Actor:
         self.armor = 100
         self.weapon = Weapon.ROCKET
         self.alive = True
+        # Appearance is authored INTO the demo's configstring, so the character
+        # is correct from the file rather than from a playback-time override.
+        # `cg_ignoreClientHeadModel` defaults to 2, which makes the head follow
+        # `model` for protocol-QL demos, so this one key covers the whole body.
+        self.model = "sarge"
+        self.skin = "default"
 
     # -- state ---------------------------------------------------------
     def spawn(self, at: Vec3, *, yaw: float = 0.0, t: float = 0.0,
@@ -143,6 +158,28 @@ class Actor:
         # it later made every authored kill decrement from zero, so the
         # timeline read -1, -2, -3 instead of 3, 2, 1.
         self._s._alive[self.team] += 1
+        return self
+
+    def appearance(self, model: str, skin: str = "default") -> "Actor":
+        """Which character this actor IS, baked into the demo.
+
+        `keel` / `bright` is a real shipped skin -- every one of the 26 player
+        models has an `icon_bright`, and wolfcam's own `cg_enemyModel` defaults
+        to `keel/bright`.
+        """
+        self.model, self.skin = model, skin
+        return self
+
+    def gesture(self, *, t: float | None = None) -> "Actor":
+        """The greeting/taunt animation. TORSO_GESTURE, held for the engine's
+        own TIMER_GESTURE, then back to standing."""
+        last = self._last()
+        when = last.t if t is None else t
+        self._keys.append(_Keyframe(when, last.origin, last.yaw, Stance.GESTURE,
+                                    last.weapon, last.health, last.armor, True))
+        self._keys.append(_Keyframe(when + GESTURE_MS / 1000.0, last.origin,
+                                    last.yaw, Stance.IDLE, last.weapon,
+                                    last.health, last.armor, True))
         return self
 
     def stand(self, *, until: float) -> "Actor":
