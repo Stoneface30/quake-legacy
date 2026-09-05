@@ -98,7 +98,8 @@ def release_lock() -> None:
         pass
 
 
-def build_cfg(shots: tuple[float, ...], quit_at: float) -> str:
+def build_cfg(shots: tuple[float, ...], quit_at: float,
+              extra: dict | None = None) -> str:
     """Console script the engine runs after cgame init.
 
     `cg_draw2D 1` is not optional: with it at 0 the engine suppresses every
@@ -115,6 +116,8 @@ def build_cfg(shots: tuple[float, ...], quit_at: float) -> str:
         "set cl_freezeDemo 0",
         "set timescale 1",
     ]
+    for k, v in (extra or {}).items():
+        lines.append(f"set {k} {v}")
     for i, t in enumerate(shots):
         m, s = divmod(t, 60)
         lines.append(f"at {int(m)}:{s:05.2f} screenshotJPEG shot_{i}")
@@ -125,7 +128,7 @@ def build_cfg(shots: tuple[float, ...], quit_at: float) -> str:
 
 
 def probe(demo: Path, *, seconds: float = 8.0, timeout: float = 180.0,
-          scratch: Path | None = None) -> dict:
+          scratch: Path | None = None, extra_cvars: dict | None = None) -> dict:
     scratch = scratch or (REPO / ".tmp/playback_probe")
     if scratch.exists():
         shutil.rmtree(scratch, ignore_errors=True)
@@ -136,7 +139,7 @@ def probe(demo: Path, *, seconds: float = 8.0, timeout: float = 180.0,
     safe = demo.stem
     shutil.copy2(demo, home / "demos" / demo.name)
     (home / "cgamepostinit.cfg").write_text(
-        build_cfg(SHOT_TIMES, seconds), encoding="ascii")
+        build_cfg(SHOT_TIMES, seconds, extra_cvars), encoding="ascii")
 
     missing = check_staging()
     if missing:
