@@ -164,7 +164,9 @@ def assert_capture_profile_is_nameless() -> str:
     blown-out barred window scoring higher than the text it is meant to catch.
     """
     from creative_suite.engine import master_profile as mp
-    name = mp.PUBLIC_EXPORT_PROFILE_NAME
+    # Resolved through the intent, not the constant, so the gate can never
+    # check one profile while the capture films with another.
+    name = mp.profile_for_intent(mp.PUBLIC_INTENT)
     profile = mp.PROFILES[name]
 
     faults: dict[str, Any] = {}
@@ -455,10 +457,11 @@ def _capture_locked(cand: ExportCandidate, start_ms: int, end_ms: int,
     # "You fragged <victim>" into the picture. That default is how the
     # no-names promise in this module's docstring was broken for every clip
     # captured before this argument existed.
-    from creative_suite.engine.master_profile import PUBLIC_EXPORT_PROFILE_NAME
+    from creative_suite.engine import master_profile as _mp
+    profile = _mp.profile_for_intent(_mp.PUBLIC_INTENT)
     res = wc.capture_demo(safe, [{"clip_name": clip_name,
                                   "start_ms": start_ms, "end_ms": end_ms}],
-                          profile=PUBLIC_EXPORT_PROFILE_NAME)
+                          profile=profile)
     if not res["ok"]:
         raise ExportRefused(res.get("error") or "wolfcam capture failed")
     avi = Path(res["avis"][clip_name])
@@ -474,8 +477,7 @@ def _capture_locked(cand: ExportCandidate, start_ms: int, end_ms: int,
                 avi.unlink()          # the AVI is scratch, the MP4 ships
         except OSError:
             pass
-    from creative_suite.engine import master_profile as _mp
-    return _mp.profile_id(PUBLIC_EXPORT_PROFILE_NAME)
+    return _mp.profile_id(profile)
 
 
 def export(cands: list[ExportCandidate], root: Path = EXPORT_ROOT,

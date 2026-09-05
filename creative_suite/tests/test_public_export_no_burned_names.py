@@ -197,6 +197,41 @@ def test_the_export_passes_the_public_profile_to_the_engine(tmp_path,
     assert got == mp.profile_id(mp.PUBLIC_EXPORT_PROFILE_NAME)
 
 
+def test_the_public_intent_resolves_to_the_public_profile():
+    """PUBLIC_BLIND is the capability name; the profile hash is an implementation detail.
+
+    Callers ask for an intent so nobody has to remember which cvars make a
+    clip safe to show a stranger.
+    """
+    assert mp.profile_for_intent(mp.PUBLIC_INTENT) == mp.PUBLIC_EXPORT_PROFILE_NAME
+    assert mp.PUBLIC_INTENT == "PUBLIC_BLIND"
+
+
+def test_an_unknown_intent_raises_instead_of_defaulting():
+    """A typo must not fall back to the batch profile -- that was the defect."""
+    with pytest.raises(KeyError, match="unknown capture intent"):
+        mp.profile_for_intent("PUBLIC")
+
+
+def test_every_registered_intent_maps_to_a_real_profile():
+    for intent, profile in mp.CAPTURE_INTENT.items():
+        assert profile in mp.PROFILES, f"{intent} -> missing profile {profile}"
+
+
+def test_only_the_public_intent_is_nameless():
+    """The other intents film for the director or the user's own movie.
+
+    Pinned so that if a second intent ever becomes publishable, somebody has
+    to come here and think about it rather than discovering it in a frame.
+    """
+    live = {i: p for i, p in mp.CAPTURE_INTENT.items()
+            if i != mp.PUBLIC_INTENT
+            and mp.PROFILES[p].get("cg_drawFragMessageTime") not in (0, None)}
+    assert set(live) <= {"GAMEPLAY_MASTER", "DIRECTOR_REVIEW", "MOVEMENT_REVIEW"}
+    assert mp.PROFILES[mp.profile_for_intent(mp.PUBLIC_INTENT)][
+        "cg_drawFragMessageTime"] == 0
+
+
 def test_no_v1_render_can_be_the_media_source(tmp_path, monkeypatch, kill_db):
     """Public pixels are always a capture made now, from a raw demo."""
     monkeypatch.setenv("CS_EXPORT_MOCK", "1")
@@ -212,10 +247,21 @@ def test_the_public_profile_is_not_the_batch_profile():
             != mp.profile_id(mp.PROFILE_NAME))
 
 
-def test_existing_profile_ids_are_unchanged_so_no_cached_clip_is_orphaned():
-    """profile_id is part of the proxy cache key; adding a profile must not move it."""
+def test_adding_the_public_profile_did_not_move_the_gameplay_master_id():
+    """profile_id is part of the proxy cache key, so a new profile must not move it.
+
+    Only the gameplay master is pinned here, and only because TR4SH_PUBLIC_EXPORT
+    is derived from it -- an accidental edit reached through the spread would
+    show up as this hash moving.
+
+    TR4SH_REVIEW_V2 is deliberately NOT pinned. It belongs to the review
+    workstream, which moves it on purpose when the review view changes (it did:
+    a stray speedometer leaked in from a previous engine session). Asserting
+    another workstream's hash here would turn their intended change into a
+    failure in this file.
+    """
     assert mp.profile_id("TR4SH_GAMEPLAY_MASTER_V2") == "091901df0daf"
-    assert mp.profile_id("TR4SH_REVIEW_V2") == "d69e91d2b326"
+    assert mp.profile_id(mp.PUBLIC_EXPORT_PROFILE_NAME) == "b9977ff93228"
 
 
 def test_the_manifest_records_which_profile_filmed_the_clip(

@@ -14,6 +14,7 @@ module and a real test. Status is what is TRUE today, not what is planned.*
 | **Review capture profile** | LIVE | `master_profile.REVIEW_PROFILE_NAME` | WolfcamQL | `test_review_host.py` |
 | **Media provenance** | LIVE | `media_provenance` | — | `test_v1_source_isolation.py` |
 | **Public export seam** | LIVE (frozen) | `public_clip_export` | — | `test_public_clip_export.py` |
+| **PUBLIC_BLIND_CAPTURE** | LIVE | `master_profile.profile_for_intent("PUBLIC_BLIND")` | WolfcamQL · `TR4SH_PUBLIC_EXPORT` | `test_public_export_no_burned_names.py` |
 | **REVIEW_ENEMY_VISIBILITY** | **PARTIAL** | `master_profile._REVIEW_V2` | WolfcamQL | see below |
 
 ---
@@ -32,6 +33,59 @@ adapter over it and computes nothing.
 If the reviewer said CRITICAL_HP and the choreographer computed something
 else from the same rows, one of them would be lying to the director and there
 would be no way to tell which.
+
+## PUBLIC_BLIND_CAPTURE — ask for the intent, not the cvars
+
+`Private film may show names. Public blind export may not.`
+
+```python
+from creative_suite.engine import master_profile as mp
+profile = mp.profile_for_intent(mp.PUBLIC_INTENT)   # "PUBLIC_BLIND"
+```
+
+`PUBLIC_BLIND` → `TR4SH_PUBLIC_EXPORT` (`b9977ff93228`). It is the **only**
+capture intent whose output may be shown to someone outside this repository,
+and the only one carrying a no-identity guarantee. The others —
+`GAMEPLAY_MASTER`, `DIRECTOR_REVIEW`, `MOVEMENT_REVIEW`, `DIRECTOR_SESSION`,
+`ARCHIVE_ANALYSIS` — film for the director or for the user's own movie, where
+names on screen are correct and wanted.
+
+**Why the indirection exists.** `public_clip_export` called
+`capture_demo()` with no profile argument. `profile=None` does not mean "no
+profile"; it means `PROFILE_NAME`, the batch profile, which deliberately draws
+`cg_drawFragMessageTokens "You fragged %v"`. Opponent handles reached 6 of the
+first 12 handoff clips. `profile_for_intent` **raises** on an unknown intent
+rather than defaulting, because the default was the defect.
+
+**What it guarantees**, checked by
+`public_clip_export.assert_capture_profile_is_nameless()` before a batch
+captures a single frame:
+
+- frag message and killfeed — both gated by TIME cvars
+  (`cg_drawFragMessageTime`, `cg_obituaryTime`); there is no
+  `cg_drawFragMessage` boolean to switch off
+- centre print, crosshair names, player names, friend markers
+- follow/spectator chrome, attacker, team overlay
+- chat, console notify
+- the scoreboard, which shows itself on death and at round end — inside a ±5 s
+  window
+
+Two invariants: a **missing** pin fails closed (`None` is not `0`), and each
+name token is paired with its gate (blanking a token is not safety — wolfcam
+falls back to a built-in default).
+
+**Proven:** frag message suppressed, pixel-verified across 30 samples of the 6
+actor-POV clips. Killfeed suppressed **by invariant only** — a window with four
+other-player kills is identical under both profiles on a full-frame text scan,
+so it was never observed drawing and there is no before/after picture. Do not
+cite one.
+
+**Do not** use a pixel detector as the ship gate. `burned_name_guard.py` scores
+a blown-out barred window (2903) higher than real text (1991); it is an A/B
+diagnostic against a control, nothing more.
+
+Detail: `public-export-name-disclosure.md` · contract:
+`pantheon_export_contract.md`
 
 ## REVIEW_ENEMY_VISIBILITY — PARTIAL, with the dead ends recorded
 
