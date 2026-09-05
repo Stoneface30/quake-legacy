@@ -195,3 +195,13 @@ No Wolfcam launch before step 4.
 | Boundary audit | `test_pantheon_headless_boundary.py` — imports AND vocabulary (`wolfcam`, `cvar`, `.avi`, `cam10`, `Popen`, `cg_` ...) | suite |
 
 Rules HL-5 (character != performance), HL-6 (gaps stay gaps), HL-7 (events and sound are game state) added to CLAUDE.md.
+
+## 8. Sprint 2 (2026-09-06): one authority, render permission, templates
+
+- **Merge reconciliation.** `feature/pantheon-prologue` merged into `feature/pantheon-headless` (de07fb6e). The prologue's event chain (`ActionEvent.code/carrier/other_entity`, temp-entity events read off entity state, `_RecordedEvent` replayed by the compiler) is the surviving extraction/compilation; the headless branch's parallel emission was dropped. On top: attribution by event semantics (missile impact = his missile in that slot on the previous tick; rail trail = entity names him; obituary = him as killer; teleport = out/in pair AND his own discontinuity), parser rows from entities >= MAX_CLIENTS never double-counted, absent wire fields read as zero, removed temp entities forgotten by the edge detector, otherEntityNum mapped real -> synthetic, recorded obituaries credited not re-authored, context actors performed from their own traces.
+- **Temp entities are fresh entities.** eType is 8 bits on the wire; the toggle bits were truncated (316 -> 60) and two identical impacts on consecutive ticks in one slot read as one. Temp emissions rotate through a 96-slot pool; same-tick extra player events go out as external temp entities.
+- **RenderPermit** (`creative_suite/engine/render_permit.py`, HL-8): default DENY; `PANTHEON_RENDER_ALLOWED=1`; defer while `quakelive*.exe` runs; `PANTHEON_RENDER_FORCE=1`; queues keep `QUEUED` + `RENDER DEFERRED`; eight launch sites gated; conftest forbids any game process in tests.
+- **Performance templates** (`performance_templates.py`): `TPL:<group>:<hash>:<client>:<start_ms>`, 12,969 real segments from 2,400 traces, 11 of 14 groups populated (RETREAT/CHASE need `others`, ROCKET_PREDICTION needs an observed splash impact before the kill); `find()` by distance / heading / duration / stance / weapon / airborne.
+- **SpatialValidity**: NavigationTruth + MapSpatialIndex asked together for LOCAL_FRAME.
+- **Golden headless suite**: 9 real cases green (jump pad, rocket kill, rail, run/turn, jump, death, observation gap, teleport, weapon change); zero game processes.
+- **Ownership**: `docs/reference/pantheon_ownership.md`.
