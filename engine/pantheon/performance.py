@@ -104,6 +104,10 @@ class ActionEvent:
     position: tuple[float, float, float] | None = None
     other_client: int | None = None      # victim for obituary, else None
     parm: int | None = None
+    code: int | None = None              # EV_* number, as the engine sent it
+    carrier: str = "PLAYER"              # PLAYER: on the player's entity
+                                         # TEMP: its own temp entity (impacts)
+    other_entity: int | None = None      # TEMP: otherEntityNum (what was hit)
 
 
 @dataclass
@@ -216,9 +220,39 @@ def _parse_with_anims(path: Path):
                 "legs_toggle": bool(l & ANIM_TOGGLE),
                 "torso_toggle": bool(to & ANIM_TOGGLE)})
 
-    parser._parse_snapshot = hook
+    # Temp-entity events (missile hits, misses) carry otherEntityNum -- the
+    # thing that was hit -- which the parser's event rows do not keep. They
+    # are read here off the entity state, edge-detected on the raw eType
+    # exactly as the parser does, so an identical consecutive event with the
+    # other toggle bit is still a new event.
+    temp_events: list[dict] = []
+    prev_et: dict[int, int] = {}
+    ET_EVENTS = 13
+    orig_hook = hook
+
+    def hook2(s, events, snapshots):
+        orig_hook(s, events, snapshots)
+        t = parser._last_server_time
+        for num, st in parser._entity_states.items():
+            raw = int(st.get(dp._F_ETYPE, 0) or 0)
+            if raw <= ET_EVENTS:
+                continue
+            if prev_et.get(num) == raw:
+                continue
+            prev_et[num] = raw
+            temp_events.append({
+                "t": t, "entity": num, "code": (raw & ~0x300) - ET_EVENTS,
+                "raw_etype": raw,
+                "pos": (st.get(dp._F_POS_X, 0.0), st.get(dp._F_POS_Y, 0.0),
+                        st.get(dp._F_POS_Z, 0.0)),
+                "parm": st.get(dp._F_EVPARM), "weapon": st.get(dp._F_WEAPON),
+                "other": st.get(dp._F_VICTIM), "other2": st.get(dp._F_KILLER),
+                "client": st.get(dp._F_CLIENT)})
+
+    parser._parse_snapshot = hook2
     out = parser.parse()
     out["recorder_track"] = recorder
+    out["temp_events"] = temp_events
     return out, anims
 
 
@@ -326,9 +360,31 @@ def extract_performance(demo: Path, start_ms: int, end_ms: int, client: int,
             continue
         pos = (None if ev.get("pos_x") is None
                else (ev["pos_x"], ev["pos_y"], ev["pos_z"]))
+        if ev["type"] in ("missile_hit", "missile_miss", "obituary", "railtrail"):
+            continue                    # carried by temp entities, below
         tr.events.append(ActionEvent(
             t, ev["type"], ev.get("weapon"), pos,
-            ev.get("victim_client") if killer else None, ev.get("event_parm")))
+            ev.get("victim_client") if killer else None, ev.get("event_parm"),
+            code=ev.get("event_code"), carrier="PLAYER"))
+    # temp-entity events attributed to this client: missiles he fired hitting
+    # (his missile's weapon and the missile entity's client) and his obituary
+    missile_ents = {p.entity for p in tr.projectiles}
+    for te in out.get("temp_events", []):
+        if not win(te["t"]):
+            continue
+        code = te["code"]
+        mine = (te["client"] == client) or (te["entity"] in missile_ents)
+        if code == 58 and te.get("other2") == client:      # EV_OBITUARY
+            mine = True
+        if not mine:
+            continue
+        name = {47: "missile_hit", 48: "missile_miss", 49: "missile_miss_metal",
+                50: "railtrail", 58: "obituary"}.get(code, f"ev_{code}")
+        pos = tuple(float(x or 0.0) for x in te["pos"])
+        tr.events.append(ActionEvent(
+            te["t"], name, te["weapon"], pos,
+            te["other"] if code == 58 else None, te["parm"], code=code,
+            carrier="TEMP", other_entity=te["other"]))
     tr.events.sort(key=lambda e: e.t)
     return tr
 

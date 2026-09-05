@@ -118,3 +118,52 @@ def test_an_authored_walk_at_a_third_of_run_speed_is_refused():
     a.spawn((0.0, 0.0, 0.0), yaw=0.0, t=0.0, weapon=Weapon.RAIL)
     with pytest.raises(ValueError, match="real players run at"):
         a.move_to([(0.0, 0.0, 0.0), (200.0, 0.0, 0.0)], during=(1.0, 3.0))
+
+
+def _trace_with_events():
+    from engine.pantheon.performance import ActionEvent
+    tr = _trace()
+    s = tr.start_ms
+    tr.events = [
+        ActionEvent(s + 250, "jump_pad", None, None, None, 0, code=9, carrier="PLAYER"),
+        ActionEvent(s + 450, "fire_weapon", 5, None, None, None, code=20, carrier="PLAYER"),
+        ActionEvent(s + 475, "fire_weapon", 5, None, None, None, code=20, carrier="PLAYER"),
+        ActionEvent(s + 725, "missile_hit", 5, (700.0, -20.0, 90.0), None, 17,
+                    code=47, carrier="TEMP", other_entity=3),
+    ]
+    return tr
+
+
+def test_recorded_events_come_back_at_their_tick():
+    tr = _trace_with_events()
+    scn, a, demo = _compile(tr)
+    import tempfile
+    path = demo.save(Path(tempfile.mkdtemp()) / "ev.dm_73")
+    back = DM73Parser(path).parse()
+    got = sorted((e["server_time_ms"] - 1600, e["event_code"], e.get("weapon"))
+                 for e in back["events"] if e.get("event_code") in (9, 20, 47))
+    assert [(t, c) for t, c, _ in got] == [(250, 9), (450, 20), (475, 20), (725, 47)]
+    assert [w for _, c, w in got if c != 9] == [5, 5, 5]
+
+
+def test_identical_consecutive_events_alternate_the_toggle_bit():
+    # two fire_weapon 25ms apart: without alternating 0x100/0x200 cgame sees
+    # the same value and fires once
+    tr = _trace_with_events()
+    scn, a, demo = _compile(tr)
+    import tempfile
+    path = demo.save(Path(tempfile.mkdtemp()) / "ev.dm_73")
+    back = DM73Parser(path).parse()
+    fires = [e for e in back["events"] if e.get("event_code") == 20]
+    assert len(fires) == 2
+
+
+def test_a_temp_event_carries_position_dir_weapon_and_target():
+    tr = _trace_with_events()
+    scn, a, demo = _compile(tr)
+    import tempfile
+    path = demo.save(Path(tempfile.mkdtemp()) / "ev.dm_73")
+    back = DM73Parser(path).parse()
+    hit = [e for e in back["events"] if e.get("event_code") == 47][0]
+    assert (hit["pos_x"], hit["pos_y"], hit["pos_z"]) == (700.0, -20.0, 90.0)
+    assert hit["event_parm"] == 17 and hit["weapon"] == 5

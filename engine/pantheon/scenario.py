@@ -220,6 +220,19 @@ class _Keyframe:
 
 
 @dataclass
+class _RecordedEvent:
+    """An EV_* the demo carried, replayed at its tick."""
+    t: float
+    actor: str
+    code: int
+    carrier: str                 # PLAYER | TEMP
+    weapon: int | None
+    parm: int | None
+    position: Vec3 | None
+    other_entity: int | None
+
+
+@dataclass
 class _ProjectileKey:
     """One observed missile sample, attributed to the actor who fired it."""
     t: float
@@ -271,6 +284,7 @@ class Actor:
         # counters must not learn about him.
         self.counts_toward_roster = True
         self._spawned = False
+        self._recorded_events: list = []
 
     # -- state ---------------------------------------------------------
     def spawn(self, at: Vec3, *, yaw: float = 0.0, t: float = 0.0,
@@ -350,10 +364,19 @@ class Actor:
             self._s._projectiles.append(_ProjectileKey(
                 t0 + (pr.t - base) / 1000.0, self.name, pr.entity, pr.weapon,
                 place(pr.origin), turn(pr.velocity)))
+        # THE EVENT CHAIN, verbatim. Player-carried events (jump pad, fire,
+        # pain, death) go on this actor's entity at their tick; temp-entity
+        # events (impacts, obituary) get their own entity. cgame turns them
+        # into the smoke puff, muzzle flash, explosion and every sound -- so
+        # emitting the right codes IS the effects and IS the audio.
         for ev in trace.events:
-            self._s._events.append(_Event(
-                t0 + (ev.t - base) / 1000.0, f"recorded:{ev.kind}", self.name,
-                None, None, position=(place(ev.position) if ev.position and None not in ev.position else None)))
+            if ev.code is None:
+                continue
+            pos = (place(ev.position) if ev.position and None not in ev.position
+                   else None)
+            self._recorded_events.append(_RecordedEvent(
+                round(t0 + (ev.t - base) / 1000.0, 3), self.name, ev.code,
+                ev.carrier, ev.weapon, ev.parm, pos, ev.other_entity))
         return self
 
     def arm(self, weapon: Weapon, *, t: float | None = None) -> "Actor":

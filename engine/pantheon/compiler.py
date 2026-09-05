@@ -203,6 +203,20 @@ def compile_scenario(scn: "RoundScenario", *,
     for pk in getattr(scn, "_projectiles", []):
         projectiles.setdefault(ms(pk.t), []).append(pk)
 
+    # ── recorded events, by tick ───────────────────────────────────────
+    rec_player_ev: dict[int, dict[str, list]] = {}
+    rec_temp_ev: dict[int, list] = {}
+    for a in scn.actors.values():
+        for re_ in getattr(a, "_recorded_events", []):
+            if re_.carrier == "PLAYER":
+                rec_player_ev.setdefault(ms(re_.t), {}).setdefault(a.name, []).append(re_)
+            else:
+                rec_temp_ev.setdefault(ms(re_.t), []).append(re_)
+    # A player's event field fires when its VALUE changes: the same code twice
+    # needs the other toggle bit, so each actor alternates 0x100/0x200.
+    ev_toggle: dict[str, int] = {}
+    TEMP_SLOT0 = 800
+
     obit_slot = 512
     MISSILE_SLOT0 = 700
     RAIL_SLOT0 = 600            # well clear of players and of the obituary
@@ -245,7 +259,30 @@ def compile_scenario(scn: "RoundScenario", *,
                 st[W.ES_GROUND] = 1023 if k.airborne else 0
                 if k.weapon_num is not None:
                     st[W.ES_WEAPON] = k.weapon_num
+            evs = rec_player_ev.get(now, {}).get(a.name)
+            if evs:
+                e = evs[-1]                    # one event field per tick
+                ev_toggle[a.name] = 0x200 if ev_toggle.get(a.name) == 0x100 else 0x100
+                st[W.ES_EVENT] = e.code | ev_toggle[a.name]
+                if e.parm is not None:
+                    st[W.ES_EVENTPARM] = e.parm
             ents[a.client] = st
+
+        for i, e in enumerate(rec_temp_ev.get(now, [])):
+            slot = TEMP_SLOT0 + i
+            toggles[slot] = toggles.get(slot, 0) ^ 0x100
+            pos = e.position or (0.5, 0.5, 0.5)
+            st = {W.ES_ETYPE: W.ET_EVENTS + e.code + (0x300 & toggles[slot]),
+                  W.ES_POS_X: pos[0] or 0.5, W.ES_POS_Y: pos[1] or 0.5,
+                  W.ES_POS_Z: pos[2] or 0.5}
+            if e.parm is not None:
+                st[W.ES_EVENTPARM] = e.parm
+            if e.weapon is not None:
+                st[W.ES_WEAPON] = e.weapon
+            if e.other_entity is not None:
+                st[W.ES_OTHER_ENT] = e.other_entity
+            st[W.ES_CLIENTNUM] = scn.actors[e.actor].client
+            ents[slot] = st
 
         # recorded missiles: each observed sample becomes the missile entity's
         # state for that tick, in the slot the demo used

@@ -70,18 +70,49 @@ def build():
     a.perform(shooter, t0=T0)
     v = scn.actor("VICTIM", Team.BLUE).appearance("visor", "default")
     v.perform(victim, t0=T0)
+    # CONTEXT ACTOR POLICY: every other client the recorder OBSERVED in the
+    # window is reproduced from his own trace; nobody is fabricated to match a
+    # frame. A client with fewer than 4 samples is noise, not an actor.
+    context = {}
+    for c in sorted({e["client_num"] for e in out["entities"]
+                     if e["client_num"] is not None
+                     and lo <= e["server_time_ms"] <= hi}):
+        if c in (SHOOTER, VICTIM):
+            continue
+        tr = extract_performance(demo, lo, hi, c, parsed=parsed)
+        if len(tr.transform) < 4:
+            continue
+        team = _team_of(out, c)
+        x = scn.actor(f"CTX{c}", team).appearance("sarge", "default")
+        x.perform(tr, t0=T0)
+        context[c] = {"samples": len(tr.transform), "team": team.name,
+                      "first_ms": tr.transform[0].t - lo,
+                      "last_ms": tr.transform[-1].t - lo}
     ob = [e for e in out["events"] if e["type"] == "obituary"
           and e.get("killer_client") == SHOOTER and lo <= e["server_time_ms"] <= hi]
-    if ob:
+    if ob and not any(e.code == 58 for e in shooter.events):
+        # only when the trace did NOT carry the obituary itself (it does here:
+        # the temp-entity event is replayed verbatim, so authoring a second
+        # one would put two obituaries in the synthetic demo)
         from engine.pantheon.scenario import Weapon
         a.kill(v, mod=Weapon.ROCKET, t=T0 + (ob[0]["server_time_ms"] - lo) / 1000.0)
+    else:
+        # the CA alive counter still has to learn about the kill
+        scn._alive[v.team] -= 1
 
     duration = T0 + (hi - lo) / 1000.0 + 0.3
     OUT.mkdir(parents=True, exist_ok=True)
     synth = scn.compile(duration=duration).save(OUT / f"{SCENE_ID}.dm_73")
     FrameTruth.from_scenario(scn, duration=duration).save(
         OUT / f"{SCENE_ID}.frametruth.json")
+    scn.context_actors = context
     return demo, shooter, victim, scn, a, v, synth, out, ob
+
+
+def _team_of(out: dict, client: int) -> Team:
+    p = (out.get("players") or {}).get(client) or (out.get("players") or {}).get(str(client)) or {}
+    t = str(p.get("team", "")).upper()
+    return Team.BLUE if t in ("BLUE", "2") else Team.RED
 
 
 def differential(shooter: PerformanceTrace, victim: PerformanceTrace,
@@ -142,14 +173,17 @@ def differential(shooter: PerformanceTrace, victim: PerformanceTrace,
 
     # projectiles: every real sample must come back at the same time/place
     real_pj = {(p.t - shooter.start_ms): p for p in shooter.projectiles}
-    synth_pj = {}
+    synth_pj: dict[int, list] = {}
     for m in back["missiles"]:
-        synth_pj.setdefault(m["server_time_ms"] - 1000 - int(T0 * 1000), m)
+        synth_pj.setdefault(m["server_time_ms"] - 1000 - int(T0 * 1000), []).append(m)
     pj_err = []
     for dt, p in real_pj.items():
-        m = synth_pj.get(dt)
-        if m is None:
+        # context actors fire too: at one tick there may be several missiles,
+        # so the shooter's is the one at his missile's position
+        cands = synth_pj.get(dt) or []
+        if not cands:
             continue
+        m = min(cands, key=lambda m: math.dist(p.origin, (m["origin_x"], m["origin_y"], m["origin_z"])))
         pj_err.append(math.dist(p.origin, (m["origin_x"], m["origin_y"], m["origin_z"])))
     pj = {"samples_real": len(real_pj), "samples_matched": len(pj_err),
           "position_max_u": round(max(pj_err), 3) if pj_err else None,
@@ -157,21 +191,33 @@ def differential(shooter: PerformanceTrace, victim: PerformanceTrace,
                       and max(pj_err) <= TOL["position_u"] else
                       "MISSING" if not pj_err else "TOLERANCE_DIFFERENCE")}
 
-    # events: fire, jump pad, obituary
-    real_ev = sorted((e.t - shooter.start_ms, e.kind) for e in shooter.events
-                     if e.kind in ("fire_weapon", "jump_pad"))
-    synth_ob = [e for e in back["events"] if e["type"] == "obituary"]
-    ev = {"real_fire_and_pad": real_ev,
-          "synthetic_obituary": [(e["server_time_ms"] - 1000 - int(T0 * 1000),
-                                  e.get("weapon_name"), e.get("victim_client"))
-                                 for e in synth_ob],
-          "real_obituary": [(o["server_time_ms"] - shooter.start_ms,
-                             o.get("weapon_name"), o.get("victim_client")) for o in ob],
-          "verdict": "INTENTIONAL_DIFFERENCE"}
-    ev["note"] = ("fire_weapon and jump_pad are EVENTS on the player entity; the "
-                  "compiler does not yet emit them, so the synthetic demo carries "
-                  "the ANIMATION and the MISSILE of the shot but not the event "
-                  "codes. The obituary is authored from the real one.")
+    # THE EVENT CHAIN: every EV_* the real demo carried for the shooter must
+    # come back from the synthetic demo at the same tick with the same code,
+    # weapon and parm. Compared as (t, code, weapon) multisets.
+    base = 1000 + int(T0 * 1000)
+    real_chain = sorted((e.t - shooter.start_ms, e.code, e.weapon, e.kind)
+                        for e in shooter.events if e.code is not None)
+    synth_chain = sorted((e["server_time_ms"] - base, e["event_code"],
+                          e.get("weapon"), e["type"])
+                         for e in back["events"] if e.get("event_code") is not None)
+    # an obituary's weapon is its MOD in eventParm, which the parser reports
+    # under 'weapon' for the synthetic and not for the raw temp entity
+    norm = lambda t, c, w: (t, c, None if c == 58 else w)
+    real_keys = [norm(t, c, w) for t, c, w, _ in real_chain]
+    synth_keys = [norm(t, c, w) for t, c, w, _ in synth_chain]
+    missing = [r for r in real_chain if norm(r[0], r[1], r[2]) not in synth_keys]
+    extra = [x for x in synth_chain if norm(x[0], x[1], x[2]) not in real_keys]
+    # the synthetic also carries the victim's and context actors' events;
+    # only the shooter's chain is judged here
+    ev = {"real": real_chain, "synthetic_count": len(synth_chain),
+          "missing_from_synthetic": missing,
+          "verdict": "MATCHED" if not missing else "MISSING"}
+    ev["note"] = ("player-carried events (jump_pad, fire_weapon, pain) are emitted "
+                  "on the actor's entity with alternating toggle bits; temp-entity "
+                  "events (missile_hit/miss, obituary) get their own entity with "
+                  "position, dir byte, weapon and otherEntityNum. cgame renders the "
+                  "smoke puff, muzzle flash, explosion and plays every sound from "
+                  "these codes -- nothing is composited.")
     return {"shooter": track(shooter, a_client), "victim": track(victim, v_client),
             "projectiles": pj, "events": ev,
             "packet_errors": back["packet_errors"], "tolerances": TOL}
@@ -194,6 +240,7 @@ def main() -> int:
         "max_yaw_rate": max(abs(x.yaw_rate) for x in shooter.aim),
         "projectile_samples": len(shooter.projectiles),
         "retarget": "EXACT_WORLD",
+        "context_actors": getattr(scn, "context_actors", {}),
         "synthetic_demo": str(synth),
         "differential": diff,
     }
@@ -207,7 +254,10 @@ def main() -> int:
           f"{diff['packet_errors']}")
     for k in ("shooter", "victim", "projectiles"):
         print(f"  {k:12s} {diff[k]}")
-    print(f"  events       {diff['events']['verdict']}: {diff['events']['note'][:90]}...")
+    ev = diff["events"]
+    print(f"  events       {ev['verdict']}: real={len(ev['real'])} "
+          f"missing={ev['missing_from_synthetic']}")
+    print(f"  context      {report['context_actors']}")
     return 0
 
 
