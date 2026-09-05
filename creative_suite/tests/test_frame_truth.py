@@ -13,7 +13,7 @@ def _scn() -> RoundScenario:
     r = scn.actor("RED_1", Team.RED).spawn((100.0, 0.0, 50.0))
     b = scn.actor("BLUE_1", Team.BLUE).spawn((300.0, 0.0, 50.0))
     scn.begin_round(at=3.0, countdown=2.0)   # pre 0-1, countdown 1-3
-    r.move_to([(100.0, 0.0, 50.0), (200.0, 40.0, 50.0)], during=(3.0, 5.0))
+    r.move_to([(100.0, 0.0, 50.0), (200.0, 40.0, 50.0)], start=3.0)
     b.take_damage(70, source=r, t=6.0)
     r.kill(b, mod=Weapon.ROCKET, t=7.0)
     scn.round_win(Team.RED, t=8.0)

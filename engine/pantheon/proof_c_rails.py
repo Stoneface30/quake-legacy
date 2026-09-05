@@ -80,8 +80,8 @@ def build(out_dir: Path):
     for name, (a, spot) in actors.items():
         step = _near(pool, spot, 90, 200)
         a.stand(until=1.0)
-        a.move_to([spot, step], during=(1.0, 2.6))
-        a.look_at_point(mid, t=2.9)
+        a.move_to([spot, step], start=1.0)
+        a.look_at_point(mid, t=a._last().t + 0.3)
         a.stand(until=HIST_DURATION - 0.2)
 
     # rails: two exchanges before the freeze, Keel's decisive shot after it

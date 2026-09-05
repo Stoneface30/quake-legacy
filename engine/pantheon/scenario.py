@@ -22,7 +22,7 @@ to zero and counted up, interleaved between teams, and only then count down.
     red1 = scenario.actor("RED_1", Team.RED)
     blue1 = scenario.actor("BLUE_1", Team.BLUE)
     scenario.begin_round(countdown=7.0)
-    red1.move_to(nav.route(a, b), during=(3.0, 6.0))
+    red1.move_to(nav.route(a, b), start=3.0)
     red1.look_at(blue1)
     red1.fire(Weapon.ROCKET, at=blue1)
     blue1.take_damage(80, source=red1)
@@ -32,6 +32,8 @@ to zero and counted up, interleaved between teams, and only then count down.
     scenario.compile().save("ca_explainer_v1.dm_73")
 """
 from __future__ import annotations
+
+import math
 
 from dataclasses import dataclass, field
 from enum import Enum
@@ -63,6 +65,84 @@ class Weapon(Enum):
     LIGHTNING = 6
     RAIL = 7
     PLASMA = 8
+
+
+@dataclass(frozen=True)
+class MotionProfile:
+    """How a body moves, in numbers read off real demos.
+
+    docs/reference/motion_reference_<map>.json is mined by
+    engine.pantheon.motion_reference from the corpus. The defaults below are
+    the overkill CA figures (3 demos, 23 player tracks, 14k snapshots) and are
+    only used when no file is present.
+    """
+    run_speed: float = 320.0        # units/s, p50 while LEGS_RUN
+    accel_ms: float = 125.0         # standing -> 90% run speed, p50
+    decel_ms: float = 350.0         # 90% run speed -> stopped, p50
+    yaw_rate_running: float = 200.0 # deg/s, p90 while moving
+    yaw_rate_standing: float = 120.0  # deg/s, a turn on the spot
+    anim_lag_ms: float = 25.0       # legs enter/leave RUN this long after
+
+    @classmethod
+    def load(cls, map_name: str | None = None) -> "MotionProfile":
+        import json
+        from pathlib import Path as _P
+        if map_name:
+            f = _P(f"docs/reference/motion_reference_{map_name}.json")
+            if f.exists():
+                d = json.loads(f.read_text(encoding="utf-8"))
+
+                def g(k, q="p50"):
+                    return (d.get(k) or {}).get(q)
+                return cls(
+                    run_speed=g("run_speed") or cls.run_speed,
+                    accel_ms=g("accel_to_90pct") or cls.accel_ms,
+                    decel_ms=g("decel_to_stop") or cls.decel_ms,
+                    yaw_rate_running=g("yaw_rate_running", "p90") or cls.yaw_rate_running,
+                    anim_lag_ms=g("legs_run_start_lag") or cls.anim_lag_ms)
+        return cls()
+
+
+def _ease_trapezoid(f: float, ramp_in: float, ramp_out: float) -> float:
+    """Distance fraction at time fraction `f`, with linear speed ramps.
+
+    Speed rises over the first `ramp_in` of the interval, holds, and falls
+    over the last `ramp_out` -- the shape a player's speed actually has
+    between a standing start and a stop, per MotionReference.
+    """
+    ramp_in = max(1e-6, min(ramp_in, 0.49))
+    ramp_out = max(1e-6, min(ramp_out, 0.49))
+    area = 1.0 - ramp_in / 2 - ramp_out / 2          # normalising constant
+    if f < ramp_in:
+        d = f * f / (2 * ramp_in)
+    elif f < 1.0 - ramp_out:
+        d = ramp_in / 2 + (f - ramp_in)
+    else:
+        g = 1.0 - f
+        d = area - g * g / (2 * ramp_out)
+    return max(0.0, min(1.0, d / area))
+
+
+def _inverse_ease(dist_frac: float, mp: "MotionProfile", span_s: float) -> float:
+    """Time fraction at which the eased motion has covered `dist_frac`."""
+    ri = (mp.accel_ms / 1000.0) / max(span_s, 1e-6)
+    ro = (mp.decel_ms / 1000.0) / max(span_s, 1e-6)
+    lo, hi = 0.0, 1.0
+    for _ in range(40):
+        mid = (lo + hi) / 2
+        if _ease_trapezoid(mid, ri, ro) < dist_frac:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
+
+
+def _slew(a: float, b: float, max_deg: float) -> float:
+    """Turn from yaw a toward yaw b by at most max_deg, the short way."""
+    d = (b - a + 180.0) % 360.0 - 180.0
+    if abs(d) <= max_deg:
+        return b % 360.0
+    return (a + max_deg * (1 if d > 0 else -1)) % 360.0
 
 
 class Layer(Enum):
@@ -227,26 +307,57 @@ class Actor:
                                     last.alive))
         return self
 
-    def move_to(self, path: Sequence[Vec3], *, during: tuple[float, float],
+    def move_to(self, path: Sequence[Vec3], *,
+                during: tuple[float, float] | None = None,
+                start: float | None = None, speed: float | None = None,
                 yaw: float | None = None) -> "Actor":
-        """Walk a route. `path` comes from NavigationTruth -- never literals.
+        """Run a route. `path` comes from NavigationTruth -- never literals.
 
-        Emitting a keyframe per path point rather than only the endpoints is
-        what lets the compiler interpolate along real navigable geometry
-        instead of cutting a straight line through a wall.
+        TIMING COMES FROM DISTANCE, NOT FROM THE AUTHOR. A real player covers
+        ground at ~320 units/s (MotionReference, mined). Give `start` and the
+        arrival time follows; give `during` and the implied speed is checked
+        against the measured one, because a body run-animating at a third of
+        run speed is the thing that read as "sliding" on the cast sheet.
+
+        Keyframe times follow cumulative path distance, eased with the
+        measured accel/decel ramps, instead of a constant lerp.
         """
         if len(path) < 2:
             raise ValueError("a route needs at least two points")
-        t0, t1 = during
-        if t1 <= t0:
-            raise ValueError(f"{self.name}: move window must advance ({during})")
+        mp = self._s.motion
+        length = sum(math.dist(path[i], path[i + 1]) for i in range(len(path) - 1))
+        v = speed or mp.run_speed
+        if during is None:
+            if start is None:
+                start = self._last().t
+            t0 = start
+            t1 = start + length / v + (mp.accel_ms + mp.decel_ms) / 2000.0
+        else:
+            t0, t1 = during
+            if t1 <= t0:
+                raise ValueError(f"{self.name}: move window must advance ({during})")
+            implied = length / (t1 - t0)
+            if not 0.6 * v <= implied <= 1.25 * v:
+                raise ValueError(
+                    f"{self.name}: {length:.0f} units in {t1 - t0:.2f}s is "
+                    f"{implied:.0f} units/s; real players run at ~{v:.0f}. "
+                    f"Pass start= and let the distance set the time.")
         last = self._last()
         n = len(path) - 1
+        cum = [0.0]
+        for i in range(n):
+            cum.append(cum[-1] + math.dist(path[i], path[i + 1]))
         for i, point in enumerate(path):
-            t = t0 + (t1 - t0) * i / n
+            frac = cum[i] / length if length else 0.0
+            t = t0 + (t1 - t0) * _inverse_ease(frac, mp, t1 - t0)
             heading = yaw if yaw is not None else _heading(
                 path[max(0, i - 1)], path[min(n, i + 1)])
-            stance = Stance.IDLE if i == 0 else Stance.RUN
+            # A keyframe's stance governs the segment AFTER it (_at reads
+            # a.stance). IDLE on the first point made the actor slide to the
+            # second, and RUN on the last made him run on the spot after
+            # arriving -- seen live on the cast sheet. So: RUN on every point
+            # he leaves from, IDLE on the one he arrives at.
+            stance = Stance.RUN if i < n else Stance.IDLE
             self._keys.append(_Keyframe(t, point, heading, stance, last.weapon,
                                         last.health, last.armor, True))
         # settle: stop running the moment the route ends
@@ -372,7 +483,11 @@ class Actor:
                 f = 0.0 if span <= 0 else (t - a.t) / span
                 origin = tuple(a.origin[i] + (b.origin[i] - a.origin[i]) * f
                                for i in range(3))
-                return _Keyframe(t, origin, a.yaw if f < 0.5 else b.yaw,
+                mp = self._s.motion
+                moving = a.stance is Stance.RUN
+                rate = mp.yaw_rate_running if moving else mp.yaw_rate_standing
+                yaw = _slew(a.yaw, b.yaw, rate * max(0.0, t - a.t))
+                return _Keyframe(t, origin, yaw,
                                  a.stance, a.weapon, a.health, a.armor, a.alive)
         return keys[-1]
 
@@ -390,6 +505,7 @@ class RoundScenario:
     def __init__(self, *, map_name: str, hostname: str, roster: int = 4) -> None:
         self.map_name = map_name
         self.hostname = hostname
+        self.motion = MotionProfile.load(map_name)
         self.roster = roster
         self.actors: dict[str, Actor] = {}
         self._events: list[_Event] = []

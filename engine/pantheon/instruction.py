@@ -320,8 +320,11 @@ class InstructionScene:
                                            wav_duration)
         route = list(b.route_out) or [start, b.walk_to]
         act.spawn(route[0], yaw=yaw0, t=e0, weapon=weapon)
-        arrive = e0 + 0.15 + b.walk_s
-        act.move_to(route, during=(e0 + 0.15, arrive))
+        # The walk takes as long as the distance takes at run speed. `walk_s`
+        # is no longer an author's guess; it is read back for the exit leg.
+        act.move_to(route, start=e0 + 0.15)
+        arrive = act._last().t
+        walk_s = arrive - (e0 + 0.15)
         # move_to lays a settle keyframe at t1 + 0.05 carrying the ROUTE
         # heading; turning on t1 was overwritten a frame later and he
         # addressed the audience in profile. Turn after the settle.
@@ -339,14 +342,13 @@ class InstructionScene:
                 source_kind=SourceKind[b.line.source_kind],
                 profile=b.line.voice_profile, spatial=SpatialMode.DIEGETIC))
             t += dur
-        speak_until = e0 + b.hold_s - b.walk_s - 0.2
+        speak_until = e0 + b.hold_s - walk_s - 0.2
         if t > speak_until:
             raise ValueError(
                 f"{b.who}: the break holds {b.hold_s}s but walking in, "
-                f"gesturing and the line need {t - e0 + b.walk_s + 0.2:.1f}s")
+                f"gesturing and the line need {t - e0 + walk_s + 0.2:.1f}s")
         act.stand(until=speak_until)
-        act.move_to(list(reversed(route)),
-                    during=(speak_until, speak_until + b.walk_s))
+        act.move_to(list(reversed(route)), start=speak_until)
         # gone before history resumes: the explainer must not be standing in
         # the frame when the fight starts again
         act.despawn(t=e0 + b.hold_s - 0.05)

@@ -211,3 +211,49 @@ def test_an_actor_does_not_exist_before_it_spawns():
     assert a._at(23.99).alive is False
     assert a._at(24.0).alive is True
     assert a._at(27.0).alive is True
+
+
+def test_an_actor_runs_while_moving_and_stands_once_arrived():
+    # Seen live: IDLE on the first path point made him slide, RUN on the last
+    # made him run on the spot after arriving.
+    from engine.pantheon.scenario import RoundScenario, Stance, Team, Weapon
+    scn = RoundScenario.clan_arena(map_name="overkill", hostname="T")
+    scn.observer((0.0, 0.0, 0.0), yaw=0.0)
+    a = scn.actor("W", Team.RED).appearance("sarge", "default")
+    a.spawn((0.0, 0.0, 0.0), yaw=0.0, t=0.0, weapon=Weapon.RAIL)
+    a.move_to([(0.0, 0.0, 0.0), (200.0, 0.0, 0.0)], start=1.0)
+    arrive = a._last().t
+    a.stand(until=5.0)
+    assert a._at(1.2).stance is Stance.RUN        # moving
+    assert a._at(arrive - 0.1).stance is Stance.RUN
+    assert a._at(arrive + 0.2).stance is Stance.IDLE   # arrived
+    assert a._at(4.5).stance is Stance.IDLE
+
+
+def test_a_walk_takes_as_long_as_the_distance_takes_at_run_speed():
+    # 320 units at ~320 units/s, plus the measured accel/decel ramps.
+    from engine.pantheon.scenario import RoundScenario, Team, Weapon
+    scn = RoundScenario.clan_arena(map_name="overkill", hostname="T")
+    scn.observer((0.0, 0.0, 0.0), yaw=0.0)
+    a = scn.actor("W", Team.RED).appearance("sarge", "default")
+    a.spawn((0.0, 0.0, 0.0), yaw=0.0, t=0.0, weapon=Weapon.RAIL)
+    a.move_to([(0.0, 0.0, 0.0), (320.0, 0.0, 0.0)], start=1.0)
+    took = a._last().t - 1.0
+    assert 1.0 < took < 1.6
+    # and an author asking for a third of run speed is refused
+    import pytest
+    with pytest.raises(ValueError, match="real players run at"):
+        a.move_to([(320.0, 0.0, 0.0), (520.0, 0.0, 0.0)], during=(5.0, 7.0))
+
+
+def test_yaw_slews_at_a_measured_rate_instead_of_snapping():
+    from engine.pantheon.scenario import RoundScenario, Team, Weapon
+    scn = RoundScenario.clan_arena(map_name="overkill", hostname="T")
+    scn.observer((0.0, 0.0, 0.0), yaw=0.0)
+    a = scn.actor("W", Team.RED).appearance("sarge", "default")
+    a.spawn((0.0, 0.0, 0.0), yaw=0.0, t=0.0, weapon=Weapon.RAIL)
+    a.stand(until=1.0)
+    a.look_at_point((0.0, 100.0, 0.0), t=3.0)    # yaw 90 by t=3
+    y = [a._at(t).yaw for t in (1.0, 1.25, 1.5, 3.0)]
+    assert y[0] == 0.0 and y[3] == 90.0
+    assert 0.0 < y[1] < y[2] < 90.0             # it turns, it does not jump

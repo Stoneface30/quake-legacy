@@ -104,17 +104,16 @@ def build(out_dir: Path, *, map_name: str = "campgrounds"
     # same navigable run so nobody walks through geometry.
     leg = route.thinned()
     if len(leg) >= 6:
-        reds[1].move_to(leg[0:4], during=T_APPROACH)
-        blues[1].move_to(list(reversed(leg[-4:])), during=T_APPROACH)
-        reds[2].move_to(leg[1:5], during=(T_APPROACH[0] + 0.5,
-                                          T_APPROACH[1] + 0.5))
+        reds[1].move_to(leg[0:4], start=T_APPROACH[0])
+        blues[1].move_to(list(reversed(leg[-4:])), start=T_APPROACH[0])
+        reds[2].move_to(leg[1:5], start=T_APPROACH[0] + 0.5)
 
     # -- the wall pair, then line of sight ---------------------------------
     reds[0].stand(until=T_WALL)
     blues[0].stand(until=T_WALL)
     if staged_wall and len(leg) >= 3:
         # RED_1 steps out from behind the geometry into BLUE_1's sight
-        reds[0].move_to([wall[0], leg[1]], during=(T_WALL, T_LOS))
+        reds[0].move_to([wall[0], leg[1]], start=T_WALL)
     reds[0].look_at(blues[0], t=T_LOS + 0.2)
     blues[0].look_at(reds[0], t=T_LOS + 0.2)
 
@@ -126,8 +125,8 @@ def build(out_dir: Path, *, map_name: str = "campgrounds"
 
     # -- rotation ----------------------------------------------------------
     if len(leg) >= 6:
-        reds[3].move_to(leg[2:6], during=T_ROTATE)
-        blues[2].move_to(list(reversed(leg[2:6])), during=T_ROTATE)
+        reds[3].move_to(leg[2:6], start=T_ROTATE[0])
+        blues[2].move_to(list(reversed(leg[2:6])), start=T_ROTATE[0])
 
     # -- second engagement: BLUE trades ------------------------------------
     blues[1].fire(Weapon.RAIL, at=reds[1], t=T_KILL_2 - 0.4)

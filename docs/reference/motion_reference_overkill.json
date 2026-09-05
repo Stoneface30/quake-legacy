@@ -1,0 +1,77 @@
+{
+ "map": "overkill",
+ "demos_used": 3,
+ "snapshot_interval_ms": {
+  "n": 14343,
+  "unit": "ms",
+  "p10": 25,
+  "p50": 25,
+  "p90": 25,
+  "mean": 25.4
+ },
+ "run_speed": {
+  "n": 10419,
+  "unit": "units/s",
+  "p10": 139.84634424968,
+  "p50": 320.0999843798809,
+  "p90": 350.736368231183,
+  "mean": 284.1
+ },
+ "accel_to_90pct": {
+  "n": 111,
+  "unit": "ms",
+  "p10": 100,
+  "p50": 125,
+  "p90": 350,
+  "mean": 209.0
+ },
+ "decel_to_stop": {
+  "n": 166,
+  "unit": "ms",
+  "p10": 50,
+  "p50": 350,
+  "p90": 1150,
+  "mean": 475.3
+ },
+ "yaw_rate_standing": {
+  "n": 2207,
+  "unit": "deg/s",
+  "p10": 0.0,
+  "p50": 0.0,
+  "p90": 40.0,
+  "mean": 15.8
+ },
+ "yaw_rate_running": {
+  "n": 12136,
+  "unit": "deg/s",
+  "p10": 0.0,
+  "p50": 40.0,
+  "p90": 200.0,
+  "mean": 69.9
+ },
+ "legs_run_start_lag": {
+  "n": 111,
+  "unit": "ms",
+  "p10": 0,
+  "p50": 25,
+  "p90": 50,
+  "mean": 39.6
+ },
+ "legs_run_stop_lag": {
+  "n": 163,
+  "unit": "ms",
+  "p10": 0,
+  "p50": 0,
+  "p90": 50,
+  "mean": 12.9
+ },
+ "gesture_length": {
+  "n": 0,
+  "unit": "ms",
+  "p10": null,
+  "p50": null,
+  "p90": null,
+  "mean": null
+ },
+ "entities_sampled": 23
+}

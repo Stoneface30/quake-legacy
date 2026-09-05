@@ -83,7 +83,7 @@ def build(out_dir: Path, *, map_name: str = "campgrounds"):
 
     # ── SHOT 2: he walks, and names the place ───────────────────────────
     walk_from, walk_to_ = t + 0.4, t + 3.4
-    guide.walk_to(leg[2:5], during=(walk_from, walk_to_))
+    guide.walk_to(leg[2:5], start=walk_from)
     t = guide.say_line(bank.find_one("fighting arenas"), t=walk_from + 0.5)
     guide.hold(until=t + 0.3)
 
@@ -103,7 +103,7 @@ def build(out_dir: Path, *, map_name: str = "campgrounds"):
     hide_from = t + 0.3
     if wall:
         # a real wall-separated position, mined from where players walked
-        enemy.walk_to([enemy_spot, wall[1]], during=(hide_from, hide_from + 2.2))
+        enemy.walk_to([enemy_spot, wall[1]], start=hide_from)
     t = guide.say_synth("Keep an eye on him.", TTS / "guide_watch.wav",
                         t=hide_from + 2.4)
     guide.hold(until=DURATION - 1.0)

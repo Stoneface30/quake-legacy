@@ -62,8 +62,8 @@ def build(out_dir: Path):
         a.stand(until=t0 + GESTURE_AT)
         a.gesture(t=t0 + GESTURE_AT)
         a.stand(until=t0 + WALK[0])
-        a.move_to([mark, walk_to], during=(t0 + WALK[0], t0 + WALK[1]))
-        a.look_at_point(camera, t=t0 + WALK[1] + 0.3)
+        a.move_to([mark, walk_to], start=t0 + WALK[0])
+        a.look_at_point(camera, t=a._last().t + 0.3)
         a.stand(until=t0 + SLOT_S - 0.25)
         a.despawn(t=t0 + SLOT_S - 0.2)
         slots.append({"model": model, "skin": skin, "t0": t0,

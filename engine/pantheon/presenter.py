@@ -41,10 +41,14 @@ class Presenter:
         self.actor.spawn(where, yaw=yaw, t=t)
         return self
 
-    def walk_to(self, route: Sequence[Vec3], *, during: tuple[float, float]
-                ) -> "Presenter":
-        self.actor.move_to(list(route), during=during)
+    def walk_to(self, route: Sequence[Vec3], *, start: float) -> "Presenter":
+        """Run there. Arrival follows from the distance at real run speed."""
+        self.actor.move_to(list(route), start=start)
         return self
+
+    @property
+    def arrives_at(self) -> float:
+        return self.actor._last().t
 
     def look_at_camera(self, *, t: float) -> "Presenter":
         self.actor.look_at(self.stage.camera_actor, t=t)

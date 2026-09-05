@@ -109,7 +109,7 @@ def animation_proof(out_dir: Path, *, map_name: str = "campgrounds"):
     actor.stand(until=2.0)
     # a short run, so the actor stays near the camera through the whole cycle
     run_leg = [p for p in leg if math.dist(p, start) < 300.0][:4] or leg[2:5]
-    actor.move_to(run_leg, during=(2.0, 6.0))
+    actor.move_to(run_leg, start=2.0)
     actor.stand(until=7.5)
     actor.fire(Weapon.ROCKET, t=7.5)
     actor.stand(until=10.5)
