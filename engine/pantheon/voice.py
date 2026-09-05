@@ -235,11 +235,35 @@ def render_line(src: Path, dest: Path, profile: CharacterVoiceProfile, *,
 # speech in the game at all, so his voice is synthetic pulled well down and
 # darkened -- big and close, not an impression of anyone.
 GUIDE = CharacterVoiceProfile(
-    role="PANTHEON_GUIDE", native_speaker="CRASH", tts_voice="bm_george",
+    role="PANTHEON_GUIDE", native_speaker="CRASH", tts_voice="af_heart",
     pitch_semitones=0.0, highpass_hz=110, lowpass_hz=10500, room_amount=0.10)
 
 KEEL = CharacterVoiceProfile(
     role="ENEMY_KEEL", native_speaker="KEEL", tts_voice="bm_george",
     pitch_semitones=-4.5, highpass_hz=70, lowpass_hz=8000, room_amount=0.16)
 
-PROFILES = {"GUIDE": GUIDE, "KEEL": KEEL}
+# The rest of the cast. Every model ships taunt.wav plus pain/death/jump barks
+# (26 of 26 in pak00 -- see docs/reference/character_roster.json), so each has
+# a NATIVE anchor; only Crash has full sentences. Synthetic lines for the
+# others are Kokoro voices pulled toward the anchor by the chain below. These
+# are treatments, not impressions, and none of them claims to be the original
+# performer.
+ANARKI = CharacterVoiceProfile(
+    role="MOVEMENT", native_speaker="ANARKI", tts_voice="am_michael",
+    pitch_semitones=+1.5, highpass_hz=120, lowpass_hz=11000, room_amount=0.06)
+SLASH = CharacterVoiceProfile(
+    role="TACTICAL", native_speaker="SLASH", tts_voice="af_sky",
+    pitch_semitones=+0.5, highpass_hz=110, lowpass_hz=11500, room_amount=0.08)
+ORBB = CharacterVoiceProfile(
+    role="COMEDY", native_speaker="ORBB", tts_voice="am_adam",
+    pitch_semitones=+4.0, highpass_hz=200, lowpass_hz=6500, room_amount=0.2,
+    spatial=SpatialMode.RADIO)
+SARGE = CharacterVoiceProfile(
+    role="VETERAN", native_speaker="SARGE", tts_voice="am_michael",
+    pitch_semitones=-3.0, highpass_hz=80, lowpass_hz=9000, room_amount=0.1)
+RANGER = CharacterVoiceProfile(
+    role="ARCHIVE", native_speaker="RANGER", tts_voice="am_adam",
+    pitch_semitones=-1.5, highpass_hz=90, lowpass_hz=10000, room_amount=0.12)
+
+PROFILES = {"GUIDE": GUIDE, "KEEL": KEEL, "ANARKI": ANARKI, "SLASH": SLASH,
+            "ORBB": ORBB, "SARGE": SARGE, "RANGER": RANGER}

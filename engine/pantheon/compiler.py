@@ -246,11 +246,12 @@ def compile_scenario(scn: "RoundScenario", *,
                 MOD_BY_WEAPON.get(e.weapon.value if e.weapon else 5, 7),
                 pos, toggle=toggles[obit_slot])
 
+        cam = scn.camera_at(t)                     # the POV may move
         ps = {
             W.PS_CLIENTNUM: 0,
-            W.PS_ORIGIN_X: cam0.origin[0], W.PS_ORIGIN_Y: cam0.origin[1],
-            W.PS_ORIGIN_Z: cam0.origin[2],
-            W.PS_YAW: cam0.yaw, W.PS_PITCH: 0.0,
+            W.PS_ORIGIN_X: cam.origin[0], W.PS_ORIGIN_Y: cam.origin[1],
+            W.PS_ORIGIN_Z: cam.origin[2],
+            W.PS_YAW: cam.yaw, W.PS_PITCH: getattr(cam, "pitch", 0.0),
             W.PS_WEAPON: 7,                          # the POV holds a weapon
             W.PS_GROUND: 0,
         }

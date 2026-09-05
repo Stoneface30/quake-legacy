@@ -67,7 +67,7 @@ def test_the_walk_out_is_a_separate_client_not_the_historical_actor():
     assert built.actors["KEEL~ANALYSIS"].layer is Layer.ANALYSIS
     # different client slots: the demo can never be read as one man moving
     assert built.actors["KEEL"].client != built.actors["KEEL~ANALYSIS"].client
-    assert rep["breaks"][0]["analysis_actor_layer"] == "ANALYSIS"
+    assert rep["breaks"][0]["explainer_layer"] == "ANALYSIS"
 
 
 def test_the_analysis_body_is_not_in_the_round():
@@ -135,7 +135,7 @@ def test_the_analysis_body_wears_the_only_tintable_skin():
     ghost = built.actors["KEEL~ANALYSIS"]
     assert ghost.skin == ANALYSIS_SKIN
     assert ghost.model == built.actors["KEEL"].model      # same character
-    assert rep["breaks"][0]["analysis_appearance"]["skin"] == ANALYSIS_SKIN
+    assert rep["breaks"][0]["explainer_appearance"]["skin"] == ANALYSIS_SKIN
 
 
 def test_the_historical_actor_keeps_the_skin_the_demo_authored():
@@ -154,3 +154,73 @@ def test_the_analysis_tint_is_written_in_the_measured_format():
     # the engine classifies by team relation, so only one half is written
     assert set(team) & set(enemy) == set()
     assert len(team) == 3
+
+
+def test_a_freeze_between_two_keys_holds_the_pose_flat():
+    # Proof C: with no keyframe at the freeze instant, the surrounding keys
+    # had their interval stretched by the hold and the yaw snap landed inside
+    # the freeze. Four frozen actors turned their heads.
+    scn = RoundScenario.clan_arena(map_name="overkill", hostname="T")
+    scn.observer(CAM, yaw=90.0, team=Team.BLUE)
+    k = scn.actor("KEEL", Team.BLUE).appearance("keel", "bright")
+    k.spawn(A, yaw=0.0, t=0.0, weapon=Weapon.RAIL)
+    k.stand(until=3.0)
+    k.look_at_point((100.0, 900.0, 0.0), t=6.0)   # yaw 90 at t=6: snaps at 4.5
+    k.stand(until=7.0)
+    s = InstructionScene(scn, duration=7.0)
+    s.add_break(AnalysisBreak(at_t=4.0, hold_s=5.0, presenter="KEEL",
+                              walk_to=(250.0, 300.0, 0.0), face=CAM))
+    built, _ = s.build()
+    r = s.verify_restoration(built)
+    assert r["all_restored"], r
+    # and nothing moves DURING the hold either
+    keel = built.actors["KEEL"]
+    yaws = {round(keel._at(t).yaw, 6) for t in (4.0, 5.0, 6.5, 8.0, 9.0)}
+    assert len(yaws) == 1
+
+
+def test_a_presenter_can_differ_from_every_historical_actor():
+    from engine.pantheon.instruction import Mode
+    from engine.pantheon.roster import CAST
+    scn = RoundScenario.clan_arena(map_name="overkill", hostname="T")
+    scn.observer(CAM, yaw=90.0, team=Team.BLUE)
+    k = scn.actor("KEEL", Team.BLUE).appearance("keel", "bright")
+    k.spawn(A, yaw=0.0, t=0.0, weapon=Weapon.RAIL); k.stand(until=6.8)
+    s = InstructionScene(scn, duration=7.0)
+    s.add_break(AnalysisBreak(at_t=4.0, hold_s=5.0, mode=Mode.PRESENTER,
+                              profile=CAST["GUIDE"], enter_from=(0.0, 0.0, 0.0),
+                              walk_to=(250.0, 300.0, 0.0), face=CAM))
+    built, rep = s.build()
+    ghost = built.actors["GUIDE~PRESENTER"]
+    assert ghost.layer is Layer.PRESENTER
+    assert (ghost.model, ghost.skin) == ("crash", "trainer")
+    assert ghost.client != built.actors["KEEL"].client
+    assert built._alive[Team.BLUE] == 1 and built._alive.get(Team.RED, 0) == 0
+    assert s.verify_restoration(built)["all_restored"]
+    assert rep["breaks"][0]["explainer_layer"] == "PRESENTER"
+
+
+def test_a_presenter_profile_must_resolve_to_an_installed_skin():
+    from engine.pantheon.roster import PresenterProfile
+    with pytest.raises(KeyError, match="has no skin"):
+        PresenterProfile("X", "crash", "not_a_skin").resolve()
+    with pytest.raises(KeyError, match="no player model"):
+        PresenterProfile("X", "mascot", "default").resolve()
+
+
+def test_the_camera_returns_to_the_exact_pov_before_history_resumes():
+    scn = RoundScenario.clan_arena(map_name="overkill", hostname="T")
+    scn.observer(CAM, yaw=90.0, team=Team.BLUE)
+    k = scn.actor("KEEL", Team.BLUE).appearance("keel", "bright")
+    k.spawn(A, yaw=0.0, t=0.0, weapon=Weapon.RAIL); k.stand(until=6.8)
+    s = InstructionScene(scn, duration=7.0)
+    s.add_break(AnalysisBreak(at_t=4.0, hold_s=5.0, presenter="KEEL",
+                              walk_to=(250.0, 300.0, 0.0), face=CAM,
+                              orbit=[(600.0, 600.0, 0.0), (0.0, 600.0, 0.0)],
+                              orbit_look_at=A))
+    built, _ = s.build()
+    before, after = built.camera_at(4.0), built.camera_at(9.0)
+    assert before.origin == after.origin and before.yaw == after.yaw
+    mid = built.camera_at(6.5)
+    assert mid.origin != before.origin        # it did move in edit time
+    assert s.historical_at_edit(6.5) == pytest.approx(4.0)   # history did not

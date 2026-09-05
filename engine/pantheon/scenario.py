@@ -74,7 +74,8 @@ class Layer(Enum):
     anywhere in this pipeline may imply that he did.
     """
     HISTORICAL = "HISTORICAL"
-    ANALYSIS = "ANALYSIS"
+    ANALYSIS = "ANALYSIS"        # a copy of a historical actor, explaining him
+    PRESENTER = "PRESENTER"      # an independent cast character, explaining
 
 
 class Stance(Enum):
@@ -426,6 +427,76 @@ class RoundScenario:
         self.observer_name = name
         self._camera_path = [_Keyframe(0.0, at, yaw, Stance.IDLE,
                                        Weapon.ROCKET, 200, 100, True)]
+
+    def camera_move(self, points: Sequence[Vec3], *,
+                    during: tuple[float, float], look_at: Vec3 | None = None,
+                    pitch: float = 0.0) -> None:
+        """Move the point of view along `points` over `during`.
+
+        Keyframed like an actor: the compiler interpolates position between
+        consecutive points. `look_at` fixes the yaw on one world point for the
+        whole move, which is what an orbit needs; without it the camera looks
+        along its own path.
+        """
+        if len(points) < 1:
+            raise ValueError("camera_move needs at least one point")
+        t0, t1 = during
+        if t1 < t0:
+            raise ValueError(f"camera move window must advance ({during})")
+        n = max(1, len(points) - 1)
+        for i, pt in enumerate(points):
+            t = t0 + (t1 - t0) * i / n
+            if look_at is not None:
+                yaw = _heading(pt, look_at)
+            elif i < n:
+                yaw = _heading(pt, points[i + 1])
+            else:
+                yaw = self._camera_path[-1].yaw if self._camera_path else 0.0
+            k = _Keyframe(t, pt, yaw, Stance.IDLE, Weapon.ROCKET, 200, 100, True)
+            k.pitch = pitch
+            self._camera_path.append(k)
+
+    def camera_hold(self, *, until: float) -> None:
+        last = self._camera_path[-1]
+        k = _Keyframe(until, last.origin, last.yaw, Stance.IDLE, Weapon.ROCKET,
+                      200, 100, True)
+        k.pitch = getattr(last, "pitch", 0.0)
+        self._camera_path.append(k)
+
+    def follow(self, actor: "Actor", *, t0: float, t1: float,
+               eye: float = 46.0) -> None:
+        """First-person: the point of view IS this actor, from t0 to t1.
+
+        The camera keys are copied from the actor's own, lifted to eye height.
+        Nothing about the actor changes -- the camera reads him, it does not
+        move him.
+        """
+        for k in sorted(actor._keys, key=lambda k: k.t):
+            if t0 <= k.t <= t1:
+                o = (k.origin[0], k.origin[1], k.origin[2] + eye)
+                c = _Keyframe(k.t, o, k.yaw, Stance.IDLE, Weapon.ROCKET,
+                              200, 100, True)
+                c.pitch = 0.0
+                self._camera_path.append(c)
+
+    def camera_at(self, t: float) -> _Keyframe:
+        """Interpolated camera state at `t`. Position lerps; yaw snaps at
+        the midpoint like actors do; pitch lerps."""
+        keys = sorted(self._camera_path, key=lambda k: k.t)
+        if t <= keys[0].t:
+            return keys[0]
+        for a, b in zip(keys, keys[1:]):
+            if a.t <= t <= b.t:
+                span = b.t - a.t
+                f = 0.0 if span <= 0 else (t - a.t) / span
+                o = tuple(a.origin[i] + (b.origin[i] - a.origin[i]) * f
+                          for i in range(3))
+                k = _Keyframe(t, o, a.yaw if f < 0.5 else b.yaw, a.stance,
+                              a.weapon, a.health, a.armor, a.alive)
+                pa, pb = getattr(a, "pitch", 0.0), getattr(b, "pitch", 0.0)
+                k.pitch = pa + (pb - pa) * f
+                return k
+        return keys[-1]
 
     def begin_round(self, *, at: float = 1.0, countdown: float = 7.0) -> None:
         self._round_begin = at

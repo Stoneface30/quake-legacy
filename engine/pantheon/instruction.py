@@ -48,6 +48,14 @@ from engine.pantheon.scenario import (Actor, Layer, RoundScenario,  # noqa: E402
 US = 1_000_000
 
 
+def _gesture_ok() -> frozenset:
+    from engine.pantheon.roster import load_inventory
+    return frozenset(m for m, a in load_inventory().items() if a.can_gesture)
+
+
+_GESTURE_OK = _gesture_ok()
+
+
 class Graphic(Enum):
     """Tactical graphics, each named for the truth it draws."""
     SHOOTER_TO_TARGET = "SHOOTER_TO_TARGET"
@@ -73,31 +81,69 @@ class TacticalFact:
                 "layer": self.layer.value}
 
 
+class Mode(Enum):
+    """Who does the explaining."""
+    ACTOR_COPY = "ACTOR_COPY"    # a copy of one historical actor steps out
+    PRESENTER = "PRESENTER"      # a cast character walks in from off-scene
+
+
+@dataclass
+class Line:
+    """One spoken line, on the EDIT clock, from an existing audio file.
+
+    `audio` is a real game asset or a synthesised file already on disk; this
+    layer does not synthesise, it schedules. `source_kind` says which.
+    """
+    text: str
+    audio: Path
+    source_kind: str = "SYNTHETIC_TTS"     # or GAME_ASSET
+    voice_profile: str = "GUIDE"
+
+
 @dataclass
 class AnalysisBreak:
-    """A freeze, a walk-out, a graphic, a walk-back, and history resumed.
+    """A freeze, someone explains, history resumes.
 
     `at_t` and every other time here is HISTORICAL time. The break inserts
     `hold_s` of edit time at that instant; nothing historical advances during
-    it.
+    it. Everything that happens INSIDE the break -- the walk, the camera, the
+    line -- is authored on the edit clock, and that is the only clock it has.
     """
     at_t: float
     hold_s: float
-    presenter: str                  # historical actor who explains
-    walk_to: Vec3                   # where the analysis actor addresses camera
+    walk_to: Vec3                   # where the explainer addresses camera
     face: Vec3                      # what he turns toward (the camera)
-    route_out: Sequence[Vec3] = ()  # walked path, frozen position -> walk_to
+    mode: Mode = Mode.ACTOR_COPY
+    presenter: str | None = None    # ACTOR_COPY: which historical actor
+    profile: object | None = None   # PRESENTER: a roster.PresenterProfile
+    enter_from: Vec3 | None = None  # PRESENTER: where he walks in from
+    route_out: Sequence[Vec3] = ()  # walked path, start -> walk_to
     graphic: Graphic | None = None
     graphic_from: str | None = None
     graphic_to: str | None = None
     walk_s: float = 1.6             # each leg of the walk
-    speak_s: float = 0.0            # filled from the dialogue if there is any
+    line: Line | None = None
+    gesture: bool = True
+    orbit: Sequence[Vec3] = ()      # camera points, edit time, during the hold
+    orbit_look_at: Vec3 | None = None
 
     def __post_init__(self) -> None:
         if self.hold_s < 2 * self.walk_s + 0.4:
             raise ValueError(
                 f"hold_s={self.hold_s} leaves no time to explain: two "
                 f"{self.walk_s}s walks plus a beat is the floor.")
+        if self.mode is Mode.ACTOR_COPY and not self.presenter:
+            raise ValueError("ACTOR_COPY needs `presenter`: which historical "
+                             "actor steps out")
+        if self.mode is Mode.PRESENTER and (self.profile is None
+                                            or self.enter_from is None):
+            raise ValueError("PRESENTER needs `profile` (who) and "
+                             "`enter_from` (where he walks in from)")
+
+    @property
+    def who(self) -> str:
+        return (self.presenter if self.mode is Mode.ACTOR_COPY
+                else self.profile.role)
 
 
 class InstructionScene:
@@ -167,6 +213,11 @@ class InstructionScene:
         cam = src._camera_path[0]
         out.observer(cam.origin, yaw=cam.yaw, team=src.observer_team,
                      name=src.observer_name)
+        # The camera is remapped like an actor: held flat across each freeze
+        # unless the break authors an orbit, which is inserted in EDIT time
+        # and returns to the exact historical camera before history resumes.
+        out._camera_path = self._remap_camera(src, tm)
+        self.cues = []
 
         # 1. every historical actor, with his keys remapped onto edit time and
         #    a HOLD inserted across each freeze. The hold repeats the state at
@@ -184,29 +235,46 @@ class InstructionScene:
                        for e in src._events]
         out._alive = dict(src._alive)
 
-        # 2. one analysis actor per break, existing ONLY inside its freeze
+        # 2. one explainer per break, existing ONLY inside its freeze
         report = {"breaks": [], "edit_duration_s": None}
         for b in self.breaks:
-            hist = src.actors[b.presenter]
-            frozen = hist._at(b.at_t)
             # At a normal->freeze boundary one historical instant has TWO edit
             # times: the left one is where the freeze opens, the right one is
-            # where it closes and history resumes. The walk-out is authored
-            # from the LEFT.
+            # where it closes and history resumes. Everything inside the break
+            # is authored from the LEFT.
             e0 = _edit_of(tm, b.at_t, bias="left")
-            act = out.actor(f"{b.presenter}~ANALYSIS", hist.team)
-            # Same model, ANALYSIS skin. The bright skin is what the colour
-            # family can reach, so wearing it is what makes this body -- and
-            # only this body -- take the PANTHEON tint.
-            act.appearance(hist.model, ANALYSIS_SKIN, c1=hist.c1, c2=hist.c2)
-            act.layer = Layer.ANALYSIS
-            # He is not in the round. Counting him would make the CA alive
-            # counters say one more player is fighting than actually is, which
-            # is a false statement about the historical event.
+            if b.mode is Mode.ACTOR_COPY:
+                hist = src.actors[b.presenter]
+                frozen = hist._at(b.at_t)
+                act = out.actor(f"{b.presenter}~ANALYSIS", hist.team)
+                # Same model, ANALYSIS skin: the bright skin is what the
+                # colour family can reach, so this body -- and only this body
+                # -- takes the tint when the shot chooses to apply one.
+                act.appearance(hist.model, ANALYSIS_SKIN, c1=hist.c1, c2=hist.c2)
+                act.layer = Layer.ANALYSIS
+                start, weapon = frozen.origin, frozen.weapon
+                yaw0 = frozen.yaw
+            else:
+                prof = b.profile
+                prof.resolve()                    # the pak must have him
+                frozen = None
+                # Opposite team to the POV, so cg_enemy*Color is the only half
+                # of the colour family that could reach him -- and it is left
+                # alone unless the profile asks for a tint.
+                team = (Team.RED if src.observer_team is Team.BLUE
+                        else Team.BLUE)
+                act = out.actor(f"{prof.role}~PRESENTER", team)
+                act.appearance(prof.model, prof.skin)
+                act.layer = Layer.PRESENTER
+                start, weapon = b.enter_from, Weapon.GAUNTLET
+                yaw0 = _heading(b.enter_from, b.walk_to)
+            # Not in the round. Counting him would make the CA alive counters
+            # say one more player is fighting than actually is, which is a
+            # false statement about the historical event.
             act.counts_toward_roster = False
-            self._author_walkout(act, b, frozen, e0)
+            self._author_walkout(act, b, start, yaw0, weapon, e0)
             self._draw_graphic(out, b, src, e0)
-            report["breaks"].append(self._report_break(b, src, frozen, e0))
+            report["breaks"].append(self._report_break(b, src, frozen, e0, act))
 
         report["edit_duration_s"] = round(self.edit_duration, 3)
         report["historical_duration_s"] = round(self.duration, 3)
@@ -214,44 +282,104 @@ class InstructionScene:
         return out, report
 
     # -- pieces -----------------------------------------------------------
-    @staticmethod
-    def _remap_keys(a: Actor, tm) -> list[_Keyframe]:
+    def _remap_keys(self, a: Actor, tm) -> list[_Keyframe]:
+        """The actor's keys on the edit clock, held FLAT across every freeze.
+
+        Remapping only the keys that already exist is not enough, and Proof C
+        proved it: with no key at the freeze instant, the two keys either side
+        of it simply had their interval stretched by the hold, and the yaw
+        snap that lives at the midpoint of that interval landed INSIDE the
+        freeze. Four frozen actors turned their heads. So the state at the
+        instant is sampled and pinned at both edit times of the boundary,
+        which is what a freeze means.
+        """
         keys = sorted(a._keys, key=lambda k: k.t)
         out: list[_Keyframe] = []
         for k in keys:
-            # a key sitting exactly on a freeze boundary gets BOTH edit times,
-            # which is what holds the pose flat across the freeze
             left = _edit_of(tm, k.t, bias="left")
             right = _edit_of(tm, k.t, bias="right")
             out.append(_replace_t(k, left))
             if right != left:
                 out.append(_replace_t(k, right))
-        return out
+        for b in self.breaks:
+            if any(abs(k.t - b.at_t) < 1e-9 for k in keys):
+                continue                       # already pinned above
+            frozen = a._at(b.at_t)
+            out.append(_replace_t(frozen, _edit_of(tm, b.at_t, "left")))
+            out.append(_replace_t(frozen, _edit_of(tm, b.at_t, "right")))
+        return sorted(out, key=lambda k: k.t)
 
-    def _author_walkout(self, act: Actor, b: AnalysisBreak,
-                        frozen: _Keyframe, e0: float) -> None:
-        """Spawn at the frozen position, walk out, address camera, walk back.
+    def _author_walkout(self, act: Actor, b: AnalysisBreak, start: Vec3,
+                        yaw0: float, weapon: Weapon, e0: float) -> None:
+        """Spawn, walk in, face camera, gesture, speak, walk back, leave.
 
-        He is armed with whatever the historical actor was holding, so the
-        analysis body reads as the same fighter rather than a fresh spawn.
+        Every time here is EDIT time. The line, if any, is scheduled on the
+        same clock as the walk and the camera, so it cannot drift from them.
         """
-        route = list(b.route_out) or [frozen.origin, b.walk_to]
-        act.spawn(route[0], yaw=frozen.yaw, t=e0, weapon=frozen.weapon)
+        from engine.pantheon.voice import (DialogueCue, SourceKind, SpatialMode,
+                                           wav_duration)
+        route = list(b.route_out) or [start, b.walk_to]
+        act.spawn(route[0], yaw=yaw0, t=e0, weapon=weapon)
         arrive = e0 + 0.15 + b.walk_s
         act.move_to(route, during=(e0 + 0.15, arrive))
         # move_to lays a settle keyframe at t1 + 0.05 carrying the ROUTE
-        # heading. Turning to camera at t1 was therefore overwritten a frame
-        # later and he addressed the audience in profile. Turn after the
-        # settle, not on it.
+        # heading; turning on t1 was overwritten a frame later and he
+        # addressed the audience in profile. Turn after the settle.
         turn = arrive + 0.25
         act.look_at_point(b.face, t=turn)
+        t = turn + 0.2
+        if b.gesture and act.model in _GESTURE_OK:
+            act.gesture(t=t)
+            t += 0.9
+        if b.line is not None:
+            dur = wav_duration(Path(b.line.audio))
+            self.cues.append(DialogueCue(
+                actor_id=act.name, text=b.line.text, start_t=t,
+                duration_s=dur, audio_path=str(b.line.audio),
+                source_kind=SourceKind[b.line.source_kind],
+                profile=b.line.voice_profile, spatial=SpatialMode.DIEGETIC))
+            t += dur
         speak_until = e0 + b.hold_s - b.walk_s - 0.2
+        if t > speak_until:
+            raise ValueError(
+                f"{b.who}: the break holds {b.hold_s}s but walking in, "
+                f"gesturing and the line need {t - e0 + b.walk_s + 0.2:.1f}s")
         act.stand(until=speak_until)
         act.move_to(list(reversed(route)),
                     during=(speak_until, speak_until + b.walk_s))
-        # gone before history resumes: the analysis body must not be standing
-        # in the frame when the fight starts again
+        # gone before history resumes: the explainer must not be standing in
+        # the frame when the fight starts again
         act.despawn(t=e0 + b.hold_s - 0.05)
+
+    def _remap_camera(self, src: RoundScenario, tm) -> list[_Keyframe]:
+        """Historical camera on the edit clock, plus any authored orbit."""
+        keys = sorted(src._camera_path, key=lambda k: k.t)
+        out: list[_Keyframe] = []
+        for k in keys:
+            left, right = _edit_of(tm, k.t, "left"), _edit_of(tm, k.t, "right")
+            out.append(_replace_t(k, left))
+            if right != left:
+                out.append(_replace_t(k, right))
+        for b in self.breaks:
+            if not b.orbit:
+                continue
+            e0 = _edit_of(tm, b.at_t, bias="left")
+            here = src.camera_at(b.at_t)
+            look = b.orbit_look_at or b.walk_to
+            # leave the POV, travel the orbit, come back to the SAME POV
+            # before the freeze closes: the frame history resumes on is the
+            # frame it left from.
+            pts = [here.origin, *b.orbit, here.origin]
+            n = len(pts) - 1
+            t_out, t_back = e0 + 0.1, e0 + b.hold_s - 0.1
+            for i, pt in enumerate(pts):
+                t = t_out + (t_back - t_out) * i / n
+                yaw = here.yaw if i in (0, n) else _heading(pt, look)
+                k = _Keyframe(t, pt, yaw, Stance.IDLE, Weapon.ROCKET,
+                              200, 100, True)
+                k.pitch = 0.0
+                out.append(k)
+        return out
 
     def _draw_graphic(self, out: RoundScenario, b: AnalysisBreak,
                       src: RoundScenario, e0: float) -> None:
@@ -278,35 +406,35 @@ class InstructionScene:
             t += 0.5
 
     def _report_break(self, b: AnalysisBreak, src: RoundScenario,
-                      frozen: _Keyframe, e0: float) -> dict:
-        route = list(b.route_out) or [frozen.origin, b.walk_to]
+                      frozen, e0: float, act: Actor) -> dict:
+        route = list(b.route_out) or [
+            (frozen.origin if frozen else b.enter_from), b.walk_to]
         d = {
             "historical_t_s": b.at_t,
             "edit_freeze_start_s": round(e0, 3),
             "edit_freeze_end_s": round(e0 + b.hold_s, 3),
             "hold_s": b.hold_s,
-            "historical_actor": b.presenter,
-            "historical_actor_layer": Layer.HISTORICAL.value,
-            "historical_frozen_state": {
-                "origin": [round(c, 2) for c in frozen.origin],
-                "yaw": round(frozen.yaw, 2), "stance": frozen.stance.name,
-                "weapon": frozen.weapon.name, "health": frozen.health,
-                "armor": frozen.armor},
-            "analysis_actor": f"{b.presenter}~ANALYSIS",
-            "analysis_actor_layer": Layer.ANALYSIS.value,
-            "analysis_appearance": {
-                "model": src.actors[b.presenter].model,
-                "skin": ANALYSIS_SKIN,
-                "tint_rgb": list(PANTHEON_GREEN),
-                "why": "the tint reaches the bright skin family only, so the "
-                       "analysis body is the only actor wearing it and the "
-                       "historical actors keep what the demo authored"},
+            "mode": b.mode.value,
+            "explainer": act.name,
+            "explainer_layer": act.layer.value,
+            "explainer_appearance": {"model": act.model, "skin": act.skin},
+            "line": ({"text": b.line.text, "audio": str(b.line.audio),
+                      "source_kind": b.line.source_kind}
+                     if b.line else None),
+            "camera_orbit_points": len(b.orbit),
             "walk_route": [[round(c, 2) for c in p] for p in route],
             "walk_len_units": round(
                 sum(math.dist(route[i], route[i + 1])
                     for i in range(len(route) - 1)), 1),
             "faces": [round(c, 2) for c in b.face],
         }
+        if frozen is not None:
+            d["historical_actor"] = b.presenter
+            d["historical_frozen_state"] = {
+                "origin": [round(c, 2) for c in frozen.origin],
+                "yaw": round(frozen.yaw, 2), "stance": frozen.stance.name,
+                "weapon": frozen.weapon.name, "health": frozen.health,
+                "armor": frozen.armor}
         if b.graphic and b.graphic_from and b.graphic_to:
             p = src.actors[b.graphic_from]._at(b.at_t).origin
             q = src.actors[b.graphic_to]._at(b.at_t).origin
@@ -344,7 +472,7 @@ class InstructionScene:
             e1 = _edit_of(tm, b.at_t, bias="right")   # freeze closes
             row = {"historical_t_s": b.at_t, "actors": {}, "ok": True}
             for name, a in built.actors.items():
-                if getattr(a, "layer", Layer.HISTORICAL) is Layer.ANALYSIS:
+                if getattr(a, "layer", Layer.HISTORICAL) is not Layer.HISTORICAL:
                     continue
                 before, after = a._at(e0), a._at(e1)
                 same = (all(abs(x - y) <= eps
