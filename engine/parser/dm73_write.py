@@ -432,11 +432,17 @@ def systeminfo(*, pure: int = 0, extra: dict[str, str] | None = None) -> str:
 
 
 def player_configstring(name: str, *, team: int, model: str = "sarge",
-                        handicap: int = 100) -> str:
-    """A CS_PLAYERS entry. `t` is the team: 1 red, 2 blue."""
+                        handicap: int = 100, c1: str = "4", c2: str = "5"
+                        ) -> str:
+    """A CS_PLAYERS entry. `t` is the team: 1 red, 2 blue.
+
+    `c1`/`c2` are the player colour indices. They are NOT decoration: the
+    `bright` skin family the presenter uses is tinted by c1, which is why two
+    different models both came out the same green when this was pinned at 4.
+    """
     return info_string([
         ("n", name), ("t", str(team)), ("model", model), ("hmodel", model),
-        ("c1", "4"), ("c2", "5"), ("hc", str(handicap)), ("w", "0"),
+        ("c1", c1), ("c2", c2), ("hc", str(handicap)), ("w", "0"),
         ("l", "0"), ("skill", " 5.00"), ("tt", "0"), ("tl", "0"),
     ])
 

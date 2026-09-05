@@ -147,6 +147,8 @@ class Actor:
         # `model` for protocol-QL demos, so this one key covers the whole body.
         self.model = "sarge"
         self.skin = "default"
+        # Q3 player colour indices, overridable per actor via `appearance`.
+        self.c1, self.c2 = "4", "5"
 
     # -- state ---------------------------------------------------------
     def spawn(self, at: Vec3, *, yaw: float = 0.0, t: float = 0.0,
@@ -160,7 +162,8 @@ class Actor:
         self._s._alive[self.team] += 1
         return self
 
-    def appearance(self, model: str, skin: str = "default") -> "Actor":
+    def appearance(self, model: str, skin: str = "default", *,
+                   c1: str | None = None, c2: str | None = None) -> "Actor":
         """Which character this actor IS, baked into the demo.
 
         `keel` / `bright` is a real shipped skin -- every one of the 26 player
@@ -168,6 +171,10 @@ class Actor:
         to `keel/bright`.
         """
         self.model, self.skin = model, skin
+        if c1 is not None:
+            self.c1 = c1
+        if c2 is not None:
+            self.c2 = c2
         return self
 
     def gesture(self, *, t: float | None = None) -> "Actor":

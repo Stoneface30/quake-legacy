@@ -104,3 +104,71 @@ trainer speaking complete instructional sentences**, 1.5-8 s each. Plus
 
 That is the single highest-value action for the presenter, and it is pure
 read-only extraction against the pak (ENG-4 respected).
+
+---
+
+## Three engine traps that each cost a filmed take (2026-09-05)
+
+All three are silent. Every one of them ended with a process that exited
+cleanly and produced either nothing or the wrong thing, with no error text
+anywhere in `qconsole.log`.
+
+### 1. `MAX_CONSOLE_LINES` eats `+demo`
+
+`Com_ParseCommandLine` (qcommon/common.c) stops recording `+` groups once it
+holds **32**, and returns without a word. The launch line was eight built-in
+`+set` groups, plus the master profile's fourteen, plus thirteen shot cvars —
+so `+demo` fell off the end. The engine booted to the main menu, never ran
+`cgamepostinit.cfg`, and exited `rc=0` after ~300s with no AVI.
+
+- **Grade:** EXECUTION_PROVEN — reproduced, then fixed and re-proven.
+- **Fix:** shot cvars go into `capture.cfg` (exec'd from `cgamepostinit`, no
+  ceiling), never onto the command line. `shot.py::render` also refuses to
+  launch a command line with more than `MAX_CONSOLE_LINES` groups.
+
+### 2. SDL's driver probe fails, and the answer is a quarter-resolution film
+
+```
+SDL_Init( SDL_INIT_VIDEO ) FAILED (No available video device)
+^1GLimp_StartDriverAndSetMode() failed, reverting to safe values
+GLimp_Shutdown: mode -1 lastMode -999      <- r_mode -1 WAS set
+...setting mode 11: 856 480
+```
+
+The requested `r_mode -1` / 1920x1080 was correct and was applied; the driver
+probe failed first, and "safe values" silently replaced the resolution. The
+capture then ran to completion and wrote a perfectly valid **856x480** AVI.
+
+- **Fix:** launch with `SDL_VIDEODRIVER=windib` in the environment. First
+  attempt then succeeds and the film is 1920x1080.
+- **Watch for:** any capture whose AVI probes at 856x480 hit this.
+
+### 3. A stale `q3config.cfg` overrode demo-authored identity
+
+The master capture profile clears `cg_enemyModel` / `cg_teamModel` and sets
+`cg_forceModel 0`. It does **not** clear wolfcam's per-part override family,
+and the staged `q3config.cfg` still carried, from some earlier session:
+
+```
+seta cg_enemyHeadModel "keel/bright"
+seta cg_enemyLegsSkin  "bright"
+seta cg_enemyTorsoSkin "bright"
+seta cg_enemyHeadSkin  "bright"
+```
+
+Crash and Keel therefore rendered as the same flat green figure. Nothing was
+wrong with the demo: the client was overriding the skins the file authored.
+
+- **Falsified on the way:** the `c1` / `c2` player colour indices were the
+  first suspect. Filming Crash at `c1=1` against Keel at `c1=3` changed
+  nothing — colour indices are not the tint source here.
+- **Fix:** `VisualProfile.cvars()` clears the whole enemy/team model+skin
+  family. Crash then renders in his red-and-white trainer skin, visibly a
+  different character from Keel. `keel/bright` staying green is correct: the
+  `bright` skin family IS the flat green one, and that is what was authored.
+
+**Delivered:** `DIEGETIC_PRESENTER_PROOF_01.mp4`, 1920x1080, 60fps, 19.70s,
+six dialogue cues (four real Crash tutorial recordings, two synthesised),
+panned from FrameTruth positions on the scenario clock.
+Reproduce with `python -m engine.pantheon.presenter_proof` then
+`python -m engine.pantheon.presenter_film`.
