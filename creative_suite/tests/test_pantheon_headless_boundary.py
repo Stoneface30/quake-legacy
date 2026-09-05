@@ -26,6 +26,7 @@ PANTHEON = Path(__file__).resolve().parents[2] / "engine" / "pantheon"
 # Modules that ARE the engine. None of them may know a renderer exists.
 HEADLESS = {
     "performance",      # PerformanceTrace extraction
+    "performance_index",  # corpus-wide PerformanceTrace index (SQLite)
     "frame_truth",      # FrameTruth
     "scenario",         # RoundScenario authoring
     "compiler",         # intent -> .dm_73 grammar

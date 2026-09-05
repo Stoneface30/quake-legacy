@@ -36,6 +36,15 @@ from engine.parser.demo_parse import DM73Parser
 
 FRAGS_DB = Path("G:/QUAKE_LEGACY/creative_suite/database/frags_rebuilt.db")
 ES_TORSO_ANIM, ES_LEGS_ANIM = 13, 15
+# The RECORDER is not an entity in his own snapshots; his state is the
+# playerstate. These ordinals are the ioquake3 playerStateFields table, which
+# matches every playerstate index the parser already uses (1,2,4,5,6,7,9,10,
+# 13,16,18,20,40), and were VERIFIED on a real overkill demo: legs while
+# speed > 250 read RUN/JUMP/BACK, torso reads ATTACK/STAND/DROP/RAISE.
+PS_TORSO_ANIM, PS_LEGS_ANIM = 14, 17
+PS_ORIGIN = (1, 2, 9)
+PS_VELOCITY = (4, 5, 10)
+PS_YAW, PS_PITCH, PS_GROUND, PS_CLIENT, PS_WEAPON = 6, 7, 20, 40, 41
 ANIM_TOGGLE = 128
 ENTITYNUM_NONE = 1023
 WP_ROCKET, WP_RAIL = 5, 7
@@ -112,6 +121,7 @@ class PerformanceTrace:
     weapon: list[WeaponSample] = field(default_factory=list)
     projectiles: list[ProjectileSample] = field(default_factory=list)
     events: list[ActionEvent] = field(default_factory=list)
+    pov: bool = False                 # True when this is the recorder himself
     authorities: dict = field(default_factory=lambda: {
         "transform": "OBSERVED entity pos.trBase/trDelta per snapshot",
         "aim": "OBSERVED entity apos yaw/pitch per snapshot",
@@ -177,6 +187,7 @@ def _parse_with_anims(path: Path):
     """Full parse, plus per-snapshot legs/torso anim for every player entity."""
     parser = DM73Parser(path, track_missiles=True)
     anims: list[dict] = []
+    recorder: list[dict] = []          # the POV's own playerstate, per snapshot
     orig = parser._parse_snapshot
 
     def hook(s, events, snapshots):
@@ -189,23 +200,75 @@ def _parse_with_anims(path: Path):
                               "legs": l & ~ANIM_TOGGLE, "torso": to & ~ANIM_TOGGLE,
                               "legs_toggle": bool(l & ANIM_TOGGLE),
                               "torso_toggle": bool(to & ANIM_TOGGLE)})
+        ps = parser._ps_state
+        if ps:
+            l = int(ps.get(PS_LEGS_ANIM, 0) or 0); to = int(ps.get(PS_TORSO_ANIM, 0) or 0)
+            g = ps.get(PS_GROUND)
+            recorder.append({
+                "t": t, "client": ps.get(PS_CLIENT),
+                "origin": tuple(float(ps.get(i, 0.0) or 0.0) for i in PS_ORIGIN),
+                "velocity": tuple(float(ps.get(i, 0.0) or 0.0) for i in PS_VELOCITY),
+                "yaw": float(ps.get(PS_YAW, 0.0) or 0.0),
+                "pitch": float(ps.get(PS_PITCH, 0.0) or 0.0),
+                "airborne": g == ENTITYNUM_NONE, "ground": g,
+                "weapon": ps.get(PS_WEAPON),
+                "legs": l & ~ANIM_TOGGLE, "torso": to & ~ANIM_TOGGLE,
+                "legs_toggle": bool(l & ANIM_TOGGLE),
+                "torso_toggle": bool(to & ANIM_TOGGLE)})
 
     parser._parse_snapshot = hook
     out = parser.parse()
+    out["recorder_track"] = recorder
     return out, anims
+
+
+def recorder_client(out: dict) -> int | None:
+    """The POV client slot, from the playerstate itself."""
+    for r in out.get("recorder_track", []):
+        if r["client"] is not None:
+            return int(r["client"])
+    return None
 
 
 def extract_performance(demo: Path, start_ms: int, end_ms: int, client: int,
                         *, parsed=None) -> PerformanceTrace:
     """Everything the demo observed about `client` between start and end."""
     out, anims = parsed if parsed is not None else _parse_with_anims(demo)
+    rec = recorder_client(out)
+    if client is None:
+        client = rec
     tr = PerformanceTrace(demo_hash=demo_hash(demo), map=out["map"],
                           gametype=out["gametype"], client=client,
                           start_ms=start_ms, end_ms=end_ms)
     win = lambda t: start_ms <= t <= end_ms
+    tr.pov = (client == rec)
 
     prev = None
-    for e in out["entities"]:
+    if client == rec:
+        # THE RECORDER. Not in his own entity list; every track comes from the
+        # playerstate, sampled at every snapshot.
+        tr.authorities["transform"] = "OBSERVED playerstate origin/velocity per snapshot"
+        tr.authorities["aim"] = "OBSERVED playerstate viewangles per snapshot"
+        tr.authorities["animation"] = "OBSERVED playerstate legsAnim/torsoAnim (PS 17/14, verified)"
+        for r in out["recorder_track"]:
+            t = r["t"]
+            if not win(t):
+                continue
+            v = r["velocity"]
+            tr.transform.append(TransformSample(
+                t, r["origin"], v, math.hypot(v[0], v[1]), r["airborne"], r["ground"]))
+            yr = pr = 0.0
+            if prev and t > prev[0]:
+                dt = (t - prev[0]) / 1000.0
+                yr = ((r["yaw"] - prev[1] + 180) % 360 - 180) / dt
+                pr = (r["pitch"] - prev[2]) / dt
+            tr.aim.append(AimSample(t, r["yaw"], r["pitch"], round(yr, 1), round(pr, 1)))
+            prev = (t, r["yaw"], r["pitch"])
+            tr.animation.append(AnimSample(t, r["legs"], r["torso"],
+                                           r["legs_toggle"], r["torso_toggle"]))
+            if r["weapon"] is not None and (not tr.weapon or tr.weapon[-1].weapon != r["weapon"]):
+                tr.weapon.append(WeaponSample(t, int(r["weapon"])))
+    for e in ([] if client == rec else out["entities"]):
         if e["client_num"] != client or not win(e["server_time_ms"]):
             continue
         t = e["server_time_ms"]
@@ -242,7 +305,10 @@ def extract_performance(demo: Path, start_ms: int, end_ms: int, client: int,
         t = ev["server_time_ms"]
         if not win(t):
             continue
-        mine = ev.get("client_num") == client
+        # playerstate events carry no entity clientNum: None means the POV
+        mine = ev.get("client_num") == client or (
+            ev.get("client_num") is None and client == rec
+            and ev["type"] != "obituary")
         killer = ev.get("killer_client") == client
         if not (mine or killer):
             continue
@@ -285,10 +351,7 @@ def find_jumppad_rocket(demos: Iterable[Path], *, max_gap_ms: int = 1500,
             out, _ = _parse_with_anims(path)
         except Exception:
             continue
-        rec = None
-        for c, p in out["players"].items():
-            if p.get("is_recorder"):
-                rec = c
+        rec = recorder_client(out)
         evs = out["events"]
         pads = [e for e in evs if e["type"] == "jump_pad"]
         fires = [e for e in evs if e["type"] == "fire_weapon" and e.get("weapon") == WP_ROCKET]
@@ -296,9 +359,10 @@ def find_jumppad_rocket(demos: Iterable[Path], *, max_gap_ms: int = 1500,
         obits = [e for e in evs if e["type"] == "obituary" and e.get("weapon") in MOD_ROCKET]
         h = demo_hash(path)
         for jp in pads:
-            c = jp["client_num"]
+            c = jp["client_num"] if jp["client_num"] is not None else rec
             for f in fires:
-                if f["client_num"] != c or not 0 < f["server_time_ms"] - jp["server_time_ms"] <= max_gap_ms:
+                fc = f["client_num"] if f["client_num"] is not None else rec
+                if fc != c or not 0 < f["server_time_ms"] - jp["server_time_ms"] <= max_gap_ms:
                     continue
                 res = None
                 for o in obits:
@@ -306,7 +370,8 @@ def find_jumppad_rocket(demos: Iterable[Path], *, max_gap_ms: int = 1500,
                         res = ("obituary", o); break
                 if res is None:
                     for hh in hits:
-                        if hh["client_num"] == c and 0 < hh["server_time_ms"] - f["server_time_ms"] <= max_flight_ms:
+                        hc = hh["client_num"] if hh["client_num"] is not None else rec
+                        if hc == c and 0 < hh["server_time_ms"] - f["server_time_ms"] <= max_flight_ms:
                             res = ("missile_hit", hh); break
                 if res is None:
                     continue
