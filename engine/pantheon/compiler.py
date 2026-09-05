@@ -64,6 +64,37 @@ def _mod_table() -> dict[int, int]:
 
 MOD_BY_WEAPON = _mod_table()
 
+
+# ── recorded events, as the engine sends them ──────────────────────────────
+# Event codes come from the parser's own table (bg_public.h via demo_parse),
+# never restated. Two delivery forms exist in the protocol and both are
+# reproduced:
+#   * on the PLAYER ENTITY (es->event | sequence bits): fire, jump pad, jump,
+#     pain, death, teleport, weapon change, pickups. cgame plays them off the
+#     body they belong to, so the sound and the flash come from the right
+#     place.
+#   * as a TEMP ENTITY (eType = ET_EVENTS + code): missile impacts, rail
+#     trails, gibs. They happen at a world position, not on a body.
+# A same-tick second event on one body goes out as a temp entity carrying the
+# body's clientNum -- the engine's own "external event" path -- because an
+# entity has one event field per snapshot.
+def _event_codes() -> dict[str, int]:
+    from engine.parser.demo_parse import _EV_NAMES
+    codes: dict[str, int] = {}
+    for code, name in _EV_NAMES.items():
+        codes.setdefault(name, code)          # death -> EV_DEATH1
+    return codes
+
+
+EVENT_CODE = _event_codes()
+ENTITY_EVENTS = {"fire_weapon", "jump_pad", "jump", "change_weapon", "pain",
+                 "death", "drown", "teleport_in", "teleport_out",
+                 "item_pickup", "use_item", "noammo", "drop_weapon"}
+TEMP_EVENTS = {"missile_hit", "missile_miss", "railtrail", "gib_player"}
+EV_SEQ_SHIFT = 8            # EV_EVENT_BIT1/2 live at 0x100/0x200
+ENTITYNUM_WORLD = 1022
+EVENT_SLOT0 = 640           # temp-entity slots for recorded impacts
+
 # The alive ramp is interleaved between teams, as observed. One counter step
 # per tick keeps it visible rather than instantaneous.
 RAMP_STEP_MS = 50
@@ -203,6 +234,24 @@ def compile_scenario(scn: "RoundScenario", *,
     for pk in getattr(scn, "_projectiles", []):
         projectiles.setdefault(ms(pk.t), []).append(pk)
 
+    # ── recorded events, by tick ───────────────────────────────────────
+    recorded: dict[int, list] = {}
+    for e in scn._events:
+        if not e.kind.startswith("recorded:"):
+            continue
+        kind = e.kind.split(":", 1)[1]
+        if kind == "obituary":
+            continue                    # authored through kill(), if the victim is cast
+        if kind in ENTITY_EVENTS or kind in TEMP_EVENTS:
+            recorded.setdefault(ms(e.t), []).append((kind, e))
+    ev_seq: dict[int, int] = {}         # per entity, the sequence bits
+    ent_by_actor = {name: a.client for name, a in scn.actors.items()}
+    real_to_synth = {}
+    for name, a in scn.actors.items():
+        real_client = getattr(a, "_recorded_client", None)
+        if real_client is not None:
+            real_to_synth[real_client] = a.client
+
     obit_slot = 512
     MISSILE_SLOT0 = 700
     RAIL_SLOT0 = 600            # well clear of players and of the obituary
@@ -267,6 +316,45 @@ def compile_scenario(scn: "RoundScenario", *,
             end = tuple(p if p else 0.5 for p in e.position)
             ents[slot] = W.railtrail_entity(scn.actors[e.actor].client, end,
                                             toggle=toggles[slot])
+
+        # recorded events: the body's own event field first, then temp
+        # entities for impacts and for any second same-tick event
+        used_entity: set[int] = set()
+        temp_i = 0
+        for kind, e in recorded.get(now, []):
+            client = ent_by_actor[e.actor]
+            code = EVENT_CODE[kind]
+            parm = int(e.parm) if e.parm is not None else 0
+            weapon_num = e.weapon_num
+            if kind in ENTITY_EVENTS and client in ents and client not in used_entity:
+                seq = ev_seq.get(client, 0)
+                ents[client][W.ES_EVENT] = code | ((seq & 3) << EV_SEQ_SHIFT)
+                ents[client][W.ES_EVENTPARM] = parm
+                ev_seq[client] = seq + 1
+                used_entity.add(client)
+                continue
+            slot = EVENT_SLOT0 + temp_i
+            temp_i += 1
+            toggles[slot] = toggles.get(slot, 0) ^ 0x100
+            pos = e.position or scn.actors[e.actor]._at(t).origin
+            pos = tuple(p if p else 0.5 for p in pos)
+            st = {
+                W.ES_ETYPE: W.ET_EVENTS + code + (W.EV_TOGGLE_BITS & toggles[slot]),
+                W.ES_POS_X: pos[0], W.ES_POS_Y: pos[1], W.ES_POS_Z: pos[2],
+                W.ES_EVENTPARM: parm,
+                W.ES_CLIENTNUM: client,
+            }
+            if weapon_num is not None:
+                st[W.ES_WEAPON] = int(weapon_num)
+            elif kind in ("fire_weapon", "missile_hit", "missile_miss"):
+                st[W.ES_WEAPON] = ents.get(client, {}).get(W.ES_WEAPON, 0)
+            if kind == "missile_hit":
+                other = e.other_client
+                st[W.ES_OTHER_ENT] = (real_to_synth.get(other, other)
+                                      if other is not None else W.ENTITYNUM_NONE)
+            elif kind == "missile_miss":
+                st[W.ES_OTHER_ENT] = ENTITYNUM_WORLD
+            ents[slot] = st
 
         for e in kills.get(now, []):
             victim = scn.actors[e.target]

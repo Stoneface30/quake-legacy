@@ -233,12 +233,18 @@ class _ProjectileKey:
 @dataclass
 class _Event:
     t: float
-    kind: str                      # "kill" | "fire" | "damage"
+    kind: str                      # "kill" | "fire" | "damage" | "recorded:<ev>"
     actor: str
     target: str | None = None
     weapon: Weapon | None = None
     amount: int = 0
     position: Vec3 | None = None
+    # A RECORDED event keeps the engine's own numbers so the compiler can
+    # emit it as game state: the weapon slot as sent, the eventParm, and the
+    # other client involved (the victim of an obituary).
+    weapon_num: int | None = None
+    parm: int | None = None
+    other_client: int | None = None
 
 
 class Actor:
@@ -352,8 +358,10 @@ class Actor:
                 place(pr.origin), turn(pr.velocity)))
         for ev in trace.events:
             self._s._events.append(_Event(
-                t0 + (ev.t - base) / 1000.0, f"recorded:{ev.kind}", self.name,
-                None, None, position=(place(ev.position) if ev.position and None not in ev.position else None)))
+                round(t0 + (ev.t - base) / 1000.0, 3), f"recorded:{ev.kind}",
+                self.name, None, None,
+                position=(place(ev.position) if ev.position and None not in ev.position else None),
+                weapon_num=ev.weapon, parm=ev.parm, other_client=ev.other_client))
         return self
 
     def arm(self, weapon: Weapon, *, t: float | None = None) -> "Actor":

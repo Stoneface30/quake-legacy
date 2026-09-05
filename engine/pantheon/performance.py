@@ -48,7 +48,10 @@ PS_YAW, PS_PITCH, PS_GROUND, PS_CLIENT, PS_WEAPON = 6, 7, 20, 40, 41
 ANIM_TOGGLE = 128
 ENTITYNUM_NONE = 1023
 WP_ROCKET, WP_RAIL = 5, 7
-MOD_ROCKET = {3, 4}          # MOD_ROCKET, MOD_ROCKET_SPLASH (bg_public.h)
+# MOD_ROCKET / MOD_ROCKET_SPLASH, from the parser's own table rather than a
+# restated bg_public.h. A first version wrote {3, 4}, which the parser reads
+# as MACHINEGUN and GRENADE; the index shows rocket kills at 6 and 7.
+MOD_ROCKET = {code for code, name in dp._MOD_NAMES.items() if name.startswith("ROCKET")}
 
 
 # ── the schema ─────────────────────────────────────────────────────────────
@@ -171,6 +174,35 @@ class PerformanceTrace:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(self.as_dict(), indent=1), encoding="utf-8")
         return path
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "PerformanceTrace":
+        """The inverse of as_dict: what the index stored comes back whole."""
+        def t3(v):
+            return tuple(v) if v is not None else None
+        tr = cls(d["demo_hash"], d["map"], d["gametype"], d["client"],
+                 d["start_ms"], d["end_ms"], pov=bool(d.get("pov", False)))
+        if d.get("authorities"):
+            tr.authorities = dict(d["authorities"])
+        tr.transform = [TransformSample(x["t"], t3(x["origin"]), t3(x["velocity"]),
+                                        x["speed"], x["airborne"], x["ground_entity"])
+                        for x in d.get("transform", [])]
+        tr.aim = [AimSample(x["t"], x["yaw"], x["pitch"], x["yaw_rate"], x["pitch_rate"])
+                  for x in d.get("aim", [])]
+        tr.animation = [AnimSample(x["t"], x["legs"], x["torso"], x["legs_toggle"],
+                                   x["torso_toggle"]) for x in d.get("animation", [])]
+        tr.weapon = [WeaponSample(x["t"], x["weapon"]) for x in d.get("weapon", [])]
+        tr.projectiles = [ProjectileSample(x["t"], x["entity"], x["weapon"],
+                                           t3(x["origin"]), t3(x["velocity"]))
+                          for x in d.get("projectiles", [])]
+        tr.events = [ActionEvent(x["t"], x["kind"], x.get("weapon"), t3(x.get("position")),
+                                 x.get("other_client"), x.get("parm"))
+                     for x in d.get("events", [])]
+        return tr
+
+    @classmethod
+    def load(cls, path: Path) -> "PerformanceTrace":
+        return cls.from_dict(json.loads(Path(path).read_text(encoding="utf-8")))
 
 
 # ── extraction ─────────────────────────────────────────────────────────────
