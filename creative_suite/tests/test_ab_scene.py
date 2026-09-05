@@ -117,3 +117,31 @@ def test_specs_share_everything_except_the_variant_cvars(inv):
     ca, cb = a.visual.cvars(), b.visual.cvars()
     differing = {k for k in set(ca) | set(cb) if ca.get(k) != cb.get(k)}
     assert differing == {"r_picmip"}
+
+
+# ── DOCUMENTARY_COLOR_FORMAT (PROOF 0) ────────────────────────────────
+
+def test_rail_colours_are_packed_ints_not_triples():
+    from engine.pantheon.color_format import format_for
+    # 0x2a8000 rendered green on frames; "42 128 0" collapsed the beam.
+    assert format_for("cg_teamRailColor1", (42, 128, 0)) == '"0x2a8000"'
+    assert format_for("cg_enemyRailColor2", (255, 40, 40)) == '"0xff2828"'
+
+
+def test_wallhack_colours_are_triples_not_packed_ints():
+    from engine.pantheon.color_format import format_for
+    # The OTHER syntax, in the same cgame. SC_ParseColorFromStr rejects hex.
+    assert format_for("cg_whEnemyColor", (40, 255, 40)) == '"40 255 40"'
+
+
+def test_an_unmeasured_colour_cvar_is_refused():
+    from engine.pantheon.color_format import format_for
+    with pytest.raises(KeyError, match="no MEASURED colour syntax"):
+        format_for("cg_someFutureColor", (1, 2, 3))
+
+
+def test_model_colour_syntax_is_flagged_as_inferred():
+    from engine.pantheon.color_format import is_inferred
+    # Taken from the shipped default "0x2a8000", not from a frame yet.
+    assert is_inferred("cg_enemyLegsColor")
+    assert not is_inferred("cg_teamRailColor1")

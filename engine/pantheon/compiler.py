@@ -21,6 +21,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from engine.parser import dm73_write as W
+from engine.pantheon.scenario import Weapon
 
 if TYPE_CHECKING:                                   # pragma: no cover
     from engine.pantheon.scenario import RoundScenario
@@ -108,6 +109,12 @@ def compile_scenario(scn: "RoundScenario", *,
         CS_RED_PLAYERS_LEFT: "0",
         CS_BLUE_PLAYERS_LEFT: "0",
     }
+    # Client 0 is the point of view, and it needs a CS_PLAYERS entry like any
+    # other player: without one it has no team, and every teammate/enemy
+    # decision downstream silently resolves to neither.
+    cs[W.CS_PLAYERS + 0] = W.player_configstring(
+        scn.observer_name, team=scn.observer_team.value,
+        model="sarge/default", c1="4", c2="4")
     for a in scn.actors.values():
         cs[W.CS_PLAYERS + a.client] = W.player_configstring(
             a.name, team=a.team.value, model=f"{a.model}/{a.skin}",
@@ -181,7 +188,18 @@ def compile_scenario(scn: "RoundScenario", *,
             continue
         kills.setdefault(ms(e.t), []).append(e)
 
+    # ── rail shots, indexed the same way ──────────────────────────────
+    # A rail is hitscan: there is no projectile entity to animate, only an
+    # event carrying where the beam ended. Authoring that event is not faking
+    # a trajectory -- the engine draws the trail itself, with its own colour
+    # resolution, which is exactly what a colour proof has to exercise.
+    rails: dict[int, list] = {}
+    for e in scn._events:
+        if e.kind == "fire" and e.weapon is Weapon.RAIL and e.position:
+            rails.setdefault(ms(e.t), []).append(e)
+
     obit_slot = 512
+    RAIL_SLOT0 = 600            # well clear of players and of the obituary
     toggles: dict[int, int] = {}
     cam0 = scn._camera_path[0]
 
@@ -208,6 +226,13 @@ def compile_scenario(scn: "RoundScenario", *,
                 W.ES_TORSO_ANIM: _TORSO[k.stance],
             })
             ents[a.client] = st
+
+        for i, e in enumerate(rails.get(now, [])):
+            slot = RAIL_SLOT0 + i
+            toggles[slot] = toggles.get(slot, 0) ^ 0x100
+            end = tuple(p if p else 0.5 for p in e.position)
+            ents[slot] = W.railtrail_entity(scn.actors[e.actor].client, end,
+                                            toggle=toggles[slot])
 
         for e in kills.get(now, []):
             victim = scn.actors[e.target]

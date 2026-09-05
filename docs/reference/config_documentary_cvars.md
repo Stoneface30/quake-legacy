@@ -122,3 +122,74 @@ form moves the pixels is the form the documentary is allowed to show.
 | **C — rail team fight** | Buildable only in the **relative** form. The absolute red/blue design in the brief is unavailable in this binary. | PROOF 0, plus a frame proof that a spectating camera resolves team at all. |
 
 Reproduce the inventory: `python -m engine.pantheon.cvar_probe`.
+
+---
+
+# PROOF 0 — CLOSED. The colour format, decided on pixels.
+
+Five variants, one rail, one camera, one timestamp, one demo replayed.
+`overkill`, top floor (z=936), 439-unit beam filmed broadside from 186 units
+off-axis. Stills: `docs/visual-record/2026-09-05/proof0/`.
+Measurements: `.tmp/shots/proof0/measurements.json`.
+
+**Method.** For each capture, a frame at +0.3s (no rail yet) and a frame at
++0.9s (trail is up, `cg_railTrailTime` 600) come straight out of the AVI as raw
+RGB24 — no lossy round trip. Pixels differing by more than 60 (sum of channel
+deltas) are the beam; the brightest quarter of them is the beam's core, since a
+rail has a hot centre and a halo that blends with the wall behind it. Both
+frames come from the SAME capture, because wolfcam is not frame-deterministic
+across launches and a diff between two captures measures jitter.
+
+| variant | value | pixels | core median RGB | predicted | verdict |
+|---|---|---:|---|---|---|
+| hex | `0x2a8000` | 7865 | **(44, 110, 6)** | (42,128,0) | **GREEN** |
+| decimal_int | `2785280` | 7914 | **(67, 106, 7)** | (42,128,0) | **GREEN** |
+| decimal_int_wrong | `2752512` | 1380 | (157, 111, 97) | (42,0,0) | beam collapses |
+| decimal_triple | `"42 128 0"` | 1364 | (157, 112, 98) | (0,0,42) | beam collapses |
+| unset | `""` | 10006 | (226, 4, 5) | — | shooter's own c1 |
+
+**Answers to the six questions asked:**
+
+1. **Which syntax modifies the rail?** The packed integer. `0x2a8000` and its
+   decimal equal `2785280` both render green.
+2. **What RGB does each input produce?** The value, read as `0xRRGGBB`.
+3. **Does hex work despite the `atoi` concern?** **Yes.** `Cvar_Set` computes
+   `var->integer` with plain `atoi`, and `atoi("0x2a8000")` is 0 in C — the
+   frame says otherwise, and per the standing rule the film follows runtime.
+4. **Does decimal map predictably?** Yes, and the proof caught my own
+   arithmetic error doing it: the first run used `2752512`, which is
+   `0x2a0000`, not `0x2a8000`. It rendered a near-black beam — exactly what
+   `0xRRGGBB` predicts for (42,0,0). A wrong number producing the *predicted
+   wrong colour* is a second, independent confirmation of the model, so that
+   variant is kept in the proof deliberately.
+5. **Does a space-separated triple work here?** **No.** `"42 128 0"` reads as
+   42 = `0x00002a` and collapses the beam to the same dim residual as the wrong
+   decimal — 1364 pixels against 7865.
+6. **Is the shipped default special-cased?** No special path is needed:
+   `0x2a8000` is simply a value this parser reads correctly.
+
+**DOCUMENTARY_COLOR_FORMAT = `0xRRGGBB` for the rail family.**
+Enforced by `engine/pantheon/color_format.py::format_for`, which refuses any
+cvar whose syntax has not been measured.
+
+**The format is per-family, not global.** `cg_whColor` goes through
+`SC_ParseColorFromStr`, which rejects any non-digit character, and takes
+`"40 255 40"` — proven on frames in an earlier sprint. Two colour cvars in one
+cgame, two incompatible syntaxes, and writing one in the other's form is
+silent. The model colour family (`cg_enemyLegsColor` et al.) is recorded as
+packed-int **by inference from its shipped default only**, and is flagged
+`is_inferred` until PROOF B measures it.
+
+## A second thing PROOF 0 settled by accident
+
+The first run of this proof returned **the same colour for all four variants**.
+The cvar was not reaching the rail at all: client 0, the point of view, had no
+`CS_PLAYERS` configstring, therefore no team, therefore neither
+`cg_teamRailColor*` nor `cg_enemyRailColor*` ever applied. Every
+teammate/enemy decision in cgame reads `cgs.clientinfo[povClientNum]`.
+
+`RoundScenario.observer()` now takes a team and the compiler writes that
+configstring. **This is also most of the freecam question**: team relation is a
+property of the POV client's configstring, so a followed-player POV resolves it
+by construction. Proof C will use a followed POV and not depend on
+`cg_freecam_useTeamSettings` at all.

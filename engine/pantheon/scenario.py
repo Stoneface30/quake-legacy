@@ -162,6 +162,15 @@ class Actor:
         self._s._alive[self.team] += 1
         return self
 
+    def arm(self, weapon: Weapon, *, t: float | None = None) -> "Actor":
+        """Change weapon deliberately, at a time the audience can see."""
+        last = self._last()
+        when = last.t if t is None else t
+        self.weapon = weapon
+        self._keys.append(_Keyframe(when, last.origin, last.yaw, Stance.IDLE,
+                                    weapon, last.health, last.armor, True))
+        return self
+
     def appearance(self, model: str, skin: str = "default", *,
                    c1: str | None = None, c2: str | None = None) -> "Actor":
         """Which character this actor IS, baked into the demo.
@@ -239,17 +248,34 @@ class Actor:
 
     # -- combat --------------------------------------------------------
     def fire(self, weapon: Weapon, *, at: "Actor | None" = None,
-             t: float | None = None) -> "Actor":
+             impact: Vec3 | None = None, t: float | None = None) -> "Actor":
+        """Fire. `impact` is where the shot LANDS -- a wall, not a player.
+
+        A rail needs an end point to draw between, and a documentary shot that
+        wants a clean trail against geometry has no victim to aim at.
+        """
         last = self._last()
         when = last.t if t is None else t
-        yaw = _heading(last.origin, at._at(when).origin) if at else last.yaw
-        self.weapon = weapon
+        aim = impact or (at._at(when).origin if at else None)
+        yaw = _heading(last.origin, aim) if aim else last.yaw
+        # THE ACTOR MUST ALREADY BE HOLDING IT. Silently assigning the weapon
+        # here meant an actor who spawned with the rocket launcher was still
+        # holding it on the frame before the shot and holding a railgun on the
+        # frame of the shot -- a weapon swap and a shot on the same tick, which
+        # reads on screen as a glitch. Arm the actor, or spawn him armed.
+        if last.weapon is not weapon:
+            raise ValueError(
+                f"{self.name} fires {weapon.name} at t={when:g}s while holding "
+                f"{last.weapon.name}. Spawn with weapon={weapon.name} or call "
+                f"arm({weapon.name}) before the shot, so the swap is authored "
+                f"and visible rather than happening on the firing frame.")
         self._keys.append(_Keyframe(when, last.origin, yaw, Stance.ATTACK,
                                     weapon, last.health, last.armor, True))
         self._keys.append(_Keyframe(when + 0.35, last.origin, yaw, Stance.IDLE,
                                     weapon, last.health, last.armor, True))
         self._s._events.append(_Event(when, "fire", self.name,
-                                      at.name if at else None, weapon))
+                                      at.name if at else None, weapon,
+                                      position=aim))
         return self
 
     def take_damage(self, amount: int, *, source: "Actor | None" = None,
@@ -334,6 +360,9 @@ class RoundScenario:
         return cls(map_name=map_name, hostname=hostname, roster=roster)
 
     # -- authoring -----------------------------------------------------
+    observer_team = Team.RED
+    observer_name = "POV"
+
     def actor(self, name: str, team: Team) -> Actor:
         if name in self.actors:
             return self.actors[name]
@@ -342,8 +371,20 @@ class RoundScenario:
         self.actors[name] = a
         return a
 
-    def observer(self, at: Vec3, *, yaw: float = 0.0) -> None:
-        """The demo's own viewpoint. A recorded demo always has one."""
+    def observer(self, at: Vec3, *, yaw: float = 0.0,
+                 team: Team = Team.RED, name: str = "POV") -> None:
+        """The demo's own viewpoint. A recorded demo always has one.
+
+        THE POV NEEDS A TEAM, and for a long time it did not have one. Every
+        "is this shooter my teammate or my enemy" decision in cgame reads
+        cgs.clientinfo[povClientNum], which is populated from the CS_PLAYERS
+        configstring for that slot. Client 0 had no such configstring, so it
+        had no team, so neither cg_teamRailColor* nor cg_enemyRailColor* ever
+        applied -- and a colour proof measured four different values rendering
+        the same colour, because none of them was being consulted at all.
+        """
+        self.observer_team = team
+        self.observer_name = name
         self._camera_path = [_Keyframe(0.0, at, yaw, Stance.IDLE,
                                        Weapon.ROCKET, 200, 100, True)]
 

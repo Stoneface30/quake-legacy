@@ -27,6 +27,9 @@ FRAGS_DB = Path("G:/QUAKE_LEGACY/creative_suite/database/frags_rebuilt.db")
 
 # Two samples closer than this are the same spot for placement purposes.
 MIN_SEPARATION = 55.0
+FLOOR_BAND = 96.0        # one level spans more than one exact z:
+                         # crouching, steps and low ledges all sit
+                         # inside what a player calls one floor
 # A walked run breaks when the player teleports, falls or changes floor.
 MAX_STEP = 90.0
 FLOOR_TOLERANCE = 2.0
@@ -125,6 +128,31 @@ class NavigationTruth:
         if not good:
             return self.longest_route()
         return max(good, key=lambda r: r.span())
+
+    def high_route(self, *, min_points: int = 4, min_span: float = 200.0
+                   ) -> Route:
+        """The best walkable route on the HIGHEST floor players reached.
+
+        Arena maps are stacked, and the top level is where a map reads as a
+        place rather than a corridor: long sightlines, the room visible around
+        the actors, and a horizon to put a silhouette against. It is also
+        where a rail beam has room to be 900 units long without a pillar in
+        it. Every point is still a position a real player stood on, so
+        collision is inherited rather than assumed.
+        """
+        good = [r for r in self.routes
+                if len(r) >= min_points and r.span() >= min_span]
+        if not good:
+            return self.longest_route()
+        top = max(r.floor_z for r in good)
+        # one "floor" is a band, not an exact height: players crouch, step and
+        # ride small ledges within a level
+        band = [r for r in good if r.floor_z >= top - FLOOR_BAND]
+        return max(band, key=lambda r: r.span())
+
+    def floors(self) -> list[float]:
+        """Every distinct floor height, low to high."""
+        return sorted({round(r.floor_z, 1) for r in self.routes})
 
     def standing_positions(self, n: int, *, route: Route | None = None
                            ) -> list[Vec3]:
