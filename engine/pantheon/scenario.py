@@ -328,7 +328,10 @@ class Actor:
                 wp = Weapon(wn) if wn is not None else self.weapon
             except ValueError:
                 wp = self.weapon
-            k = _Keyframe(t0 + (smp.t - base) / 1000.0, place(smp.origin),
+            # rounded to the millisecond: 0.6 + 1.1 is 1.7000000000000002 in
+            # a double, which sits past the 40Hz frame at 1.7 and hands the
+            # interpolator the PREVIOUS sample's yaw and velocity
+            k = _Keyframe(round(t0 + (smp.t - base) / 1000.0, 3), place(smp.origin),
                           ((am.yaw if am else 0.0) + yaw_offset) % 360.0,
                           Stance.RUN if smp.speed > 50 else Stance.IDLE,
                           wp, self.health, self.armor, True,
@@ -543,8 +546,15 @@ class Actor:
         return self
 
     def _die(self, t: float) -> None:
-        last = self._last()
         self.alive = False
+        if any(k.recorded for k in self._keys):
+            # A RECORDED actor already carries his death: the demo kept
+            # sending his body with the death animation, and the trace has
+            # those samples. Authoring a DEAD key here removed the corpse the
+            # real demo still shows and shadowed every recorded sample after
+            # it. The obituary event is enough.
+            return
+        last = self._last()
         self._keys.append(_Keyframe(t, last.origin, last.yaw, Stance.DEAD,
                                     last.weapon, 0, 0, False))
 
@@ -579,7 +589,7 @@ class Actor:
                     # sample, exactly as cgame does. ON a sample it is that
                     # sample: returning a's yaw at b's time lagged every
                     # recorded aim by one snapshot while position was exact.
-                    if f >= 1.0:
+                    if f >= 1.0 - 1e-9:
                         return b
                     k = _Keyframe(t, origin, a.yaw, a.stance, a.weapon,
                                   a.health, a.armor, a.alive,

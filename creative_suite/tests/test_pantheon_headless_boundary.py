@@ -27,6 +27,7 @@ PANTHEON = Path(__file__).resolve().parents[2] / "engine" / "pantheon"
 HEADLESS = {
     "performance",      # PerformanceTrace extraction
     "performance_index",  # corpus-wide PerformanceTrace index (SQLite)
+    "real_action_proof",  # extract -> compile -> compare, headless
     "frame_truth",      # FrameTruth
     "scenario",         # RoundScenario authoring
     "compiler",         # intent -> .dm_73 grammar

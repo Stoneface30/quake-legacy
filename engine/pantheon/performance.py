@@ -268,10 +268,17 @@ def extract_performance(demo: Path, start_ms: int, end_ms: int, client: int,
                                            r["legs_toggle"], r["torso_toggle"]))
             if r["weapon"] is not None and (not tr.weapon or tr.weapon[-1].weapon != r["weapon"]):
                 tr.weapon.append(WeaponSample(t, int(r["weapon"])))
+    # The parser appends one entity row per DELTA, and a snapshot can carry
+    # more than one delta for the same entity (the player and an event on
+    # him). Two rows at one serverTime became two keyframes at one time, and
+    # the interpolator handed back the first where the differential expected
+    # the second. Keep the LAST row per tick: the accumulated state.
+    by_t: dict[int, dict] = {}
     for e in ([] if client == rec else out["entities"]):
-        if e["client_num"] != client or not win(e["server_time_ms"]):
-            continue
-        t = e["server_time_ms"]
+        if e["client_num"] == client and win(e["server_time_ms"]):
+            by_t[e["server_time_ms"]] = e
+    for t in sorted(by_t):
+        e = by_t[t]
         o = (e["origin_x"] or 0.0, e["origin_y"] or 0.0, e["origin_z"] or 0.0)
         v = (e["vel_x"] or 0.0, e["vel_y"] or 0.0, e["vel_z"] or 0.0)
         tr.transform.append(TransformSample(
@@ -289,8 +296,13 @@ def extract_performance(demo: Path, start_ms: int, end_ms: int, client: int,
             if not tr.weapon or tr.weapon[-1].weapon != e["weapon"]:
                 tr.weapon.append(WeaponSample(t, int(e["weapon"])))
 
-    for a in anims:
-        if a["client"] == client and win(a["t"]):
+    if client != rec:
+        an_by_t: dict[int, dict] = {}
+        for a in anims:
+            if a["client"] == client and win(a["t"]):
+                an_by_t[a["t"]] = a
+        for t in sorted(an_by_t):
+            a = an_by_t[t]
             tr.animation.append(AnimSample(a["t"], a["legs"], a["torso"],
                                            a["legs_toggle"], a["torso_toggle"]))
 
