@@ -140,6 +140,10 @@ class ShotSpec:
     passes: Sequence[PassKind] = (PassKind.BEAUTY,)
     truth_reference: Path | None = None
     provenance: str = "SYNTHETIC_EXPLAINER"
+    # Console commands run once the demo is seeked and before recording:
+    # `follow 5`, `cg_thirdPerson 1`. Commands, not cvars -- they have no
+    # place on the launch line and no cvar equivalent.
+    pre_commands: tuple = ()
 
     def unsupported_passes(self) -> list[str]:
         return [p.value for p in self.passes
@@ -218,8 +222,13 @@ def render(spec: ShotSpec, out_dir: Path, *, base_ms: int = 1000) -> Path:
     cfg = wc.write_capture_cfg(windows, wc.STAGING, None)
     head, *rest = cfg.splitlines()          # head is `exec <master>.cfg`
     look = [f"set {k} {v}" for k, v in live.items()]
+    # pre_commands go right after the seek, so `follow` acts on the loaded
+    # demo and before the first `at` fires
+    seek, *timed = rest
+    pre = [str(c) for c in spec.pre_commands]
     wc.write_engine_file(wc.STAGING / "wolfcam-ql" / "capture.cfg",
-                         "".join(f"{ln}\n" for ln in [head, *look, *rest]))
+                         "".join(f"{ln}\n" for ln in
+                                 [head, *look, seek, *pre, *timed]))
 
     videos = wc.STAGING / "wolfcam-ql" / "videos"
     videos.mkdir(parents=True, exist_ok=True)
