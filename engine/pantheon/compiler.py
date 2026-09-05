@@ -198,7 +198,13 @@ def compile_scenario(scn: "RoundScenario", *,
         if e.kind == "fire" and e.weapon is Weapon.RAIL and e.position:
             rails.setdefault(ms(e.t), []).append(e)
 
+    # ── recorded projectiles, by tick ──────────────────────────────────
+    projectiles: dict[int, list] = {}
+    for pk in getattr(scn, "_projectiles", []):
+        projectiles.setdefault(ms(pk.t), []).append(pk)
+
     obit_slot = 512
+    MISSILE_SLOT0 = 700
     RAIL_SLOT0 = 600            # well clear of players and of the obituary
     toggles: dict[int, int] = {}
     cam0 = scn._camera_path[0]
@@ -225,7 +231,35 @@ def compile_scenario(scn: "RoundScenario", *,
                 W.ES_LEGS_ANIM: _LEGS[k.stance],
                 W.ES_TORSO_ANIM: _TORSO[k.stance],
             })
+            if k.recorded:
+                # A RECORDED performance: the demo's own numbers, verbatim.
+                # The stance-derived animation above is only a fallback for
+                # samples that carried no anim field.
+                if k.legs_anim is not None:
+                    st[W.ES_LEGS_ANIM] = k.legs_anim
+                if k.torso_anim is not None:
+                    st[W.ES_TORSO_ANIM] = k.torso_anim
+                st[W.ES_APOS_PITCH] = k.pitch
+                if k.velocity is not None:
+                    st[W.ES_VEL_X], st[W.ES_VEL_Y], st[W.ES_VEL_Z] = k.velocity
+                st[W.ES_GROUND] = 1023 if k.airborne else 0
+                if k.weapon_num is not None:
+                    st[W.ES_WEAPON] = k.weapon_num
             ents[a.client] = st
+
+        # recorded missiles: each observed sample becomes the missile entity's
+        # state for that tick, in the slot the demo used
+        for pk in projectiles.get(now, []):
+            ents[MISSILE_SLOT0 + (pk.entity % 200)] = {
+                W.ES_ETYPE: 3,                          # ET_MISSILE
+                W.ES_POS_X: pk.origin[0], W.ES_POS_Y: pk.origin[1],
+                W.ES_POS_Z: pk.origin[2],
+                W.ES_VEL_X: pk.velocity[0], W.ES_VEL_Y: pk.velocity[1],
+                W.ES_VEL_Z: pk.velocity[2],
+                W.ES_WEAPON: pk.weapon,
+                W.ES_OTHER_ENT: scn.actors[pk.actor].client,   # the firer
+                W.ES_CLIENTNUM: scn.actors[pk.actor].client,
+            }
 
         for i, e in enumerate(rails.get(now, [])):
             slot = RAIL_SLOT0 + i

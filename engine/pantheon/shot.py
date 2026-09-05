@@ -265,4 +265,34 @@ def render(spec: ShotSpec, out_dir: Path, *, base_ms: int = 1000) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     dest = out_dir / f"{spec.shot_id}.avi"
     shutil.move(str(made[0]), dest)
+
+    # THE PASS CONTRACT. Accepting a pass enum is not producing its artifact.
+    # The collector enumerates the beauty AVI and nothing else, so any other
+    # requested pass is PASS_NOT_PRODUCED -- explicitly, not by handing back
+    # the beauty file under another name. Every produced pass is probed.
+    manifest = {"BEAUTY": _probe(dest, spec, elapsed)}
+    missing = [p.value for p in spec.passes if p is not PassKind.BEAUTY]
+    if missing:
+        raise RuntimeError(
+            f"PASS_NOT_PRODUCED {spec.shot_id}: {missing} requested; the "
+            f"backend collector only produces BEAUTY. Manifest: {manifest}")
+    spec.manifest = manifest
     return dest
+
+
+def _probe(avi: Path, spec: "ShotSpec", elapsed: float) -> dict:
+    """What was actually produced, measured, not assumed."""
+    out = subprocess.run(
+        [str(Path(MAIN, "creative_suite/tools/ffmpeg/ffprobe.exe")), "-v", "error",
+         "-select_streams", "v:0", "-show_entries",
+         "stream=width,height,r_frame_rate,nb_frames,duration",
+         "-of", "json", str(avi)], capture_output=True, text=True).stdout
+    import json as _json
+    st = (_json.loads(out).get("streams") or [{}])[0] if out else {}
+    return {"pass": "BEAUTY", "file": str(avi),
+            "width": st.get("width"), "height": st.get("height"),
+            "fps": st.get("r_frame_rate"), "frames": st.get("nb_frames"),
+            "duration_s": st.get("duration"),
+            "requested_s": round(spec.end_s - spec.start_s, 3),
+            "backend": "wolfcamql-11.3", "elapsed_s": elapsed,
+            "settings": spec.visual.cvars()}

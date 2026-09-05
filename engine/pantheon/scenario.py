@@ -191,7 +191,7 @@ _TORSO = {Stance.IDLE: _codec.TORSO_STAND, Stance.RUN: _codec.TORSO_STAND,
 # copied into each scenario.
 _PLAYER_STRUCTURAL = {17: 1, 24: 1, 28: 4200463}
 
-SNAPSHOT_HZ = 20
+SNAPSHOT_HZ = 40          # real QL demos: 25ms between snapshots (measured p10=p50=p90=25)
 SNAPSHOT_MS = 1000 // SNAPSHOT_HZ
 
 
@@ -207,6 +207,27 @@ class _Keyframe:
     health: int
     armor: int
     alive: bool
+    # A RECORDED sample carries the engine's own numbers, and the compiler
+    # emits them verbatim instead of deriving them from `stance`. None means
+    # "authored, derive as before".
+    legs_anim: int | None = None
+    torso_anim: int | None = None
+    pitch: float = 0.0
+    velocity: Vec3 | None = None
+    airborne: bool = False
+    weapon_num: int | None = None   # engine slot when it is not in Weapon
+    recorded: bool = False
+
+
+@dataclass
+class _ProjectileKey:
+    """One observed missile sample, attributed to the actor who fired it."""
+    t: float
+    actor: str
+    entity: int
+    weapon: int
+    origin: Vec3
+    velocity: Vec3
 
 
 @dataclass
@@ -249,6 +270,7 @@ class Actor:
         # An analysis body is on screen but not in the round; the alive
         # counters must not learn about him.
         self.counts_toward_roster = True
+        self._spawned = False
 
     # -- state ---------------------------------------------------------
     def spawn(self, at: Vec3, *, yaw: float = 0.0, t: float = 0.0,
@@ -261,6 +283,74 @@ class Actor:
         # timeline read -1, -2, -3 instead of 3, 2, 1.
         if self.counts_toward_roster:
             self._s._alive[self.team] += 1
+        return self
+
+    def perform(self, trace, *, t0: float = 0.0,
+                offset: Vec3 = (0.0, 0.0, 0.0), yaw_offset: float = 0.0
+                ) -> "Actor":
+        """Play a PerformanceTrace: the recorded samples BECOME the keyframes.
+
+        Nothing is eased, snapped or derived. Every snapshot the demo carried
+        for the real player -- origin, velocity, yaw, pitch, legs and torso
+        animation, weapon, ground state -- is written as one keyframe on this
+        actor's timeline, and the compiler emits those numbers as they are.
+        The demo is the animation system.
+
+        `offset`/`yaw_offset` are LOCAL_FRAME retargeting; (0,0,0)/0 is
+        EXACT_WORLD. Timing is never scaled.
+        """
+        base = trace.start_ms
+        anims = {a.t: a for a in trace.animation}
+        weap = sorted(trace.weapon, key=lambda w: w.t)
+
+        def weapon_at(t):
+            w = None
+            for x in weap:
+                if x.t <= t:
+                    w = x.weapon
+            return w
+
+        cy, sy = math.cos(math.radians(yaw_offset)), math.sin(math.radians(yaw_offset))
+
+        def place(o):
+            x, y = o[0] * cy - o[1] * sy, o[0] * sy + o[1] * cy
+            return (x + offset[0], y + offset[1], o[2] + offset[2])
+
+        def turn(v):
+            return (v[0] * cy - v[1] * sy, v[0] * sy + v[1] * cy, v[2])
+
+        aim = {a.t: a for a in trace.aim}
+        for smp in trace.transform:
+            a = anims.get(smp.t)
+            am = aim.get(smp.t)
+            wn = weapon_at(smp.t)
+            try:
+                wp = Weapon(wn) if wn is not None else self.weapon
+            except ValueError:
+                wp = self.weapon
+            k = _Keyframe(t0 + (smp.t - base) / 1000.0, place(smp.origin),
+                          ((am.yaw if am else 0.0) + yaw_offset) % 360.0,
+                          Stance.RUN if smp.speed > 50 else Stance.IDLE,
+                          wp, self.health, self.armor, True,
+                          legs_anim=a.legs if a else None,
+                          torso_anim=a.torso if a else None,
+                          pitch=am.pitch if am else 0.0,
+                          velocity=turn(smp.velocity), airborne=smp.airborne,
+                          weapon_num=wn, recorded=True)
+            self._keys.append(k)
+        if not any(k.t == t0 for k in self._keys) and self._keys:
+            pass
+        self._s._alive[self.team] += 1 if self.counts_toward_roster and not self._spawned else 0
+        self._spawned = True
+        # the projectiles the real player fired travel with him
+        for pr in trace.projectiles:
+            self._s._projectiles.append(_ProjectileKey(
+                t0 + (pr.t - base) / 1000.0, self.name, pr.entity, pr.weapon,
+                place(pr.origin), turn(pr.velocity)))
+        for ev in trace.events:
+            self._s._events.append(_Event(
+                t0 + (ev.t - base) / 1000.0, f"recorded:{ev.kind}", self.name,
+                None, None, position=(place(ev.position) if ev.position and None not in ev.position else None)))
         return self
 
     def arm(self, weapon: Weapon, *, t: float | None = None) -> "Actor":
@@ -483,6 +573,17 @@ class Actor:
                 f = 0.0 if span <= 0 else (t - a.t) / span
                 origin = tuple(a.origin[i] + (b.origin[i] - a.origin[i]) * f
                                for i in range(3))
+                if a.recorded:
+                    # between two recorded snapshots the CLIENT interpolates
+                    # position linearly; everything else holds the earlier
+                    # sample, exactly as cgame does
+                    k = _Keyframe(t, origin, a.yaw, a.stance, a.weapon,
+                                  a.health, a.armor, a.alive,
+                                  legs_anim=a.legs_anim, torso_anim=a.torso_anim,
+                                  pitch=a.pitch, velocity=a.velocity,
+                                  airborne=a.airborne, weapon_num=a.weapon_num,
+                                  recorded=True)
+                    return k
                 mp = self._s.motion
                 moving = a.stance is Stance.RUN
                 rate = mp.yaw_rate_running if moving else mp.yaw_rate_standing
@@ -506,6 +607,7 @@ class RoundScenario:
         self.map_name = map_name
         self.hostname = hostname
         self.motion = MotionProfile.load(map_name)
+        self._projectiles: list[_ProjectileKey] = []
         self.roster = roster
         self.actors: dict[str, Actor] = {}
         self._events: list[_Event] = []
