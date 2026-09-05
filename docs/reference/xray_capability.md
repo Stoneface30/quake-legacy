@@ -24,14 +24,33 @@ are plain `CVAR_ARCHIVE` — no cheat gate, no latch, settable mid-demo.
 | `cg_wh` is registered in the binary we run | **C** | `cg_wh` ×45, `cg_whShader`/`cg_whEnemyShader`/`cg_whColor`/`cg_whAlpha` ×5 each in the shipped `cgamex86.dll`. Control: `cg_drawSpeedometer` ×0 — the same scan that caught the last silent no-op. |
 | `wc/wallhack` shader is on disk | **C** | `_wolfcam_staging/wolfcam-ql/scripts/wcmisc.shader:141`, `blendFunc GL_SRC_ALPHA GL_ONE_MINUS_SRC_ALPHA`, `rgbGen entity`, `alphaGen entity` |
 | **The overlay actually draws** | **E** | A/B capture of `ca_explainer_v1` at t=12 s, identical demo, seek and camera, `cg_wh 0` vs `cg_wh 1`. Saturated-red pixels **19,360 → 34,711 (x1.8)**; 10 new red pixels appear in a far-background band that has zero without it. Frames: `docs/visual-record/2026-09-05/cg_wh_ab_overlay_proof.png` |
+| The overlay colour is driveable | **E** | `cg_whEnemyColor "255 40 40"` at alpha 200: max red-excess 132, 10,232 px. Frames: `cg_wh_colour_proof.png` |
 | A player *behind geometry* shows through | **NOT PROVEN** | No frame yet has a definitively occluded player. This is the remaining gate. |
 
-## What did not work, and why it matters
+## The colour format — derived from source, then confirmed on pixels
 
-`cg_whColor "0x00ff00"` did **not** produce a green silhouette — the overlay
-came out red. The colour format is not what was assumed. Worth stating plainly
-because it is the difference between "the feature is on" and "I am driving the
-feature".
+`cg_whColor "0x00ff00"` produced nothing, and the reason is in
+`SC_ParseColorFromStr` (`sc_misc.c:24`): it **rejects any character that is not
+a space or a digit 0-9**, prints `invalid color string`, and returns -1. Hex is
+not a supported syntax. Note the cvar table's own default, `"0xffffff"`
+(`cg_main.c:2079`), is itself unparseable.
+
+**The syntax is space-separated decimal RGB: `"255 40 40"`.** Confirmed on
+frames: max red-excess 132, 10,232 pixels above threshold, against zero in the
+baseline.
+
+**Which cvar depends on the branch.** `cg_players.c:4335-4352` splits on
+`CG_IsEnemyTeam(team)`:
+
+| the player is | colour cvar | alpha cvar | shader cvar |
+|---|---|---|---|
+| an enemy | `cg_whEnemyColor` | `cg_whEnemyAlpha` | `cg_whEnemyShader` |
+| anything else | `cg_whColor` | `cg_whAlpha` | `cg_whShader` |
+
+Setting `cg_whColor` while the actors resolve as enemies changes nothing, which
+is exactly the dead end this cost. All four are registered in the shipped 11.3
+DLL (5 hits each). Alpha default is **30** -- nearly transparent -- so a first
+attempt with default alpha reads as "not working".
 
 **A raw pixel-difference count proves nothing here.** The A/B frames differ by
 up to 72,000 pixels at other timestamps purely from playback jitter — Wolfcam
