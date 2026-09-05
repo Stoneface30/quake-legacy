@@ -13,7 +13,7 @@ actually observable and says UNKNOWN everywhere else.*
 
 | field group | status | note |
 |---|---|---|
-| HP / armor | **PARTIAL — 31.4%** | was 7.4% by design; widened pass raised it 4.3x |
+| HP / armor | **PARTIAL — 47.3%** | 7.4% by design -> 30.4% -> 47.3%; the rest is a real limit |
 | damage dealt/taken | **PARTIAL** | LG-context only |
 | **outgoing** action accuracy | **DERIVABLE, NOT BUILT** | the path is proven below |
 | cached LG accuracy | **UNAVAILABLE** | the table is an empty scaffold |
@@ -28,7 +28,7 @@ actually observable and says UNKNOWN everywhere else.*
 
 | field | source | status | coverage | scope |
 |---|---|---|---|---|
-| `health_at_frag` | playerstate | OBSERVED | **11,501 / 36,607 (31.4%)** | own camera only |
+| `health_at_frag` | playerstate | OBSERVED | **15,743 / 33,316 user frags (47.3%)** | own camera only |
 | `armor_at_frag` | playerstate | OBSERVED | same | own camera only |
 | `engagement_start_health` / `_armor` | playerstate, −10 s | OBSERVED | same | own camera only |
 | `min_health_10s` / `min_armor_10s` | playerstate | OBSERVED | same | own camera only |
@@ -147,3 +147,32 @@ damage beyond the LG window.
 
 Never available: enemy HP and armor, and any actor-state field on a
 foreign-camera observation.
+
+
+---
+
+## HP denominator — the full breakdown (2026-09-05)
+
+Of **33,316** confirmed user frag occurrences:
+
+| category | count | share |
+|---|---|---|
+| **A** observed and extracted | **15,743** | **47.3%** |
+| **C** foreign camera — health is the cameraman's | 719 | 2.2% |
+| **D** demo processed, no playerstate at that moment | 16,854 | 50.6% |
+| **E** demo file missing | 0 | 0.0% |
+
+**How D was split, and why it mattered.** At first D was 64.6% and looked
+like one thing. It was two. The extractor's resume is keyed by DEMO, not by
+frag — correct while the candidate set is fixed, wrong the moment it widens.
+The 1,251 demos from the original narrow run were skipped wholesale by the
+`--all` pass, so only their high-scoring frags ever got a value: those demos
+measured **17.1%** coverage against **45.3%** for demos the widened pass
+actually processed.
+
+Bumping `EXTRACTOR_VERSION` to 2 reopened 1,153 demos and filled 5,779 more
+events with zero failures, taking coverage from 30.4% to **47.3%**.
+
+What remains in D is the genuine limit: the recorder's playerstate series
+does not cover that moment. **Do not run another pass against it** — the
+answer is UNKNOWN and UNKNOWN is correct.
