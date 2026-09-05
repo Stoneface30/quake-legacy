@@ -55,12 +55,19 @@ while ($true) {
     Write-Log "starting uvicorn on 127.0.0.1:$Port"
     $args = @('-m', 'uvicorn', 'creative_suite.app:create_app', '--factory',
               '--host', '127.0.0.1', '--port', "$Port")
+    $started = Get-Date
     $proc = Start-Process -FilePath $Python -ArgumentList $args `
         -WorkingDirectory $Root -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput (Join-Path $LogDir 'review_origin.out.log') `
         -RedirectStandardError  (Join-Path $LogDir 'review_origin.err.log')
     $proc.WaitForExit()
-    Write-Log "uvicorn exited with code $($proc.ExitCode); restarting in ${delay}s"
+    # A process that served for a while and then stopped is a RESTART, not a
+    # crash loop, so it must not inherit the previous backoff. Without this
+    # the delay ratchets up across ordinary deploys until the reviewer is
+    # down for a minute every time it is restarted.
+    $ranFor = (Get-Date) - $started
+    if ($ranFor.TotalSeconds -gt 60) { $delay = 2 }
+    Write-Log "uvicorn exited after $([int]$ranFor.TotalSeconds)s; restarting in ${delay}s"
     Start-Sleep -Seconds $delay
     $delay = [Math]::Min($delay * 2, 60)
 }

@@ -135,6 +135,38 @@ def post_note(n: Note):
     return rc.annotate(n.item_id, n.note)
 
 
+class Dismissal(BaseModel):
+    item_id: str
+    reason: str = ""
+
+
+@router.post("/dismiss")
+def post_dismiss(d: Dismissal):
+    """Throw one moment out of the queue. Not a verdict, and not destructive.
+
+    Asked for from the phone alongside "remove all warmup countdown clips":
+    the automatic exclusions cannot know about every useless moment, so the
+    reviewer needs to be able to say so themselves.
+    """
+    try:
+        return rc.dismiss(d.item_id, d.reason)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+
+@router.post("/restore")
+def post_restore(d: Dismissal):
+    out = rc.restore(d.item_id)
+    if out is None:
+        raise HTTPException(404, f"not deleted: {d.item_id}")
+    return out
+
+
+@router.get("/dismissed")
+def get_dismissed(limit: int = Query(100, le=500)):
+    return {"items": rc.dismissed(limit)}
+
+
 @router.post("/undo")
 def post_undo():
     out = rc.undo_last()

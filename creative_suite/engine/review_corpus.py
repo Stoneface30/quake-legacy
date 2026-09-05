@@ -551,6 +551,69 @@ def _filter_sql(filters: dict[str, Any] | None) -> tuple[str, list[Any]]:
     return (" AND " + " AND ".join(where)) if where else "", params
 
 
+# ── what never belongs in a review queue ────────────────────────────────────
+#
+# Reported from a real phone session: "the first clip that loaded is a warmup
+# clip", and "other people telefrag or useless things are out of the picture
+# too". These are not judgements about quality -- they are moments that
+# cannot be judged at all, and each one costs forty seconds of wolfcam to
+# film before the reviewer can even skip it.
+
+MOD_TELEFRAG = 18
+
+# WARMUP IS ROUND 0 -- BUT ONLY WHERE ROUNDS EXIST.
+#
+# Round 0 means two completely different things, and the difference is the
+# demo rather than the kill. In a Clan Arena demo the round counter starts at
+# 1 when the match goes live, so a kill still sitting on round 0 happened
+# during pre-match warmup. In a demo with no round system at all, EVERY kill
+# is round 0 and none of them is warmup.
+#
+# The distinguishing fact is whether that demo ever reached round 1, which
+# `round_kills_v1` already answers on an indexed lookup.
+#
+# THE ROUND COUNTDOWN IS NOT WARMUP AND IS KEPT. The server announces the
+# next round about seven seconds before it begins, so a kill during that
+# countdown already carries its round number and survives this rule.
+# Measured: 675 warmup kills excluded, and 955 round-countdown kills that a
+# naive "before the round start time" rule would have eaten are kept.
+_WARMUP_SQL = ("NOT (o.round = 0 AND EXISTS (SELECT 1 FROM round_kills_v1 rk "
+               "WHERE rk.content_hash = k.content_hash AND rk.round >= 1))")
+
+
+def junk_sql() -> tuple[str, list[Any]]:
+    """Exclusions every kill queue shares: warmup, telefrags, deletions.
+
+    A telefrag is decided by the map, not by the player -- it cannot be aimed
+    and it cannot be made interesting. 1,443 across the corpus.
+    """
+    sql = f" AND o.mod <> {MOD_TELEFRAG} AND {_WARMUP_SQL}"
+    gone = dismissed_occurrence_ids()
+    if gone:
+        # Inlined as integers rather than bound parameters because the queue
+        # runs against the RECOGNITION database and deletions live in the
+        # EDITORIAL one -- the two are deliberately never joined, and this
+        # module never writes to the former. Every id is coerced to int at
+        # the boundary, so nothing user-typed reaches the statement.
+        sql += (" AND o.occurrence_id NOT IN ("
+                + ",".join(str(int(i)) for i in gone) + ")")
+    return sql, []
+
+
+# The user reviews their own frags first, keeps their clanmates', and leaves
+# everyone else's for last -- rather than choosing a corpus up front and
+# finding out later that it excluded something they wanted.
+ACTOR_USER, ACTOR_PTN, ACTOR_OTHER = 0, 1, 2
+
+
+def actor_priority_sql() -> tuple[str, list[Any]]:
+    users, up = _in(user_norms())
+    clan, cp = _in(roster_norms() - user_norms())
+    return (f"CASE WHEN o.killer_name_norm IN {users} THEN {ACTOR_USER} "
+            f"WHEN o.killer_name_norm IN {clan} THEN {ACTOR_PTN} "
+            f"ELSE {ACTOR_OTHER} END", up + cp)
+
+
 def _kill_where(item_type: str, corpus: str | None = None
                 ) -> tuple[str, list[Any]]:
     """The WHERE clause for one occurrence family, plus its parameters.
@@ -804,6 +867,22 @@ CREATE TABLE IF NOT EXISTS human_review_log (
     note           TEXT,
     at             TEXT NOT NULL
 );
+-- Moments the user has thrown out of their own queue. A DELETION, not a
+-- verdict: it says "never show me this again", which is a different
+-- statement from T5_PASS_FILLER ("I looked, and it is filler"). Keeping
+-- them apart matters because T1-T5 is creative truth that feeds the film,
+-- and this is housekeeping that must not.
+--
+-- Nothing is destroyed. The occurrence, its observations and its media stay
+-- exactly where they are; only this queue stops offering it, and `restore`
+-- puts it back.
+CREATE TABLE IF NOT EXISTS dismissed_occurrences (
+    occurrence_id  INTEGER PRIMARY KEY,
+    item_id        TEXT NOT NULL,
+    reason         TEXT NOT NULL DEFAULT '',
+    provenance     TEXT NOT NULL DEFAULT 'HUMAN_USER',
+    dismissed_at   TEXT NOT NULL
+);
 """
 
 # Indexes run AFTER the column migration below: an index on a column an old
@@ -958,20 +1037,37 @@ def _kill_rows(order: str, limit: int, offset: int, unreviewed_only: bool,
                filters: dict[str, Any] | None = None) -> list[sqlite3.Row]:
     where, params = _kill_where(item_type, corpus)
     fw, fp = _filter_sql(filters)
-    where, params = where + fw, params + fp
+    jw, jp = junk_sql()
+    where, params = where + fw + jw, params + fp + jp
     select = _DEATH_SELECT if item_type == DEATH else _KILL_SELECT
     direction = "ASC" if order == ORDER_WORST_FIRST else "DESC"
+    # MINE FIRST, CLANMATES NEXT, EVERYONE ELSE LAST.
+    #
+    # Asked for directly: "default to my frag keep other people frag for last
+    # (ptn member frags are kept!)". Ordering rather than filtering is the
+    # point -- nothing is hidden, and a queue that runs out of the user's own
+    # frags simply continues into the clan's instead of ending.
+    #
+    # Only where the family can contain more than one actor. USER_FRAG and
+    # CLAN_FRAG are already single-actor by their WHERE clause, and adding a
+    # constant sort key there would only cost an index.
+    actor_order = ""
+    if item_type == ALL_KILL:
+        aw, ap = actor_priority_sql()
+        actor_order = f"{aw}, "
+        params = ap + params
     # Unscored rows sort after scored ones in both directions rather than
     # being treated as a score of zero. A missing score is not a low score.
     sql = (f"{select} WHERE {where} "
-           f"ORDER BY (r.highlight_score IS NULL), r.highlight_score {direction}, "
+           f"ORDER BY {actor_order}(r.highlight_score IS NULL), "
+           f"r.highlight_score {direction}, "
            "o.occurrence_id ASC LIMIT ? OFFSET ?")
     with _rec() as c:
         rows = c.execute(sql, (*params, limit, offset)).fetchall()
     if not unreviewed_only:
         return rows
-    got = reviews([f"{item_type}:{r['id']}" for r in rows])
-    return [r for r in rows if f"{item_type}:{r['id']}" not in got]
+    judged = occurrence_reviews([r["id"] for r in rows])
+    return [r for r in rows if r["id"] not in judged]
 
 
 def _kill_item(r: sqlite3.Row, item_type: str, rank: int, total: int,
@@ -998,6 +1094,30 @@ def _kill_item(r: sqlite3.Row, item_type: str, rank: int, total: int,
         scored=score is not None,
         human_role=(rv.get("human_role") or None) or None,
         note=rv.get("note") or "")
+
+
+def occurrence_reviews(occurrence_ids: Sequence[int]) -> dict[int, dict[str, Any]]:
+    """Verdicts for occurrences, whichever kill family they were judged under.
+
+    ONE KILL HAPPENED ONCE. The same canonical occurrence is addressed as
+    `USER_FRAG:495` in the user's own queue and `ALL_KILL:495` in the
+    combined one, so a lookup keyed on the current family alone would show a
+    moment the user already judged as untouched -- and ask them to judge it
+    again, in a queue that had simply been widened.
+    """
+    ids = [int(i) for i in occurrence_ids]
+    if not ids:
+        return {}
+    keys = [f"{fam}:{i}" for i in ids for fam in KILL_BACKED]
+    got = reviews(keys)
+    out: dict[int, dict[str, Any]] = {}
+    for i in ids:
+        for fam in KILL_BACKED:          # first match wins, families ordered
+            rv = got.get(f"{fam}:{i}")
+            if rv:
+                out[i] = rv
+                break
+    return out
 
 
 def queue(order: str = ORDER_WORST_FIRST, limit: int = 50, offset: int = 0,
@@ -1051,7 +1171,9 @@ def queue(order: str = ORDER_WORST_FIRST, limit: int = 50, offset: int = 0,
         total = count_items(item_type, corpus=corpus, filters=filters)
         rows = _kill_rows(order, limit, offset, unreviewed_only, item_type,
                           corpus, filters)
-        got = reviews([f"{item_type}:{r['id']}" for r in rows])
+        by_occ = occurrence_reviews([r["id"] for r in rows])
+        got = {f"{item_type}:{r['id']}": by_occ[r["id"]]
+               for r in rows if r["id"] in by_occ}
         return [_kill_item(r, item_type, offset + i + 1, total,
                            got.get(f"{item_type}:{r['id']}") or {})
                 for i, r in enumerate(rows)]
@@ -1086,11 +1208,12 @@ def count_items(item_type: str = FRAG, corpus: str | None = None,
             return 0
         where, params = _kill_where(item_type, corpus)
         fw, fp = _filter_sql(filters)
+        jw, jp = junk_sql()
         with _rec() as c:
             return int(c.execute(
                 "SELECT COUNT(*) FROM kill_occurrences_v1 o JOIN "
                 "kill_events_v1 k ON k.kill_event_id = o.best_observation_id "
-                f"WHERE {where}{fw}", params + fp).fetchone()[0])
+                f"WHERE {where}{fw}{jw}", params + fp + jp).fetchone()[0])
     if item_type in MOVEMENT_BACKED:
         if not _movement_table_exists():
             return 0
@@ -1179,16 +1302,23 @@ def progress(item_type: str = FRAG, corpus: str | None = None) -> dict[str, Any]
     # combined corpus is narrowed by the roster in SQL. Counting without the
     # corpus would report all-player progress against a smaller queue.
     total = count_items(item_type, corpus=corpus)
+    # One kill judged once. The same occurrence carries a different item_id
+    # in each kill family, so counting by the CURRENT family would report a
+    # widened queue as unreviewed and quietly reset the user's progress.
+    families = list(KILL_BACKED) if item_type in KILL_BACKED else [item_type]
     with conn() as c:
         qs = ",".join("?" * len(HUMAN_PROVENANCE))
+        fs = ",".join("?" * len(families))
         counts = {r["human_role"]: r["n"] for r in c.execute(
-            "SELECT human_role, COUNT(*) n FROM human_reviews "
-            f"WHERE item_type=? AND human_role<>'' AND provenance IN ({qs}) "
-            "GROUP BY 1", (item_type, *HUMAN_PROVENANCE))}
+            "SELECT human_role, COUNT(DISTINCT source_id) n FROM "
+            f"human_reviews WHERE item_type IN ({fs}) AND human_role<>'' "
+            f"AND provenance IN ({qs}) GROUP BY 1",
+            (*families, *HUMAN_PROVENANCE))}
         other = {r["provenance"]: r["n"] for r in c.execute(
-            "SELECT provenance, COUNT(*) n FROM human_reviews "
-            f"WHERE item_type=? AND provenance NOT IN ({qs}) GROUP BY 1",
-            (item_type, *HUMAN_PROVENANCE))}
+            "SELECT provenance, COUNT(DISTINCT source_id) n FROM "
+            f"human_reviews WHERE item_type IN ({fs}) "
+            f"AND provenance NOT IN ({qs}) GROUP BY 1",
+            (*families, *HUMAN_PROVENANCE))}
     reviewed = sum(counts.values())
     return {"item_type": item_type, "total": total, "reviewed": reviewed,
             "unreviewed": total - reviewed,
@@ -1259,3 +1389,62 @@ def import_legacy() -> dict[str, Any]:
                r["notes"] or "")
         moved += 1
     return {"imported": moved, "skipped": skipped}
+
+
+# ── deletions ───────────────────────────────────────────────────────────────
+
+def dismiss(item_id: str, reason: str = "",
+            provenance: str = HUMAN_USER) -> dict[str, Any]:
+    """Throw one moment out of the review queue. Reversible, destroys nothing.
+
+    This is NOT a verdict. T5_PASS_FILLER means "I watched it and it is
+    filler" and is creative truth the film may read; a deletion means "stop
+    offering me this" and the film must never see it. Storing them in one
+    place would quietly turn housekeeping into direction.
+    """
+    it = item(item_id)
+    if it is None:
+        raise ValueError(f"no such item: {item_id}")
+    if provenance not in PROVENANCES:
+        raise ValueError(f"unknown provenance {provenance!r}")
+    with conn() as c:
+        c.execute(
+            "INSERT INTO dismissed_occurrences(occurrence_id, item_id, "
+            "reason, provenance, dismissed_at) VALUES(?,?,?,?,datetime('now')) "
+            "ON CONFLICT(occurrence_id) DO UPDATE SET reason=excluded.reason, "
+            "dismissed_at=excluded.dismissed_at",
+            (int(it.source_id), item_id, reason or "", provenance))
+    return {"item_id": item_id, "occurrence_id": int(it.source_id),
+            "dismissed": True, "reason": reason or ""}
+
+
+def restore(item_id: str) -> dict[str, Any] | None:
+    """Undo a deletion. The moment returns to the queue where it was."""
+    it = item(item_id)
+    if it is None:
+        return None
+    with conn() as c:
+        cur = c.execute("DELETE FROM dismissed_occurrences WHERE "
+                        "occurrence_id = ?", (int(it.source_id),))
+    return ({"item_id": item_id, "restored": True}
+            if cur.rowcount else None)
+
+
+def dismissed_occurrence_ids() -> list[int]:
+    """Every deleted occurrence id, for the queue's exclusion clause."""
+    try:
+        with conn() as c:
+            return [int(r[0]) for r in c.execute(
+                "SELECT occurrence_id FROM dismissed_occurrences")]
+    except sqlite3.Error:
+        # A queue that cannot read the deletion list should still serve the
+        # queue. Showing a moment the user deleted is a far smaller failure
+        # than showing nothing at all.
+        return []
+
+
+def dismissed(limit: int = 500) -> list[dict[str, Any]]:
+    with conn() as c:
+        return [dict(r) for r in c.execute(
+            "SELECT * FROM dismissed_occurrences ORDER BY dismissed_at DESC "
+            "LIMIT ?", (limit,))]

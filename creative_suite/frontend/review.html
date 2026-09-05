@@ -73,6 +73,11 @@
                   padding:11px 12px;cursor:pointer;text-align:left;
                   min-height:58px;font:inherit;touch-action:manipulation}
   .buttons button:nth-child(5){grid-column:1/-1}
+  /* Deliberately not styled as a sixth verdict. T1-T5 is directing truth
+     the film reads; this is housekeeping the film must never see. */
+  .buttons button.danger{grid-column:1/-1;background:#1a1113;
+    border-color:#5a2630}
+  .buttons button.danger .n{color:#ff8a9b}
   .buttons button:active{transform:scale(.985)}
   .buttons .k{font-size:10px;color:var(--dim);letter-spacing:.1em}
   .buttons .n{font-size:13px;font-weight:600;letter-spacing:.03em;
@@ -274,6 +279,9 @@
       <button id="b5" data-role="T5_PASS_FILLER"><span class="k">5</span>
         <span class="n">PASS / FILLER</span>
         <span class="h">kept forever, never primary</span></button>
+      <button id="bdel" class="danger"><span class="k">X</span>
+        <span class="n">DELETE</span>
+        <span class="h">never show me this again</span></button>
     </div>
   </div>
 
@@ -319,7 +327,7 @@
 // Live demo filenames embed opponent nicknames, and this is a public repo.
 const API = "/api/review";
 let items = [], idx = 0, offset = 0, order = "WORST_FIRST", cur = null;
-let itemType = "USER_FRAG", corpus = "USER_FRAGS", filters = {};
+let itemType = "ALL_KILL", corpus = "ALL_PLAYERS", filters = {};
 let savingVerdict = false, mediaGeneration = 0;
 const MEDIA_TIMEOUT_MS = 180000;
 const $ = id => document.getElementById(id);
@@ -641,7 +649,36 @@ async function verdict(role){
   }
 }
 
-document.querySelectorAll(".buttons button").forEach(b => {
+let lastDeleted = null;
+
+async function dismissCurrent(){
+  if (!cur || savingVerdict) return;
+  const mine = cur;
+  savingVerdict = true;
+  document.querySelectorAll(".buttons button").forEach(b => b.disabled = true);
+  try {
+    const r = await fetch(API + "/dismiss", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({item_id: mine.item_id, reason: ""}),
+      signal: AbortSignal.timeout(15000)});
+    if (!r.ok) throw new Error("NOT deleted (HTTP " + r.status + ")");
+    // Undo has to be reachable without hunting for it: a deletion made by a
+    // mistaken thumb is exactly the case this needs to survive.
+    toast("deleted — press U to undo");
+    lastDeleted = mine.item_id;
+    items = items.filter(x => x.item_id !== mine.item_id);
+    if (idx >= items.length) idx = Math.max(0, items.length - 1);
+    if (cur === mine) await show(items[idx]);
+  } catch(e){ toast(e.message || "NOT deleted"); }
+  finally {
+    savingVerdict = false;
+    document.querySelectorAll(".buttons button").forEach(b => b.disabled = false);
+  }
+}
+
+$("bdel").addEventListener("click", dismissCurrent);
+
+document.querySelectorAll(".buttons button[data-role]").forEach(b => {
   b.onclick = () => verdict(b.dataset.role);
 });
 
@@ -665,7 +702,16 @@ document.addEventListener("keydown", async e => {
     if (idx > 0){ idx--; show(); }
   } else if (k === "n"){
     e.preventDefault(); $("d-note").open = true; $("note").focus();
+  } else if (k === "x"){
+    e.preventDefault(); dismissCurrent();
   } else if (k === "u"){
+    if (lastDeleted){
+      const rr = await fetch(API + "/restore", {method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({item_id: lastDeleted})});
+      if (rr.ok){ toast("restored " + lastDeleted); lastDeleted = null;
+                  await loadQueue(offset); return; }
+    }
     const r = await fetch(API + "/undo", {method: "POST"});
     if (r.ok){
       const d = await r.json();
@@ -716,7 +762,14 @@ async function corpora(){
   groups.push(g1);
   const g2 = document.createElement("optgroup");
   g2.label = "what happened";
-  g2.append(...d.item_types.map(t => {
+  // MOVEMENT FAMILIES ARE NOT REVIEW QUEUES. Selecting one is how a jump-pad
+  // run whose nearest kill was a telefrag between two strangers became the
+  // first thing the reviewer saw. Movement still appears where it belongs --
+  // on the scene rail and in the dossier, as context for a frag.
+  const NOT_A_QUEUE = ["HIGH_SPEED", "JUMPPAD", "TELEPORT", "DODGE",
+                       "LG_TRACKING", "PROJECTILE"];
+  g2.append(...d.item_types.filter(t => !NOT_A_QUEUE.includes(t.item_type))
+                           .map(t => {
     const o = document.createElement("option");
     o.value = "type:" + t.item_type;
     o.textContent = t.available
@@ -729,7 +782,7 @@ async function corpora(){
   }));
   groups.push(g2);
   sel.replaceChildren(...groups);
-  sel.value = "corpus:USER_FRAGS";
+  sel.value = "corpus:ALL_PLAYERS";
   sel.onchange = () => {
     const [kind, val] = sel.value.split(":");
     if (kind === "corpus"){ corpus = val; itemType = ""; }
@@ -742,7 +795,7 @@ async function corpora(){
 // The filter drawer is populated FROM THE DATA. A filter offered for a value
 // nobody has produces an empty result that reads as "this never happened".
 async function facets(){
-  const d = await (await fetch(API + "/facets?corpus=" + (corpus || "USER_FRAGS"))).json();
+  const d = await (await fetch(API + "/facets?corpus=" + (corpus || "ALL_PLAYERS"))).json();
   const fill = (id, vals, blank) => {
     const sel = $(id);
     if (!sel) return;
@@ -801,6 +854,18 @@ async function restoreSession(){
   try{ d = await (await fetch(API + "/session")).json(); }
   catch(e){ return; }
   if (!d || !d.found) return;
+  // A SAVED SESSION MUST NOT RESURRECT A QUEUE THAT NO LONGER EXISTS.
+  //
+  // The stored position was HIGH_SPEED -- a movement family that is no
+  // longer offered as a review queue. Restoring it blindly would drop the
+  // reviewer straight back into the thing they asked to have removed, and
+  // the fix would look like it had not worked.
+  const RETIRED = ["HIGH_SPEED", "JUMPPAD", "TELEPORT", "DODGE",
+                   "LG_TRACKING", "PROJECTILE"];
+  if (RETIRED.includes(d.item_type)){
+    toast("that queue was retired - starting from your own frags");
+    return;
+  }
   if (d.corpus) corpus = d.corpus;
   if (d.item_type) itemType = d.item_type;
   if (d.order) order = d.order;
@@ -898,8 +963,39 @@ function drow(k, v){
   const a = el("div", "k", k), b = el("div", "v");
   if (v === null || v === undefined || v === "") {
     b.appendChild(el("span", "unk", "UNKNOWN"));
+    a.dataset.unk = b.dataset.unk = "1";
   } else { b.textContent = String(v); }
   return [a, b];
+}
+
+// UNKNOWN IS TRUE AND MOSTLY NOT WORTH READING.
+//
+// On an observed frag -- somebody else's camera -- almost every measured
+// field is unavailable by construction, and the panel became eleven rows of
+// the word UNKNOWN with the two real facts lost among them. The absence
+// still has to be visible, because a blank would read as zero, so a section
+// with nothing in it collapses to one line saying what is missing and why,
+// and a section that has SOME data drops only its empty rows.
+// The identity block is a grid without its own wrapper, so it prunes rows
+// in place and always keeps at least the occurrence id -- which is never
+// unknown, and is the one thing that lets a moment be found again.
+function pruneUnknownIds(section){
+  const grid = section.querySelector(".dgrid");
+  if (!grid) return;
+  [...grid.children].forEach(n => { if (n.dataset.unk) n.remove(); });
+}
+
+function pruneUnknown(section, grid, reason){
+  const kids = [...grid.children];
+  const known = kids.filter(n => n.classList.contains("v") && !n.dataset.unk);
+  if (!known.length){
+    const note = el("div", "conf", reason || "nothing measurable here");
+    grid.replaceChildren();
+    section.appendChild(note);
+    return false;
+  }
+  kids.forEach(n => { if (n.dataset.unk) n.remove(); });
+  return true;
 }
 
 function hpap(label, o){
@@ -944,6 +1040,7 @@ async function renderDossier(it){
   if (e.n_observations > 1)
     g1.append(...drow("cameras", e.n_observations + " demos saw this"));
   idsec.appendChild(g1);
+  pruneUnknownIds(idsec);
   kids.push(idsec);
 
   const st = el("div", "dsec");
@@ -984,7 +1081,10 @@ async function renderDossier(it){
   if (a.engagement_ms)
     ag.append(...drow("engagement", (a.engagement_ms / 1000).toFixed(2) + "s"));
   act.appendChild(ag);
-  if (a.note) act.appendChild(el("div", "conf", a.note));
+  pruneUnknown(act, ag, a.note
+    || "the actor did not hold the camera, so their own trigger is not here");
+  if (a.note && !act.textContent.includes(a.note))
+    act.appendChild(el("div", "conf", a.note));
   kids.push(act);
 
   const gm = el("div", "dsec"), G = d.geometry, M = d.movement;
@@ -1003,6 +1103,8 @@ async function renderDossier(it){
     gg.append(...drow("movement", M.moment.kind + "  peak "
       + Math.round(M.moment.peak || 0) + " ups"));
   gm.appendChild(gg);
+  pruneUnknown(gm, gg, "aim and distance come from the recorder's own view, "
+                       + "and this is another player's demo");
   kids.push(gm);
 
   if (d.round){
@@ -1043,6 +1145,7 @@ async function renderDossier(it){
         + (T.nearest_scene_event.delta_ms / 1000).toFixed(2) + "s"));
     tg.append(...drow("scene length", (T.scene_duration_ms / 1000).toFixed(1) + "s"));
     ts.appendChild(tg);
+    pruneUnknown(ts, tg, "a single action, with nothing else in this round");
     kids.push(ts);
   }
 

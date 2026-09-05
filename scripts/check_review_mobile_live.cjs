@@ -157,7 +157,7 @@ const step = (n, msg) => console.log(`  [${n}] ${msg}`);
 
     // ── a failed render shows RETRY, and retry is a POST ──────────────────
     hideScene = false; injecting = true;
-    await page.route('**/api/review/media_state/USER_FRAG*', async route => {
+    await page.route('**/api/review/media_state/*', async route => {
       return route.fulfill({ status: 200, contentType: 'application/json',
                              body: JSON.stringify({ state: 'FAILED', ready: false,
                                                     error: 'injected render failure' }) });
@@ -173,6 +173,24 @@ const step = (n, msg) => console.log(`  [${n}] ${msg}`);
               'RETRY did not POST a retry');
     step(8, 'failed render shows RETRY and retry posts exactly once');
     results.push('FAILED -> RETRY works');
+
+    // ── delete removes the item and undo brings it back ──────────────────
+    injecting = false;
+    await page.unroute('**/api/review/media_state/*');
+    const target = await page.evaluate(() => cur.item_id);
+    await page.locator('#bdel').click();
+    await page.waitForFunction(id => cur && cur.item_id !== id, target,
+                               { timeout: 30000 });
+    assert.ok(posts.some(p => p.endsWith('/dismiss')), 'delete posted nothing');
+    step(10, `deleted ${target}, advanced to ${await page.evaluate(() => cur.item_id)}`);
+    results.push('delete removes the item and advances');
+
+    await page.evaluate(() => { const e = new KeyboardEvent('keydown', {key: 'u'});
+                                document.dispatchEvent(e); });
+    await page.waitForTimeout(2500);
+    assert.ok(posts.some(p => p.endsWith('/restore')), 'undo posted no restore');
+    step(11, 'undo restored it');
+    results.push('undo restores a deletion');
 
     assert.deepEqual(jsErrors, [], 'javascript errors on the page');
     const dupes = posts.filter((p, i) => p.endsWith('/verdict') && posts.indexOf(p) !== i);
