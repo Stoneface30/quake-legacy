@@ -502,41 +502,62 @@ def export(cands: list[ExportCandidate], root: Path = EXPORT_ROOT,
     clips = root / CLIP_DIR_NAME
     clips.mkdir(parents=True, exist_ok=True)
     manifest = root / MANIFEST_NAME
-    existing = set()
-    if manifest.exists() and not overwrite:
+    # A subset recapture replaces only its own rows. The old manifest and
+    # old clip stay intact until the replacement has been fully validated.
+    import shutil
+    import tempfile
+
+    rows_by_id = {}
+    if manifest.exists():
         for line in manifest.read_text(encoding="utf-8").splitlines():
             if line.strip():
-                existing.add(json.loads(line)["external_source_id"])
-    elif overwrite and manifest.exists():
-        manifest.unlink()
+                old_row = json.loads(line)
+                rows_by_id[old_row["external_source_id"]] = old_row
 
     written, skipped, failures = [], [], []
+    seen = set()
     t0 = time.monotonic()
     for cand in cands:
-        if cand.external_source_id in existing:
-            skipped.append(cand.external_source_id)
+        sid = cand.external_source_id
+        if sid in seen or (sid in rows_by_id and not overwrite):
+            skipped.append(sid)
             continue
+        seen.add(sid)
         start_ms = max(0, cand.event_time_ms - PUBLIC_PRE_MS)
         end_ms = cand.event_time_ms + PUBLIC_POST_MS
-        # If the demo does not reach five seconds before the event, the clip
-        # is shorter and the manifest says exactly where the event landed
-        # rather than claiming a centred 5000.
         offset = cand.event_time_ms - start_ms
-        rel = f"{CLIP_DIR_NAME}/{cand.external_source_id}.mp4"
-        dest = clips / f"{cand.external_source_id}.mp4"
+        rel = f"{CLIP_DIR_NAME}/{sid}.mp4"
+        dest = clips / f"{sid}.mp4"
         try:
-            filmed_with = _capture(cand, start_ms, end_ms, dest)
-            row = manifest_row(cand, rel, file_hash(dest), offset,
-                               probe_duration_ms(dest), note, public_eligible,
-                               capture_profile_id=filmed_with)
-            with manifest.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps(row) + "\n")
-            written.append(row)
+            with tempfile.TemporaryDirectory(prefix=".export-", dir=root) as work:
+                stage = Path(work) / dest.name
+                filmed_with = _capture(cand, start_ms, end_ms, stage)
+                row = manifest_row(cand, rel, file_hash(stage), offset,
+                                   probe_duration_ms(stage), note, public_eligible,
+                                   capture_profile_id=filmed_with)
+                updated = {**rows_by_id, sid: row}
+                staged_manifest = Path(work) / MANIFEST_NAME
+                staged_manifest.write_text(
+                    "".join(json.dumps(r) + "\n" for r in updated.values()),
+                    encoding="utf-8")
+                backup = Path(work) / "previous.mp4"
+                had_previous = dest.exists()
+                if had_previous:
+                    shutil.copy2(dest, backup)
+                stage.replace(dest)
+                try:
+                    staged_manifest.replace(manifest)
+                except Exception:
+                    if had_previous:
+                        backup.replace(dest)
+                    else:
+                        dest.unlink(missing_ok=True)
+                    raise
+                rows_by_id = updated
+                written.append(row)
         except Exception as exc:                               # noqa: BLE001
-            failures.append({"external_source_id": cand.external_source_id,
+            failures.append({"external_source_id": sid,
                              "error": f"{type(exc).__name__}: {exc}"})
-            if dest.exists():
-                dest.unlink()
     return {"root": str(root), "manifest": str(manifest),
             "written": len(written), "skipped": len(skipped),
             "failed": len(failures), "failures": failures,
