@@ -274,7 +274,10 @@ def render(spec: ShotSpec, out_dir: Path, *, base_ms: int = 1000) -> Path:
             f"engine's {MAX_CONSOLE_LINES}; the trailing +demo would be "
             f"dropped silently. Move cvars into capture.cfg.")
     span = spec.end_s - spec.start_s
-    timeout = 120 + span * 14 + spec.start_s * 2
+    # Measured: a 15s synthetic demo took 297s against a 280s budget. The
+    # engine renders every frame at 60fps for AVI, so ~20x realtime is the
+    # honest rate, plus the seek.
+    timeout = 240 + span * 22 + spec.start_s * 2
     t0 = time.time()
     # SDL's default video driver probe fails on this machine ("No available
     # video device"), and wolfcam answers by reverting to SAFE VALUES -- which
@@ -307,13 +310,15 @@ def render(spec: ShotSpec, out_dir: Path, *, base_ms: int = 1000) -> Path:
     if made[0].stat().st_mtime < launched_at:
         raise RuntimeError(f"{spec.shot_id}: STALE_ARTIFACT -- {made[0].name} "
                            f"predates this launch")
-    if rc != 0:
+    if rc != 0 and rc != "TIMEOUT":
         raise RuntimeError(f"{spec.shot_id}: engine exit {rc}")
+    # A TIMEOUT after `stopvideo` leaves a complete AVI; the duration probe
+    # below is what decides whether the capture finished, not the exit.
     out_dir.mkdir(parents=True, exist_ok=True)
     dest = out_dir / f"{spec.shot_id}.avi"
     shutil.move(str(made[0]), dest)
     want = spec.end_s - spec.start_s
-    got = _probe(dest, spec, elapsed).get("duration_s")
+    got = _probe(dest, spec, elapsed, rc).get("duration_s")
     if got is None or abs(float(got) - want) > 0.2:
         raise RuntimeError(f"{spec.shot_id}: DURATION_MISMATCH -- asked "
                            f"{want:.2f}s, probed {got}s")
@@ -322,7 +327,7 @@ def render(spec: ShotSpec, out_dir: Path, *, base_ms: int = 1000) -> Path:
     # The collector enumerates the beauty AVI and nothing else, so any other
     # requested pass is PASS_NOT_PRODUCED -- explicitly, not by handing back
     # the beauty file under another name. Every produced pass is probed.
-    manifest = {"BEAUTY": _probe(dest, spec, elapsed)}
+    manifest = {"BEAUTY": _probe(dest, spec, elapsed, rc)}
     missing = [p.value for p in spec.passes if p is not PassKind.BEAUTY]
     if missing:
         raise RuntimeError(
@@ -332,7 +337,7 @@ def render(spec: ShotSpec, out_dir: Path, *, base_ms: int = 1000) -> Path:
     return dest
 
 
-def _probe(avi: Path, spec: "ShotSpec", elapsed: float) -> dict:
+def _probe(avi: Path, spec: "ShotSpec", elapsed: float, rc=0) -> dict:
     """What was actually produced, measured, not assumed."""
     out = subprocess.run(
         [str(Path(MAIN, "creative_suite/tools/ffmpeg/ffprobe.exe")), "-v", "error",
@@ -347,6 +352,7 @@ def _probe(avi: Path, spec: "ShotSpec", elapsed: float) -> dict:
             "duration_s": st.get("duration"),
             "requested_s": round(spec.end_s - spec.start_s, 3),
             "backend": "wolfcamql-11.3", "elapsed_s": elapsed,
+            "engine_exit": rc,
             "source": str(spec.source), "source_kind": spec.source_kind.value,
             "profile": spec.visual.name, "provenance": spec.provenance,
             "artifact_mtime": avi.stat().st_mtime,
