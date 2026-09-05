@@ -431,6 +431,37 @@ def systeminfo(*, pure: int = 0, extra: dict[str, str] | None = None) -> str:
     return info_string(pairs)
 
 
+EV_RAILTRAIL = 50              # bg_public.h, via demo_parse._EV_RAILTRAIL
+WP_RAILGUN = 7
+NO_IMPACT_MARK = 255            # eventParm 255: cg_event.c skips
+                                # CG_MissileHitWall, so the trail renders with
+                                # no explosion flash to pollute a colour reading
+
+
+def railtrail_entity(shooter: int, end: tuple[float, float, float], *,
+                     toggle: int = 0, event_parm: int = NO_IMPACT_MARK
+                     ) -> dict[int, float]:
+    """One rail shot, in the shape the engine reads it.
+
+    `origin2` (the muzzle end) is deliberately NOT written. `cg_railFromMuzzle`
+    is 1 in the filmed binary, and cg_event.c:2667 then takes the start from
+    CG_GetWeaponFlashOrigin(clientNum) whenever the shooter is in the snapshot,
+    ignoring origin2 entirely. Writing a field the engine will not read would
+    mean inventing an index for it, and inventing indices is how an earlier
+    build round-tripped perfectly and rendered nothing.
+
+    So: the shooter's own entity supplies the start, and pos.trBase is the end.
+    """
+    x, y, z = end
+    return {
+        ES_ETYPE: ET_EVENTS + EV_RAILTRAIL + (EV_TOGGLE_BITS & toggle),
+        ES_POS_X: x, ES_POS_Y: y, ES_POS_Z: z,
+        ES_EVENTPARM: event_parm,
+        ES_WEAPON: WP_RAILGUN,
+        ES_CLIENTNUM: shooter,
+    }
+
+
 def player_configstring(name: str, *, team: int, model: str = "sarge",
                         handicap: int = 100, c1: str = "4", c2: str = "5"
                         ) -> str:
