@@ -144,8 +144,9 @@ class SpatialValidity:
         if self.navigation is not None:
             for r in self.navigation.routes:
                 for p in r.points:
-                    if abs(p[2] - pos[2]) <= self.nav_tolerance and 
-                            math.dist((p[0], p[1]), (pos[0], pos[1])) <= self.nav_tolerance:
+                    near_z = abs(p[2] - pos[2]) <= self.nav_tolerance
+                    near_xy = math.dist((p[0], p[1]), (pos[0], pos[1])) <= self.nav_tolerance
+                    if near_z and near_xy:
                         return True
         return False
 
