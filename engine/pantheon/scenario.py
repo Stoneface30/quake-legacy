@@ -65,6 +65,18 @@ class Weapon(Enum):
     PLASMA = 8
 
 
+class Layer(Enum):
+    """What a body on screen IS.
+
+    HISTORICAL means it happened and the demo says so. ANALYSIS means PANTHEON
+    added it to explain, and nobody did it. The two must never merge: the real
+    player never walked to camera during the historical match, and no data
+    anywhere in this pipeline may imply that he did.
+    """
+    HISTORICAL = "HISTORICAL"
+    ANALYSIS = "ANALYSIS"
+
+
 class Stance(Enum):
     """What a body is doing. Compiled to real legsAnim/torsoAnim values."""
     IDLE = "idle"
@@ -149,6 +161,13 @@ class Actor:
         self.skin = "default"
         # Q3 player colour indices, overridable per actor via `appearance`.
         self.c1, self.c2 = "4", "5"
+        # HISTORICAL by default: an actor is something that happened until a
+        # caller says otherwise. engine.pantheon.instruction sets ANALYSIS on
+        # the bodies PANTHEON adds to explain, and the two never merge.
+        self.layer = Layer.HISTORICAL
+        # An analysis body is on screen but not in the round; the alive
+        # counters must not learn about him.
+        self.counts_toward_roster = True
 
     # -- state ---------------------------------------------------------
     def spawn(self, at: Vec3, *, yaw: float = 0.0, t: float = 0.0,
@@ -159,7 +178,8 @@ class Actor:
         # The roster is counted as actors spawn, not at compile time. Counting
         # it later made every authored kill decrement from zero, so the
         # timeline read -1, -2, -3 instead of 3, 2, 1.
-        self._s._alive[self.team] += 1
+        if self.counts_toward_roster:
+            self._s._alive[self.team] += 1
         return self
 
     def arm(self, weapon: Weapon, *, t: float | None = None) -> "Actor":
@@ -234,6 +254,25 @@ class Actor:
                                     yaw if yaw is not None else self._last().yaw,
                                     Stance.IDLE, last.weapon, last.health,
                                     last.armor, True))
+        return self
+
+    def look_at_point(self, where: Vec3, *, t: float | None = None) -> "Actor":
+        """Turn to face a position -- the camera, a door, a jump pad."""
+        last = self._last()
+        when = last.t if t is None else t
+        self._keys.append(_Keyframe(when, last.origin, _heading(last.origin,
+                                                                where),
+                                    last.stance, last.weapon, last.health,
+                                    last.armor, last.alive))
+        return self
+
+    def despawn(self, *, t: float) -> "Actor":
+        """Leave the world. Used by the analysis layer, which must not be
+        standing in the frame when historical time resumes."""
+        last = self._last()
+        self._keys.append(_Keyframe(t, last.origin, last.yaw, Stance.DEAD,
+                                    last.weapon, last.health, last.armor,
+                                    False))
         return self
 
     def look_at(self, other: "Actor", *, t: float | None = None) -> "Actor":
