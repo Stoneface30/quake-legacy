@@ -592,3 +592,105 @@ def post_round_annotation(a: RoundAnnotation):
     if it is None or it.round_no is None:
         raise HTTPException(404, f"no round for {a.item_id}")
     return ca.set_round_annotation(it.content_hash, it.round_no, a.annotation)
+
+
+# ── director dossier and scene ──────────────────────────────────────────────
+
+@router.get("/dossier/{item_id}")
+def get_dossier(item_id: str):
+    """Everything truthfully known about one moment.
+
+    Partial truth is fine; false certainty is not. Absent fields are absent,
+    never zero.
+    """
+    from creative_suite.engine import dossier
+    d = dossier.build(item_id)
+    if d is None:
+        raise HTTPException(404, f"no such item: {item_id}")
+    return d
+
+
+@router.get("/scene/{item_id}")
+def get_scene(item_id: str):
+    from creative_suite.engine import scene as sc
+    s = sc.scene_for_item(item_id)
+    if s is None:
+        return {"item_id": item_id, "available": False,
+                "reason": "no round, or no events in it"}
+    return {"item_id": item_id, "available": True, **s.to_dict()}
+
+
+@router.get("/media/scene/{item_id}")
+def get_scene_media(item_id: str):
+    """One media asset for the whole scene.
+
+    Deliberately ONE capture rather than four: F1..F4 plus a full round would
+    be five wolfcam runs of the same thirty seconds. The rail seeks inside
+    this single asset.
+    """
+    from creative_suite.engine import scene as sc
+    it = rc.item(item_id)
+    s = sc.scene_for_item(item_id)
+    if it is None or s is None:
+        raise HTTPException(404, f"no scene for {item_id}")
+    try:
+        st = review_proxy.request_proxy(frag_id=it.source_id,
+                                        demo_name=it.demo_name,
+                                        start_ms=s.media_start_ms,
+                                        end_ms=s.media_end_ms)
+    except Exception as e:                                     # noqa: BLE001
+        raise HTTPException(503, f"{type(e).__name__}: {e}")
+    path = st.get("mp4_path")
+    if st.get("state") == "READY" and path and Path(path).exists():
+        from creative_suite.engine import media_provenance as mprov
+        return FileResponse(path, media_type="video/mp4",
+                            headers={"X-Media-Provenance":
+                                     mprov.RAW_DEMO_CAPTURE})
+    raise HTTPException(status_code=425,
+                        detail={"state": st.get("state", "PENDING"),
+                                "hint": "scene media is rendering"})
+
+
+class SceneEventNote(BaseModel):
+    event_id: str
+    annotation: str
+
+
+@router.get("/scene_note/{event_id}")
+def get_scene_event_note(event_id: str):
+    from creative_suite.engine import creative_annotation as ca
+    with ca.conn() as c:
+        c.executescript(
+            "CREATE TABLE IF NOT EXISTS scene_event_notes ("
+            " event_id TEXT PRIMARY KEY, annotation TEXT NOT NULL,"
+            " provenance TEXT NOT NULL DEFAULT 'HUMAN_USER',"
+            " written_at TEXT NOT NULL);")
+        r = c.execute("SELECT * FROM scene_event_notes WHERE event_id=?",
+                      (event_id,)).fetchone()
+    return dict(r) if r else {"event_id": event_id, "annotation": ""}
+
+
+@router.post("/scene_note")
+def post_scene_event_note(n: SceneEventNote):
+    """A directing note on a NON-FRAG event.
+
+    A movement run or a jump pad can carry "music builds here" without
+    becoming a reviewable frag and without demanding a T1-T5 verdict.
+    """
+    from datetime import datetime, timezone
+    from creative_suite.engine import creative_annotation as ca
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with ca.conn() as c:
+        c.executescript(
+            "CREATE TABLE IF NOT EXISTS scene_event_notes ("
+            " event_id TEXT PRIMARY KEY, annotation TEXT NOT NULL,"
+            " provenance TEXT NOT NULL DEFAULT 'HUMAN_USER',"
+            " written_at TEXT NOT NULL);")
+        c.execute("INSERT INTO scene_event_notes(event_id, annotation,"
+                  " provenance, written_at) VALUES (?,?,?,?) "
+                  "ON CONFLICT(event_id) DO UPDATE SET "
+                  "annotation=excluded.annotation, "
+                  "written_at=excluded.written_at",
+                  (n.event_id, n.annotation, ca.HUMAN_USER, now))
+    return {"event_id": n.event_id, "annotation": n.annotation,
+            "written_at": now}

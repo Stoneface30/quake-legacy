@@ -182,6 +182,48 @@
   #rnote{width:100%;background:#12121a;color:var(--fg);
          border:1px solid var(--line);border-radius:6px;padding:10px;
          font:inherit;font-size:13px;min-height:56px;resize:vertical}
+
+  /* Director dossier. The video shows the game; this explains the action. */
+  #dossier{ margin-top:10px }
+  .dsec{ margin-bottom:12px }
+  .dsec h4{ font-size:10px; letter-spacing:.16em; text-transform:uppercase;
+            color:#6a6a76; margin:0 0 5px; font-weight:600 }
+  .dhead{ font-size:15px; font-weight:600; line-height:1.3 }
+  .dhead .op{ color:var(--gold) }
+  .dsub{ color:var(--dim); font-size:12px; margin-top:2px }
+  .dgrid{ display:grid; grid-template-columns:auto 1fr; gap:2px 12px;
+          font-size:12px }
+  .dgrid .k{ color:var(--dim) }
+  .dgrid .v{ text-align:right; font-variant-numeric:tabular-nums }
+  .unk{ color:#55555f; font-style:italic }
+  .stackrow{ display:grid; grid-template-columns:52px 1fr 1fr; gap:4px 8px;
+             font-size:12px; font-variant-numeric:tabular-nums }
+  .stackrow .lbl{ color:var(--dim); font-size:11px }
+  .hpv{ color:#e06a5a } .apv{ color:#5a9be0 }
+  .chips{ display:flex; flex-wrap:wrap; gap:4px }
+  .chip{ font-size:10px; letter-spacing:.06em; padding:3px 7px;
+         border:1px solid var(--line); border-radius:3px; color:#9a9aa6 }
+  .chip.hot{ border-color:#6a5320; color:#e0b050 }
+  .chip.danger{ border-color:#6a2f2a; color:#e08a7a }
+  .conf{ font-size:10px; color:#55555f; margin-top:3px; line-height:1.4 }
+  #sceneNote{ width:100%; background:#12121a; color:var(--fg);
+              border:1px solid var(--line); border-radius:6px; padding:9px;
+              font:inherit; font-size:13px; min-height:54px }
+  /* Scene rail: ONE media asset, every event seekable inside it. */
+  #rail{ display:none; overflow-x:auto; -webkit-overflow-scrolling:touch;
+         border-bottom:1px solid var(--line); background:#0e0e14 }
+  #rail.on{ display:block }
+  .railrow{ display:flex; gap:6px; padding:8px 12px; min-width:min-content }
+  .rev{ flex:0 0 auto; background:#15151f; border:1px solid var(--line);
+        border-radius:5px; padding:7px 10px; cursor:pointer; text-align:left;
+        min-height:46px; color:var(--fg); font:inherit; white-space:nowrap }
+  .rev:hover{ border-color:var(--gold) }
+  .rev.sel{ border-color:var(--gold); background:#1d1a12 }
+  .rev.noteonly{ border-style:dashed; color:#9a9aa6 }
+  .rev .t{ display:block; font-size:10px; color:#5a5a66;
+           font-variant-numeric:tabular-nums }
+  .rev .l{ display:block; font-size:12px; font-weight:600 }
+  .rev .r{ display:block; font-size:9px; color:#8fd6a8; letter-spacing:.06em }
 </style>
 
 <header>
@@ -215,6 +257,7 @@
     </div>
     <div class="track"><div class="played" id="played"></div>
       <div class="mark" id="mark"></div></div>
+    <div id="rail"></div>
     <div class="buttons">
       <button id="b1" data-role="T1_FEATURE_FX"><span class="k">1</span>
         <span class="n">FEATURE / FX</span>
@@ -235,6 +278,7 @@
   </div>
 
   <aside>
+    <div id="dossier"></div>
     <div class="why" id="why"></div>
     <div id="usage"></div>
     <div class="verdict" id="verdict"></div>
@@ -375,6 +419,8 @@ function meta(it){
   }));
   $("why").textContent = it.why || "no class detected";
   renderUsage(it);
+  renderDossier(it);
+  renderRail(it);
   renderRound(it);
   if (window.loadRoundNote) window.loadRoundNote(it);
   const vd = $("verdict");
@@ -777,4 +823,233 @@ async function restoreSession(){
     }catch(e){ rn.value = ""; }
   };
 })();
+
+// ── director dossier ────────────────────────────────────────────────────────
+// Partial truth is fine; false certainty is not. Every value is measured or
+// shown as UNKNOWN. Nothing is defaulted to zero.
+function drow(k, v){
+  const a = el("div", "k", k), b = el("div", "v");
+  if (v === null || v === undefined || v === "") {
+    b.appendChild(el("span", "unk", "UNKNOWN"));
+  } else { b.textContent = String(v); }
+  return [a, b];
+}
+
+function hpap(label, o){
+  const h = el("div", "hpv"), a = el("div", "apv");
+  h.textContent = (o && o.health !== null && o.health !== undefined)
+    ? o.health + " HP" : "--";
+  a.textContent = (o && o.armor !== null && o.armor !== undefined)
+    ? o.armor + " AP" : "--";
+  return [el("div", "lbl", label), h, a];
+}
+
+async function renderDossier(it){
+  const box = $("dossier");
+  if (!box) return;
+  box.replaceChildren();
+  let d;
+  try { d = await (await fetch(API + "/dossier/" + it.item_id)).json(); }
+  catch(e){ return; }
+  if (!d || !d.available) return;
+  const e = d.event, kids = [];
+
+  const head = el("div", "dsec");
+  const h1 = el("div", "dhead");
+  h1.appendChild(document.createTextNode((e.actor || "?") + "  \u2192  "));
+  h1.appendChild(el("span", "op", e.opponent || "?"));
+  head.appendChild(h1);
+  head.appendChild(el("div", "dsub", [e.weapon, e.map, "round " + e.round,
+    e.time_in_round_ms !== null && e.time_in_round_ms !== undefined
+      ? "+" + (e.time_in_round_ms / 1000).toFixed(2) + "s" : null]
+    .filter(Boolean).join("  \u00b7  ")));
+  head.appendChild(el("div", "dsub", e.camera));
+  kids.push(head);
+
+  const idsec = el("div", "dsec");
+  const g1 = el("div", "dgrid");
+  g1.append(...drow("occurrence", "#" + e.occurrence_id));
+  g1.append(...drow("machine score", e.machine_score));
+  g1.append(...drow("career rank", e.career_rank
+    ? e.career_rank.toLocaleString() + " / " + e.career_total.toLocaleString()
+    : null));
+  g1.append(...drow("usage", d.usage.state));
+  if (e.n_observations > 1)
+    g1.append(...drow("cameras", e.n_observations + " demos saw this"));
+  idsec.appendChild(g1);
+  kids.push(idsec);
+
+  const st = el("div", "dsec");
+  st.appendChild(el("h4", null, "stack"));
+  if (d.stack.available){
+    const sg = el("div", "stackrow");
+    sg.append(...hpap("start", d.stack.start));
+    sg.append(...hpap("min", d.stack.min));
+    sg.append(...hpap("frag", d.stack.at_frag));
+    st.appendChild(sg);
+    if (d.stack.tags && d.stack.tags.length){
+      const c = el("div", "chips");
+      d.stack.tags.forEach(t => c.appendChild(el("span", "chip danger", t)));
+      st.appendChild(c);
+    }
+  } else {
+    st.appendChild(el("div", "unk", "UNKNOWN"));
+    st.appendChild(el("div", "conf", d.stack.reason || ""));
+  }
+  kids.push(st);
+
+  const a = d.action, act = el("div", "dsec");
+  act.appendChild(el("h4", null, a.weapon || "action"));
+  const ag = el("div", "dgrid");
+  ag.append(...drow(a.unit, a.shots));
+  if (a.confidence === "NOT_DERIVABLE"){
+    ag.append(...drow("accuracy", null));
+  } else if (a.accuracy_upper_pct && a.accuracy_upper_pct !== a.accuracy_pct){
+    ag.append(...drow("accuracy",
+      a.accuracy_pct + "-" + a.accuracy_upper_pct + "%"));
+    ag.append(...drow("hits", a.hits_confirmed + " confirmed, "
+      + a.hits_ambiguous + " ambiguous"));
+  } else if (a.accuracy_pct !== null && a.accuracy_pct !== undefined){
+    ag.append(...drow("accuracy", a.accuracy_pct + "%"));
+  } else {
+    ag.append(...drow("accuracy", null));
+  }
+  if (a.engagement_ms)
+    ag.append(...drow("engagement", (a.engagement_ms / 1000).toFixed(2) + "s"));
+  act.appendChild(ag);
+  if (a.note) act.appendChild(el("div", "conf", a.note));
+  kids.push(act);
+
+  const gm = el("div", "dsec"), G = d.geometry, M = d.movement;
+  gm.appendChild(el("h4", null, "geometry and movement"));
+  const gg = el("div", "dgrid");
+  gg.append(...drow("distance",
+    G.distance_units ? Math.round(G.distance_units) + " u" : null));
+  gg.append(...drow("flick", G.flick_degrees
+    ? G.flick_degrees + "\u00b0 in " + G.flick_duration_ms + "ms" : null));
+  gg.append(...drow("target visible",
+    G.target_visible_ms ? G.target_visible_ms + "ms" : null));
+  gg.append(...drow("your speed", M.speed_at_frag
+    ? Math.round(M.speed_at_frag) + " ups"
+      + (M.percentile ? "  p" + Math.round(M.percentile) : "") : null));
+  if (M.moment)
+    gg.append(...drow("movement", M.moment.kind + "  peak "
+      + Math.round(M.moment.peak || 0) + " ups"));
+  gm.appendChild(gg);
+  kids.push(gm);
+
+  if (d.round){
+    const r = d.round, rs = el("div", "dsec");
+    rs.appendChild(el("h4", null, "this round"));
+    const rg = el("div", "dgrid");
+    rg.append(...drow("your frags", r.user_kills));
+    rg.append(...drow("clan frags", r.team_kills));
+    rg.append(...drow("enemy frags", r.enemy_kills));
+    rg.append(...drow("you died", r.user_died ? "yes" : "no"));
+    rg.append(...drow("duration", (r.duration_ms / 1000).toFixed(1) + "s"));
+    if (r.alive_curve && r.alive_curve.length){
+      const fmt = o => Object.keys(o).filter(k => k !== "offset_ms")
+        .map(k => o[k]).join("v");
+      rg.append(...drow("alive (derived)",
+        fmt(r.alive_curve[0]) + " \u2192 "
+        + fmt(r.alive_curve[r.alive_curve.length - 1])));
+    }
+    rs.appendChild(rg);
+    kids.push(rs);
+  }
+
+  if (d.traits && d.traits.length){
+    const t = el("div", "dsec");
+    t.appendChild(el("h4", null, "machine traits"));
+    const c = el("div", "chips");
+    d.traits.forEach(x => c.appendChild(el("span", "chip hot", x)));
+    t.appendChild(c);
+    kids.push(t);
+  }
+  box.replaceChildren(...kids);
+}
+
+// ── scene rail ──────────────────────────────────────────────────────────────
+// ONE media asset for the whole round. The rail seeks inside it rather than
+// loading a separate clip per frag -- F1..F4 plus a full round would be five
+// wolfcam runs of the same thirty seconds.
+let sceneState = null;
+
+async function renderRail(it){
+  const rail = $("rail");
+  if (!rail) return;
+  rail.replaceChildren();
+  rail.classList.remove("on");
+  sceneState = null;
+  let s;
+  try { s = await (await fetch(API + "/scene/" + it.item_id)).json(); }
+  catch(e){ return; }
+  if (!s.available || s.mode !== "SCENE_MODE") return;
+  sceneState = s;
+  const rowEl = el("div", "railrow");
+  s.events.forEach(ev => {
+    const b = el("button", "rev" + (ev.takes_verdict ? "" : " noteonly"));
+    if (ev.occurrence_id === it.source_id) b.classList.add("sel");
+    b.appendChild(el("span", "t", "+" + (ev.offset_ms / 1000).toFixed(2) + "s"));
+    b.appendChild(el("span", "l", ev.label));
+    if (ev.human_role) b.appendChild(el("span", "r", ev.human_role));
+    else if (!ev.takes_verdict) b.appendChild(el("span", "r", "note only"));
+    b.onclick = () => selectSceneEvent(ev, s, b);
+    rowEl.appendChild(b);
+  });
+  rail.appendChild(rowEl);
+  rail.classList.add("on");
+  if (v.dataset.sceneId !== s.scene_id){
+    v.dataset.sceneId = s.scene_id;
+    v.src = API + "/media/scene/" + it.item_id
+      + (isSmallScreen() ? "?v=mobile" : "");
+    v.loop = false;
+  }
+}
+
+function selectSceneEvent(ev, s, btn){
+  const t = (ev.t_ms - s.media_start_ms) / 1000;
+  if (isFinite(t) && t >= 0){
+    try { v.currentTime = t; v.play().catch(() => {}); } catch(e){}
+  }
+  document.querySelectorAll("#rail .rev").forEach(b => b.classList.remove("sel"));
+  if (btn) btn.classList.add("sel");
+  if (ev.occurrence_id){
+    fetch(API + "/item/USER_FRAG:" + ev.occurrence_id)
+      .then(r => r.json())
+      .then(x => { if (x && x.item_id){ cur = x; meta(x); renderDossier(x); } })
+      .catch(() => {});
+  } else {
+    loadSceneNote(ev.event_id, ev.label);
+  }
+}
+
+// A movement run or a jump pad takes a directing note and NO verdict.
+async function loadSceneNote(eventId, label){
+  const box = $("dossier");
+  if (!box) return;
+  const wrap = el("div", "dsec");
+  wrap.appendChild(el("h4", null, "note on " + (label || "this event")));
+  wrap.appendChild(el("div", "conf",
+    "a scene event takes a directing note and no T1-T5 verdict"));
+  const ta = document.createElement("textarea");
+  ta.id = "sceneNote";
+  ta.setAttribute("list", "vocab");
+  ta.placeholder = "e.g. music builds here / camera leaves FPV / heartbeat starts";
+  try {
+    const g = await (await fetch(API + "/scene_note/"
+      + encodeURIComponent(eventId))).json();
+    ta.value = g.annotation || "";
+  } catch(e){}
+  ta.addEventListener("blur", async () => {
+    try {
+      await fetch(API + "/scene_note", {method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({event_id: eventId, annotation: ta.value})});
+      toast("event note saved");
+    } catch(e){ toast("event note NOT saved"); }
+  });
+  wrap.appendChild(ta);
+  box.replaceChildren(wrap);
+}
 </script>
