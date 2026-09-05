@@ -17,7 +17,12 @@ the work: `keel/bright` renders the bulky helmeted Keel silhouette,
 protocol-QL demo makes the head follow `model` — so the one key covers head,
 torso and legs.
 
-`bright` is a real shipped skin, confirmed from inside `pak00.pk3`:
+`bright` is a real shipped skin, confirmed two ways: from inside `pak00.pk3`
+itself, and from a per-entry manifest
+(`docs/research/steam-pak-manifest-2026-04-17.json` in the creative-suite-v2
+worktree, 9,285 entries matching the live pak exactly). The same manifest shows
+`bright` is a **Quake Live addition** -- Q3A's `pak0.pk3` carries only
+blue/default/red for keel. Contents:
 `models/players/keel/{upper,lower,head}_bright.skin` exist with real contents,
 and `scripts/models_players.shader:3205` defines `models/players/keel/bright`
 with an `rgbGen entity` stage.
@@ -53,6 +58,13 @@ models. Expect them to render identically.
 turn to the camera, turn to another player and walk. "Raises an arm and
 indicates that wall" is not in the MD3 vocabulary and is the specific thing
 that routes to Blender as a character-performance backend.
+
+**GESTURE_PROOF_01 -- visually confirmed.** Keel at t=1.0 s (idle) against
+t=2.6 s and t=3.4 s (inside the gesture window opened at 2.0 s): the arm goes
+from down-across-the-body to raised and out. Measured, the silhouette widens
+from a 48 px bounding box to 59 px, aspect 0.38 -> 0.49, while green pixel
+count stays flat at ~2,415 -- the body did not move or change size, it changed
+pose. Frames: `docs/visual-record/2026-09-05/gesture_proof_01_torso_gesture.png`.
 
 Caveat: no `animation.cfg` exists on disk -- the pak00 extraction kept PNGs
 only -- so frame ranges are unverified. The 2294 ms timer is a source
