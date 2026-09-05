@@ -90,26 +90,39 @@ class ExportRefused(Exception):
     """A batch that would be too large, or a request with no usable source."""
 
 
-# Every cvar that can put a handle on screen. The public profile must hold
-# each of these at 0, and that is checked before a batch runs rather than
-# trusted. Two of them are TIME gates, not booleans -- there is no
-# cg_drawFragMessage or cg_obituary cvar to switch off, so an eyeballed
-# "it looks disabled" is not the same as disabled.
-NAME_BEARING_CVARS = (
+# ── the blindness contract, enforced ────────────────────────────────────────
+# Every route by which the engine can put a player's handle on screen. The
+# public profile must hold each of these at 0, and that is CHECKED before a
+# batch runs rather than trusted.
+#
+# A MISSING KEY IS A FAILURE, not a pass. `profile.get(k)` returns None for a
+# cvar nobody pinned, and None is not 0 — so deleting a line from
+# TR4SH_PUBLIC_EXPORT refuses the export instead of quietly reopening the
+# route it was holding shut.
+IDENTITY_CVARS_MUST_BE_ZERO = (
+    # the two that were measured burning names into shipped frames
     "cg_drawFragMessageTime",     # "You fragged %v"
     "cg_obituaryTime",            # "%k %i %v" -- killer AND victim
+    # centre-screen and world-space name draws
     "cg_drawCenterPrint",
     "cg_drawCrosshairNames",
+    "cg_drawCrosshairTeammateHealth",
     "cg_drawPlayerNames",
+    "cg_drawFriend",
+    # spectator / follow chrome, which names whoever is being followed
     "cg_drawTeamOverlay",
     "cg_drawAttacker",
     "cg_drawFollowing",
     "wolfcam_drawFollowing",
     "cg_drawSpecMessages",
+    "cg_drawSelf",
+    # chat and console print handles verbatim
     "cg_chatTime",
     "cg_chatLines",
     "con_notifytime",
     "con_notifylines",
+    # the scoreboard IS a list of names, and it shows itself on death and at
+    # round end -- both of which fall inside a +/-5s public window
     "cg_scoreBoardWhenDead",
     "cg_roundScoreBoard",
     "cg_scoreBoardAtIntermission",
@@ -117,33 +130,62 @@ NAME_BEARING_CVARS = (
     "cg_drawScores",
 )
 
+# Token strings are not disabled by blanking them -- wolfcam falls back to a
+# built-in default when a token cvar is empty, so "" is not safety. What makes
+# a token harmless is that its DISPLAY GATE is shut. These are TIME cvars:
+# there is no cg_drawFragMessage or cg_obituary boolean to switch off, which is
+# the trap that let this ship. So the invariant is stated as a pair -- if the
+# token can expand to a name, the gate that draws it must be 0.
+#
+# %v victim, %k killer, %a attacker, %s / %n generic name substitutions.
+TOKEN_GATES = {
+    "cg_drawFragMessageTokens": "cg_drawFragMessageTime",
+    "cg_obituaryTokens": "cg_obituaryTime",
+}
+NAME_SUBSTITUTIONS = ("%v", "%k", "%a", "%s", "%n")
+
+# Kept as the old name so anything importing it still works.
+NAME_BEARING_CVARS = IDENTITY_CVARS_MUST_BE_ZERO
+
 
 def assert_capture_profile_is_nameless() -> str:
     """Refuse to export unless the public profile draws no names. Returns its id.
 
-    This is the gate, and it is deliberately a check on the CONFIGURATION
-    rather than on the pixels. The bug it exists to stop was a silent default
-    -- capture_demo() called without a profile argument, quietly filming with
-    the batch profile that draws "You fragged <victim>" -- and the class of
-    regression that would reopen it is somebody changing a value in
+    This is the authoritative ship gate, and it is deliberately a check on the
+    CONFIGURATION rather than on the pixels. The bug it exists to stop was a
+    silent default -- capture_demo() called without a profile argument, quietly
+    filming with the batch profile that draws "You fragged <victim>" -- and the
+    class of regression that would reopen it is somebody changing a value in
     master_profile. Both are visible here, deterministically, before a single
     frame is captured.
 
-    A pixel check was measured as an alternative and is NOT used for this:
-    see creative_suite/engine/burned_name_guard.py for why a blown-out barred
-    window scores higher than the text it is meant to catch.
+    A pixel check is NOT used for this and must not be: see
+    creative_suite/engine/burned_name_guard.py for the measurement showing a
+    blown-out barred window scoring higher than the text it is meant to catch.
     """
     from creative_suite.engine import master_profile as mp
-    profile = mp.PROFILES[mp.PUBLIC_EXPORT_PROFILE_NAME]
-    live = {k: profile.get(k) for k in NAME_BEARING_CVARS
-            if profile.get(k) not in (0, "0")}
-    if live:
+    name = mp.PUBLIC_EXPORT_PROFILE_NAME
+    profile = mp.PROFILES[name]
+
+    faults: dict[str, Any] = {}
+    for k in IDENTITY_CVARS_MUST_BE_ZERO:
+        v = profile.get(k)
+        if v not in (0, "0"):
+            faults[k] = "MISSING (unpinned)" if v is None else v
+    for token_cvar, gate_cvar in TOKEN_GATES.items():
+        token = str(profile.get(token_cvar) or "")
+        if any(sub in token for sub in NAME_SUBSTITUTIONS):
+            gate = profile.get(gate_cvar)
+            if gate not in (0, "0"):
+                faults[token_cvar] = (
+                    f"{token!r} expands to a player name and {gate_cvar}={gate}")
+    if faults:
         raise ExportRefused(
-            f"{mp.PUBLIC_EXPORT_PROFILE_NAME} would burn player names into the "
-            f"picture: {live}. Public clips carry identity as a manifest field, "
-            "never as pixels -- a field can be withheld after a vote, a pixel "
-            "cannot be un-shown.")
-    return mp.profile_id(mp.PUBLIC_EXPORT_PROFILE_NAME)
+            f"{name} would burn player names into the picture: {faults}. "
+            "Public clips carry identity as a manifest field, never as pixels "
+            "-- a field can be withheld after a vote, a pixel cannot be "
+            "un-shown.")
+    return mp.profile_id(name)
 
 
 def _now() -> str:

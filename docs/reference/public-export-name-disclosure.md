@@ -52,7 +52,14 @@ only in profile. Full-frame scan of the name band:
 `docs/visual-record/2026-09-04/` (the victim's handle is redacted there, because
 that directory is in the public repo and this document is about not leaking it).
 
-**Clips already exported carry it.** All 12 rows in `exchange/pantheon/` predate
+**Disposition of the contaminated seed set.** All 12 were moved to
+`exchange/_quarantine_pre_public_profile_2026-09-05/` with a README, and all 12
+were recaptured with `TR4SH_PUBLIC_EXPORT` into `exchange/pantheon/`. They were
+moved rather than deleted — they are the evidence, and deleting media is not
+this branch's call — but they are out of the handoff path so no two
+indistinguishable versions of the same `external_source_id` sit side by side.
+
+**Clips already exported carried it.** All 12 rows in `exchange/pantheon/` predate
 the fix. The 6 with `is_actor_pov: true` — the recorder's own frags, the only
 ones where this message draws — show centred burned-in text for 3.4–4.9 s of
 their 10 s. Two handles were read straight off the frame. All 12 are
@@ -71,13 +78,51 @@ existing. Existing profile ids are byte-identical, so no cached review proxy is
 orphaned.
 
 The gate is `public_clip_export.assert_capture_profile_is_nameless()`, which
-runs once per batch **before any capture** and refuses if any cvar in
-`NAME_BEARING_CVARS` is live. It checks the configuration, not the pixels,
+runs once per batch **before any capture** and refuses if any route is live.
+It enforces two invariants:
+
+1. every cvar in `IDENTITY_CVARS_MUST_BE_ZERO` is `0` — and a **missing** key
+   is a failure, not a pass, so deleting a pin refuses the export instead of
+   quietly reopening the route it was holding shut;
+2. for each pair in `TOKEN_GATES`, if the token expands to a player name
+   (`%v`, `%k`, `%a`, `%s`, `%n`) then its TIME gate must be `0`. Blanking a
+   token is not safety — wolfcam falls back to a built-in default — so the
+   invariant is stated as the pair. It checks the configuration, not the pixels,
 because the failure was a silent default and the regression path is somebody
 editing a value in `master_profile`. Both are visible there deterministically.
 Each manifest row now records `capture_profile_id`, so a clip's provenance is
 answerable later — `overlays_added: []` only ever described what the export drew
 on top, and the engine drew the name one layer below it.
+
+## The killfeed: configured, but it never drew
+
+`cg_obituaryTokens "%k %i %v"` with `cg_obituaryTime 2500` is a second
+identity route on paper, and the public profile pins both off. It is worth
+recording that **no pixel evidence was found that it ever rendered.**
+
+Tested directly: a window on `asylum` containing **four other-player kills**
+(466700–476700, the ones the feed exists to show) captured under
+`TR4SH_GAMEPLAY_MASTER_V2` and under `TR4SH_PUBLIC_EXPORT`. A full-frame scan
+for hard-edged neutral text found the two profiles **identical** —
+
+| rows | master peak/frame | public peak/frame |
+|---|---|---|
+| 254–321 | 3.8 | 3.8 |
+| 429–436 | 3.4 | 3.4 |
+| 528–546 (crosshair) | 5.6 | 5.7 |
+
+No feed band in either. So the honest statement is: the killfeed is suppressed
+**by configuration and enforced by the gate**, and there is no before/after
+picture because there was no "before". Do not cite a pixel proof for it that
+does not exist.
+
+Two capture facts learned while establishing this, both of which cost a run:
+- **A backwards seek inside one wolfcam session yields an empty AVI.** Windows
+  passed to one `capture_demo` call must ascend in time.
+- The staging directory is `REPO_ROOT/output/demo_v2/_wolfcam_staging`. In a
+  git worktree that resolves to the *worktree*, which builds a partial 981 MB
+  copy without the map paks; wolfcam then hangs until the timeout on any map
+  it cannot load. Point the worktree's `output/` at the real one.
 
 ## Why the pixel detector is not the gate
 
