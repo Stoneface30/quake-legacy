@@ -82,6 +82,10 @@
     border-color:#6b551a}
   .buttons button.golden .n{color:#ffcc55}
   .buttons button.golden.on{background:#2a2109;border-color:#c9a227}
+  .buttons button.workshop{grid-column:1/-1;background:#0e1620;
+    border-color:#274a6b}
+  .buttons button.workshop .n{color:#7fc4ff}
+  .buttons button.workshop.on{background:#122436;border-color:#4d8fd0}
   /* Tags must cost one thumb-tap. They wrap, they scroll if they must, and
      they never push the verdict buttons off a 390px screen. */
   #tagrail{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px 0}
@@ -263,6 +267,7 @@
     <label>round kills &ge;<select id="f-min_round_kills"></select></label>
     <label>camera<select id="f-pov"></select></label>
     <label>funny / weird<select id="f-funny"></select></label>
+    <label>situation<select id="f-situation"></select></label>
     <button id="f-clear">CLEAR FILTERS</button>
     <span id="filtercount"></span>
   </div>
@@ -295,6 +300,9 @@
       <button id="b5" data-role="T5_PASS_FILLER"><span class="k">5</span>
         <span class="n">PASS / FILLER</span>
         <span class="h">kept forever, never primary</span></button>
+      <button id="bwork" class="workshop"><span class="k">B</span>
+        <span class="n">SEND TO WORKSHOP</span>
+        <span class="h">we cannot see it - rebuild it</span></button>
       <button id="bgold" class="golden"><span class="k">G</span>
         <span class="n">GOLDEN</span>
         <span class="h">documentary anchor - never hide this</span></button>
@@ -460,6 +468,7 @@ function meta(it){
   renderRound(it);
   loadTags(it);
   renderPovs(it);
+  loadWorkshop(it);
   if (window.loadRoundNote) window.loadRoundNote(it);
   const vd = $("verdict");
   if (it.human_role){
@@ -722,12 +731,22 @@ function paintTags(){
   $("bgold").classList.toggle("on", curTags.has("GOLDEN"));
 }
 
+// A LATE RESPONSE MUST NOT OVERWRITE A LIVE THUMB.
+//
+// `cur !== item` is not enough: re-showing the SAME item (a RETRY, a scene
+// seek) starts a second load, and if the reviewer tags something while that
+// request is in flight the stale reply lands afterwards and silently wipes
+// it. Tagging is the one action here with no confirmation of its own, so a
+// tag that vanishes is a tag the reviewer believes they made.
+let tagGeneration = 0;
+
 async function loadTags(item){
+  const gen = ++tagGeneration;
   curTags = new Set();
   paintTags();
   try {
     const d = await (await fetch(API + "/tags/" + encodeURIComponent(item.item_id))).json();
-    if (cur !== item) return;
+    if (gen !== tagGeneration || cur !== item) return;
     curTags = new Set(d.tags || []);
     paintTags();
   } catch(e){ /* a tag panel that fails must not block judging */ }
@@ -736,6 +755,7 @@ async function loadTags(item){
 async function toggleTag(tag){
   if (!cur) return;
   const mine = cur, on = !curTags.has(tag);
+  tagGeneration++;          // any load still in flight is now out of date
   // Painted immediately. The write is confirmed after, and reverted if it
   // fails -- at one keystroke per tag, waiting for a round trip would make
   // the rail feel broken.
@@ -778,6 +798,51 @@ async function renderPovs(item){
     box.appendChild(list);
   }
 }
+
+// ── unfilmed moments ────────────────────────────────────────────────────────
+//
+// An obituary is a server fact; whether any CAMERA saw it is a separate
+// question. About three quarters of the archive is somebody else's demo
+// pointed somewhere else. Those are not bad frags, they are unfilmed ones --
+// so the reviewer gets a third answer beside "judge it" and "delete it".
+let workshopOn = false;
+
+async function toggleWorkshop(){
+  if (!cur) return;
+  const mine = cur, on = !workshopOn;
+  workshopGeneration++;
+  workshopOn = on;
+  $("bwork").classList.toggle("on", on);
+  try {
+    const url = API + (on ? "/reconstruct" : "/reconstruct/withdraw");
+    const r = await fetch(url, {method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({item_id: mine.item_id,
+                            reason: "UNSPECIFIED", note: ""})});
+    if (!r.ok) throw new Error("workshop request NOT saved");
+    toast(on ? "sent to workshop for reconstruction" : "withdrawn");
+  } catch(e){
+    if (cur === mine){ workshopOn = !on; $("bwork").classList.toggle("on", !on); }
+    toast(e.message || "workshop request NOT saved");
+  }
+}
+
+let workshopGeneration = 0;
+
+async function loadWorkshop(item){
+  const gen = ++workshopGeneration;
+  workshopOn = false;
+  $("bwork").classList.remove("on");
+  try {
+    const d = await (await fetch(API + "/reconstruct/"
+      + encodeURIComponent(item.item_id))).json();
+    if (gen !== workshopGeneration || cur !== item) return;
+    workshopOn = !!(d && d.request);
+    $("bwork").classList.toggle("on", workshopOn);
+  } catch(e){ /* never block judging */ }
+}
+
+$("bwork").addEventListener("click", toggleWorkshop);
 
 let lastDeleted = null;
 
@@ -843,6 +908,8 @@ document.addEventListener("keydown", async e => {
     if (idx > 0){ idx--; show(); }
   } else if (k === "n"){
     e.preventDefault(); $("d-note").open = true; $("note").focus();
+  } else if (k === "b"){
+    e.preventDefault(); toggleWorkshop();
   } else if (k === "x"){
     e.preventDefault(); dismissCurrent();
   } else if (TAG_BY_KEY[k]){
@@ -967,6 +1034,14 @@ async function facets(){
   fill("f-min_round_kills", [2, 3, 4, 5, 6].map(n => ({value: n, label: n})), "any");
   fill("f-pov", ["ACTOR_POV", "VICTIM_POV", "OTHER_POV"], "any");
   fill("f-funny", d.funny_signals || [], "any");
+  // Named combinations, because "the gauntlet jump pad is really funny" is
+  // not a weapon filter and not a trait filter, and scrolling 201,876 rows
+  // is not a way to find the next one.
+  try {
+    const sit = await (await fetch(API + "/situations")).json();
+    fill("f-situation", (sit.situations || []).map(x => (
+      {value: x.situation, label: x.label})), "any");
+  } catch(e){ /* the drawer is help; it must never block the queue */ }
   // Defensive: a filter control that is not on the page must never stop
   // the queue from loading. The reviewer is the point; the drawer is help.
   const note = $("fnote");

@@ -198,6 +198,20 @@ const step = (n, msg) => console.log(`  [${n}] ${msg}`);
     step(9.2, 'cameras: ' + povText.trim().slice(0, 60));
     results.push('POV reported alongside the verdict');
 
+    // ── unfilmed moments go to the workshop ──────────────────────────────
+    const wTarget = await page.evaluate(() => cur.item_id);
+    await page.locator('#bwork').click();
+    await page.waitForTimeout(1200);
+    assert.ok(posts.some(p => p.endsWith('/reconstruct')),
+              'workshop button posted nothing');
+    const wq = await (await fetch(`${API}/reconstruct/queue`)).json();
+    assert.ok(wq.items.some(i => i.item_id === wTarget),
+              'the request never reached the workshop queue');
+    assert.equal(await page.evaluate(() => cur.item_id), wTarget,
+                 'sending to the workshop advanced the reviewer');
+    step(9.3, `sent ${wTarget} to the workshop (${wq.pending} pending)`);
+    results.push('workshop request reaches the build queue');
+
     // ── delete removes the item and undo brings it back ──────────────────
     // A tagged, GOLDEN moment must warn before it disappears.
     let warned = null;

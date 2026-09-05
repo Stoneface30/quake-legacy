@@ -299,9 +299,16 @@ def test_the_worker_survives_a_skip_and_requeue(proxy_db, monkeypatch):
 
     t = threading.Thread(target=rp._worker_loop, daemon=True)
     t.start()
-    rp._queue.join()                     # raises here if task_done doubled
-    rp._queue.put(None)
-    t.join(timeout=5)
+    try:
+        rp._queue.join()                 # raises here if task_done doubled
+    finally:
+        rp._queue.put(None)
+        t.join(timeout=5)
+    # A worker that outlives its own test keeps a reference to module state
+    # that monkeypatch has already restored, and then mutates the REAL queue
+    # underneath whatever runs next. Leaving one alive is how a green test
+    # breaks a different file.
+    assert not t.is_alive(), "the worker thread outlived its test"
 
     assert holds["n"] >= 2, "the job was never retried after the lock was busy"
     assert _row(st["key"])["state"] == "READY"

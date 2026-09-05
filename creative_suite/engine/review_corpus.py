@@ -524,6 +524,68 @@ def trait_vocabulary(limit: int = 40) -> list[dict[str, Any]]:
     return [{"trait": k, "count": v} for k, v in cnt.most_common(limit)]
 
 
+# ── named situations ────────────────────────────────────────────────────────
+#
+# Combinations a reviewer actually asks for out loud. "The gauntlet jump pad
+# is really funny" is not a weapon filter and not a trait filter -- it is a
+# weapon AND a movement run near it in time, and without a name for it the
+# only way to find the next one is to scroll 201,876 rows.
+#
+# Deliberately a SHORT list of measured combinations rather than a query
+# builder. Each one is here because someone asked for it, and the count next
+# to it is real.
+
+# A jump pad reads as connected to the kill within this window. Measured
+# rather than assumed: at -6s/+2s there are 98 gauntlet pad frags across the
+# archive and 31 of the user's own, which is a set worth browsing. Widening
+# it sweeps in pads from the previous fight.
+_PAD_BEFORE_MS, _PAD_AFTER_MS = 6000, 2000
+
+# Ranged on start_ms, NOT peak_ms. `ix_mm_hash(content_hash, start_ms)` is
+# the only index that can serve this; filtering on peak_ms turned the whole
+# thing into a scan of 40,342 movement rows for each of 201,876 candidates
+# and the query never returned. start_ms is also the truer question: the pad
+# is hit before the frag, not at the same instant.
+_JUMPPAD_NEAR = (
+    "EXISTS (SELECT 1 FROM movement_moments_v1 mm WHERE "
+    "mm.content_hash = k.content_hash AND "
+    f"mm.start_ms BETWEEN o.server_time_ms - {_PAD_BEFORE_MS} "
+    f"AND o.server_time_ms + {_PAD_AFTER_MS} "
+    "AND mm.kind = 'JUMPPAD_ACTION')")
+
+SITUATIONS: dict[str, tuple[str, str, list[Any]]] = {
+    "GAUNTLET_JUMPPAD": (
+        "gauntlet frag off a jump pad",
+        f"o.mod_name LIKE '%GAUNT%' AND {_JUMPPAD_NEAR}", []),
+    "GAUNTLET": ("gauntlet frag", "o.mod_name LIKE '%GAUNT%'", []),
+    "JUMPPAD_FRAG": ("frag off a jump pad", _JUMPPAD_NEAR, []),
+    "AIRBORNE_VICTIM": (
+        "the victim was in the air",
+        "EXISTS (SELECT 1 FROM recognized_frags rf WHERE "
+        "rf.content_hash = k.content_hash AND "
+        "rf.server_time_ms = o.server_time_ms AND rf.classes LIKE ?)",
+        ['%"AIR_%']),
+    "MULTI_POV": ("more than one camera filmed it", "o.n_observations > 1", []),
+}
+
+
+def _situation_sql(name: str) -> tuple[str, list[Any]]:
+    key = str(name).strip().upper()
+    if key not in SITUATIONS:
+        raise ValueError(f"unknown situation {key!r}; known: "
+                         f"{', '.join(sorted(SITUATIONS))}")
+    _label, frag, params = SITUATIONS[key]
+    return frag, list(params)
+
+
+def situations() -> list[dict[str, Any]]:
+    """The named situations and what each one currently matches."""
+    out = []
+    for key, (label, _f, _p) in SITUATIONS.items():
+        out.append({"situation": key, "label": label})
+    return out
+
+
 def _filter_sql(filters: dict[str, Any] | None) -> tuple[str, list[Any]]:
     """Turn a validated filter dict into SQL. Unknown keys are refused."""
     if not filters:
@@ -550,6 +612,11 @@ def _filter_sql(filters: dict[str, Any] | None) -> tuple[str, list[Any]]:
                          + ")")
             if raw is not True:
                 params.append(f'%"{raw}"%')
+            continue
+        if key == "situation":
+            frag, ps = _situation_sql(str(raw))
+            where.append(frag)
+            params.extend(ps)
             continue
         if key == "min_round_kills":
             # Read from the precomputed round sizes. The correlated count it

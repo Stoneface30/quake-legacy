@@ -242,3 +242,107 @@ def test_the_guard_warns_and_never_refuses():
     risk = rc.dismiss_risk("ALL_KILL:495")
     assert set(risk) == {"item_id", "occurrence_id", "safe", "reasons"}
     assert isinstance(risk["reasons"], list)
+
+
+# ── unfilmed moments go to the workshop ─────────────────────────────────────
+
+@pytest.fixture()
+def workshopdb(tmp_path, monkeypatch):
+    from creative_suite.engine import reconstruction_queue as rq
+    monkeypatch.setattr(rq, "EDITORIAL_DB", tmp_path / "editorial.db")
+    return rq
+
+
+def test_a_reconstruction_request_is_not_a_verdict(workshopdb):
+    """Three different answers, three different tables.
+
+    T1-T5 judges a clip. A deletion hides a moment. This says the moment is
+    worth having and no footage of it exists -- the obituary is a server
+    fact whether or not any camera was pointed at it.
+    """
+    rq = workshopdb
+    rq.request(4242, "ALL_KILL:4242", rq.OFF_SCREEN, provenance=rq.TEST)
+    got = rq.get(4242)
+    assert got["state"] == rq.QUEUED and got["reason"] == rq.OFF_SCREEN
+    with rq.conn() as c:
+        tables = {r[0] for r in c.execute(
+            "SELECT name FROM sqlite_master WHERE type='table'")}
+    assert "human_reviews" not in tables
+    assert "dismissed_occurrences" not in tables
+
+
+def test_the_workshop_never_builds_on_a_machine_request(workshopdb):
+    """A reconstruction costs real work; only a human may order one."""
+    rq = workshopdb
+    rq.request(1, "ALL_KILL:1", rq.NO_CAMERA, provenance=rq.TEST)
+    rq.request(2, "ALL_KILL:2", rq.NO_CAMERA,
+               provenance="IMPORTED_LEGACY_HUMAN")
+    ids = [r["occurrence_id"] for r in rq.pending()]
+    assert ids == [2]
+    assert len(rq.pending(human_only=False)) == 2
+
+
+def test_a_reason_outside_the_vocabulary_is_refused(workshopdb):
+    rq = workshopdb
+    with pytest.raises(rq.UnknownReason):
+        rq.request(1, "ALL_KILL:1", "LOOKED_BORING", provenance=rq.TEST)
+
+
+def test_a_request_is_idempotent_and_withdrawable(workshopdb):
+    rq = workshopdb
+    rq.request(9, "ALL_KILL:9", rq.BAD_ANGLE, provenance=rq.TEST)
+    rq.request(9, "ALL_KILL:9", rq.OBSCURED, provenance=rq.TEST)
+    assert rq.get(9)["reason"] == rq.OBSCURED
+    assert len(rq.pending(human_only=False)) == 1
+    assert rq.withdraw(9) is True
+    assert rq.get(9) is None
+    assert rq.withdraw(9) is False
+
+
+def test_only_the_workshop_moves_a_request_past_queued(workshopdb):
+    rq = workshopdb
+    rq.request(3, "ALL_KILL:3", provenance=rq.TEST)
+    assert rq.set_state(3, rq.ACCEPTED)["state"] == rq.ACCEPTED
+    assert not [r for r in rq.pending(human_only=False)
+                if r["occurrence_id"] == 3]
+    with pytest.raises(ValueError):
+        rq.set_state(3, "MAYBE")
+
+
+# ── named situations ────────────────────────────────────────────────────────
+
+@pytest.mark.skipif(not _corpus(), reason="needs the local corpus")
+def test_the_gauntlet_jumppad_is_findable():
+    """Asked for by name: "the gauntlet jumpad is really funny".
+
+    A weapon filter alone gives 293 of the user's gauntlet frags; the
+    combination gives the 31 that came off a pad.
+    """
+    pad = rc.count_items(rc.USER_FRAG, corpus=rc.USER_FRAGS,
+                         filters={"situation": "GAUNTLET_JUMPPAD"})
+    plain = rc.count_items(rc.USER_FRAG, corpus=rc.USER_FRAGS,
+                           filters={"situation": "GAUNTLET"})
+    assert 0 < pad < plain, f"{pad} pad frags of {plain} gauntlet frags"
+    q = rc.queue(limit=5, item_type=rc.USER_FRAG, corpus=rc.USER_FRAGS,
+                 filters={"situation": "GAUNTLET_JUMPPAD"})
+    assert q and all("GAUNT" in (i.weapon or "") for i in q)
+
+
+@pytest.mark.skipif(not _corpus(), reason="needs the local corpus")
+def test_a_situation_filter_uses_an_index():
+    """Ranged on start_ms, because that is the indexed column.
+
+    Filtering the movement table on peak_ms instead turned this into a scan
+    of 40,342 rows for each of 201,876 candidates and the query never
+    returned at all.
+    """
+    import time
+    t0 = time.time()
+    rc.count_items(rc.USER_FRAG, corpus=rc.USER_FRAGS,
+                   filters={"situation": "GAUNTLET_JUMPPAD"})
+    assert time.time() - t0 < 15, "the situation filter is scanning"
+
+
+def test_an_unknown_situation_is_refused_not_ignored():
+    with pytest.raises(ValueError):
+        rc._situation_sql("ANYTHING_GOES")

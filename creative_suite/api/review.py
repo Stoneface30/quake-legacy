@@ -239,6 +239,71 @@ def get_dismiss_risk(item_id: str):
         raise HTTPException(404, str(e))
 
 
+# ── unfilmed moments go to the workshop ─────────────────────────────────────
+
+class Reconstruction(BaseModel):
+    item_id: str
+    reason: str = "UNSPECIFIED"
+    note: str = ""
+
+
+@router.post("/reconstruct")
+def post_reconstruct(r: Reconstruction):
+    """"We cannot see this one -- rebuild it."
+
+    Not a verdict (T1-T5 judges a clip; this says there is no clip) and not
+    a deletion (that hides a moment; this promotes one). The obituary is a
+    server fact whether or not any camera saw it.
+    """
+    from creative_suite.engine import reconstruction_queue as rq
+    it = rc.item(r.item_id)
+    if it is None:
+        raise HTTPException(404, f"no such item: {r.item_id}")
+    try:
+        return rq.request(int(it.source_id), r.item_id, r.reason, r.note)
+    except rq.UnknownReason as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/reconstruct/withdraw")
+def post_reconstruct_withdraw(r: Reconstruction):
+    from creative_suite.engine import reconstruction_queue as rq
+    it = rc.item(r.item_id)
+    if it is None:
+        raise HTTPException(404, f"no such item: {r.item_id}")
+    if not rq.withdraw(int(it.source_id)):
+        raise HTTPException(404, "not queued for reconstruction")
+    return {"item_id": r.item_id, "withdrawn": True}
+
+
+@router.get("/reconstruct/queue")
+def get_reconstruct_queue(limit: int = Query(200, le=1000)):
+    """What the workshop should build next. Human requests only."""
+    from creative_suite.engine import reconstruction_queue as rq
+    return {"items": rq.pending(limit), **rq.status()}
+
+
+@router.get("/reconstruct/{item_id}")
+def get_reconstruct(item_id: str):
+    from creative_suite.engine import reconstruction_queue as rq
+    it = rc.item(item_id)
+    if it is None:
+        raise HTTPException(404, f"no such item: {item_id}")
+    return {"item_id": item_id,
+            "request": rq.get(int(it.source_id))}
+
+
+@router.get("/situations")
+def get_situations():
+    """Named combinations a reviewer asks for out loud.
+
+    "The gauntlet jump pad is really funny" is not a weapon filter and not a
+    trait filter; without a name for it the only way to find the next one is
+    to scroll two hundred thousand rows.
+    """
+    return {"situations": rc.situations()}
+
+
 @router.post("/undo")
 def post_undo():
     out = rc.undo_last()
