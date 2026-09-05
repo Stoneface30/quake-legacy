@@ -78,6 +78,21 @@
   .buttons button.danger{grid-column:1/-1;background:#1a1113;
     border-color:#5a2630}
   .buttons button.danger .n{color:#ff8a9b}
+  .buttons button.golden{grid-column:1/-1;background:#171308;
+    border-color:#6b551a}
+  .buttons button.golden .n{color:#ffcc55}
+  .buttons button.golden.on{background:#2a2109;border-color:#c9a227}
+  /* Tags must cost one thumb-tap. They wrap, they scroll if they must, and
+     they never push the verdict buttons off a 390px screen. */
+  #tagrail{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px 0}
+  #tagrail button{background:#14141b;color:var(--dim);border:1px solid
+    var(--line);border-radius:14px;padding:6px 10px;font-size:12px;
+    font-family:inherit;letter-spacing:.04em}
+  #tagrail button.on{background:#1d2b1d;border-color:#3f7a3f;color:#bfe6bf}
+  #tagrail button .tk{color:#666;font-size:10px;margin-right:5px}
+  #tagrail button.on .tk{color:#8fbf8f}
+  #tagrail .tgroup{width:100%;font-size:10px;color:#555;letter-spacing:.12em;
+    margin-top:4px}
   .buttons button:active{transform:scale(.985)}
   .buttons .k{font-size:10px;color:var(--dim);letter-spacing:.1em}
   .buttons .n{font-size:13px;font-weight:600;letter-spacing:.03em;
@@ -263,6 +278,7 @@
     <div class="track"><div class="played" id="played"></div>
       <div class="mark" id="mark"></div></div>
     <div id="rail"></div>
+    <div id="tagrail"></div>
     <div class="buttons">
       <button id="b1" data-role="T1_FEATURE_FX"><span class="k">1</span>
         <span class="n">FEATURE / FX</span>
@@ -279,6 +295,9 @@
       <button id="b5" data-role="T5_PASS_FILLER"><span class="k">5</span>
         <span class="n">PASS / FILLER</span>
         <span class="h">kept forever, never primary</span></button>
+      <button id="bgold" class="golden"><span class="k">G</span>
+        <span class="n">GOLDEN</span>
+        <span class="h">documentary anchor - never hide this</span></button>
       <button id="bdel" class="danger"><span class="k">X</span>
         <span class="n">DELETE</span>
         <span class="h">never show me this again</span></button>
@@ -289,6 +308,7 @@
     <div id="dossier"></div>
     <div class="why" id="why"></div>
     <div id="usage"></div>
+    <div id="povs"></div>
     <div class="verdict" id="verdict"></div>
     <details id="d-round" open>
       <summary>Round</summary>
@@ -438,6 +458,8 @@ function meta(it){
   renderDossier(it);
   renderRail(it);
   renderRound(it);
+  loadTags(it);
+  renderPovs(it);
   if (window.loadRoundNote) window.loadRoundNote(it);
   const vd = $("verdict");
   if (it.human_role){
@@ -649,11 +671,130 @@ async function verdict(role){
   }
 }
 
+// ── tags ────────────────────────────────────────────────────────────────────
+//
+// QUALITY IS THE VERDICT; PURPOSE IS THE TAGS. They never collapse into each
+// other: a T3 can be the most useful clip in the film because it is the one
+// clean demonstration of a mechanic, and a T4 tagged ALT_POV is an
+// instruction to go and find a better camera rather than a lower score.
+//
+// One keystroke each, because a tag that costs a menu will not be used at
+// review number four hundred.
+const TAG_KEY = {
+  RAIL: "q", LG: "l", ROCKET: "o", GRENADE: "e",
+  AIM: "a", PREDICTION: "p", MOVEMENT: "m", TEAMPLAY: "t",
+  CLUTCH: "c", MULTIKILL: "k", FUNNY: "f", VOICE: "v",
+  LEGACY: "y", ICONIC_PLAYER: "i",
+  CLEAN_POV: "z", ALT_POV: "w",
+  KEEP_CONTEXT: "s", GOLDEN: "g",
+};
+const TAG_BY_KEY = Object.fromEntries(
+  Object.entries(TAG_KEY).map(([t, k]) => [k, t]));
+let tagVocab = null, curTags = new Set();
+
+async function loadVocabulary(){
+  try { tagVocab = await (await fetch(API + "/tags/vocabulary")).json(); }
+  catch(e){ return; }
+  const rail = $("tagrail");
+  rail.replaceChildren();
+  tagVocab.groups.forEach(g => {
+    // GOLDEN and KEEP_CONTEXT carry behaviour rather than description.
+    // GOLDEN has its own button next to the verdicts; KEEP_CONTEXT stays on
+    // the rail because it is a property of the moment, not a command.
+    const tags = g.tags.filter(t => t !== "GOLDEN");
+    if (!tags.length) return;
+    rail.appendChild(el("div", "tgroup", g.name.toUpperCase()));
+    tags.forEach(t => {
+      const b = el("button");
+      b.dataset.tag = t;
+      b.appendChild(el("span", "tk", (TAG_KEY[t] || "").toUpperCase()));
+      b.appendChild(document.createTextNode(t.replace(/_/g, " ")));
+      b.onclick = () => toggleTag(t);
+      rail.appendChild(b);
+    });
+  });
+}
+
+function paintTags(){
+  document.querySelectorAll("#tagrail button").forEach(b => {
+    b.classList.toggle("on", curTags.has(b.dataset.tag));
+  });
+  $("bgold").classList.toggle("on", curTags.has("GOLDEN"));
+}
+
+async function loadTags(item){
+  curTags = new Set();
+  paintTags();
+  try {
+    const d = await (await fetch(API + "/tags/" + encodeURIComponent(item.item_id))).json();
+    if (cur !== item) return;
+    curTags = new Set(d.tags || []);
+    paintTags();
+  } catch(e){ /* a tag panel that fails must not block judging */ }
+}
+
+async function toggleTag(tag){
+  if (!cur) return;
+  const mine = cur, on = !curTags.has(tag);
+  // Painted immediately. The write is confirmed after, and reverted if it
+  // fails -- at one keystroke per tag, waiting for a round trip would make
+  // the rail feel broken.
+  if (on) curTags.add(tag); else curTags.delete(tag);
+  paintTags();
+  try {
+    const r = await fetch(API + "/tag", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({item_id: mine.item_id, tag, on})});
+    if (!r.ok) throw new Error("tag NOT saved");
+  } catch(e){
+    if (cur === mine){
+      if (on) curTags.delete(tag); else curTags.add(tag);
+      paintTags();
+    }
+    toast(e.message || "tag NOT saved");
+  }
+}
+
+$("bgold").addEventListener("click", () => toggleTag("GOLDEN"));
+
+// ── alternate cameras ───────────────────────────────────────────────────────
+async function renderPovs(item){
+  const box = $("povs");
+  if (!box) return;
+  box.replaceChildren();
+  let d;
+  try { d = await (await fetch(API + "/povs/" + encodeURIComponent(item.item_id))).json(); }
+  catch(e){ return; }
+  if (cur !== item || !d.available) return;
+  const line = el("div", "conf", d.summary);
+  box.appendChild(line);
+  if (d.has_alternative){
+    // The "wrong" recorder for the kill is often the right camera for the
+    // film, so the alternatives are named rather than merely counted.
+    const list = el("div", "chips");
+    d.povs.forEach(p => list.appendChild(
+      el("span", "chip" + (p.is_best ? " danger" : ""),
+         p.pov.replace(/_/g, " ").toLowerCase())));
+    box.appendChild(list);
+  }
+}
+
 let lastDeleted = null;
 
 async function dismissCurrent(){
   if (!cur || savingVerdict) return;
   const mine = cur;
+  // A deletion destroys nothing -- but it makes the moment invisible to the
+  // film pipeline, and nobody goes looking through the deleted list for the
+  // only teleporter shot in the archive. So warn, and let the human decide.
+  try {
+    const risk = await (await fetch(API + "/dismiss_risk/"
+      + encodeURIComponent(mine.item_id))).json();
+    if (risk && !risk.safe &&
+        !confirm("Delete anyway?" + String.fromCharCode(10, 10)
+                 + risk.reasons.join(String.fromCharCode(10)))) return;
+  } catch(e){ /* the guard must never be the reason a delete cannot happen */ }
+  if (cur !== mine) return;
   savingVerdict = true;
   document.querySelectorAll(".buttons button").forEach(b => b.disabled = true);
   try {
@@ -704,6 +845,10 @@ document.addEventListener("keydown", async e => {
     e.preventDefault(); $("d-note").open = true; $("note").focus();
   } else if (k === "x"){
     e.preventDefault(); dismissCurrent();
+  } else if (TAG_BY_KEY[k]){
+    // Checked AFTER the fixed bindings, so a tag key can never take a
+    // keystroke away from replay, note, delete or undo.
+    e.preventDefault(); toggleTag(TAG_BY_KEY[k]);
   } else if (k === "u"){
     if (lastDeleted){
       const rr = await fetch(API + "/restore", {method: "POST",
@@ -884,7 +1029,8 @@ async function restoreSession(){
 // know which part broke.
 (async () => {
   for (const [name, step] of [["resume", restoreSession], ["filters", facets],
-                              ["corpora", corpora], ["progress", progress]]) {
+                              ["corpora", corpora], ["tags", loadVocabulary],
+                              ["progress", progress]]) {
     try { await step(); }
     catch (e) { console.error("startup step failed:", name, e);
                 toast(name + " unavailable"); }

@@ -21,6 +21,9 @@ module and a real test. Status is what is TRUE today, not what is planned.*
 | **Origin supervision** | LIVE | `scripts/review_origin.ps1` + `scripts/install_review_task.ps1` | Startup-folder shim | restart proven by killing the process |
 | **Process liveness** | LIVE | `process_liveness.process_alive(pid)` | `OpenProcess` (Windows) | `test_process_liveness.py` |
 | **Live mobile flow** | PROVEN | `scripts/check_review_mobile_live.cjs` | real server, 390x844 | run 2026-09-05 |
+| **Review tags** | LIVE | `review_tags.set_tag()` · `GET/POST /api/review/tag` | `editorial.db` | `test_review_tags_and_povs.py` |
+| **POV cluster** | LIVE | `pov_cluster.povs_for(occurrence_id)` | `kill_events_v1` + `player_teams_v1` | `test_review_tags_and_povs.py` |
+| **Queue hygiene** | LIVE | `review_corpus.junk_sql()` · `dismiss()` / `restore()` | `editorial.db` | `test_queue_hygiene.py` |
 | **Capture determinism** | LIVE | `master_profile.profile_for_intent()` | WolfcamQL | `test_review_capture_determinism.py` |
 | **REVIEW_ENEMY_VISIBILITY** | **PARTIAL — CLOSED** | `master_profile._REVIEW_V2` | WolfcamQL | see below |
 
@@ -330,6 +333,79 @@ handle and queries it instead, and fails CLOSED: access denied counts as
 alive, because a lock takeover based on a failed query is worse than waiting.
 Two remaining `os.kill` calls in the tree are deliberate signals in
 `comfy-pilot`, not liveness probes.
+
+## The review taxonomy — frozen 2026-09-05
+
+`Quality is the verdict. Purpose is the tags. They never collapse.`
+
+One verdict, always exactly one:
+
+    T1 FEATURE / FX     T2 TRANSITION     T3 RHYTHM / MONTAGE
+    T4 KEEP / NORMAL    T5 PASS / FILLER
+
+Any number of tags, including none:
+
+| group | tags | keys |
+|---|---|---|
+| weapon | RAIL · LG · ROCKET · GRENADE | Q L O E |
+| craft | AIM · PREDICTION · MOVEMENT · TEAMPLAY | A P M T |
+| drama | CLUTCH · MULTIKILL · FUNNY · VOICE | C K F V |
+| history | LEGACY · ICONIC_PLAYER | Y I |
+| camera | CLEAN_POV · ALT_POV | Z W |
+| structural | KEEP_CONTEXT · GOLDEN | S G |
+
+**Why they must stay apart.** `T4` alone tells an editor almost nothing six
+months later. `T4 + PREDICTION + ROCKET + CLEAN_POV` tells them where the
+clip belongs. A mechanically ordinary frag can be `T3 + LEGACY + VOICE +
+KEEP_CONTEXT` and be one of the most valuable things in the archive; an
+astonishing frag can be `T4 + ALT_POV`, which is an instruction to go and
+find a better camera, not a lower score.
+
+**GOLDEN is not a sixth band.** It is an instruction: no ranking, sampling or
+downselect may hide this moment. `review_tags.golden_occurrence_ids()` is
+what anything doing selection must consult, and it accepts human provenance
+only — a machine-written GOLDEN is stored and visible but never
+authoritative.
+
+**KEEP_CONTEXT says the frag is not the unit.** A mediocre kill can sit
+inside an extraordinary fifteen seconds.
+
+**The vocabulary is frozen** so that a judgement made at review one thousand
+means what it meant at review one. Adding a tag later is safe; changing what
+one MEANS is not. `AIR_ROCKET`, `MID_AIR`, `CAMERA_GOOD` and `LEGACY_VALUE`
+are deliberately refused: the first two are already machine traits and a
+human tag could disagree with a measurement, and the other two duplicate
+`CLEAN_POV` and `LEGACY`.
+
+## POV is its own axis
+
+`A brilliant event from a useless POV and an ordinary event from a perfect
+POV are completely different assets.`
+
+`pov_cluster.povs_for()` reports every camera that filmed one moment:
+`SELF_POV`, `VICTIM_POV`, `TEAM_POV`, `OTHER_POV`. Killer and victim are
+stated facts from the demo; teammate is derived from `player_teams_v1` and
+falls back to OTHER when team data is missing, because "a stranger filmed
+it" and "your teammate filmed it" lead a director to different decisions.
+
+6,576 occurrences have more than one recording. The reviewer sees
+`3 POVs available`; the killer's own demo is not automatically the best shot.
+
+## Deleting is guarded, not blocked
+
+`X` deletes; nothing is destroyed and `U` restores. But a deletion makes a
+moment **invisible to the film pipeline**, and nobody goes looking through
+the deleted list for the only teleporter shot in the archive. So
+`dismiss_risk()` warns first when the moment is GOLDEN, already tagged, uses
+a rare means of death (< 400 in the archive), or has several cameras — and
+then lets the human decide.
+
+## Telefrags: excluded, not lost
+
+1,443 telefrags leave every normal queue because the map decided them and
+they demonstrate no aim. They stay reachable through the `TELEFRAG_DOC`
+corpus (1,360 after warmup exclusion) because teleporters are part of what
+Quake looks like. It never leaks into the main queue — a test pins that.
 
 ## Capture determinism
 

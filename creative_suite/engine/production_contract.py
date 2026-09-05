@@ -315,6 +315,19 @@ class SceneEventRef:
     human_role: str | None
     human_note: str
     human_note_provenance: str
+    # WHAT THE MOMENT IS FOR, as opposed to how good it is. `T4` alone tells
+    # an editor almost nothing six months later; `T4 + PREDICTION + ROCKET +
+    # CLEAN_POV` tells them where the clip belongs. Captured at review time
+    # because it cannot be recovered afterwards.
+    human_tags: tuple[str, ...]
+    # An instruction, not a score: no ranking, sampling or downselect may
+    # hide this moment.
+    golden: bool
+    # The frag is not the unit here -- the sequence around it is.
+    keep_context: bool
+    # How many cameras filmed it. A brilliant event from a useless POV and
+    # an ordinary event from a perfect POV are different assets.
+    n_povs: int
     usage_state: str | None
 
     def to_dict(self) -> dict[str, Any]:
@@ -350,6 +363,17 @@ class SceneRef:
         return self.media_end_ms - self.media_start_ms
 
     @property
+    def golden_ids(self) -> tuple[int, ...]:
+        """Documentary anchors in this scene. Never downselect these."""
+        return tuple(e.occurrence_id for e in self.events
+                     if e.golden and e.occurrence_id is not None)
+
+    @property
+    def keep_context_ids(self) -> tuple[int, ...]:
+        return tuple(e.occurrence_id for e in self.events
+                     if e.keep_context and e.occurrence_id is not None)
+
+    @property
     def occurrence_ids(self) -> tuple[int, ...]:
         return tuple(e.occurrence_id for e in self.events
                      if e.occurrence_id is not None)
@@ -360,22 +384,32 @@ class SceneRef:
         return d
 
 
-def scene_ref(scene, round_note: dict[str, Any] | None = None) -> SceneRef:
+def scene_ref(scene, round_note: dict[str, Any] | None = None,
+              tags: dict[int, list[str]] | None = None,
+              povs: dict[int, int] | None = None) -> SceneRef:
     """Wrap one `scene.Scene` in its production contract.
 
     `round_note` is whatever `creative_annotation.get_round_annotation`
     returned, or None. Its text is copied VERBATIM.
     """
-    events = tuple(
-        SceneEventRef(
+    from creative_suite.engine import review_tags as rt
+    tg = tags or {}
+    pv = povs or {}
+    events = []
+    for e in scene.events:
+        t = tuple(tg.get(e.occurrence_id, ()) if e.occurrence_id else ())
+        events.append(SceneEventRef(
             event_id=e.event_id, kind=e.kind, t_ms=e.t_ms,
             offset_ms=e.offset_ms, label=e.label,
             occurrence_id=e.occurrence_id, takes_verdict=e.takes_verdict,
             is_user=e.is_user, frag_index=e.frag_index,
             human_role=e.human_role, human_note=e.annotation,
             human_note_provenance=getattr(e, "annotation_provenance", "") or "",
-            usage_state=e.usage_state)
-        for e in scene.events)
+            human_tags=t, golden=rt.GOLDEN in t,
+            keep_context=rt.KEEP_CONTEXT in t,
+            n_povs=int(pv.get(e.occurrence_id, 0) or 0),
+            usage_state=e.usage_state))
+    events = tuple(events)
     note = (round_note or {}).get("annotation", "") or ""
     prov = ((round_note or {}).get("provenance") or UNAVAILABLE) if note \
         else UNAVAILABLE
@@ -462,6 +496,8 @@ class ChoreographyInput:
 
 def choreography_input(scene, truths: list[dict[str, Any]] | None = None,
                        round_note: dict[str, Any] | None = None,
+                       tags: dict[int, list[str]] | None = None,
+                       povs: dict[int, int] | None = None,
                        ) -> ChoreographyInput:
     """Convert one Scene (+ any ActionTruths already built for it) to the
     planning layer's input.
@@ -470,7 +506,7 @@ def choreography_input(scene, truths: list[dict[str, Any]] | None = None,
     than fetched so this boundary stays free of database access -- and so a
     test can prove the conversion without a corpus.
     """
-    ref = scene_ref(scene, round_note)
+    ref = scene_ref(scene, round_note, tags, povs)
     actions = tuple(action_truth_ref(t) for t in (truths or [])
                     if t.get("available"))
 
@@ -606,4 +642,13 @@ def build_choreography_input_for_scene(scene_id: str, db: Path | None = None
             truths.append(t)
 
     note = ca.get_round_annotation(scene.content_hash, scene.round_no)
-    return choreography_input(scene, truths, note)
+
+    # The review-time capture, loaded from storage exactly like the notes.
+    # Tags that only the reviewer's page could see would be no more use to
+    # the film than a note the scene builder never read.
+    from creative_suite.engine import pov_cluster as pv
+    from creative_suite.engine import review_tags as rt
+    occ = [e.occurrence_id for e in scene.events if e.occurrence_id]
+    tags = rt.tags_for_many(occ)
+    povs = {o: pv.povs_for(o, **kw)["n_povs"] for o in occ}
+    return choreography_input(scene, truths, note, tags, povs)

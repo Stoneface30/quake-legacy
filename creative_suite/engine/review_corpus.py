@@ -212,8 +212,15 @@ RECORDER_OWN_ARCHIVE = "RECORDER_OWN_ARCHIVE"
 PTN_FRAGS = "PTN_FRAGS"
 USER_AND_PTN = "USER_AND_PTN"
 ALL_PLAYERS = "ALL_PLAYERS"
+# Telefrags are excluded from every normal queue because they demonstrate no
+# aim -- the map decided them. They are NOT deleted, because teleporters are
+# part of what Quake looks like and the documentary wants real teleportation.
+# This corpus is the only way to reach them, it is opt-in, and it never
+# leaks into the main queue.
+TELEFRAG_DOC = "TELEFRAG_DOC"
+
 CORPORA = (USER_FRAGS, RECORDER_OWN_ARCHIVE, PTN_FRAGS, USER_AND_PTN,
-           ALL_PLAYERS)
+           ALL_PLAYERS, TELEFRAG_DOC)
 
 # The old names, kept so nothing that referenced them breaks silently. They
 # are deliberately not in CORPORA: "MY_FRAGS" was the misnomer.
@@ -295,6 +302,7 @@ CORPUS_ITEM_TYPE = {
     PTN_FRAGS: CLAN_FRAG,
     USER_AND_PTN: ALL_KILL,    # narrowed to user + roster in the SQL
     ALL_PLAYERS: ALL_KILL,
+    TELEFRAG_DOC: ALL_KILL,      # same family, opposite junk rule
 }
 
 # What the user is actually looking at, in words, so a denominator is never
@@ -305,6 +313,7 @@ CORPUS_LABEL = {
     PTN_FRAGS: "pTn CONFIRMED-MEMBER FRAGS",
     USER_AND_PTN: "USER + pTn (unique occurrences)",
     ALL_PLAYERS: "ALL CANONICAL PLAYER KILLS",
+    TELEFRAG_DOC: "TELEFRAGS (documentary only)",
 }
 
 DEFAULT_CORPUS = USER_FRAGS
@@ -392,6 +401,15 @@ def corpus_status(corpus: str) -> dict[str, Any]:
             out["blocked_by"] = ("no confirmed user identity has any "
                                  "attributed kill")
         return out
+    if corpus == TELEFRAG_DOC:
+        total = count_items(ALL_KILL, corpus=TELEFRAG_DOC)
+        return {"corpus": corpus, "label": CORPUS_LABEL[corpus],
+                "item_type": ALL_KILL, "available": total > 0,
+                "total": total, "scored": False,
+                "note": ("telefrags, which every other queue excludes "
+                         "because the map decided them and they demonstrate "
+                         "no aim. Kept reachable because teleporters are "
+                         "part of what Quake looks like")}
     if corpus in (PTN_FRAGS, USER_AND_PTN, ALL_PLAYERS):
         it = CORPUS_ITEM_TYPE[corpus]
         total = count_items(it, corpus=corpus)
@@ -581,13 +599,18 @@ _WARMUP_SQL = ("NOT (o.round = 0 AND EXISTS (SELECT 1 FROM round_kills_v1 rk "
                "WHERE rk.content_hash = k.content_hash AND rk.round >= 1))")
 
 
-def junk_sql() -> tuple[str, list[Any]]:
+def junk_sql(corpus: str | None = None) -> tuple[str, list[Any]]:
     """Exclusions every kill queue shares: warmup, telefrags, deletions.
 
     A telefrag is decided by the map, not by the player -- it cannot be aimed
     and it cannot be made interesting. 1,443 across the corpus.
     """
-    sql = f" AND o.mod <> {MOD_TELEFRAG} AND {_WARMUP_SQL}"
+    # The documentary corpus asks for exactly what every other queue
+    # refuses. Warmup and deletions still apply -- a warmup telefrag is no
+    # more watchable than any other warmup kill.
+    mod_rule = (f"o.mod = {MOD_TELEFRAG}" if corpus == TELEFRAG_DOC
+                else f"o.mod <> {MOD_TELEFRAG}")
+    sql = f" AND {mod_rule} AND {_WARMUP_SQL}"
     gone = dismissed_occurrence_ids()
     if gone:
         # Inlined as integers rather than bound parameters because the queue
@@ -1037,7 +1060,7 @@ def _kill_rows(order: str, limit: int, offset: int, unreviewed_only: bool,
                filters: dict[str, Any] | None = None) -> list[sqlite3.Row]:
     where, params = _kill_where(item_type, corpus)
     fw, fp = _filter_sql(filters)
-    jw, jp = junk_sql()
+    jw, jp = junk_sql(corpus)
     where, params = where + fw + jw, params + fp + jp
     select = _DEATH_SELECT if item_type == DEATH else _KILL_SELECT
     direction = "ASC" if order == ORDER_WORST_FIRST else "DESC"
@@ -1208,7 +1231,7 @@ def count_items(item_type: str = FRAG, corpus: str | None = None,
             return 0
         where, params = _kill_where(item_type, corpus)
         fw, fp = _filter_sql(filters)
-        jw, jp = junk_sql()
+        jw, jp = junk_sql(corpus)
         with _rec() as c:
             return int(c.execute(
                 "SELECT COUNT(*) FROM kill_occurrences_v1 o JOIN "
@@ -1448,3 +1471,63 @@ def dismissed(limit: int = 500) -> list[dict[str, Any]]:
         return [dict(r) for r in c.execute(
             "SELECT * FROM dismissed_occurrences ORDER BY dismissed_at DESC "
             "LIMIT ?", (limit,))]
+
+
+# ── protection before a deletion ────────────────────────────────────────────
+
+# A means of death this rare is a category, not a statistic. Below this the
+# archive may hold only a handful, and losing the good one to a tired thumb
+# costs something no recapture can restore.
+RARE_MOD_BELOW = 400
+
+
+def dismiss_risk(item_id: str) -> dict[str, Any]:
+    """Reasons this particular moment should not be deleted without a look.
+
+    DELETION DOES NOT DESTROY ANYTHING -- the occurrence, its observations
+    and its media all stay. What it destroys is VISIBILITY: a dismissed clip
+    is invisible to the film pipeline, and nobody goes looking through the
+    deleted list for the only teleporter shot in the archive.
+
+    So this warns rather than refuses. The reviewer is the authority; they
+    just should not find out afterwards.
+    """
+    it = item(item_id)
+    if it is None:
+        raise ValueError(f"no such item: {item_id}")
+    reasons: list[str] = []
+    oid = int(it.source_id)
+
+    from creative_suite.engine import review_tags as rt
+    tags = rt.tags_for(oid)
+    if rt.GOLDEN in tags:
+        reasons.append("you marked this GOLDEN -- a documentary anchor")
+    if rt.KEEP_CONTEXT in tags:
+        reasons.append("you marked KEEP_CONTEXT: the sequence around it "
+                       "matters, not the kill")
+    other = [t for t in tags if t not in (rt.GOLDEN, rt.KEEP_CONTEXT)]
+    if other:
+        reasons.append("already tagged " + ", ".join(other))
+
+    if it.item_type in KILL_BACKED:
+        with _rec() as c:
+            row = c.execute(
+                "SELECT mod, mod_name, n_observations FROM "
+                "kill_occurrences_v1 WHERE occurrence_id = ?", (oid,)
+            ).fetchone()
+            if row is not None:
+                n = c.execute(
+                    "SELECT COUNT(*) FROM kill_occurrences_v1 WHERE mod = ?",
+                    (row["mod"],)).fetchone()[0]
+                if n < RARE_MOD_BELOW:
+                    reasons.append(
+                        f"{row['mod_name']} is rare -- only {n} in the whole "
+                        f"archive")
+                if (row["n_observations"] or 1) > 1:
+                    # Deleting the occurrence hides every camera on it,
+                    # including the one nobody has looked at yet.
+                    reasons.append(
+                        f"{row['n_observations']} camera angles exist for "
+                        f"this moment; deleting hides all of them")
+    return {"item_id": item_id, "occurrence_id": oid,
+            "safe": not reasons, "reasons": reasons}

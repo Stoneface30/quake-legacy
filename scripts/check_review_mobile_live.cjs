@@ -174,7 +174,34 @@ const step = (n, msg) => console.log(`  [${n}] ${msg}`);
     step(8, 'failed render shows RETRY and retry posts exactly once');
     results.push('FAILED -> RETRY works');
 
+    // ── tags: one keystroke, orthogonal to the verdict ───────────────────
+    const before = await page.evaluate(() => cur.item_id);
+    await page.locator('#tagrail button[data-tag="PREDICTION"]').click();
+    await page.keyboard.press('o');                   // ROCKET
+    await page.locator('#bgold').click();             // GOLDEN
+    await page.waitForTimeout(1200);
+    const tagged = await page.evaluate(() => [...curTags].sort());
+    assert.deepEqual(tagged, ['GOLDEN', 'PREDICTION', 'ROCKET'],
+                     'tags did not stick: ' + JSON.stringify(tagged));
+    assert.equal(await page.evaluate(() => cur.item_id), before,
+                 'tagging advanced the reviewer');
+    // Persisted, not just painted.
+    const server = await (await fetch(`${API}/tags/` + encodeURIComponent(before))).json();
+    assert.deepEqual(server.tags.sort(), ['GOLDEN', 'PREDICTION', 'ROCKET'],
+                     'tags were not stored');
+    step(9.1, `tagged ${before}: ${server.tags.join(' + ')} (verdict untouched)`);
+    results.push('tags persist and never touch the verdict');
+
+    // ── every camera on the moment is reported ───────────────────────────
+    const povText = await page.locator('#povs').textContent();
+    assert.ok(povText && povText.trim().length, 'no POV line rendered');
+    step(9.2, 'cameras: ' + povText.trim().slice(0, 60));
+    results.push('POV reported alongside the verdict');
+
     // ── delete removes the item and undo brings it back ──────────────────
+    // A tagged, GOLDEN moment must warn before it disappears.
+    let warned = null;
+    page.once('dialog', async d => { warned = d.message(); await d.accept(); });
     injecting = false;
     await page.unroute('**/api/review/media_state/*');
     const target = await page.evaluate(() => cur.item_id);
@@ -182,6 +209,8 @@ const step = (n, msg) => console.log(`  [${n}] ${msg}`);
     await page.waitForFunction(id => cur && cur.item_id !== id, target,
                                { timeout: 30000 });
     assert.ok(posts.some(p => p.endsWith('/dismiss')), 'delete posted nothing');
+    assert.ok(warned && /GOLDEN/.test(warned),
+              'deleting a GOLDEN moment did not warn: ' + warned);
     step(10, `deleted ${target}, advanced to ${await page.evaluate(() => cur.item_id)}`);
     results.push('delete removes the item and advances');
 

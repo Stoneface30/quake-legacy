@@ -206,3 +206,61 @@ def test_the_live_note_the_user_actually_wrote_is_reachable():
     ci = pc.build_choreography_input_for_scene(SCENE_ID)
     got = ci.notes_for(JUMPPAD_EVENT)
     assert got and got[0].text == stored["annotation"]
+
+
+# ── review-time capture reaches production too ──────────────────────────────
+
+def test_tags_and_golden_reach_the_production_entrypoint(isolated_editorial,
+                                                          monkeypatch):
+    """The same lesson as the notes, one layer up.
+
+    A tag the reviewer's page can see and the planning layer cannot is worth
+    exactly as much to the film as a note the scene builder never read. So
+    this writes through the real tag API and reads back through the real
+    entrypoint, with nothing injected.
+    """
+    from creative_suite.engine import review_tags as rt
+    monkeypatch.setattr(rt, "EDITORIAL_DB", isolated_editorial)
+
+    s = sc.build_scene(SCENE_HASH, SCENE_ROUND)
+    frag = next(e for e in s.events if e.occurrence_id is not None)
+
+    rt.set_tag(frag.occurrence_id, "PREDICTION", provenance=AS_HUMAN)
+    rt.set_tag(frag.occurrence_id, "ROCKET", provenance=AS_HUMAN)
+    rt.set_tag(frag.occurrence_id, rt.GOLDEN, provenance=AS_HUMAN)
+    rt.set_tag(frag.occurrence_id, rt.KEEP_CONTEXT, provenance=AS_HUMAN)
+
+    ci = pc.build_choreography_input_for_scene(SCENE_ID)
+    got = next(e for e in ci.scene.events
+               if e.occurrence_id == frag.occurrence_id)
+
+    assert set(got.human_tags) == {"PREDICTION", "ROCKET", "GOLDEN",
+                                   "KEEP_CONTEXT"}
+    assert got.golden is True
+    assert got.keep_context is True
+    assert frag.occurrence_id in ci.scene.golden_ids
+    assert frag.occurrence_id in ci.scene.keep_context_ids
+    # And the camera count, so a planner can tell a brilliant event from a
+    # useless POV apart from an ordinary one filmed perfectly.
+    assert got.n_povs >= 1
+
+
+def test_purpose_never_becomes_quality_at_the_boundary(isolated_editorial,
+                                                        monkeypatch):
+    """Tags must not be readable as a verdict, or as direction.
+
+    A tag is a machine-legible property the human chose. It is not the
+    director's wording, and it must not arrive in `direction` where a
+    planner reads instructions.
+    """
+    from creative_suite.engine import review_tags as rt
+    monkeypatch.setattr(rt, "EDITORIAL_DB", isolated_editorial)
+    s = sc.build_scene(SCENE_HASH, SCENE_ROUND)
+    frag = next(e for e in s.events if e.occurrence_id is not None)
+    rt.set_tag(frag.occurrence_id, "FUNNY", provenance=AS_HUMAN)
+
+    ci = pc.build_choreography_input_for_scene(SCENE_ID)
+    assert not any("FUNNY" in n.text for n in ci.direction)
+    got = next(e for e in ci.scene.events
+               if e.occurrence_id == frag.occurrence_id)
+    assert got.human_role is None or got.human_role.startswith("T")

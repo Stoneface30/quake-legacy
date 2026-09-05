@@ -167,6 +167,78 @@ def get_dismissed(limit: int = Query(100, le=500)):
     return {"items": rc.dismissed(limit)}
 
 
+# ── tags: what a moment is FOR, kept apart from how good it is ──────────────
+
+class TagWrite(BaseModel):
+    item_id: str
+    tag: str
+    on: bool = True
+
+
+@router.get("/tags/vocabulary")
+def get_tag_vocabulary():
+    """The frozen vocabulary, grouped for the eye only.
+
+    Frozen so that judgements made in review one thousand still mean what
+    they meant in review one. Adding a tag later is safe; changing what one
+    MEANS is not, which is why the list is served rather than typed.
+    """
+    from creative_suite.engine import review_tags as rt
+    return {"version": rt.TAG_VERSION,
+            "groups": [{"name": n, "tags": list(t)} for n, t in rt.GROUPS],
+            "structural": {"golden": rt.GOLDEN,
+                           "keep_context": rt.KEEP_CONTEXT},
+            "counts": rt.counts()}
+
+
+@router.post("/tag")
+def post_tag(t: TagWrite):
+    from creative_suite.engine import review_tags as rt
+    it = rc.item(t.item_id)
+    if it is None:
+        raise HTTPException(404, f"no such item: {t.item_id}")
+    try:
+        return rt.set_tag(int(it.source_id), t.tag, t.on, item_id=t.item_id)
+    except rt.UnknownTag as e:
+        raise HTTPException(400, str(e))
+
+
+@router.get("/tags/{item_id}")
+def get_tags(item_id: str):
+    from creative_suite.engine import review_tags as rt
+    it = rc.item(item_id)
+    if it is None:
+        raise HTTPException(404, f"no such item: {item_id}")
+    return {"item_id": item_id, "occurrence_id": int(it.source_id),
+            "tags": rt.tags_for(int(it.source_id))}
+
+
+@router.get("/povs/{item_id}")
+def get_povs(item_id: str):
+    """Every camera that filmed this moment.
+
+    A brilliant event from a useless POV and an ordinary event from a perfect
+    POV are completely different assets, so this is reported next to the
+    verdict and never folded into it.
+    """
+    from creative_suite.engine import pov_cluster as pv
+    it = rc.item(item_id)
+    if it is None:
+        raise HTTPException(404, f"no such item: {item_id}")
+    if it.item_type not in rc.KILL_BACKED:
+        return {"item_id": item_id, "available": False, "n_povs": 0,
+                "povs": []}
+    return {"item_id": item_id, **pv.povs_for(int(it.source_id))}
+
+
+@router.get("/dismiss_risk/{item_id}")
+def get_dismiss_risk(item_id: str):
+    try:
+        return rc.dismiss_risk(item_id)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+
 @router.post("/undo")
 def post_undo():
     out = rc.undo_last()
