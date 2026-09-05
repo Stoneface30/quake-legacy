@@ -90,6 +90,62 @@ class ExportRefused(Exception):
     """A batch that would be too large, or a request with no usable source."""
 
 
+# Every cvar that can put a handle on screen. The public profile must hold
+# each of these at 0, and that is checked before a batch runs rather than
+# trusted. Two of them are TIME gates, not booleans -- there is no
+# cg_drawFragMessage or cg_obituary cvar to switch off, so an eyeballed
+# "it looks disabled" is not the same as disabled.
+NAME_BEARING_CVARS = (
+    "cg_drawFragMessageTime",     # "You fragged %v"
+    "cg_obituaryTime",            # "%k %i %v" -- killer AND victim
+    "cg_drawCenterPrint",
+    "cg_drawCrosshairNames",
+    "cg_drawPlayerNames",
+    "cg_drawTeamOverlay",
+    "cg_drawAttacker",
+    "cg_drawFollowing",
+    "wolfcam_drawFollowing",
+    "cg_drawSpecMessages",
+    "cg_chatTime",
+    "cg_chatLines",
+    "con_notifytime",
+    "con_notifylines",
+    "cg_scoreBoardWhenDead",
+    "cg_roundScoreBoard",
+    "cg_scoreBoardAtIntermission",
+    "cg_scoreBoardWarmup",
+    "cg_drawScores",
+)
+
+
+def assert_capture_profile_is_nameless() -> str:
+    """Refuse to export unless the public profile draws no names. Returns its id.
+
+    This is the gate, and it is deliberately a check on the CONFIGURATION
+    rather than on the pixels. The bug it exists to stop was a silent default
+    -- capture_demo() called without a profile argument, quietly filming with
+    the batch profile that draws "You fragged <victim>" -- and the class of
+    regression that would reopen it is somebody changing a value in
+    master_profile. Both are visible here, deterministically, before a single
+    frame is captured.
+
+    A pixel check was measured as an alternative and is NOT used for this:
+    see creative_suite/engine/burned_name_guard.py for why a blown-out barred
+    window scores higher than the text it is meant to catch.
+    """
+    from creative_suite.engine import master_profile as mp
+    profile = mp.PROFILES[mp.PUBLIC_EXPORT_PROFILE_NAME]
+    live = {k: profile.get(k) for k in NAME_BEARING_CVARS
+            if profile.get(k) not in (0, "0")}
+    if live:
+        raise ExportRefused(
+            f"{mp.PUBLIC_EXPORT_PROFILE_NAME} would burn player names into the "
+            f"picture: {live}. Public clips carry identity as a manifest field, "
+            "never as pixels -- a field can be withheld after a vote, a pixel "
+            "cannot be un-shown.")
+    return mp.profile_id(mp.PUBLIC_EXPORT_PROFILE_NAME)
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -248,7 +304,8 @@ def _stats_block(cand: ExportCandidate) -> dict[str, Any]:
 def manifest_row(cand: ExportCandidate, clip_rel: str, clip_hash: str,
                  event_offset_ms: int, duration_ms: int | None,
                  note: str | None = None,
-                 public_eligible: bool = ELIGIBLE_DEFAULT) -> dict[str, Any]:
+                 public_eligible: bool = ELIGIBLE_DEFAULT,
+                 capture_profile_id: str | None = None) -> dict[str, Any]:
     """The portable record. Everything THE_PANTHEON needs, nothing local.
 
     `source_demo_ref` is the demo's content hash: enough for this repository
@@ -283,6 +340,12 @@ def manifest_row(cand: ExportCandidate, clip_rel: str, clip_hash: str,
         # the event truth came from. Always a capture made now, from a raw
         # demo -- never a V1 render.
         "media_provenance": "RAW_DEMO_CAPTURE",
+        # WHICH CAMERA SETTINGS drew these pixels. Recorded because
+        # "overlays_added: []" only ever described what this module drew on
+        # top, and the thing that actually put a name on screen was the
+        # engine, one layer below. An importer can check this id; so can a
+        # later audit of clips already exported.
+        "capture_profile_id": capture_profile_id,
         # Disclosure is THE_PANTHEON's to make, but the safe answer travels
         # with the clip so an unconfigured importer cannot publish by default.
         "public_eligible": bool(public_eligible),
@@ -292,7 +355,7 @@ def manifest_row(cand: ExportCandidate, clip_rel: str, clip_hash: str,
 
 
 def _capture(cand: ExportCandidate, start_ms: int, end_ms: int,
-             dest: Path) -> None:
+             dest: Path) -> str | None:
     """Produce the clip. Same reliable capture route the review proxy uses.
 
     Deliberately plain: no PANTHEON camera, no world effects, no
@@ -308,7 +371,10 @@ def _capture(cand: ExportCandidate, start_ms: int, end_ms: int,
              "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
              "-movflags", "+faststart", "-c:a", "aac", "-b:a", "160k",
              str(dest)], check=True, capture_output=True, timeout=300)
-        return
+        # No engine ran, so no profile filmed this. Naming one here would put
+        # a provenance claim on a test fixture, which is the same class of
+        # untrue-but-plausible metadata this field exists to end.
+        return None
 
     # WolfcamQL is one-at-a-time, and the review proxy worker drives it too.
     # Without the shared marker the two would launch the engine concurrently
@@ -323,13 +389,13 @@ def _capture(cand: ExportCandidate, start_ms: int, end_ms: int,
         time.sleep(LOCK_POLL_S)
         waited += LOCK_POLL_S
     try:
-        _capture_locked(cand, start_ms, end_ms, dest)
+        return _capture_locked(cand, start_ms, end_ms, dest)
     finally:
         rp._release_lock()
 
 
 def _capture_locked(cand: ExportCandidate, start_ms: int, end_ms: int,
-                    dest: Path) -> None:
+                    dest: Path) -> str:
     from creative_suite.engine import wolfcam_capture as wc
     wc.ensure_install()
     demo_path = REPO_ROOT / "demos" / cand.demo_name
@@ -341,8 +407,16 @@ def _capture_locked(cand: ExportCandidate, start_ms: int, end_ms: int,
     mprov.assert_demo_source(demo_path, "public export source")
     safe = wc.stage_demo(demo_path)
     clip_name = f"px_{cand.external_source_id[3:19]}"
+    # The capture profile is the disclosure boundary, so it is named here
+    # explicitly. Omitting it does not mean "no profile" -- it means
+    # PROFILE_NAME, the batch profile, which deliberately burns
+    # "You fragged <victim>" into the picture. That default is how the
+    # no-names promise in this module's docstring was broken for every clip
+    # captured before this argument existed.
+    from creative_suite.engine.master_profile import PUBLIC_EXPORT_PROFILE_NAME
     res = wc.capture_demo(safe, [{"clip_name": clip_name,
-                                  "start_ms": start_ms, "end_ms": end_ms}])
+                                  "start_ms": start_ms, "end_ms": end_ms}],
+                          profile=PUBLIC_EXPORT_PROFILE_NAME)
     if not res["ok"]:
         raise ExportRefused(res.get("error") or "wolfcam capture failed")
     avi = Path(res["avis"][clip_name])
@@ -358,6 +432,8 @@ def _capture_locked(cand: ExportCandidate, start_ms: int, end_ms: int,
                 avi.unlink()          # the AVI is scratch, the MP4 ships
         except OSError:
             pass
+    from creative_suite.engine import master_profile as _mp
+    return _mp.profile_id(PUBLIC_EXPORT_PROFILE_NAME)
 
 
 def export(cands: list[ExportCandidate], root: Path = EXPORT_ROOT,
@@ -375,6 +451,10 @@ def export(cands: list[ExportCandidate], root: Path = EXPORT_ROOT,
             "export is a deliberate act, not a corpus dump")
     if not cands:
         raise ExportRefused("nothing to export")
+    # Before anything is captured: prove the profile that will film these
+    # clips draws no player names. Once per batch, not once per clip -- it is
+    # a property of the configuration, and it either holds or nothing ships.
+    assert_capture_profile_is_nameless()
     clips = root / CLIP_DIR_NAME
     clips.mkdir(parents=True, exist_ok=True)
     manifest = root / MANIFEST_NAME
@@ -401,9 +481,10 @@ def export(cands: list[ExportCandidate], root: Path = EXPORT_ROOT,
         rel = f"{CLIP_DIR_NAME}/{cand.external_source_id}.mp4"
         dest = clips / f"{cand.external_source_id}.mp4"
         try:
-            _capture(cand, start_ms, end_ms, dest)
+            filmed_with = _capture(cand, start_ms, end_ms, dest)
             row = manifest_row(cand, rel, file_hash(dest), offset,
-                               probe_duration_ms(dest), note, public_eligible)
+                               probe_duration_ms(dest), note, public_eligible,
+                               capture_profile_id=filmed_with)
             with manifest.open("a", encoding="utf-8") as fh:
                 fh.write(json.dumps(row) + "\n")
             written.append(row)
@@ -449,7 +530,12 @@ def refresh_manifest(root: Path = EXPORT_ROOT,
         rows.append(manifest_row(
             cand, r["clip_path"], r["content_hash"], r["event_offset_ms"],
             r["duration_ms"], r.get("source_note"),
-            bool(r.get("public_eligible", ELIGIBLE_DEFAULT))))
+            bool(r.get("public_eligible", ELIGIBLE_DEFAULT)),
+            # carried, not recomputed: this records which profile filmed the
+            # media that is on disk, and refresh does not recapture. A row
+            # from before the field existed stays null rather than being
+            # backfilled with today's answer.
+            capture_profile_id=r.get("capture_profile_id")))
     manifest.write_text("".join(json.dumps(x) + chr(10) for x in rows),
                         encoding="utf-8")
     return {"refreshed": len(rows), "dropped": dropped}

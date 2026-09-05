@@ -400,7 +400,68 @@ _SPEED_REVIEW = {
     "cg_drawSpeedometerAlignment": "center",
 }
 
+# ── the public-export capture profile ───────────────────────────────────────
+# THE ONLY PROFILE THAT MAY FILM SOMETHING A STRANGER WILL SEE.
+#
+# public_clip_export.py promises, in its own docstring, that no name is burned
+# in and that "identity travels as data, not as pixels" -- a field can be
+# withheld after a vote, a pixel cannot be un-shown. That promise was made by
+# the export module and then broken by this one: the export called
+# wolfcam_capture.capture_demo() without a profile argument, so it captured
+# with PROFILE_NAME (TR4SH_GAMEPLAY_MASTER_V2, id 091901df0daf), and that
+# profile deliberately draws cg_drawFragMessageTokens "You fragged %v".
+# Measured on the review proxies captured with that same id: the victim's
+# handle, centred, around y 210-265 of a 1920x1080 frame, for two seconds
+# after every kill.
+#
+# The gameplay master is NOT changed. "You fragged <name>" is a deliberate
+# old-school fragmovie beat in the user's own film, where the names are the
+# point. It is only wrong when the audience is strangers and the clip is a
+# blind vote. Two audiences, two profiles -- the same reasoning that already
+# gives review its own profile.
+#
+# EVERY NAME-BEARING CVAR IS RE-PINNED HERE, including ones the base profiles
+# already set to 0. This profile's guarantee must be readable in one place and
+# must not depend on three dicts up the inheritance chain keeping their
+# current values -- a future edit to _CLEAN_POV or _GAMEPLAY_MASTER_V2 must
+# not be able to quietly re-open a disclosure path.
+#
+# The two that were actually leaking are gated by TIME cvars, not booleans
+# (the same trap noted at _CLEAN_POV): setting cg_drawFragMessage 0 or
+# cg_obituary 0 would do nothing, because neither cvar exists.
+_PUBLIC_EXPORT = {
+    **_GAMEPLAY_MASTER_V2,
+    # -- the two that were measured burning names into shipped frames --
+    "cg_drawFragMessageTime": 0,     # was 2000: "You fragged %v", %v = victim
+    "cg_obituaryTime": 0,            # was 2500: "%k %i %v", killer AND victim
+    # -- re-pinned: every other channel that can put a handle on screen --
+    "cg_drawCenterPrint": 0,
+    "cg_drawCrosshairNames": 0,
+    "cg_drawCrosshairTeammateHealth": 0,
+    "cg_drawPlayerNames": 0,
+    "cg_drawFriend": 0,
+    "cg_drawTeamOverlay": 0,
+    "cg_drawAttacker": 0,
+    "cg_drawFollowing": 0,
+    "wolfcam_drawFollowing": 0,
+    "cg_drawSpecMessages": 0,
+    "cg_drawSelf": 0,
+    # chat and console carry names verbatim
+    "cg_chatTime": 0,
+    "cg_chatLines": 0,
+    "con_notifytime": 0,
+    "con_notifylines": 0,
+    # the scoreboard is a list of names, and it pops itself on death and at
+    # round end -- both of which fall inside a +/-5s public window
+    "cg_scoreBoardWhenDead": 0,
+    "cg_roundScoreBoard": 0,
+    "cg_scoreBoardAtIntermission": 0,
+    "cg_scoreBoardWarmup": 0,
+    "cg_drawScores": 0,
+}
+
 PROFILES = {
+    "TR4SH_PUBLIC_EXPORT": {**_QUALITY, **_PUBLIC_EXPORT},
     "TR4SH_REVIEW_V2": {**_QUALITY, **_GAMEPLAY_MASTER_V2, **_REVIEW_V2},
     "TR4SH_SPEED_REVIEW": {**_QUALITY, **_SPEED_REVIEW},
     "TR4SH_GAMEPLAY_MASTER_V2": {**_QUALITY, **_GAMEPLAY_MASTER_V2},
@@ -413,6 +474,7 @@ PROFILES = {
 }
 
 _CFG_FILES = {
+    "TR4SH_PUBLIC_EXPORT": "wolfcam_tr4sh_public_export.cfg",
     "TR4SH_REVIEW_V2": "wolfcam_tr4sh_review_v2.cfg",
     "TR4SH_SPEED_REVIEW": "wolfcam_tr4sh_speed_review.cfg",
     "TR4SH_GAMEPLAY_MASTER_V2": "wolfcam_tr4sh_master_capture.cfg",
@@ -434,6 +496,12 @@ SPEED_PROFILE_NAME = "TR4SH_SPEED_REVIEW"
 # clips can never be served as current review clips. Regeneration is on
 # demand; nothing is mass recaptured.
 REVIEW_PROFILE_NAME = "TR4SH_REVIEW_V2"
+# The profile every clip that leaves this repository is captured with. It is
+# separate from the batch profile on purpose: the batch profile films the
+# user's own movie, where "You fragged <name>" is a deliberate beat, and this
+# one films for strangers, where a name in the picture is a disclosure that
+# cannot be taken back. public_clip_export.py must pass this and nothing else.
+PUBLIC_EXPORT_PROFILE_NAME = "TR4SH_PUBLIC_EXPORT"
 
 
 def cfg_text(profile: str = PROFILE_NAME) -> str:
