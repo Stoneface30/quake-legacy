@@ -1,5 +1,7 @@
 # Open Items (extracted 2026-04-20)
 
+> Current review: [2026-09-05 status and verification](../reference/project-review-2026-09-05.md). Entries below are dated historical evidence, not live readiness.
+
 ## Blocking for batch render
 - Part 3 style lock: A/B/C/V5 hybrid -- user decision needed before Parts 4-12 full batch
 - Game audio level: 0.55 vs 0.75 A/B test on next render pass (Config.game_audio_volume)

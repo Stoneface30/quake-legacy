@@ -39,6 +39,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from creative_suite.engine.process_liveness import process_alive
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 _DB_DIR = REPO_ROOT / "creative_suite" / "database"
 
@@ -59,6 +61,23 @@ _MAX_LOCK_WAITS = 240      # give up after ~20 min of a held lock
 _queue: "queue.Queue[dict[str, Any] | None]" = queue.Queue()
 _worker: threading.Thread | None = None
 _worker_mutex = threading.Lock()
+# Keys currently on the in-memory queue. `reclaim_orphaned_jobs` consults it
+# so that adopting orphans from the database cannot enqueue a job this
+# process is already about to run -- which would capture the same forty
+# seconds of wolfcam twice.
+_queued_keys: set[str] = set()
+_queued_mutex = threading.Lock()
+
+
+def _enqueue(job: dict[str, Any]) -> None:
+    with _queued_mutex:
+        _queued_keys.add(job["key"])
+    _queue.put(job)
+
+
+def _dequeued(key: str) -> None:
+    with _queued_mutex:
+        _queued_keys.discard(key)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS review_proxies (
@@ -204,7 +223,7 @@ def get_states(frag_ids: list[int]) -> dict[int, dict[str, Any]]:
 
 
 def request_proxy(
-    frag_id: int, demo_name: str, start_ms: int, end_ms: int
+    frag_id: int, demo_name: str, start_ms: int, end_ms: int, *, retry: bool = False
 ) -> dict[str, Any]:
     """Queue proxy generation (idempotent). Returns the current state row."""
     demo_path, content_hash = demo_source(demo_name)
@@ -231,8 +250,21 @@ def request_proxy(
             if d["state"] == "READY" and d["mp4_path"] and Path(d["mp4_path"]).exists():
                 return d  # never regenerate a READY key
             if d["state"] in ("QUEUED", "GENERATING"):
-                return d
-            # FAILED (or READY with missing file): requeue below.
+                if not retry or (_worker is not None and _worker.is_alive()):
+                    # Self-healing without mutating anything: make sure a
+                    # worker exists. This row was queued by SOME process, and
+                    # if that process is gone the reclaim inside
+                    # _ensure_worker adopts it. Returning here without this
+                    # was the endless spinner -- the early return happens
+                    # before the worker would ever have been started, so a
+                    # job orphaned by a restart could never run again.
+                    _ensure_worker()
+                    return d
+                # An explicit retry after process restart recovers a job
+                # whose persisted state outlived its in-memory worker.
+            if d["state"] == "FAILED" and not retry:
+                return d  # polling must not erase a failure and start again
+            # Explicit retry (or READY with missing file): requeue below.
         now = _now()
         conn.execute(
             "INSERT INTO review_proxies (key, frag_id, demo_name, start_ms,"
@@ -247,7 +279,7 @@ def request_proxy(
             "SELECT * FROM review_proxies WHERE key = ?", (key,)).fetchone())
     finally:
         conn.close()
-    _queue.put({
+    _enqueue({
         "key": key, "frag_id": frag_id, "demo_name": demo_name,
         "demo_path": str(demo_path), "start_ms": int(start_ms),
         "end_ms": int(end_ms), "lock_waits": 0,
@@ -281,11 +313,8 @@ def _try_acquire_lock() -> bool:
         except ValueError:
             pid = None
         if pid is not None and pid != os.getpid():
-            try:
-                os.kill(pid, 0)
+            if process_alive(pid):
                 return False  # live holder — skip and requeue
-            except OSError:
-                pass  # stale lock — take over
     LOCK_PATH.write_text(str(os.getpid()))
     return True
 
@@ -388,6 +417,10 @@ def _worker_loop() -> None:
         if job is None:  # test hook / shutdown sentinel
             _queue.task_done()
             return
+        # A skip-and-requeue puts the SAME job back, so its key must stay
+        # held: releasing it would let a reclaim pass adopt a job that is
+        # already in this process's queue and capture it twice.
+        requeued = False
         try:
             if not _try_acquire_lock():
                 job["lock_waits"] = job.get("lock_waits", 0) + 1
@@ -396,7 +429,8 @@ def _worker_loop() -> None:
                                error="capture lock held too long")
                 else:
                     time.sleep(_LOCK_RETRY_S)
-                    _queue.put(job)  # skip-and-requeue
+                    _queue.put(job)
+                    requeued = True
                 continue
             try:
                 _set_state(job["key"], "GENERATING")
@@ -406,7 +440,62 @@ def _worker_loop() -> None:
         except Exception as exc:  # worker must never die
             _set_state(job["key"], "FAILED", error=str(exc)[:500])
         finally:
+            # Exactly one task_done per get, on every path including the
+            # `continue` above -- a second call raises and kills the worker.
+            if not requeued:
+                _dequeued(job["key"])
             _queue.task_done()
+
+
+def reclaim_orphaned_jobs() -> list[str]:
+    """Put back jobs whose worker died with the process that owned it.
+
+    THE SECOND CAUSE OF AN ENDLESS SPINNER, and the one no amount of polling
+    discipline fixes. The queue is in memory; the state is in SQLite. Restart
+    the server -- a deploy, a crash, a supervisor restart -- and every row
+    still marked QUEUED or GENERATING describes a job that no longer exists
+    anywhere. `request_proxy` sees QUEUED and returns it untouched, the page
+    polls a job nobody will ever run, and the reviewer waits forever with no
+    FAILED state and therefore no Retry button to press.
+
+    This runs once, when a worker thread is created -- a controlled
+    scheduler operation, not a status read. GENERATING is reset to QUEUED
+    first because its capture certainly did not survive.
+
+    Only the CURRENT profile is reclaimed. Rows left over from an older
+    capture profile describe footage nobody is asking for any more, and
+    re-capturing them would spend forty seconds of wolfcam each on clips no
+    cache key will ever look up.
+    """
+    profile = _profile_id()
+    conn = editorial_conn()
+    try:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT * FROM review_proxies WHERE state IN ('QUEUED',"
+            "'GENERATING') AND profile_id = ?", (profile,)).fetchall()]
+    finally:
+        conn.close()
+
+    reclaimed: list[str] = []
+    for d in rows:
+        demo_path, _ = demo_source(d["demo_name"])
+        if demo_path is None or not demo_path.exists():
+            # Nothing will ever make this job runnable. FAILED is the honest
+            # state, and it gives the reviewer a Retry button instead of a
+            # spinner that never resolves.
+            _set_state(d["key"], "FAILED", error="demo file not available")
+            continue
+        with _queued_mutex:
+            if d["key"] in _queued_keys:
+                continue        # this process is already going to run it
+        _set_state(d["key"], "QUEUED")
+        _enqueue({"key": d["key"], "frag_id": d["frag_id"],
+                    "demo_name": d["demo_name"],
+                    "demo_path": str(demo_path),
+                    "start_ms": int(d["start_ms"]),
+                    "end_ms": int(d["end_ms"]), "lock_waits": 0})
+        reclaimed.append(d["key"])
+    return reclaimed
 
 
 def _ensure_worker() -> None:
@@ -417,6 +506,12 @@ def _ensure_worker() -> None:
                 target=_worker_loop, name="review-proxy-worker", daemon=True
             )
             _worker.start()
+            try:
+                reclaim_orphaned_jobs()
+            except Exception:                                  # noqa: BLE001
+                # A reclaim failure must never stop the worker starting; the
+                # new job that triggered it still deserves to run.
+                pass
 
 
 # ---------------------------------------------------------------- reviews

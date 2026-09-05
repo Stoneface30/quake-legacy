@@ -45,8 +45,8 @@ function renderMp4(box, mp4Path) {
   const v = document.createElement("video");
   v.controls = true;
   v.preload = "auto";
-  const rel = mp4Path.split(/[\\/]/).slice(-3).map(encodeURIComponent).join("/");
-  v.src = `/media/phase1/${rel}`;
+  const rel = mp4Path.split(/[\\/]/).slice(-1).map(encodeURIComponent).join("/");
+  v.src = `/media/preview/${rel}`;
   box.append(v);
 }
 

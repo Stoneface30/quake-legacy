@@ -160,12 +160,12 @@ def get_notes(q: str, limit: int = Query(100, le=500)):
 
 # ── media ───────────────────────────────────────────────────────────────────
 
-def _proxy_for(it: rc.ReviewItem) -> dict[str, Any]:
+def _proxy_for(it: rc.ReviewItem, *, retry: bool = False) -> dict[str, Any]:
     """Ask the existing proxy cache for this item's clip window."""
     try:
         return review_proxy.request_proxy(
             frag_id=it.source_id, demo_name=it.demo_name,
-            start_ms=it.start_ms, end_ms=it.end_ms)
+            start_ms=it.start_ms, end_ms=it.end_ms, **({"retry": True} if retry else {}))
     except TypeError:
         # older signature: (frag) -- fall back to state only
         return review_proxy.get_state(it.source_id)
@@ -283,6 +283,14 @@ def get_media_state(item_id: str):
             "error": st.get("error"),
             "ready": bool(st.get("state") == "READY" and st.get("mp4_path")
                           and Path(str(st.get("mp4_path"))).exists())}
+
+
+@router.post("/media_retry/{item_id}")
+def retry_media(item_id: str):
+    it = rc.item(item_id)
+    if it is None:
+        raise HTTPException(404, "no such item")
+    return _proxy_for(it, retry=True)
 
 
 @router.get("/ui", response_class=HTMLResponse)
@@ -620,8 +628,7 @@ def get_scene(item_id: str):
     return {"item_id": item_id, "available": True, **s.to_dict()}
 
 
-@router.get("/media/scene/{item_id}")
-def get_scene_media(item_id: str):
+def _scene_proxy(item_id: str, *, retry: bool = False) -> dict[str, Any]:
     """One media asset for the whole scene.
 
     Deliberately ONE capture rather than four: F1..F4 plus a full round would
@@ -637,17 +644,45 @@ def get_scene_media(item_id: str):
         st = review_proxy.request_proxy(frag_id=it.source_id,
                                         demo_name=it.demo_name,
                                         start_ms=s.media_start_ms,
-                                        end_ms=s.media_end_ms)
+                                        end_ms=s.media_end_ms,
+                                        **({"retry": True} if retry else {}))
     except Exception as e:                                     # noqa: BLE001
         raise HTTPException(503, f"{type(e).__name__}: {e}")
+    return st
+
+
+@router.get("/media_state/scene/{item_id}")
+def get_scene_media_state(item_id: str):
+    st = _scene_proxy(item_id)
+    path = st.get("mp4_path")
+    return {"item_id": item_id, "job_id": st.get("key"),
+            "state": st.get("state", "PENDING"), "error": st.get("error"),
+            "ready": bool(st.get("state") == "READY" and path and Path(path).exists())}
+
+
+@router.post("/media_retry/scene/{item_id}")
+def retry_scene_media(item_id: str):
+    return _scene_proxy(item_id, retry=True)
+
+
+@router.get("/media/scene/{item_id}")
+def get_scene_media(item_id: str, v: str | None = None):
+    st = _scene_proxy(item_id)
     path = st.get("mp4_path")
     if st.get("state") == "READY" and path and Path(path).exists():
         from creative_suite.engine import media_provenance as mprov
+        if v == "mobile":
+            small = _mobile_variant(Path(path))
+            if small is not None:
+                return FileResponse(small, media_type="video/mp4",
+                                    headers={"X-Media-Provenance":
+                                             mprov.V2_REVIEW_DELIVERY_DERIVATIVE})
         return FileResponse(path, media_type="video/mp4",
                             headers={"X-Media-Provenance":
                                      mprov.RAW_DEMO_CAPTURE})
-    raise HTTPException(status_code=425,
+    raise HTTPException(status_code=503 if st.get("state") in ("ERROR", "FAILED") else 425,
                         detail={"state": st.get("state", "PENDING"),
+                                "error": st.get("error"),
                                 "hint": "scene media is rendering"})
 
 
@@ -659,15 +694,8 @@ class SceneEventNote(BaseModel):
 @router.get("/scene_note/{event_id}")
 def get_scene_event_note(event_id: str):
     from creative_suite.engine import creative_annotation as ca
-    with ca.conn() as c:
-        c.executescript(
-            "CREATE TABLE IF NOT EXISTS scene_event_notes ("
-            " event_id TEXT PRIMARY KEY, annotation TEXT NOT NULL,"
-            " provenance TEXT NOT NULL DEFAULT 'HUMAN_USER',"
-            " written_at TEXT NOT NULL);")
-        r = c.execute("SELECT * FROM scene_event_notes WHERE event_id=?",
-                      (event_id,)).fetchone()
-    return dict(r) if r else {"event_id": event_id, "annotation": ""}
+    return ca.get_event_annotation(event_id) or {"event_id": event_id,
+                                                 "annotation": ""}
 
 
 @router.post("/scene_note")
@@ -677,20 +705,8 @@ def post_scene_event_note(n: SceneEventNote):
     A movement run or a jump pad can carry "music builds here" without
     becoming a reviewable frag and without demanding a T1-T5 verdict.
     """
-    from datetime import datetime, timezone
     from creative_suite.engine import creative_annotation as ca
-    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
-    with ca.conn() as c:
-        c.executescript(
-            "CREATE TABLE IF NOT EXISTS scene_event_notes ("
-            " event_id TEXT PRIMARY KEY, annotation TEXT NOT NULL,"
-            " provenance TEXT NOT NULL DEFAULT 'HUMAN_USER',"
-            " written_at TEXT NOT NULL);")
-        c.execute("INSERT INTO scene_event_notes(event_id, annotation,"
-                  " provenance, written_at) VALUES (?,?,?,?) "
-                  "ON CONFLICT(event_id) DO UPDATE SET "
-                  "annotation=excluded.annotation, "
-                  "written_at=excluded.written_at",
-                  (n.event_id, n.annotation, ca.HUMAN_USER, now))
-    return {"event_id": n.event_id, "annotation": n.annotation,
-            "written_at": now}
+    # Storage lives in creative_annotation so `scene.build_scene` -- which is
+    # what production reads -- can load the same rows. When this router owned
+    # the table, a note was reachable only through the page that wrote it.
+    return ca.set_event_annotation(n.event_id, n.annotation, ca.HUMAN_USER)

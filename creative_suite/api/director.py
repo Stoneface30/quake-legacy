@@ -111,3 +111,26 @@ def save_director_recipe(session_id: str,
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from None
     return {"scene_recipe_id": scene_recipe_id}
+
+
+# ── planning input ──────────────────────────────────────────────────────────
+#
+# The production side of the reviewer. Everything the director typed while
+# curating -- the T1-T5 roles, the note beside a frag, the note on a jump
+# pad, the note on the round -- is addressed here by scene_id and returned as
+# planning input, loaded from storage.
+#
+# This endpoint is the reason the bridge is integration rather than a
+# library. Before it existed the only caller was a test holding a Scene it
+# had annotated itself, which could never have caught `build_scene` failing
+# to load notes at all.
+
+@router.get("/api/director/choreography_input/{scene_id}")
+def choreography_input_for_scene(scene_id: str) -> dict[str, Any]:
+    """Scene + ActionTruth + the director's own words, for one scene."""
+    from creative_suite.engine import production_contract as pc
+    try:
+        ci = pc.build_choreography_input_for_scene(scene_id)
+    except pc.SceneNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from None
+    return ci.to_dict()

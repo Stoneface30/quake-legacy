@@ -87,6 +87,10 @@ class SceneEvent:
     human_role: str | None = None
     usage_state: str | None = None
     annotation: str = ""
+    # Who wrote `annotation`. Only HUMAN_USER and IMPORTED_LEGACY_HUMAN are
+    # the director speaking; a planner has to be able to tell, and the empty
+    # string means nobody wrote one.
+    annotation_provenance: str = ""
 
     @property
     def takes_verdict(self) -> bool:
@@ -223,19 +227,49 @@ def build_scene(content_hash: str, round_no: int,
         rc.reviews([f"ALL_KILL:{i}" for i in occ_ids]) | \
         rc.reviews([f"DEATH:{i}" for i in occ_ids])
     usage = pu.states(occ_ids)
+
+    # THE DIRECTOR'S OWN WORDS, LOADED FROM STORAGE.
+    #
+    # This is the half that was missing. The scene rail let the user write a
+    # note on a jump pad, the API stored it, and `build_scene` never read it
+    # back -- so every consumer downstream of Scene, including the
+    # choreography bridge, saw an empty string. A note that only the page
+    # which wrote it can see is not production input.
+    #
+    # Two sources, because there are two kinds of event. A canonical
+    # occurrence carries its note on its review row, beside the T1-T5
+    # verdict. A movement run has no review row and carries its note in
+    # `scene_event_notes`, addressed by the same stable `event_id` the rail
+    # renders.
+    from creative_suite.engine import creative_annotation as ca
+    ev_notes = ca.event_annotations([e.event_id for e in events])
+
     merged: list[SceneEvent] = []
     for e in events:
+        note = ev_notes.get(e.event_id) or {}
         if e.occurrence_id is None:
-            merged.append(e)
+            merged.append(SceneEvent(**{
+                **asdict(e),
+                "annotation": note.get("annotation") or "",
+                "annotation_provenance": note.get("provenance") or "",
+            }))
             continue
         rv = (got.get(f"USER_FRAG:{e.occurrence_id}")
               or got.get(f"ALL_KILL:{e.occurrence_id}")
               or got.get(f"DEATH:{e.occurrence_id}") or {})
+        # A verdict-bearing event may be annotated either way round: in the
+        # note field beside its verdict, or on the rail. The review row wins,
+        # because that is where the reviewer types while judging it.
+        text = (rv.get("note") or "") or (note.get("annotation") or "")
+        prov = ((rv.get("provenance") if rv.get("note")
+                 else note.get("provenance")) or "")
         st = usage.get(e.occurrence_id, {})
         merged.append(SceneEvent(**{
             **asdict(e),
             "human_role": rv.get("human_role") or None,
             "usage_state": st.get("state"),
+            "annotation": text,
+            "annotation_provenance": prov,
         }))
 
     traits = {m["kind"] for m in moves}

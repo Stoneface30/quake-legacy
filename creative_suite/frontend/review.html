@@ -320,6 +320,8 @@
 const API = "/api/review";
 let items = [], idx = 0, offset = 0, order = "WORST_FIRST", cur = null;
 let itemType = "USER_FRAG", corpus = "USER_FRAGS", filters = {};
+let savingVerdict = false, mediaGeneration = 0;
+const MEDIA_TIMEOUT_MS = 180000;
 const $ = id => document.getElementById(id);
 const v = $("v");
 // One definition of "small", used for media selection only. Layout is CSS.
@@ -357,7 +359,13 @@ async function loadQueue(off){
     + (Object.keys(filters).length ? " this filter" : "");
   $("order").textContent = order === "WORST_FIRST" ? "worst → best"
                                                    : "best → worst";
-  if (items.length) show(); else toast("queue exhausted");
+  if (items.length) await show(); else {
+    cur = null; ++mediaGeneration; clearTimeout(show._p);
+    v.pause(); v.removeAttribute("src"); v.load(); v.hidden = true;
+    $("ph").hidden = false;
+    $("ph").replaceChildren(el("div", "big", "queue exhausted"));
+    toast("queue exhausted");
+  }
 }
 
 async function progress(){
@@ -436,17 +444,29 @@ function meta(it){
 
 function placeholder(state, error){
   const ph = $("ph");
-  const kids = [];
-  if (state === "ERROR" || state === "FAILED"){
-    kids.push(el("div", "big", "clip unavailable"));
-    if (error) kids.push(el("div", null, error));
-    kids.push(el("div", null, "you can still judge and move on"));
-  } else {
-    kids.push(el("div", "big", "rendering this clip…"));
-    kids.push(el("div", null, "state: " + state));
-    kids.push(el("div", null, "verdicts do not wait for it"));
-  }
+  const failed = ["ERROR", "FAILED", "TIMEOUT"].includes(state);
+  const kids = [el("div", "big", failed ? "RENDER FAILED" : "Rendering this clip…")];
+  if (error) kids.push(el("div", null, error));
+  if (failed){
+    const retry = el("button", null, "RETRY");
+    retry.onclick = async () => {
+      const mine = cur;
+      retry.disabled = true;
+      try {
+        const r = await fetch(API + "/media_retry/" + mine.item_id, {method: "POST"});
+        if (!r.ok) throw new Error("retry request failed");
+        if (cur === mine) await show(mine);
+      } catch(e){ retry.disabled = false; toast(e.message); }
+    };
+    kids.push(retry);
+  } else kids.push(el("div", null, "state: " + state));
   ph.replaceChildren(...kids);
+}
+
+async function mediaJSON(url){
+  const r = await fetch(url, {signal: AbortSignal.timeout(15000)});
+  if (!r.ok) throw new Error("media status HTTP " + r.status);
+  return r.json();
 }
 
 // Duplicate safety, made visible. The canonical occurrence layer makes a
@@ -457,6 +477,7 @@ async function renderUsage(it){
   if (it.item_type === "FRAG"){ return; }   // archive set has no occurrence id
   try{
     const u = await (await fetch(API + "/usage/" + it.source_id)).json();
+    if (cur !== it) return;
     if (u.state && u.state !== "AVAILABLE"){
       const s = el("span", "claimed", u.state
                    + (u.detail ? " — " + u.detail : ""));
@@ -473,7 +494,7 @@ async function renderRound(it){
   let d;
   try{ d = await (await fetch(API + "/round/" + it.item_id)).json(); }
   catch(e){ return; }
-  if (!d.available || !d.round) return;
+  if (cur !== it || !d.available || !d.round) return;
   const r = d.round;
   box.appendChild(el("h3", null, "this round — " + (r.map_name || "?")
     + " · round " + r.round_no + " · " + (r.duration_ms/1000).toFixed(1) + "s"));
@@ -531,35 +552,55 @@ async function renderRound(it){
   box.appendChild(b);
 }
 
-async function show(){
-  cur = items[idx];
-  saveSession();
-  if (!cur){ await loadQueue(offset + 30); return; }
+async function show(item = items[idx]){
+  clearTimeout(show._p);
+  const generation = ++mediaGeneration;
+  if (!item){ await loadQueue(offset + items.length); return; }
+  cur = item;
   const mine = cur;
-  meta(cur);
-  $("mark").style.left = (cur.frag_offset_s / cur.duration_s * 100) + "%";
-  $("played").style.width = "0";
-  const st = await (await fetch(API + "/media_state/" + cur.item_id)).json();
-  if (mine !== items[idx]) return;          // user moved on while we asked
-  if (st.ready){
-    $("ph").hidden = true;
-    v.hidden = false;
-    // A phone gets the smaller encode of the SAME clip -- same window, same
-    // frames, fewer bits. The master stays the desktop default.
-    v.src = API + "/media/" + cur.item_id + (isSmallScreen() ? "?v=mobile" : "");
-    v.loop = true;
-    v.play().catch(() => {});
-  } else {
-    v.hidden = true;
-    v.removeAttribute("src");
-    $("ph").hidden = false;
-    placeholder(st.state, st.error);
-    // Poll gently. The worker spends roughly forty seconds of wolfcam on
-    // each clip, so a tight loop would only add load to the thing we are
-    // waiting for.
-    clearTimeout(show._p);
-    show._p = setTimeout(() => { if (mine === items[idx]) show(); }, 4000);
+  if (!sceneState?.events.some(e => e.occurrence_id === mine.source_id)){
+    sceneState = null; delete v.dataset.sceneId;
   }
+  const inQueue = items.findIndex(x => x.item_id === mine.item_id);
+  if (inQueue >= 0) idx = inQueue;
+  saveSession();
+  meta(mine);
+  $("mark").style.left = (mine.frag_offset_s / mine.duration_s * 100) + "%";
+  $("played").style.width = "0";
+  const started = Date.now();
+  async function poll(){
+    if (generation !== mediaGeneration || cur !== mine) return;
+    try {
+      const st = await mediaJSON(API + "/media_state/" + mine.item_id);
+      if (generation !== mediaGeneration || cur !== mine) return;
+      if (st.ready){
+        $("ph").hidden = true; v.hidden = false;
+        // A ready scene owns this video until navigation leaves that scene.
+        if (!sceneState || v.dataset.sceneId !== sceneState.scene_id){
+          delete v.dataset.sceneId;
+          v.src = API + "/media/" + mine.item_id + (isSmallScreen() ? "?v=mobile" : "");
+          v.loop = true; v.play().catch(() => {});
+        }
+        return;
+      }
+      if (v.dataset.sceneId && sceneState?.scene_id === v.dataset.sceneId) return;
+      v.hidden = true; v.removeAttribute("src"); v.load();
+      $("ph").hidden = false;
+      const timedOut = Date.now() - started >= MEDIA_TIMEOUT_MS;
+      placeholder(timedOut ? "TIMEOUT" : st.state, st.error);
+      if (timedOut || ["FAILED", "ERROR"].includes(st.state)) return;
+      show._p = setTimeout(poll, 2000);
+    } catch(e){
+      if (generation === mediaGeneration && cur === mine){
+        $("ph").hidden = false; placeholder("FAILED", e.message);
+      }
+    }
+  }
+  await poll();
+  // Fill beyond the initial server prefetch window as the reviewer advances.
+  items.slice(idx + 1, idx + 3).forEach(it => {
+    fetch(API + "/media_state/" + it.item_id).catch(() => {});
+  });
 }
 
 v.addEventListener("timeupdate", () => {
@@ -567,17 +608,37 @@ v.addEventListener("timeupdate", () => {
 });
 
 async function verdict(role){
-  if (!cur) return;
+  if (!cur || savingVerdict) return;
+  const mine = cur;
   const note = $("note").value.trim();
-  await fetch(API + "/verdict", {
-    method: "POST", headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({item_id: cur.item_id, role: role,
-                          note: note || null})
-  });
-  toast(role.replace(/^T\d_/, "").replace(/_/g, " "));
-  progress();
-  idx++;
-  show();
+  savingVerdict = true;
+  document.querySelectorAll(".buttons button").forEach(b => b.disabled = true);
+  try {
+    const response = await fetch(API + "/verdict", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({item_id: mine.item_id, role, note: note || null}),
+      signal: AbortSignal.timeout(15000)
+    });
+    if (!response.ok) throw new Error("verdict NOT saved (HTTP " + response.status + ")");
+    mine.human_role = role; mine.note = note;
+    toast(role.replace(/^T\d_/, "").replace(/_/g, " "));
+    progress().catch(() => {});
+    if (cur !== mine) return;
+    const events = sceneState?.events || [];
+    const current = events.findIndex(e => e.occurrence_id === mine.source_id);
+    if (current >= 0) events[current].human_role = role;
+    const next = current < 0 ? null : events.slice(current + 1).find(e =>
+      e.takes_verdict && !e.human_role);
+    if (next) await selectSceneEvent(next, sceneState);
+    else {
+      do { idx++; } while (items[idx]?.human_role);
+      await show();
+    }
+  } catch(e){ toast(e.message || "verdict NOT saved"); }
+  finally {
+    savingVerdict = false;
+    document.querySelectorAll(".buttons button").forEach(b => b.disabled = false);
+  }
 }
 
 document.querySelectorAll(".buttons button").forEach(b => {
@@ -603,7 +664,7 @@ document.addEventListener("keydown", async e => {
   } else if (e.key === "ArrowLeft"){
     if (idx > 0){ idx--; show(); }
   } else if (k === "n"){
-    e.preventDefault(); $("note").focus();
+    e.preventDefault(); $("d-note").open = true; $("note").focus();
   } else if (k === "u"){
     const r = await fetch(API + "/undo", {method: "POST"});
     if (r.ok){
@@ -617,15 +678,18 @@ document.addEventListener("keydown", async e => {
 });
 
 $("note").addEventListener("blur", async () => {
-  if (!cur) return;
-  const note = $("note").value.trim();
-  if (note === (cur.note || "")) return;
-  await fetch(API + "/note", {
-    method: "POST", headers: {"Content-Type": "application/json"},
-    body: JSON.stringify({item_id: cur.item_id, note: note})
-  });
-  cur.note = note;
-  toast("note saved");
+  if (!cur || savingVerdict) return;
+  const mine = cur, note = $("note").value.trim();
+  if (note === (mine.note || "")) return;
+  try {
+    const r = await fetch(API + "/note", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({item_id: mine.item_id, note})
+    });
+    if (!r.ok) throw new Error("note NOT saved");
+    mine.note = note;
+    toast("note saved");
+  } catch(e){ toast(e.message || "note NOT saved"); }
 });
 
 async function corpora(){
@@ -807,17 +871,20 @@ async function restoreSession(){
   if (!rn) return;
   rn.addEventListener("blur", async () => {
     if (!cur || rn.dataset.saved === rn.value) return;
+    const mine = cur, text = rn.value;
     try{
-      await fetch(API + "/annotation/round", {method: "POST",
+      const response = await fetch(API + "/annotation/round", {method: "POST",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({item_id: cur.item_id, annotation: rn.value})});
-      rn.dataset.saved = rn.value;
+        body: JSON.stringify({item_id: mine.item_id, annotation: text})});
+      if (!response.ok) throw new Error("round note not saved");
+      if (cur === mine) rn.dataset.saved = text;
       toast("round note saved");
     }catch(e){ toast("round note not saved"); }
   });
   window.loadRoundNote = async (item) => {
     try{
       const g = await (await fetch(API + "/annotation/round/" + item.item_id)).json();
+      if (cur !== item) return;
       rn.value = g.annotation || "";
       rn.dataset.saved = rn.value;
     }catch(e){ rn.value = ""; }
@@ -851,7 +918,7 @@ async function renderDossier(it){
   let d;
   try { d = await (await fetch(API + "/dossier/" + it.item_id)).json(); }
   catch(e){ return; }
-  if (!d || !d.available) return;
+  if (cur !== it || !d || !d.available) return;
   const e = d.event, kids = [];
 
   const head = el("div", "dsec");
@@ -1001,11 +1068,11 @@ async function renderRail(it){
   if (!rail) return;
   rail.replaceChildren();
   rail.classList.remove("on");
-  sceneState = null;
   let s;
   try { s = await (await fetch(API + "/scene/" + it.item_id)).json(); }
   catch(e){ return; }
-  if (!s.available || s.mode !== "SCENE_MODE") return;
+  if (cur !== it) return;
+  if (!s.available || s.mode !== "SCENE_MODE") { delete v.dataset.sceneId; return; }
   sceneState = s;
   const rowEl = el("div", "railrow");
   s.events.forEach(ev => {
@@ -1020,27 +1087,64 @@ async function renderRail(it){
   });
   rail.appendChild(rowEl);
   rail.classList.add("on");
-  if (v.dataset.sceneId !== s.scene_id){
-    v.dataset.sceneId = s.scene_id;
-    v.src = API + "/media/scene/" + it.item_id
-      + (isSmallScreen() ? "?v=mobile" : "");
-    v.loop = false;
+  const status = el("div", "conf", "Scene context rendering…");
+  rail.appendChild(status);
+  const started = Date.now();
+  async function pollScene(){
+    if (cur !== it || sceneState !== s) return;
+    try {
+      const st = await mediaJSON(API + "/media_state/scene/" + it.item_id);
+      if (cur !== it || sceneState !== s) return;
+      if (st.ready){
+        status.textContent = "Scene context ready";
+        $("ph").hidden = true; v.hidden = false;
+        const ev = s.events.find(e => e.occurrence_id === cur.source_id);
+        const seek = () => { if (cur === it && ev) v.currentTime = Math.max(0, (ev.t_ms - s.media_start_ms) / 1000); };
+        if (v.dataset.sceneId !== s.scene_id){
+          v.dataset.sceneId = s.scene_id;
+          v.src = API + "/media/scene/" + it.item_id + (isSmallScreen() ? "?v=mobile" : "");
+          v.addEventListener("loadedmetadata", seek, {once:true});
+        } else seek();
+        v.loop = false; v.play().catch(() => {});
+        return;
+      }
+      if (["FAILED", "ERROR"].includes(st.state) || Date.now() - started >= MEDIA_TIMEOUT_MS)
+        throw new Error(st.error || "Scene render timed out");
+      status.textContent = "Scene context rendering… " + st.state;
+      setTimeout(pollScene, 2000);
+    } catch(e){
+      if (cur !== it || sceneState !== s) return;
+      const retry = el("button", null, "RETRY");
+      status.replaceChildren(el("span", null, "RENDER FAILED · " + e.message + " "), retry);
+      retry.onclick = async () => {
+        retry.disabled = true;
+        try {
+          const r = await fetch(API + "/media_retry/scene/" + it.item_id, {method:"POST"});
+          if (!r.ok) throw new Error("retry failed");
+          if (cur === it) renderRail(it);
+        } catch(e){ retry.disabled = false; toast(e.message); }
+      };
+    }
   }
+  pollScene();
 }
 
-function selectSceneEvent(ev, s, btn){
-  const t = (ev.t_ms - s.media_start_ms) / 1000;
-  if (isFinite(t) && t >= 0){
-    try { v.currentTime = t; v.play().catch(() => {}); } catch(e){}
-  }
-  document.querySelectorAll("#rail .rev").forEach(b => b.classList.remove("sel"));
-  if (btn) btn.classList.add("sel");
+async function selectSceneEvent(ev, s, btn){
+  if (savingVerdict && !ev.takes_verdict) return;
   if (ev.occurrence_id){
-    fetch(API + "/item/USER_FRAG:" + ev.occurrence_id)
-      .then(r => r.json())
-      .then(x => { if (x && x.item_id){ cur = x; meta(x); renderDossier(x); } })
-      .catch(() => {});
+    const mine = cur;
+    try {
+      const r = await fetch(API + "/item/" + (ev.item_id || "USER_FRAG:" + ev.occurrence_id));
+      if (!r.ok) throw new Error("could not load next event");
+      const x = await r.json();
+      if (cur !== mine) return;
+      await show(x);
+    } catch(e){ toast(e.message); }
   } else {
+    const t = (ev.t_ms - s.media_start_ms) / 1000;
+    if (v.dataset.sceneId === s.scene_id && isFinite(t) && t >= 0){
+      v.currentTime = t; v.play().catch(() => {});
+    }
     loadSceneNote(ev.event_id, ev.label);
   }
 }

@@ -1640,11 +1640,8 @@ def _in_flight_is_orphaned(existing: dict[str, Any]) -> bool:
         except (OSError, ValueError):
             pid = 0
         if pid and pid != os.getpid():
-            try:
-                os.kill(pid, 0)
-                return False              # a live process holds the lock
-            except OSError:
-                return True               # lock held by a dead PID
+            from creative_suite.engine.process_liveness import process_alive
+            return not process_alive(pid)
         if pid == os.getpid():
             return False
     try:

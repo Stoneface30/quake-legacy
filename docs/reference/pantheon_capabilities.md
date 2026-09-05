@@ -15,7 +15,14 @@ module and a real test. Status is what is TRUE today, not what is planned.*
 | **Media provenance** | LIVE | `media_provenance` | — | `test_v1_source_isolation.py` |
 | **Public export seam** | LIVE (frozen) | `public_clip_export` | — | `test_public_clip_export.py` |
 | **PUBLIC_BLIND_CAPTURE** | LIVE | `master_profile.profile_for_intent("PUBLIC_BLIND")` | WolfcamQL · `TR4SH_PUBLIC_EXPORT` | `test_public_export_no_burned_names.py` |
-| **REVIEW_ENEMY_VISIBILITY** | **PARTIAL** | `master_profile._REVIEW_V2` | WolfcamQL | see below |
+| **Production contract** | LIVE | `production_contract.classify()` · `action_truth_ref()` · `scene_ref()` | none (re-labels ActionTruth/Scene) | `test_production_contract.py` |
+| **Choreography bridge** | LIVE | `production_contract.build_choreography_input_for_scene(scene_id)` · `GET /api/director/choreography_input/{scene_id}` | ActionTruth + Scene + persisted annotations | `test_note_reaches_production.py` |
+| **Media job recovery** | LIVE | `review_proxy.reclaim_orphaned_jobs()` at app startup | `editorial.db` | `test_review_job_recovery.py` |
+| **Origin supervision** | LIVE | `scripts/review_origin.ps1` + `scripts/install_review_task.ps1` | Startup-folder shim | restart proven by killing the process |
+| **Process liveness** | LIVE | `process_liveness.process_alive(pid)` | `OpenProcess` (Windows) | `test_process_liveness.py` |
+| **Live mobile flow** | PROVEN | `scripts/check_review_mobile_live.cjs` | real server, 390x844 | run 2026-09-05 |
+| **Capture determinism** | LIVE | `master_profile.profile_for_intent()` | WolfcamQL | `test_review_capture_determinism.py` |
+| **REVIEW_ENEMY_VISIBILITY** | **PARTIAL — CLOSED** | `master_profile._REVIEW_V2` | WolfcamQL | see below |
 
 ---
 
@@ -34,6 +41,77 @@ If the reviewer said CRITICAL_HP and the choreographer computed something
 else from the same rows, one of them would be lying to the director and there
 would be no way to tell which.
 
+## The production contract — what a planner may believe
+
+`ActionTruth IS game truth. Scene IS story context. Human annotation IS
+directing truth. ChoreographyPlan consumes all three.`
+
+`production_contract` computes nothing. It classifies every field a
+downstream planner can read, so the classification travels with the value:
+
+| class | meaning | example |
+|---|---|---|
+| `OBSERVED` | the demo said this | `stack.at_frag.health`, `event.weapon` |
+| `DERIVED` | arithmetic over observed facts, assumption written down | `round.alive_curve`, `geometry.flick_deg_per_s` |
+| `MACHINE_SUGGESTION` | the recogniser's opinion, on its own scale | `event.machine_score`, `traits` |
+| `HUMAN` | the director wrote it | every `DirectionNote` |
+| `UNAVAILABLE` | not observed, not derived, **not zero** | health on 50.6% of the corpus |
+
+```python
+from creative_suite.engine import action_truth as at, production_contract as pc
+ref = pc.action_truth_ref(at.for_item("FRAG:13420"))
+ref.get("stack.at_frag.health")      # 156
+ref.provenance["stack.at_frag.health"]  # OBSERVED
+ref.factual("event.machine_score")   # False -- may rank, may not state
+```
+
+`classify()` **raises** on a field nobody has classified rather than
+defaulting to `OBSERVED`. A new field that silently defaults to observed is
+how an opinion gets laundered into a fact.
+
+`is_factual()` is the question a planner asks before a treatment makes a
+claim the viewer could check. A machine trait may decide *which* moment to
+look at; it may never decide *what happened*.
+
+## Scene as production reads it
+
+`scene_ref(scene, round_note)` returns identity, bounds, canonical
+occurrence **references**, movement references, human role and note per
+event, and usage state — and no duplicated moment data. A test enumerates
+the banned keys: no health, aim, damage or score may appear on a rail event,
+because two copies of a moment eventually disagree and nobody can say which
+one the film used.
+
+`takes_verdict` separates the two kinds of rail event. A jump pad is
+addressable so a note can hang on it and can never enter the review corpus
+as a rateable moment.
+
+## The choreography bridge
+
+```python
+ci = pc.input_for_item("FRAG:13420")
+ci.scene          # SceneRef      -- story context
+ci.actions        # ActionTruthRef -- game truth, classified
+ci.direction      # DirectionNote -- the director's own words
+```
+
+Three fields, kept apart on purpose. Flattening them is how a machine trait
+ends up outranking a human note.
+
+**The words survive verbatim.** Given a real scene — F1, F2, JUMP PAD, F3,
+F4 — with `"music buildup here"` on the pad, `"xray / enemy POV"` on F3 and
+`"big finish on F4."` on the round, each arrives at the planning layer as the
+exact string that was typed, attached to the exact event it was typed on.
+Whitespace, case, punctuation and typos all survive; `parse_intent` offers a
+machine READING alongside and never in place of the text.
+
+Only `HUMAN_USER` and `IMPORTED_LEGACY_HUMAN` reach a planner as direction.
+`AI_SUGGESTION`, `TEST` and `SYSTEM` notes are dropped at this boundary.
+
+This module knows nothing about lanes, effects, cameras or music — a test
+asserts it, by failing if `LANE_` or `ChoreographyPlan(` ever appears in its
+source. It is a boundary, not a planner.
+
 ## PUBLIC_BLIND_CAPTURE — ask for the intent, not the cvars
 
 `Private film may show names. Public blind export may not.`
@@ -49,6 +127,24 @@ and the only one carrying a no-identity guarantee. The others —
 `GAMEPLAY_MASTER`, `DIRECTOR_REVIEW`, `MOVEMENT_REVIEW`, `DIRECTOR_SESSION`,
 `ARCHIVE_ANALYSIS` — film for the director or for the user's own movie, where
 names on screen are correct and wanted.
+
+### Every capture intent, and who the footage is for
+
+No session should ever again call `capture_demo(profile=None)` and hope it
+means the right thing. Ask for the intent; the profile is an implementation
+detail and the cvars are the backend's business.
+
+| intent | profile | id | audience | names on screen |
+|---|---|---|---|---|
+| `PUBLIC_BLIND` | `TR4SH_PUBLIC_EXPORT` | `b9977ff93228` | strangers voting blind | **never** — nine routes pinned and checked before a batch runs |
+| `DIRECTOR_REVIEW` | `TR4SH_REVIEW_V2` | `83bf11fc916b` | the director, judging one moment | yes — local private data, and useful |
+| `GAMEPLAY_MASTER` | `TR4SH_GAMEPLAY_MASTER_V2` | `091901df0daf` | the film's own footage | yes |
+| `MOVEMENT_REVIEW` | `TR4SH_SPEED_REVIEW` | `160f2b7e8111` | judging movement | yes, plus movement HUD |
+| `DIRECTOR_SESSION` | `TR4SH_DIRECTOR_SESSION` | `25a8b65f5c49` | interactive direction | yes |
+| `ARCHIVE_ANALYSIS` | `TR4SH_ANALYSIS_HEADLESS` | `8e2493617225` | machines, not viewers | irrelevant |
+
+Profile ids are content digests: change a cvar and the id moves, which is
+what keeps the proxy cache honest.
 
 **Why the indirection exists.** `public_clip_export` called
 `capture_demo()` with no profile argument. `profile=None` does not mean "no
@@ -87,37 +183,153 @@ diagnostic against a control, nothing more.
 Detail: `public-export-name-disclosure.md` · contract:
 `pantheon_export_contract.md`
 
-## REVIEW_ENEMY_VISIBILITY — PARTIAL, with the dead ends recorded
+## REVIEW_ENEMY_VISIBILITY — PARTIAL, and the investigation is CLOSED
 
-**Working:** enemies render as Keel (`cg_enemyModel keel/bright`,
-`cg_forceModel 1`). `cg_useDefaultTeamSkins` defaults to **1** and forces
-red/blue team skins over the enemy model — turning it off was a real fix.
-Teammates are unaffected (`cg_disallowEnemyModelForTeammates` defaults to 1).
+`Green Keel is useful. It is not worth blocking the project.`
 
-**Not working:** the enemy is not GREEN.
+**Status: PARTIAL. Do not open this again without new evidence from a
+captured frame.** Enemies are visible and the review view is usable; they are
+not green, and the earlier claim that they render as Keel does not survive a
+look at the pixels.
 
-**Ruled out, from local source — do not retry these:**
+### What a measured A/B actually showed (2026-09-05)
 
-- *Missing team metadata.* False. `player_teams_v1` has RED/BLUE for the test
-  demo, so `CG_IsEnemy` (`sc_misc.c:352`) should resolve.
-- *Cfg timing.* False. `wolfcam_view.c:1002` recomputes `cg.enemyModelColors`
-  on cvar modification count, so a cfg set at postinit is picked up.
-- *`createcolorskins` / `R_CreatePlayerColorSkinImages`.* **Ruled out.**
-  `tr_image.c:1800` generates **red and blue** images from a fixed
-  `Skin_Images` table. It is a team-colour system and cannot make green.
+Two captures of the same six-second window on `overkill`, identical but for
+the profile, frames sampled at 2 fps:
 
-**Leading remaining hypothesis, untested:** the colour is applied as
-`shaderRGBA` (`cg_players.c:6099-6105`), a per-entity vertex colour. A Q3
-player shader declaring `rgbGen identity` rather than `rgbGen entity`
-**ignores** entity RGBA entirely — which would explain a value that is set,
-stored and propagated yet never visible. Checking it means reading the
-`keel/bright` shader out of `pak00.pk3`. If confirmed, the route is
-`remapshader` (`cg_consolecmds.c:8571`) onto a shader that does honour entity
-colour — and because only enemies use `keel/bright`, that remap would hit
-enemies alone.
+| | pixels reading green | pixels reading tan |
+|---|---|---|
+| review profile as shipped | 0.00% | 2.23% |
+| + explicit `cg_enemy*Skin "bright"` | 0.02% | 1.28% |
 
-**Decision:** recorded PARTIAL. Enemies are Keel-shaped and distinguishable;
-they are tan rather than green. Human curation is not blocked on it.
+No difference. The change was reverted rather than kept, because a profile
+edit with no measured effect still moves the profile id and would have
+invalidated every cached review proxy for nothing.
+
+**And the model in frame is not Keel.** Enlarging the two players visible
+against the sky shows a slim orange humanoid with a teal helmet — the stock
+player model, not the bulky Keel silhouette. `cg_enemyModel "keel/bright"`
+and `cg_forceModel 1` are in the profile, ARE written to
+`wolfcam_tr4sh_review_v2.cfg`, and are not reaching the renderer. The
+previous note in this file claimed "enemies render as Keel"; that claim was
+made from source and the frame does not support it.
+
+### The named hypothesis is disproven, with numbers
+
+`keel/bright` was suspected of declaring `rgbGen identity` and therefore
+ignoring entity colour. It does not. From `pak00.pk3`,
+`scripts/models_players.shader:3204`:
+
+```
+models/players/keel/bright
+{
+    { map .../bright.tga }                                  # base
+    { map .../bright.tga  blendfunc GL_ONE GL_ZERO
+      alphaFunc GE128     rgbGen entity }                   # <- entity colour
+    { map .../bright2.tga blendfunc add rgbGen identity }   # weak glow
+}
+```
+
+Measured on the shipped textures: **64.4%** of `bright.png` texels pass
+`alphaFunc GE128` and are therefore tinted by `cg_enemyTorsoColor`, and the
+additive glow is faint (mean 6.7/255). Simulating the three stages with
+`0x2a8000` predicts **75.7%** of the tinted region reading plainly green.
+
+**So `remapshader` is not the route.** There is no wrong shader to replace —
+the shader already honours entity colour, and swapping it would change
+nothing while risking every other surface that shares a material.
+
+### The default skin, for the record
+
+`models/players/keel/keel` (the DEFAULT skin) is one stage, `rgbGen
+lightingdiffuse`, **no entity stage at all** — entity colour is silently
+ignored — over a texture whose mean is tan (68/48/32). If the enemy ever does
+render as Keel and still ignores colour, that is the skin in use.
+
+### Dead ends — do not retry any of these
+
+| hypothesis | verdict | evidence |
+|---|---|---|
+| team metadata missing | **false** | `player_teams_v1` carries RED/BLUE for the test demo |
+| cfg timing / recompute | **false** | `wolfcam_view.c:1002` recomputes on modification count |
+| `createcolorskins` | **false** | `tr_image.c:1800` generates red and blue from a fixed table |
+| `keel/bright` uses `rgbGen identity` | **false** | it uses `rgbGen entity`; 64.4% coverage, measured |
+| the skin half of `cg_enemyModel` fails to resolve | **no effect** | naming it explicitly changed 0.00% → 0.02% |
+| `cg_useCustomRedBlueModels` gates the colour out | **false** | it defaults to `0`; the gate at `cg_players.c:6096` passes |
+
+### What would settle it, if anyone ever needs to
+
+Not more source reading — three of the six dead ends above came from reading
+source and were wrong. The next step is a frame with an enemy in it and
+`/cg_enemyModel` echoed from the live console, to see whether the cvar the
+engine holds at draw time is the one the cfg set.
+
+**Decision: enemies stay tan. Human curation is not blocked on a renderer
+cosmetic, and this sprint was the last one spent on it.**
+
+## The media job state machine
+
+`A status read never moves a job.`
+
+| state | means | set by |
+|---|---|---|
+| `MISSING` | no row | nobody |
+| `QUEUED` | waiting for the single capture worker | first request · explicit retry · **startup reclaim** |
+| `GENERATING` | wolfcam is filming it now | the worker |
+| `READY` | mp4 exists on disk | the worker |
+| `FAILED` | it will not happen without help | the worker on error · reclaim when the demo is gone |
+
+**Two ways this produced an endless spinner, both fixed.**
+
+*Polling requeued failures.* `request_proxy` treated FAILED as "try again",
+so every two-second poll restarted the job: FAILED -> QUEUED -> FAILED,
+forever, and the page never saw a settled failure so it never offered Retry.
+Only an explicit `retry=True` revives a failure now.
+
+*Jobs outliving their process.* The queue is in memory; the state is in
+SQLite. After any restart, rows marked QUEUED describe work no worker knows
+about — and `request_proxy` returns early on QUEUED **before** it would start
+a worker, so no later request could ever recover them. The row showed
+RENDERING, not FAILED, so there was not even a Retry to press. Measured on
+the live queue: **16 orphaned jobs**, the oldest stuck for over two hours.
+
+`reclaim_orphaned_jobs()` runs once per process, from the app's startup hook
+via `_ensure_worker` — which both starts the drain thread and adopts the
+orphans. Reclaiming without starting the worker was its own bug for one
+iteration: jobs went onto a queue nothing was reading.
+
+Only the CURRENT capture profile is reclaimed. A row from an older profile
+can never be looked up (the profile id is in the cache key), and re-capturing
+it would spend forty seconds of wolfcam on a clip nobody is waiting for.
+
+## Origin supervision
+
+`A 302 from review.conchita.uk does not mean the origin is up.`
+
+Cloudflare Access answers with a redirect to its login page whether or not
+anything is listening behind it, so the site looks healthy until you finish
+signing in. The tunnel points at **127.0.0.1:8766** — not 8765, which is a
+different service on this machine and returns its own JSON 404.
+
+`scripts/review_origin.ps1` is a supervised loop: it starts uvicorn bound to
+loopback, waits, and restarts it with exponential backoff, logging to
+`output/review_origin.log`. `scripts/install_review_task.ps1` puts a shim in
+the per-user Startup folder so it survives logout and needs no admin rights
+(`Register-ScheduledTask` is refused unelevated here). Proven by killing the
+uvicorn process: back up in about four seconds.
+
+Binding to loopback is deliberate — the Access guard keys on the Host header,
+so an origin listening on the LAN would be reachable without signing in.
+
+## Windows process liveness
+
+`os.kill(pid, 0)` is a POSIX probe. On Windows it calls `TerminateProcess`,
+so the "am I alone?" check for a capture lock could kill the very process it
+was asking about. `process_liveness.process_alive(pid)` opens a SYNCHRONIZE
+handle and queries it instead, and fails CLOSED: access denied counts as
+alive, because a lock takeover based on a failed query is worse than waiting.
+Two remaining `os.kill` calls in the tree are deliberate signals in
+`comfy-pilot`, not liveness probes.
 
 ## Capture determinism
 
@@ -128,6 +340,11 @@ The review profile now sets every unwanted HUD element explicitly
 (`cg_drawSpeed`, `cg_drawSpeedometer`, `cg_drawFPS`, `cg_lagometer`,
 `cg_drawAttacker`, `cg_drawRewards`, `cg_drawKeys`, `cg_drawPickupItems`,
 `cg_drawAmmoWarning`) rather than trusting whatever was archived.
+
+`test_review_capture_determinism.py` pins all nine, pins that they reach
+the cfg on disk, and pins that the profile cfg is exec'd from `cgamepostinit`
+-- AFTER `q3config.cfg` is read, which is the half that actually makes the
+pins win. A missing pin fails the test rather than reopening the route.
 
 Movement metrics belong in the dossier, not burned into the footage.
 

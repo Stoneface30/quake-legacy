@@ -24,6 +24,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from creative_suite.database import demo_v2_db
 from creative_suite.engine import capture_qa, wolfcam_capture as wc
+from creative_suite.engine.process_liveness import process_alive
 
 
 def _profile_id() -> str:
@@ -40,9 +41,9 @@ def acquire_lock() -> None:
     if LOCK.exists():
         pid = LOCK.read_text().strip()
         try:
-            os.kill(int(pid), 0)
-            print(f"FATAL: capture already running (pid {pid})")
-            raise SystemExit(1)
+            if process_alive(int(pid)):
+                print(f"FATAL: capture already running (pid {pid})")
+                raise SystemExit(1)
         except (OSError, ValueError):
             pass  # stale lock
     LOCK.write_text(str(os.getpid()))
