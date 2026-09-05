@@ -300,6 +300,38 @@ PANTHEON intro: FRAGMOVIE VIDEOS/IntroPart2.mp4
 
 *Archive footer:* full text of all superseded P1-* versions (P1-G v3, P1-H v3, P1-L v2/v3, P1-Y v1, P1-Z v1, P1-AA v1, P1-CC v1, P1-G legacy, P1-L Part-4-2026-04-17, P1-H "NO TRANSITIONS") lives in `docs/_archive/claude-md-superseded-2026-04-19.md`. Grep by rule ID to retrieve.
 
+## HARD RULES — PANTHEON HEADLESS (HL) [2026-09-05]
+
+PANTHEON is the engine. WolfcamQL is a replaceable Quake rasterizer and an external compatibility oracle. It does not run the pipeline.
+
+```
+RAW .dm_73 → DM73 parser → canonical game state → PerformanceTrace → FrameTruth
+  → Scene / TimeMap / RoundScenario → ChoreographyPlan → ShotSpec → RenderJob
+                                                                      │
+                                              Wolfcam · Blender · future renderer
+                                              (backends — bottom row ONLY)
+```
+Everything above the bottom row runs without launching a game.
+
+### Rule HL-1: Wolfcam never touches game truth
+- **WHAT** Wolfcam may NOT participate in PerformanceTrace extraction, action compilation, semantic validation, movement retargeting, aim reproduction, projectile reproduction, or FrameTruth generation. Those are `engine/pantheon/{performance,frame_truth,scenario,compiler,navigation,motion_reference,instruction,roster,presenter}.py` and none of them may import `wolfcam_capture`, `subprocess`, `shot`, `cvar_probe` or `ab_scene`.
+- **WHERE** Enforced statically by `creative_suite/tests/test_pantheon_headless_boundary.py` (AST import scan). A new module under `engine/pantheon/` must be classified HEADLESS or BACKEND_ALLOWED there, or the suite fails.
+- **WHY** Latched cvars applying a launch late, cvars that never registered, archived q3config leaking between experiments, SDL falling back to 856x480, `+demo` dropped past 32 `+` groups — all backend contamination. A boundary on the import graph makes it impossible for any of that to reach performance, scene, timing or camera truth.
+
+### Rule HL-2: Wolfcam has exactly four jobs, each through the backend interface
+- **WHAT** `REFERENCE_RENDER` · `EXTERNAL_DM73_VALIDATION` · `RUNTIME_CAPABILITY_PROOF` · `FINAL_QUAKE_BEAUTY`. Every launch goes through `engine.pantheon.backends.render(backend, shot=, out_dir=, use=)` with a declared `BackendUse`. No default use, no other reason to launch.
+- **WHERE** `engine/pantheon/backends.py` (`BackendUse`, `RenderBackend` protocol, `WolfcamReference`). `shot.py::render` is the Wolfcam implementation, not a public entry point.
+- **WHY** A launch that cannot name its purpose is the pattern that put Wolfcam in charge. Blender (object IDs, Cryptomatte, depth, normals, arbitrary cameras) and an offscreen Quake renderer register here later; Wolfcam stays as the oracle they are compared against.
+
+### Rule HL-3: Headless checks pass before anything renders
+- **WHAT** The development cycle for any action reproduction is `extract_performance → retarget → compile → compare` in seconds, headless. Only when `report.semantic_fidelity == PASS` does `render(backend="WOLFCAM_REFERENCE", use=REFERENCE_RENDER)` run. A failed headless check renders nothing.
+- **WHERE** Spec: `docs/superpowers/specs/2026-09-05-pantheon-headless-first-design.md`. The jump-pad→rocket check sheet (position/velocity at pad and apex, yaw/pitch trace error, fire delta, rocket spawn/trajectory error, impact time/location error) is the template.
+- **WHY** `change → launch Wolfcam → capture → wait → look → discover mistake → relaunch` was right for the colour path and latched cvars. It is the wrong loop for movement/action logic, which is arithmetic on the demo's own serverTime.
+
+### Rule HL-4: Do not reimplement the Quake renderer to remove Wolfcam
+- **WHAT** BSP, MD3, QL shaders, lightmaps, animation interpolation, effects, particles, marks, PVS, native cgame rendering come from Wolfcam for free. Headless *engine* now; headless *renderer* is a separate project (Route 1 offscreen GL adapter, Route 2 Blender) and blocks nothing.
+- **WHY** Replacing the rasterizer buys no truth. The boundary is what fixes the iteration loop, not the renderer.
+
 ## HARD RULES — Demo Parser & Highlight Criteria
 
 ### Rule P3-A: Own Highlight Criteria Before Demo Extraction
