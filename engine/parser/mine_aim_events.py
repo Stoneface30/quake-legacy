@@ -29,6 +29,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -85,7 +86,9 @@ MICRO_DEG = 8.0          # net travel this small is a correction, not a flick
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS aim_events_v1 (
-    aim_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    -- Stable semantic key, for the same reason actions have one: a rowid is
+    -- a property of insertion order, not of the gesture.
+    aim_key       TEXT PRIMARY KEY,
     content_hash  TEXT NOT NULL,
     start_ms      INTEGER NOT NULL,
     end_ms        INTEGER NOT NULL,
@@ -124,6 +127,12 @@ def epoch_conn(db: Path = EPOCH_DB) -> sqlite3.Connection:
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def aim_key(content_hash: str, start_ms: int) -> str:
+    """Which demo, and when the gesture began. Nothing else."""
+    return "AIM:" + hashlib.sha1(
+        f"{content_hash}|{int(start_ms)}".encode()).hexdigest()[:16]
 
 
 def _ang(a: float, b: float) -> float:
@@ -251,14 +260,15 @@ def extract_one(content_hash: str, demo_path: str) -> dict[str, Any]:
         e["classes"] = json.dumps(cls)
         e["version"] = MINER_VERSION
         e["content_hash"] = content_hash
+        e["aim_key"] = aim_key(content_hash, e["start_ms"])
     return {"content_hash": content_hash, "events": ev, "samples": len(series),
             "parse_ms": int((time.time() - t0) * 1000), "error": ""}
 
 
 def _write(out: dict[str, Any], db: Path = EPOCH_DB) -> None:
-    cols = ("content_hash", "start_ms", "end_ms", "travel_deg", "net_deg",
-            "peak_dps", "duration_ms", "samples", "settle_deg", "classes",
-            "version")
+    cols = ("aim_key", "content_hash", "start_ms", "end_ms", "travel_deg",
+            "net_deg", "peak_dps", "duration_ms", "samples", "settle_deg",
+            "classes", "version")
     with epoch_conn(db) as c:
         if out["events"]:
             c.executemany(

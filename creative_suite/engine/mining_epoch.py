@@ -230,17 +230,58 @@ def status(db: Path = EPOCH_DB) -> dict[str, Any]:
 
 PROMOTED_TABLES = ("action_moments_v1", "aim_events_v1")
 
+# The column that gives each promoted table its EXTERNAL identity. Never a
+# rowid: promoting the same staging data twice handed one action the id 1 and
+# then the id 2, which would have silently re-pointed every human review of
+# it at a different moment.
+STABLE_KEY = {"action_moments_v1": "action_key",
+              "aim_events_v1": "aim_key"}
+
+
+class PromotionBlocked(RuntimeError):
+    """A guard refused. The previously active epoch remains active."""
+
+
+def _table_cols(c: sqlite3.Connection, table: str) -> list[str]:
+    return [r[1] for r in c.execute(f"PRAGMA table_info({table})")]
+
 
 def promote(recognition: Path = RECOGNITION_DB, epoch: Path = EPOCH_DB,
-            dry_run: bool = False) -> dict[str, Any]:
-    """Copy the epoch's new layers into the review authority.
+            dry_run: bool = False, skip_guards: bool = False
+            ) -> dict[str, Any]:
+    """Activate the epoch, atomically, behind the human-data guard.
 
-    Refuses if a target table already holds rows from a DIFFERENT epoch --
-    two epochs' worth of actions in one table would double every count and
-    there would be no way to tell which row came from where.
+    THREE PROPERTIES THIS HAS AND THE FIRST VERSION DID NOT.
+
+    GUARDED. The human-migration check runs as part of cutover rather than
+    beside it. A promotion that would detach a verdict does not happen.
+
+    ATOMIC. Every table is written inside ONE transaction on ONE connection.
+    The first version committed each table separately, so a failure halfway
+    left the authority holding one new layer and one old one.
+
+    IDEMPOTENT. Rows are upserted on their stable semantic key, so promoting
+    unchanged staging twice is a no-op rather than a renumbering.
     """
     out: dict[str, Any] = {"epoch": EPOCH_VERSION, "tables": {},
-                           "dry_run": dry_run}
+                           "dry_run": dry_run, "guards": {}}
+
+    if not skip_guards:
+        from creative_suite.engine import human_migration as hm
+        guard = hm.check()
+        out["guards"]["human_migration"] = {
+            "blocked": guard["blocked"], "by_status": guard["by_status"],
+            "targets": guard["human_targets"]}
+        if guard["blocked"]:
+            out["status"] = "BLOCKED"
+            out["blockers"] = guard["blockers"]
+            if not dry_run:
+                raise PromotionBlocked(
+                    f"{len(guard['blockers'])} human target(s) would be "
+                    f"detached; the previous epoch remains active")
+            return out
+
+    payload: dict[str, Any] = {}
     with sqlite3.connect(f"file:{epoch}?mode=ro", uri=True) as src:
         src.row_factory = sqlite3.Row
         have = {r[0] for r in src.execute(
@@ -249,47 +290,84 @@ def promote(recognition: Path = RECOGNITION_DB, epoch: Path = EPOCH_DB,
             if t not in have:
                 out["tables"][t] = {"status": "ABSENT", "rows": 0}
                 continue
-            rows = [dict(r) for r in src.execute(f"SELECT * FROM {t}")]
-            out["tables"][t] = {"status": "READY", "rows": len(rows)}
-            if dry_run or not rows:
+            key = STABLE_KEY[t]
+            cols = _table_cols(src, t)
+            if key not in cols:
+                out["tables"][t] = {
+                    "status": "REFUSED",
+                    "detail": f"no stable key column {key!r}; refusing to "
+                              f"promote rows that can be renumbered"}
                 continue
-            cols = [k for k in rows[0] if k not in ("action_id", "aim_id")]
+            rows = [dict(r) for r in src.execute(f"SELECT * FROM {t}")]
             ddl = src.execute(
-                "SELECT sql FROM sqlite_master WHERE type='table' AND name=?",
-                (t,)).fetchone()[0]
-            with sqlite3.connect(recognition, timeout=300) as dst:
-                existing = dst.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table' "
-                    "AND name=?", (t,)).fetchone()
-                if existing:
-                    other = dst.execute(
-                        f"SELECT COUNT(*) FROM {t} WHERE version <> ?",
-                        (rows[0]["version"],)).fetchone()[0]
-                    if other:
-                        out["tables"][t] = {
-                            "status": "REFUSED",
-                            "detail": f"{other} rows from another epoch"}
-                        continue
-                    dst.execute(f"DELETE FROM {t}")
-                else:
-                    dst.execute(ddl)
-                dst.executemany(
-                    f"INSERT INTO {t} ({','.join(cols)}) VALUES "
-                    f"({','.join('?' * len(cols))})",
-                    [tuple(r[c] for c in cols) for r in rows])
-                dst.commit()
+                "SELECT sql FROM sqlite_master WHERE type='table' AND "
+                "name=?", (t,)).fetchone()[0]
+            payload[t] = {"rows": rows, "cols": cols, "key": key, "ddl": ddl}
+            out["tables"][t] = {"status": "READY", "rows": len(rows)}
+
+    if dry_run or not payload:
+        out["status"] = "DRY_RUN" if dry_run else "NOTHING_TO_DO"
+        return out
+
+    # ONE connection, ONE transaction, every table or none.
+    dst = sqlite3.connect(recognition, timeout=600)
+    try:
+        dst.execute("BEGIN IMMEDIATE")
+        for t, d in payload.items():
+            exists = dst.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+                (t,)).fetchone()
+            if not exists:
+                dst.execute(d["ddl"])
+            else:
+                live_cols = _table_cols(dst, t)
+                if d["key"] not in live_cols:
+                    # An older shape without a stable key cannot be upserted
+                    # into; replacing it wholesale is the only safe move and
+                    # it happens inside this same transaction.
+                    dst.execute(f"DROP TABLE {t}")
+                    dst.execute(d["ddl"])
+            # ON CONFLICT needs a real UNIQUE constraint, and a table
+            # created from DDL that predates the key column will not have
+            # one. Creating it here also proves the key IS unique: a
+            # duplicate raises inside the transaction and the whole
+            # promotion rolls back rather than silently upserting one row
+            # over another.
+            dst.execute(f"CREATE UNIQUE INDEX IF NOT EXISTS "
+                        f"ux_{t}_{d['key']} ON {t}({d['key']})")
+            cols = d["cols"]
+            marks = ",".join("?" * len(cols))
+            updates = ",".join(f"{c}=excluded.{c}" for c in cols
+                               if c != d["key"])
+            dst.executemany(
+                f"INSERT INTO {t} ({','.join(cols)}) VALUES ({marks}) "
+                f"ON CONFLICT({d['key']}) DO UPDATE SET {updates}",
+                [tuple(r[c] for c in cols) for r in d["rows"]])
             out["tables"][t]["status"] = "PROMOTED"
+        dst.commit()
+    except Exception:
+        dst.rollback()
+        out["status"] = "ROLLED_BACK"
+        raise
+    finally:
+        dst.close()
+    out["status"] = "ACTIVE"
+    record_stage("promote", ok=True, detail=str(out["tables"]))
     return out
 
 
 def rollback(recognition: Path = RECOGNITION_DB) -> dict[str, Any]:
     """Undo a promotion. The epoch database keeps the data."""
     dropped = []
-    with sqlite3.connect(recognition, timeout=300) as dst:
+    dst = sqlite3.connect(recognition, timeout=300)
+    try:
+        dst.execute("BEGIN IMMEDIATE")
         for t in PROMOTED_TABLES:
             if dst.execute("SELECT name FROM sqlite_master WHERE type='table' "
                            "AND name=?", (t,)).fetchone():
                 dst.execute(f"DROP TABLE {t}")
                 dropped.append(t)
         dst.commit()
+    finally:
+        dst.close()
     return {"dropped": dropped}

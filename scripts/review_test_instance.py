@@ -21,7 +21,6 @@ database constants and one storage function, before the app is imported.
 from __future__ import annotations
 
 import argparse
-import shutil
 import sys
 import tempfile
 from pathlib import Path
@@ -40,17 +39,12 @@ def main() -> int:
 
     if args.db:
         db = Path(args.db)
+        reject_if_live(db)          # BEFORE anything opens it
     else:
         tmp = Path(tempfile.mkdtemp(prefix="review-test-"))
         db = tmp / "editorial.db"
         if LIVE_DB.exists():
-            # WAL and SHM too, or the copy can miss recent commits entirely
-            # and the queue would look empty for reasons nothing explains.
-            shutil.copy2(LIVE_DB, db)
-            for suffix in ("-wal", "-shm"):
-                side = LIVE_DB.with_name(LIVE_DB.name + suffix)
-                if side.exists():
-                    shutil.copy2(side, db.with_name(db.name + suffix))
+            backup_copy(LIVE_DB, db)
 
     from creative_suite.engine import creative_annotation as ca
     from creative_suite.engine import identity as idn
@@ -127,6 +121,62 @@ def main() -> int:
     return 0
 
 
+def _resolved(p: Path) -> str:
+    """One canonical spelling of a path, for comparison.
+
+    Windows makes this necessary rather than pedantic: `G:\QUAKE_LEGACY`,
+    `g:\quake_legacy`, a short 8.3 name and a junction can all be the same
+    file, and a string comparison says they are different.
+    """
+    try:
+        r = p.resolve(strict=False)
+    except OSError:
+        r = p.absolute()
+    return str(r).replace("/", "\\").casefold().rstrip("\\")
+
+
+def reject_if_live(db: Path) -> None:
+    """Refuse a database that is, or resolves to, the live one.
+
+    `--db` used to be taken on trust: the launcher considered itself isolated
+    because every module pointed at the SAME file, which is equally true when
+    that file is the user's real editorial database. Isolation means "not
+    live", not "consistent".
+    """
+    target = _resolved(db)
+    forbidden = {_resolved(LIVE_DB)}
+    # The side files are the same database by another name.
+    for suffix in ("-wal", "-shm", "-journal"):
+        forbidden.add(_resolved(LIVE_DB.with_name(LIVE_DB.name + suffix)))
+    # And so is anything sitting in the live database directory.
+    live_dir = _resolved(LIVE_DB.parent)
+    if target in forbidden or _resolved(db.parent) == live_dir:
+        raise SystemExit(
+            f"REFUSING TO START: {db} is the live review database (or lives "
+            f"beside it). A test instance that can reach it is a test "
+            f"instance that can destroy the user's reviews.")
+
+
+def backup_copy(src: Path, dest: Path) -> None:
+    """A CONSISTENT copy, via SQLite's own backup API.
+
+    Copying `.db`, `-wal` and `-shm` as three separate files is three reads
+    at three different instants. In WAL mode recent commits live in `-wal`
+    until a checkpoint, so the result can hold a half-applied transaction or
+    miss commits outright -- and it opens without complaint either way.
+    """
+    import sqlite3
+    source = sqlite3.connect(f"file:{src}?mode=ro", uri=True, timeout=60)
+    try:
+        target = sqlite3.connect(dest)
+        try:
+            source.backup(target)
+        finally:
+            target.close()
+    finally:
+        source.close()
+
+
 LIVE_MODULE_ATTRS = (
     ("creative_suite.engine.creative_annotation", "EDITORIAL_DB"),
     ("creative_suite.engine.identity", "EDITORIAL_DB"),
@@ -146,11 +196,12 @@ def assert_isolated(db: Path) -> None:
     smaller problem than discovering afterwards which rows were written.
     """
     import importlib
+    reject_if_live(db)              # consistent AND not live
     wrong = []
     for name, attr in LIVE_MODULE_ATTRS:
         mod = importlib.import_module(name)
         got = Path(str(getattr(mod, attr)))
-        if got != Path(str(db)):
+        if _resolved(got) != _resolved(db):
             wrong.append(f"{name}.{attr} -> {got}")
     if wrong:
         raise SystemExit("NOT ISOLATED, refusing to start: "

@@ -130,28 +130,29 @@ def test_an_action_is_never_a_frag():
                                            corpus=rc.NO_KILL_ACTIONS)}
     assert actions, "no reviewable actions"
     assert not (frags & actions)
-    assert all(i.startswith("ACTION:") for i in actions)
+    assert all(i.startswith("ACTION:ACT:") for i in actions)
     assert rc.count_items(rc.USER_FRAG, corpus=rc.USER_FRAGS) != \
         rc.count_items(rc.ACTION, corpus=rc.NO_KILL_ACTIONS)
 
 
 @live
-def test_a_no_kill_action_contains_no_kill():
+def test_a_no_user_kill_action_contains_no_user_kill():
     """The whole point of the family.
 
-    A burst that ends in a frag is FRAG_BUILDUP_CONTEXT and belongs to that
-    frag's story; it must not also be offered as an action in its own right,
-    or one moment becomes two review targets.
+    A burst closed by a recorder frag is FRAG_BUILDUP_CONTEXT and belongs to
+    that frag's story; it must not also be offered as an action in its own
+    right, or one moment becomes two review targets.
     """
     with sqlite3.connect(f"file:{RECOGNITION_DB}?mode=ro", uri=True) as c:
         bad = c.execute(
-            "SELECT COUNT(*) FROM action_moments_v1 WHERE ends_in_kill = 1 "
-            "AND classes LIKE '%TRUE_NO_KILL_ACTION%'").fetchone()[0]
+            "SELECT COUNT(*) FROM action_moments_v1 WHERE "
+            "user_kill_in_window = 1 AND classes LIKE "
+            "'%NO_USER_KILL_ACTIVITY%'").fetchone()[0]
     assert bad == 0
     for it in rc.queue(limit=50, item_type=rc.ACTION,
                        corpus=rc.NO_KILL_ACTIONS):
-        d = rc.action_detail(it.source_id)
-        assert d["ends_in_kill"] == 0
+        d = rc.action_detail(it.item_id)
+        assert d["user_kill_in_window"] == 0
 
 
 @live
@@ -163,33 +164,34 @@ def test_an_action_never_claims_damage():
     """
     d = rc.action_detail(
         rc.queue(limit=1, item_type=rc.ACTION,
-                 corpus=rc.NO_KILL_ACTIONS)[0].source_id)
+                 corpus=rc.NO_KILL_ACTIONS)[0].item_id)
     assert "observed_pain" in d
     assert not any("damage" in k.lower() for k in d)
-    assert "LOWER BOUND" in d["note"]
-    assert d["confidence"] in ("HIGH", "AMBIGUOUS")
+    assert "LOWER BOUND" in d["what_this_is_not"]
+    assert d["activity_label"] in ("RECORDER_DOMINANT", "SHARED_FIREFIGHT")
 
 
 @live
-def test_only_confident_actions_are_offered():
+def test_only_recorder_dominant_actions_are_offered():
     """At the median the actor fired 18% of the shots in the window.
 
-    Offering AMBIGUOUS bursts would be showing the reviewer other people's
-    fights and calling them theirs.
+    Offering shared firefights would be showing the reviewer other people's
+    fights. Note what this does and does not mean: dominance is ACTIVITY,
+    and never a claim that the recorder caused a particular pain event.
     """
     for it in rc.queue(limit=40, item_type=rc.ACTION,
                        corpus=rc.NO_KILL_ACTIONS):
-        assert rc.action_detail(it.source_id)["confidence"] == "HIGH"
+        d = rc.action_detail(it.item_id)
+        assert d["activity_label"] == "RECORDER_DOMINANT"
+        assert d["recorder_activity_share"] >= 0.5
 
 
 @live
 def test_warmup_stays_out_of_the_action_queue_too():
-    with sqlite3.connect(f"file:{RECOGNITION_DB}?mode=ro", uri=True) as c:
-        for it in rc.queue(limit=60, item_type=rc.ACTION,
-                           corpus=rc.NO_KILL_ACTIONS):
-            r = c.execute("SELECT round FROM action_moments_v1 WHERE "
-                          "action_id=?", (it.source_id,)).fetchone()
-            assert r[0] != 0 or r[0] is None
+    for it in rc.queue(limit=60, item_type=rc.ACTION,
+                       corpus=rc.NO_KILL_ACTIONS):
+        d = rc.action_detail(it.item_id)
+        assert d["round"] != 0 or d["round"] is None
 
 
 # ── aim ─────────────────────────────────────────────────────────────────────

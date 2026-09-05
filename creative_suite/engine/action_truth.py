@@ -196,6 +196,20 @@ def _career_rank(rf: sqlite3.Row | None, db: Path) -> int | None:
             (rf["highlight_score"],)).fetchone()[0]) + 1
 
 
+# WHICH FAMILIES THIS MODULE CAN SPEAK FOR.
+#
+# `source_id` is an integer, and an integer means nothing on its own. Before
+# this gate, `ACTION:41` reached here and was read as occurrence 41 -- an
+# unrelated kill by an unrelated player -- and the reviewer was shown its
+# health, its weapon and its opponent as though they described the action.
+# Nothing errored, because 41 is a perfectly good occurrence id.
+#
+# So dispatch is by NAMESPACE, and anything this module cannot describe gets
+# an explicit refusal rather than somebody else's truth.
+OCCURRENCE_BACKED = ("USER_FRAG", "FRAG", "TELEFRAG", "DEATH", "CLAN_FRAG",
+                     "ALL_KILL")
+
+
 def for_item(item_id: str, db: Path = RECOGNITION_DB) -> dict[str, Any] | None:
     """Everything truthfully known about one moment.
 
@@ -213,6 +227,15 @@ def for_item(item_id: str, db: Path = RECOGNITION_DB) -> dict[str, Any] | None:
     it = rc.item(item_id)
     if it is None:
         return None
+    # FAIL CLOSED. An unsupported family is UNSUPPORTED, never another
+    # family's moment that happens to share an integer.
+    family = str(item_id).split(":", 1)[0]
+    if family not in OCCURRENCE_BACKED or it.item_type not in OCCURRENCE_BACKED:
+        return {"item_id": item_id, "available": False,
+                "target_type": it.item_type,
+                "reason": (f"{it.item_type} is not an occurrence-backed "
+                           f"family; ActionTruth describes canonical kills "
+                           f"and cannot speak for this target")}
     occ_id = it.source_id
 
     with _conn(db) as c:

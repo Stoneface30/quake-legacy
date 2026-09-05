@@ -28,13 +28,21 @@ DB_DIR = REPO_ROOT / "creative_suite" / "database"
 RECOGNITION_DB = DB_DIR / "frag_recognition.db"
 EDITORIAL_DB = DB_DIR / "editorial.db"
 
-EXACT = "EXACT"                       # same id, same event
-CHANGED_ID_SAME_EVENT = "CHANGED_ID_SAME_EVENT"
-MERGED = "MERGED"
+EXACT = "EXACT"                # same id, same fingerprint: safe
+MAPPED = "MAPPED"              # a PROVEN old -> new identity mapping exists
+FINGERPRINT_CHANGED = "FINGERPRINT_CHANGED"
 AMBIGUOUS = "AMBIGUOUS"
 MISSING = "MISSING"
 
-BLOCKING = (AMBIGUOUS, MISSING)
+# ONLY TWO OUTCOMES ARE SAFE, and an integer id matching is not one of them.
+#
+# The first version had a status called CHANGED_ID_SAME_EVENT and did not
+# block on it -- it asserted "same event" on the strength of the id being
+# equal, which is exactly the thing a renumbering breaks. If the fingerprint
+# moved, the id is now describing a different kill and the verdict attached
+# to it is a statement about a moment nobody judged.
+SAFE = (EXACT, MAPPED)
+BLOCKING = (FINGERPRINT_CHANGED, AMBIGUOUS, MISSING)
 
 # Every table in the editorial database that carries a human decision keyed
 # by occurrence. Listed explicitly: a table added later and forgotten here
@@ -44,6 +52,11 @@ HUMAN_TABLES = (
     ("review_tags", "occurrence_id", "tags, GOLDEN, KEEP_CONTEXT"),
     ("dismissed_occurrences", "occurrence_id", "deletions"),
     ("reconstruction_requests", "occurrence_id", "workshop requests"),
+    # SHORTLISTED / ASSIGNED / USED is the director deciding what the film
+    # does with a moment. It looks like machine state and is not: a rebuild
+    # that detached it would lose real editorial work with nothing to show
+    # that it had.
+    ("production_usage", "occurrence_id", "usage lifecycle"),
 )
 
 # Keyed by (content_hash, round) rather than occurrence, so they survive an
@@ -114,7 +127,8 @@ def human_targets(db: Path = EDITORIAL_DB) -> dict[str, list[int]]:
 
 
 def check(before_db: Path = RECOGNITION_DB, after_db: Path | None = None,
-          editorial: Path = EDITORIAL_DB) -> dict[str, Any]:
+          editorial: Path = EDITORIAL_DB,
+          mapping: dict[int, int] | None = None) -> dict[str, Any]:
     """Compare every human target against the epoch that is about to be live.
 
     `after_db` defaults to the same database, which is the honest answer when
@@ -139,11 +153,19 @@ def check(before_db: Path = RECOGNITION_DB, after_db: Path | None = None,
                                           "not present before the rebuild"))
             elif a == b:
                 checks.append(TargetCheck(table, i, EXACT))
+            elif mapping and mapping.get(i) is not None:
+                # An explicit, independently produced old -> new mapping is
+                # the only other thing that makes a move safe.
+                new_id = mapping[i]
+                moved = fingerprints([new_id], after).get(new_id)
+                checks.append(TargetCheck(
+                    table, i, MAPPED if moved == b else AMBIGUOUS,
+                    f"mapped to {new_id}"))
             else:
                 checks.append(TargetCheck(
-                    table, i, CHANGED_ID_SAME_EVENT
-                    if a else AMBIGUOUS,
-                    "the id now resolves to a different kill"))
+                    table, i, FINGERPRINT_CHANGED,
+                    "this id now resolves to a DIFFERENT kill; the verdict "
+                    "attached to it would describe a moment nobody judged"))
 
     scoped: dict[str, int] = {}
     with _ro(editorial) as c:
@@ -155,7 +177,7 @@ def check(before_db: Path = RECOGNITION_DB, after_db: Path | None = None,
     by_status: dict[str, int] = {}
     for ch in checks:
         by_status[ch.status] = by_status.get(ch.status, 0) + 1
-    blockers = [ch for ch in checks if ch.status in BLOCKING]
+    blockers = [ch for ch in checks if ch.status not in SAFE]
 
     return {
         "human_targets": len(checks),

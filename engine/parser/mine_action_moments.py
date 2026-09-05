@@ -38,6 +38,7 @@ from __future__ import annotations
 
 import argparse
 import bisect
+import hashlib
 import json
 import os
 import sqlite3
@@ -51,7 +52,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 RECOG_DB = REPO_ROOT / "creative_suite" / "database" / "frag_recognition.db"
 EPOCH_DB = REPO_ROOT / "creative_suite" / "database" / "mining_epoch.db"
 
-MINER_VERSION = "action-moments-v1.0.0"
+MINER_VERSION = "action-moments-v1.1.0"
 
 # ── the window ──────────────────────────────────────────────────────────────
 #
@@ -82,23 +83,42 @@ MIN_SHOTS = 3         # the recorder's own trigger pulls, in-window
 # The recorder's own shots are NOT double counted: `fire_weapon` from
 # `entity` never carries the recorder (verified: 0 rows with
 # entity_num = recorder_client), so the two streams are disjoint.
-HIGH_CONF_SHARE = 0.5
+HIGH_SHARE = 0.5
 
-CONF_HIGH = "HIGH"
-CONF_AMBIGUOUS = "AMBIGUOUS"
+# WHAT THIS ACTUALLY MEASURES, renamed after review.
+#
+# The old field was called `confidence` with values HIGH / AMBIGUOUS, and a
+# reader could reasonably take that as confidence that the RECORDER CAUSED
+# these pain events. It is not. Shot share proves only that the recorder
+# dominated the shooting in the window. Somebody else's rocket can still be
+# what hurt the victim.
+#
+# So the fact is named for what it is -- activity share -- and the derived
+# label is a suggestion about involvement, never a causal claim.
+ACTIVITY_DOMINANT = "RECORDER_DOMINANT"     # the recorder fired most of it
+ACTIVITY_SHARED = "SHARED_FIREFIGHT"        # several people were shooting
 
 # ── classes ─────────────────────────────────────────────────────────────────
-TRUE_NO_KILL = "TRUE_NO_KILL_ACTION"     # nothing died; currently invisible
-FRAG_BUILDUP = "FRAG_BUILDUP_CONTEXT"    # this is how the frag was set up
-PRESSURE_BURST = "PRESSURE_BURST"        # sustained damage on several people
-CLUTCH_ACTION = "CLUTCH_ACTION"          # outnumbered while doing it
-NEAR_MISS = "PROJECTILE_NEAR_MISS"       # the rocket that should have hit
-GRENADE_PRESSURE = "GRENADE_PRESSURE"
+#
+# NAMED FOR WHAT WAS OBSERVED, not for what it implies. The earlier
+# `TRUE_NO_KILL_ACTION` claimed "nobody died", which this cannot establish:
+# it knows only that no obituary naming the RECORDER as killer landed in the
+# window. Somebody may well have died, to somebody else. The honest scope is
+# in the name.
+NO_USER_KILL = "NO_USER_KILL_ACTIVITY"   # no recorder obituary in the window
+NO_OBITUARY = "NO_OBITUARY_IN_WINDOW"    # no obituary AT ALL was observed
+FRAG_BUILDUP = "FRAG_BUILDUP_CONTEXT"    # a recorder kill closes the window
+PRESSURE_ACTIVITY = "PRESSURE_ACTIVITY"  # sustained pain on several people
+NEAR_MISS = "PROJECTILE_PRESSURE"        # missiles went out, none connected
 MULTI_TARGET = "MULTI_TARGET_PRESSURE"
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS action_moments_v1 (
-    action_id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    -- STABLE SEMANTIC KEY, not a rowid. An AUTOINCREMENT id is a property
+    -- of the insertion order of one table on one machine: promoting the
+    -- same staging data twice handed the same action id 1 and then id 2,
+    -- which would have silently re-pointed every human review of it.
+    action_key      TEXT PRIMARY KEY,
     content_hash    TEXT NOT NULL,
     server_time_ms  INTEGER NOT NULL,
     round           INTEGER,
@@ -113,15 +133,19 @@ CREATE TABLE IF NOT EXISTS action_moments_v1 (
     missile_misses  INTEGER NOT NULL DEFAULT 0,
     window_ms       INTEGER NOT NULL,
     -- DERIVED
-    shot_share      REAL,
-    confidence      TEXT NOT NULL,
+    -- The recorder's share of ALL shots observed in the window. Activity,
+    -- not causation.
+    recorder_activity_share REAL,
+    activity_label  TEXT NOT NULL,
     classes         TEXT NOT NULL DEFAULT '[]',
-    ends_in_kill    INTEGER NOT NULL DEFAULT 0,
+    user_kill_in_window INTEGER NOT NULL DEFAULT 0,
+    any_obituary_in_window INTEGER NOT NULL DEFAULT 0,
     linked_occurrence_id INTEGER,
     version         TEXT NOT NULL,
     UNIQUE (content_hash, server_time_ms)
 );
 CREATE INDEX IF NOT EXISTS ix_am_hash ON action_moments_v1(content_hash, server_time_ms);
+CREATE INDEX IF NOT EXISTS ix_am_share ON action_moments_v1(recorder_activity_share);
 CREATE INDEX IF NOT EXISTS ix_am_link ON action_moments_v1(linked_occurrence_id);
 CREATE TABLE IF NOT EXISTS action_runs_v1 (
     content_hash TEXT PRIMARY KEY,
@@ -150,6 +174,24 @@ def _ro(db: Path) -> sqlite3.Connection:
 
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def action_key(content_hash: str, server_time_ms: int,
+               recorder: int | None) -> str:
+    """A stable, external identity for one action.
+
+    Derived from the FACTS that make it that action and nothing else: which
+    demo, whose camera, and when. Deliberately NOT the miner version -- a
+    recalibrated threshold describes the same moment, and bumping identity on
+    every retune would orphan every review of it. If a future change moves
+    the semantic boundaries enough that it is a different action, it lands on
+    a different `server_time_ms` and gets a different key by construction.
+
+    Prefixed and hashed so it can never be confused with, or silently
+    compared against, a canonical occurrence id.
+    """
+    raw = f"{content_hash}|{int(server_time_ms)}|{recorder}"
+    return "ACT:" + hashlib.sha1(raw.encode()).hexdigest()[:16]
 
 
 def demo_list(limit: int | None = None) -> list[tuple[str, int]]:
@@ -204,6 +246,7 @@ def mine_demo(content_hash: str, recorder: int | None) -> dict[str, Any]:
                 "SELECT server_time_ms, occurrence_id, killer_client FROM "
                 "kill_events_v1 WHERE content_hash=? ORDER BY 1",
                 (content_hash,))]
+            all_kill_times = [k[0] for k in kills]
             rounds = [(int(r["server_time_ms"]), r["round"], r["map"])
                       for r in c.execute(
                 "SELECT server_time_ms, round, map FROM kill_events_v1 "
@@ -216,8 +259,16 @@ def mine_demo(content_hash: str, recorder: int | None) -> dict[str, Any]:
     # team data is not evidence of enmity: without it the victim is skipped
     # rather than assumed to be an enemy.
     def is_enemy(client: int) -> bool:
-        if my_team is None:
-            return client != recorder
+        """Enemy only when BOTH sides are known and they differ.
+
+        The previous version returned `client != recorder` whenever the
+        recorder's own team was unknown -- treating every other player in
+        the match as an enemy, which is the exact opposite of what its
+        comment claimed. A missing team is an UNKNOWN RELATION, and pain on
+        an unknown relation cannot be counted as pressure on an opponent.
+        """
+        if my_team is None or client == recorder:
+            return False
         t = teams.get(client)
         return bool(t) and t != my_team
 
@@ -260,6 +311,13 @@ def mine_demo(content_hash: str, recorder: int | None) -> dict[str, Any]:
                 break
             ki += 1
 
+        # TWO DIFFERENT CLAIMS, KEPT APART. "the recorder got no kill here"
+        # is what a linked obituary answers. "nobody died here" is a much
+        # stronger statement needing every obituary in the window -- and even
+        # then it is only what THIS demo observed.
+        any_obit = count_between(all_kill_times, t - KILL_LINK_MS,
+                                 t + KILL_LINK_MS) > 0
+
         rnd, mp = nearest_round(t)
         raw.append({
             "content_hash": content_hash, "server_time_ms": t,
@@ -268,10 +326,12 @@ def mine_demo(content_hash: str, recorder: int | None) -> dict[str, Any]:
             "actor_shots": mine, "other_shots": others,
             "missile_hits": count_between(hits, lo, hi),
             "missile_misses": count_between(misses, lo, hi),
-            "window_ms": WINDOW_MS, "shot_share": round(share, 3),
-            "confidence": (CONF_HIGH if share >= HIGH_CONF_SHARE
-                           else CONF_AMBIGUOUS),
-            "ends_in_kill": int(near_kill is not None),
+            "window_ms": WINDOW_MS,
+            "recorder_activity_share": round(share, 3),
+            "activity_label": (ACTIVITY_DOMINANT if share >= HIGH_SHARE
+                               else ACTIVITY_SHARED),
+            "user_kill_in_window": int(near_kill is not None),
+            "any_obituary_in_window": int(any_obit),
             "linked_occurrence_id": near_kill[1] if near_kill else None,
         })
 
@@ -286,29 +346,34 @@ def mine_demo(content_hash: str, recorder: int | None) -> dict[str, Any]:
 
     for r in merged:
         cls = []
-        if r["ends_in_kill"]:
+        if r["user_kill_in_window"]:
             cls.append(FRAG_BUILDUP)
         else:
-            cls.append(TRUE_NO_KILL)
+            cls.append(NO_USER_KILL)
+            if not r["any_obituary_in_window"]:
+                cls.append(NO_OBITUARY)
         if r["observed_pain"] >= 6:
-            cls.append(PRESSURE_BURST)
+            cls.append(PRESSURE_ACTIVITY)
         if r["distinct_victims"] >= 3:
             cls.append(MULTI_TARGET)
         if r["missile_misses"] >= 3 and r["missile_hits"] == 0:
             cls.append(NEAR_MISS)
         r["classes"] = json.dumps(cls)
         r["version"] = MINER_VERSION
+        r["action_key"] = action_key(content_hash, r["server_time_ms"],
+                                     recorder)
     return {"content_hash": content_hash, "rows": merged, "error": ""}
 
 
 def _write(rows: list[dict[str, Any]], db: Path = EPOCH_DB) -> None:
     if not rows:
         return
-    cols = ("content_hash", "server_time_ms", "round", "map", "actor_client",
-            "observed_pain", "distinct_victims", "actor_shots", "other_shots",
-            "missile_hits", "missile_misses", "window_ms", "shot_share",
-            "confidence", "classes", "ends_in_kill", "linked_occurrence_id",
-            "version")
+    cols = ("action_key", "content_hash", "server_time_ms", "round", "map",
+            "actor_client", "observed_pain", "distinct_victims",
+            "actor_shots", "other_shots", "missile_hits", "missile_misses",
+            "window_ms", "recorder_activity_share", "activity_label",
+            "classes", "user_kill_in_window", "any_obituary_in_window",
+            "linked_occurrence_id", "version")
     with epoch_conn(db) as c:
         c.executemany(
             f"INSERT OR REPLACE INTO action_moments_v1 ({','.join(cols)}) "
@@ -339,7 +404,7 @@ def main() -> int:
             out = mine_demo(h, rec)
             for r in out["rows"]:
                 pains.append(r["observed_pain"])
-                shares.append(r["shot_share"])
+                shares.append(r["recorder_activity_share"])
         pains.sort()
         shares.sort()
         def q(v, p):

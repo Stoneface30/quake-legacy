@@ -679,10 +679,20 @@ _WARMUP_SQL = ("NOT (o.round = 0 AND EXISTS (SELECT 1 FROM round_kills_v1 rk "
 
 
 def junk_sql(corpus: str | None = None) -> tuple[str, list[Any]]:
-    """Exclusions every kill queue shares: warmup, telefrags, deletions.
+    """QUEUE POLICY. Not event truth, and never a redefinition of one.
 
-    A telefrag is decided by the map, not by the player -- it cannot be aimed
-    and it cannot be made interesting. 1,443 across the corpus.
+    EDITORIAL POLICY IS NOT EVENT IDENTITY. A telefrag is still a kill: it
+    has an obituary, a killer, a victim and a means of death, and it belongs
+    in the user's canonical frag total whatever any queue decides to show. A
+    warmup kill is still a kill that happened. What these rules decide is
+    what is worth a reviewer's time -- a different question, answered in a
+    different place.
+
+    That distinction was got wrong once. Applying this inside `count_items`
+    silently moved the project's authoritative statistic from 33,316
+    confirmed user frags to 33,102, as though 214 kills had stopped
+    existing. They had not; they had stopped being offered. `count_items`
+    now takes `queue_policy` and `canonical_count` answers without it.
     """
     # The documentary corpus asks for exactly what every other queue
     # refuses. Warmup and deletions still apply -- a warmup telefrag is no
@@ -1276,14 +1286,14 @@ def queue(order: str = ORDER_WORST_FIRST, limit: int = 50, offset: int = 0,
         with _rec() as c:
             rows = c.execute(
                 f"{_ACTION_SELECT} WHERE {where} ORDER BY a.observed_pain "
-                f"{direction}, a.action_id ASC LIMIT ? OFFSET ?",
+                f"{direction}, a.action_key ASC LIMIT ? OFFSET ?",
                 (*params, limit, offset)).fetchall()
-        ids = [f"{ACTION}:{r['id']}" for r in rows]
+        ids = [f"{ACTION}:{r['key']}" for r in rows]
         got = reviews(ids)
         if unreviewed_only:
-            rows = [r for r in rows if f"{ACTION}:{r['id']}" not in got]
+            rows = [r for r in rows if f"{ACTION}:{r['key']}" not in got]
         return [_action_item(r, offset + i + 1, total,
-                             got.get(f"{ACTION}:{r['id']}") or {})
+                             got.get(f"{ACTION}:{r['key']}") or {})
                 for i, r in enumerate(rows)]
     if item_type in KILL_BACKED:
         if not _kill_table_exists():
@@ -1321,8 +1331,20 @@ def queue(order: str = ORDER_WORST_FIRST, limit: int = 50, offset: int = 0,
     return out
 
 
+def canonical_count(item_type: str = USER_FRAG, corpus: str | None = None
+                    ) -> int:
+    """How many events of this family EXIST. No editorial policy applied.
+
+    This is the number that belongs in a project statistic, a corpus report
+    or a paper. `count_items` answers the different question of how many the
+    queue is currently offering.
+    """
+    return count_items(item_type, corpus=corpus, queue_policy=False)
+
+
 def count_items(item_type: str = FRAG, corpus: str | None = None,
-                filters: dict[str, Any] | None = None) -> int:
+                filters: dict[str, Any] | None = None,
+                queue_policy: bool = True) -> int:
     if item_type == ACTION:
         if not _action_table_exists():
             return 0
@@ -1336,7 +1358,7 @@ def count_items(item_type: str = FRAG, corpus: str | None = None,
             return 0
         where, params = _kill_where(item_type, corpus)
         fw, fp = _filter_sql(filters)
-        jw, jp = junk_sql(corpus)
+        jw, jp = junk_sql(corpus) if queue_policy else ("", [])
         with _rec() as c:
             return int(c.execute(
                 "SELECT COUNT(*) FROM kill_occurrences_v1 o JOIN "
@@ -1369,6 +1391,17 @@ def count_items(item_type: str = FRAG, corpus: str | None = None,
 
 def item(item_id: str) -> ReviewItem | None:
     kind, _, sid = item_id.partition(":")
+    if kind == ACTION:
+        # `sid` is the stable action key ("ACT:<hex>"), never an integer.
+        if not _action_table_exists():
+            return None
+        with _rec() as c:
+            r = c.execute(f"{_ACTION_SELECT} WHERE a.action_key = ?",
+                          (sid,)).fetchone()
+        if not r:
+            return None
+        return _action_item(r, 0, count_items(ACTION, corpus=NO_KILL_ACTIONS),
+                            reviews([item_id]).get(item_id) or {})
     if kind in MOVEMENT_BACKED:
         if not _movement_table_exists():
             return None
@@ -1448,10 +1481,21 @@ def progress(item_type: str = FRAG, corpus: str | None = None) -> dict[str, Any]
             f"AND provenance NOT IN ({qs}) GROUP BY 1",
             (*families, *HUMAN_PROVENANCE))}
     reviewed = sum(counts.values())
-    return {"item_type": item_type, "total": total, "reviewed": reviewed,
-            "unreviewed": total - reviewed,
-            "roles": {r: counts.get(r, 0) for r in ROLES},
-            "non_human_rows": other, "labels": ROLE_LABEL}
+    out = {"item_type": item_type, "total": total, "reviewed": reviewed,
+           "unreviewed": total - reviewed,
+           "roles": {r: counts.get(r, 0) for r in ROLES},
+           "non_human_rows": other, "labels": ROLE_LABEL}
+    if item_type in KILL_BACKED:
+        # The two numbers, side by side and named, so nobody has to guess
+        # which one a report is quoting.
+        canonical = canonical_count(item_type, corpus=corpus)
+        out["canonical_total"] = canonical
+        out["queue_excluded"] = canonical - total
+        out["denominator_note"] = (
+            "`total` is what the QUEUE offers; `canonical_total` is how many "
+            "of these events exist. Warmup kills and telefrags are excluded "
+            "from the queue and remain canonical kills")
+    return out
 
 
 def pool(role: str, item_type: str | None = None, weapon: str | None = None,
@@ -1646,10 +1690,11 @@ def dismiss_risk(item_id: str) -> dict[str, Any]:
 # progress. "Actions are not fake frags."
 
 _ACTION_SELECT = """
-SELECT a.action_id AS id, a.content_hash, a.server_time_ms, a.round, a.map,
+SELECT a.action_key AS key, a.content_hash, a.server_time_ms, a.round, a.map,
        a.observed_pain, a.distinct_victims, a.actor_shots, a.other_shots,
-       a.missile_hits, a.missile_misses, a.shot_share, a.confidence,
-       a.classes, a.ends_in_kill, a.linked_occurrence_id, a.window_ms
+       a.missile_hits, a.missile_misses, a.recorder_activity_share,
+       a.activity_label, a.classes, a.user_kill_in_window,
+       a.any_obituary_in_window, a.linked_occurrence_id, a.window_ms
 FROM action_moments_v1 a
 """
 
@@ -1666,18 +1711,21 @@ def _action_table_exists() -> bool:
 
 
 def _action_where(corpus: str | None) -> tuple[str, list[Any]]:
-    """Which actions are worth offering.
+    """Which actions the QUEUE offers. Editorial policy, not event truth.
 
-    HIGH confidence and no kill by default. An AMBIGUOUS burst is one where
-    other people were shooting the same targets; showing it as the user's
-    action would be a claim the pain stream cannot support.
+    `RECORDER_DOMINANT` means the recorder fired most of the shots observed
+    in the window. That is ACTIVITY, not causation -- it does not prove they
+    caused any particular pain event -- so it is used to decide what is worth
+    a reviewer's time, and never presented as attribution.
     """
     users, up = _in(user_norms())
-    where = ("a.confidence = 'HIGH' AND a.ends_in_kill = 0 "
+    where = ("a.activity_label = 'RECORDER_DOMINANT' "
+             "AND a.user_kill_in_window = 0 "
              "AND EXISTS (SELECT 1 FROM kill_events_v1 k WHERE "
              "k.content_hash = a.content_hash AND k.is_recorder_killer = 1 "
              f"AND k.killer_name_norm IN {users}) "
-             # Warmup is warmup whatever the moment is made of.
+             # Warmup is filtered from the QUEUE, exactly as for frags. The
+             # action itself remains in the table as game truth.
              "AND NOT (a.round = 0 AND EXISTS (SELECT 1 FROM round_kills_v1 "
              "rk WHERE rk.content_hash = a.content_hash AND rk.round >= 1))")
     return where, up
@@ -1687,21 +1735,28 @@ def _action_why(r: sqlite3.Row) -> str:
     import json as _json
     try:
         cls = [c for c in _json.loads(r["classes"] or "[]")
-               if c != "TRUE_NO_KILL_ACTION"]
+               if not c.startswith("NO_")]
     except Exception:                                          # noqa: BLE001
         cls = []
-    bits = [f"{r['observed_pain']} pain on {r['distinct_victims']}"]
-    bits.append(f"{r['actor_shots']} of your shots")
+    bits = [f"{r['observed_pain']} pain seen on {r['distinct_victims']}",
+            f"{r['actor_shots']} of your shots"]
     if cls:
         bits.append(", ".join(cls[:2]))
     return " · ".join(bits)
 
 
+# An action has no occurrence id, and pretending otherwise is what let
+# `ACTION:41` be served the truth of kill 41. The sentinel says so out loud;
+# anything that treats it as an occurrence gets an obviously invalid one
+# rather than a plausible wrong answer.
+NOT_AN_OCCURRENCE = -1
+
+
 def _action_item(r: sqlite3.Row, rank: int, total: int,
                  rv: dict[str, Any]) -> ReviewItem:
     return ReviewItem(
-        item_id=f"{ACTION}:{r['id']}", item_type=ACTION,
-        source_id=int(r["id"]), content_hash=r["content_hash"] or "",
+        item_id=f"{ACTION}:{r['key']}", item_type=ACTION,
+        source_id=NOT_AN_OCCURRENCE, content_hash=r["content_hash"] or "",
         demo_name="", server_time_ms=int(r["server_time_ms"]),
         # An action has no highlight score and never had one. -1.0 is the
         # sentinel for "never scored", not a low score.
@@ -1715,18 +1770,27 @@ def _action_item(r: sqlite3.Row, rank: int, total: int,
         note=rv.get("note") or "")
 
 
-def action_detail(action_id: int) -> dict[str, Any] | None:
+def action_detail(action_key: str) -> dict[str, Any] | None:
     """Everything measured about one action, named for what was OBSERVED."""
+    key = str(action_key)
+    if key.startswith(f"{ACTION}:"):
+        key = key.split(":", 1)[1]
     with _rec() as c:
-        r = c.execute("SELECT * FROM action_moments_v1 WHERE action_id = ?",
-                      (int(action_id),)).fetchone()
+        r = c.execute("SELECT * FROM action_moments_v1 WHERE action_key = ?",
+                      (key,)).fetchone()
     if r is None:
         return None
     import json as _json
     d = dict(r)
     d["classes"] = _json.loads(d.get("classes") or "[]")
     d.pop("content_hash", None)          # private provenance
-    d["note"] = ("observed pain events are a LOWER BOUND on hits -- the "
-                 "server throttles them -- and prove damage, not whose. "
-                 "Quake Live demos carry no damage figure for another player")
+    d["what_this_is_not"] = (
+        "recorder_activity_share is the share of shots the RECORDER fired in "
+        "this window. It is activity, NOT proof that they caused any "
+        "particular pain event. Observed pain is a LOWER BOUND on hits -- the "
+        "server throttles it -- and Quake Live demos carry no damage figure "
+        "for another player. `user_kill_in_window` means no obituary named "
+        "the recorder as killer here; `any_obituary_in_window` is the wider "
+        "and much stronger claim that nothing died at all, as observed by "
+        "THIS demo")
     return d
