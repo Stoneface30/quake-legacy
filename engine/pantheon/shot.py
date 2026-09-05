@@ -162,6 +162,27 @@ class ShotSpec:
                 "provenance": self.provenance}
 
 
+# ── render permission ───────────────────────────────────────────────────────
+# Wolfcam takes the screen. It is never launched on a whim: a launch needs an
+# explicit RenderPermit -- the env var, or a permit file whose first line
+# says who granted it and until when. Without one the job is DEFERRED and the
+# headless proof stands on its own.
+RENDER_PERMIT_ENV = "PANTHEON_RENDER_PERMIT"
+RENDER_PERMIT_FILE = MAIN / "output" / "demo_v2" / "RENDER_PERMIT"
+
+
+class RenderDeferred(RuntimeError):
+    """No permit: nothing was launched. Not a failure of the proof."""
+
+
+def render_permitted() -> tuple[bool, str]:
+    if os.environ.get(RENDER_PERMIT_ENV):
+        return True, f"env {RENDER_PERMIT_ENV}"
+    if RENDER_PERMIT_FILE.exists():
+        return True, RENDER_PERMIT_FILE.read_text(encoding="utf-8").strip().splitlines()[0]
+    return False, "no permit"
+
+
 MAX_CONSOLE_LINES = 32   # qcommon/common.c -- Com_ParseCommandLine silently
                          # STOPS parsing once this many `+` groups exist, so an
                          # over-long launch line drops the trailing `+demo` and
@@ -177,9 +198,17 @@ def render(spec: ShotSpec, out_dir: Path, *, base_ms: int = 1000) -> Path:
     """
     from creative_suite.engine import wolfcam_capture as wc
 
+    ok, why = render_permitted()
+    if not ok:
+        raise RenderDeferred(
+            f"{spec.shot_id}: RENDER_DEFERRED -- no RenderPermit ({why}). "
+            f"Headless proof only; set {RENDER_PERMIT_ENV} or write "
+            f"{RENDER_PERMIT_FILE} to launch.")
+
     bad = spec.unsupported_passes()
     if bad:
         raise ValueError(f"{spec.shot_id}: backend cannot deliver {bad}")
+    launched_at = time.time()
 
     # The capture cfg seeks to `start - SEEK_SETTLE_MS`, so a shot that begins
     # too near the head of the demo seeks to a serverTime BEFORE the first
@@ -271,9 +300,23 @@ def render(spec: ShotSpec, out_dir: Path, *, base_ms: int = 1000) -> Path:
     if not made:
         raise RuntimeError(f"{spec.shot_id}: no AVI produced (rc={rc}, "
                            f"{elapsed}s)")
+    # RENDER-JOB VALIDATION. A stale artefact from an earlier run once passed
+    # for a fresh one because nobody checked. Every claim below is verified
+    # against THIS launch: the file is newer than the launch, the engine
+    # exited cleanly, and it probes to the duration that was asked for.
+    if made[0].stat().st_mtime < launched_at:
+        raise RuntimeError(f"{spec.shot_id}: STALE_ARTIFACT -- {made[0].name} "
+                           f"predates this launch")
+    if rc != 0:
+        raise RuntimeError(f"{spec.shot_id}: engine exit {rc}")
     out_dir.mkdir(parents=True, exist_ok=True)
     dest = out_dir / f"{spec.shot_id}.avi"
     shutil.move(str(made[0]), dest)
+    want = spec.end_s - spec.start_s
+    got = _probe(dest, spec, elapsed).get("duration_s")
+    if got is None or abs(float(got) - want) > 0.2:
+        raise RuntimeError(f"{spec.shot_id}: DURATION_MISMATCH -- asked "
+                           f"{want:.2f}s, probed {got}s")
 
     # THE PASS CONTRACT. Accepting a pass enum is not producing its artifact.
     # The collector enumerates the beauty AVI and nothing else, so any other
@@ -304,4 +347,7 @@ def _probe(avi: Path, spec: "ShotSpec", elapsed: float) -> dict:
             "duration_s": st.get("duration"),
             "requested_s": round(spec.end_s - spec.start_s, 3),
             "backend": "wolfcamql-11.3", "elapsed_s": elapsed,
+            "source": str(spec.source), "source_kind": spec.source_kind.value,
+            "profile": spec.visual.name, "provenance": spec.provenance,
+            "artifact_mtime": avi.stat().st_mtime,
             "settings": spec.visual.cvars()}

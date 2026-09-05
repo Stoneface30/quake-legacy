@@ -126,6 +126,11 @@ class AnalysisBreak:
     gesture: bool = True
     orbit: Sequence[Vec3] = ()      # camera points, edit time, during the hold
     orbit_look_at: Vec3 | None = None
+    # A REAL recorded RUN_IN -> STOP -> TURN performance. When set, the
+    # explainer does not walk: he performs this trace, retargeted in
+    # LOCAL_FRAME so its stopping point is `walk_to` and its final facing is
+    # toward `face`. Timing is the recording's own.
+    entrance: object | None = None  # performance.PerformanceTrace
 
     def __post_init__(self) -> None:
         if self.hold_s < 2 * self.walk_s + 0.4:
@@ -160,6 +165,7 @@ class InstructionScene:
         self.duration = duration
         self.breaks: list[AnalysisBreak] = []
         self.facts: list[TacticalFact] = []
+        self.placements: list[dict] = []
 
     def add_break(self, brk: AnalysisBreak) -> "InstructionScene":
         if any(abs(b.at_t - brk.at_t) < 0.5 for b in self.breaks):
@@ -318,22 +324,37 @@ class InstructionScene:
         """
         from engine.pantheon.voice import (DialogueCue, SourceKind, SpatialMode,
                                            wav_duration)
-        route = list(b.route_out) or [start, b.walk_to]
-        act.spawn(route[0], yaw=yaw0, t=e0, weapon=weapon)
-        # The walk takes as long as the distance takes at run speed. `walk_s`
-        # is no longer an author's guess; it is read back for the exit leg.
-        act.move_to(route, start=e0 + 0.15)
-        arrive = act._last().t
-        walk_s = arrive - (e0 + 0.15)
-        # move_to lays a settle keyframe at t1 + 0.05 carrying the ROUTE
-        # heading; turning on t1 was overwritten a frame later and he
-        # addressed the audience in profile. Turn after the settle.
-        turn = arrive + 0.25
-        act.look_at_point(b.face, t=turn)
-        t = turn + 0.2
-        if b.gesture and act.model in _GESTURE_OK:
-            act.gesture(t=t)
-            t += 0.9
+        if b.entrance is not None:
+            # THE ENTRANCE IS A RECORDING. Placement solves the local frame so
+            # the recorded stop lands on `walk_to` and the recorded final yaw
+            # points at `face`; nothing about its timing, speed, deceleration
+            # or turn is authored. The gesture waits for the recording's own
+            # stop plus a beat, so it cannot fire on a sliding body.
+            pl = place_entrance(b.entrance, stop_at=b.walk_to, face=b.face)
+            act.perform(b.entrance, t0=e0 + 0.15, offset=pl["offset"],
+                        yaw_offset=pl["yaw_offset"])
+            self.placements.append({"who": act.name, **pl})
+            arrive = e0 + 0.15 + pl["stop_rel_s"]
+            walk_s = pl["stop_rel_s"]
+            t = e0 + 0.15 + pl["turned_rel_s"] + 0.3
+            if b.gesture and act.model in _GESTURE_OK:
+                act.gesture(t=t)
+                t += 0.9
+            # the recorded template ends standing; hold that pose from there
+            perf_end = e0 + 0.15 + b.entrance.duration_ms() / 1000.0
+            t = max(t, perf_end)
+        else:
+            route = list(b.route_out) or [start, b.walk_to]
+            act.spawn(route[0], yaw=yaw0, t=e0, weapon=weapon)
+            act.move_to(route, start=e0 + 0.15)
+            arrive = act._last().t
+            walk_s = arrive - (e0 + 0.15)
+            turn = arrive + 0.25
+            act.look_at_point(b.face, t=turn)
+            t = turn + 0.2
+            if b.gesture and act.model in _GESTURE_OK:
+                act.gesture(t=t)
+                t += 0.9
         if b.line is not None:
             dur = wav_duration(Path(b.line.audio))
             self.cues.append(DialogueCue(
@@ -348,9 +369,11 @@ class InstructionScene:
                 f"{b.who}: the break holds {b.hold_s}s but walking in, "
                 f"gesturing and the line need {t - e0 + walk_s + 0.2:.1f}s")
         act.stand(until=speak_until)
-        act.move_to(list(reversed(route)), start=speak_until)
+        if b.entrance is None:
+            act.move_to(list(reversed(route)), start=speak_until)
         # gone before history resumes: the explainer must not be standing in
-        # the frame when the fight starts again
+        # the frame when the fight starts again. (A performed entrance has no
+        # authored exit yet; a real run-out template is the next step.)
         act.despawn(t=e0 + b.hold_s - 0.05)
 
     def _remap_camera(self, src: RoundScenario, tm) -> list[_Keyframe]:
@@ -424,6 +447,7 @@ class InstructionScene:
                       "source_kind": b.line.source_kind}
                      if b.line else None),
             "camera_orbit_points": len(b.orbit),
+            "entrance": ("REAL_PERFORMANCE" if b.entrance is not None else "AUTHORED_WALK"),
             "walk_route": [[round(c, 2) for c in p] for p in route],
             "walk_len_units": round(
                 sum(math.dist(route[i], route[i + 1])
@@ -495,6 +519,82 @@ class InstructionScene:
                 row["ok"] = row["ok"] and same
             results.append(row)
         return {"breaks": results, "all_restored": all(r["ok"] for r in results)}
+
+
+def place_entrance(trace, *, stop_at: Vec3, face: Vec3) -> dict:
+    """Solve the LOCAL_FRAME that puts a recording's STOP on `stop_at`,
+    facing `face` at the end of its turn.
+
+    The recording's own geometry decides where the run STARTS; that start is
+    then checked, not assumed. Returns offset, yaw_offset, and the recording's
+    own stop/turn times so nothing downstream guesses them.
+    """
+    T = trace.transform
+    A = {a.t: a for a in trace.aim}
+    sp = [s.speed for s in T]
+    # the recorded stop: first sample under 30 u/s after the run
+    k = next(i for i in range(len(T)) if sp[i] > 250)
+    while k < len(T) and sp[k] >= 30:
+        k += 1
+    stop = T[min(k, len(T) - 1)]
+    final_yaw = A[T[-1].t].yaw if T[-1].t in A else 0.0
+    want_yaw = _heading(stop_at, face)
+    yaw_offset = (want_yaw - final_yaw) % 360.0
+    c, sn = math.cos(math.radians(yaw_offset)), math.sin(math.radians(yaw_offset))
+    rx, ry = stop.origin[0] * c - stop.origin[1] * sn, stop.origin[0] * sn + stop.origin[1] * c
+    offset = (stop_at[0] - rx, stop_at[1] - ry, stop_at[2] - stop.origin[2])
+    # when does the turn finish: last sample whose yaw still moves > 2 deg
+    yaws = [(t.t, A[t.t].yaw) for t in T[k:] if t.t in A]
+    turned = yaws[-1][0] if yaws else T[-1].t
+    for (ta, ya), (tb, yb) in zip(yaws, yaws[1:]):
+        if abs((yb - ya + 180) % 360 - 180) > 2.0:
+            turned = tb
+    return {"mode": "LOCAL_FRAME", "offset": offset, "yaw_offset": round(yaw_offset, 2),
+            "stop_rel_s": (stop.t - trace.start_ms) / 1000.0,
+            "turned_rel_s": (turned - trace.start_ms) / 1000.0,
+            "start_world": _apply(T[0].origin, offset, yaw_offset),
+            "stop_world": tuple(stop_at),
+            "template_duration_s": trace.duration_ms() / 1000.0}
+
+
+def _apply(o: Vec3, offset: Vec3, yaw_offset: float) -> Vec3:
+    c, sn = math.cos(math.radians(yaw_offset)), math.sin(math.radians(yaw_offset))
+    return (o[0] * c - o[1] * sn + offset[0], o[0] * sn + o[1] * c + offset[1],
+            o[2] + offset[2])
+
+
+def validate_placement(trace, placement: dict, nav, *, floor_tol: float = 40.0,
+                       walk_tol: float = 96.0) -> dict:
+    """Is the retargeted path on ground real players stood on?
+
+    Every retargeted sample is checked against NavigationTruth's walked
+    points: horizontal distance to the nearest one, and height against that
+    point's floor. A path that leaves walked ground by more than `walk_tol`
+    or floats/sinks by more than `floor_tol` is INVALID -- the local frame
+    fit mathematically and put the recording through a wall.
+    """
+    pts = [pt for r in nav.routes for pt in r.points]
+    worst_xy, worst_z, n_bad = 0.0, 0.0, 0
+    for s in trace.transform:
+        w = _apply(s.origin, placement["offset"], placement["yaw_offset"])
+        # judge against ground on the SAME floor: the nearest point in XY can
+        # sit a level below where the upper floor has an opening, which reads
+        # as a 345-unit drop on a run that never left its floor
+        same = [p for p in pts if abs(p[2] - w[2]) <= floor_tol]
+        if not same:
+            n_bad += 1
+            worst_z = max(worst_z, min(abs(p[2] - w[2]) for p in pts))
+            continue
+        near = min(same, key=lambda p: (p[0] - w[0]) ** 2 + (p[1] - w[1]) ** 2)
+        dxy = math.hypot(near[0] - w[0], near[1] - w[1])
+        dz = abs(near[2] - w[2])
+        worst_xy, worst_z = max(worst_xy, dxy), max(worst_z, dz)
+        if dxy > walk_tol:
+            n_bad += 1
+    return {"samples": len(trace.transform), "off_walked_ground": n_bad,
+            "worst_xy_u": round(worst_xy, 1), "worst_z_u": round(worst_z, 1),
+            "verdict": "VALID" if n_bad == 0 else "INVALID",
+            "reference": f"NavigationTruth {nav.map_name}: {len(pts)} walked points"}
 
 
 def _analysis_rail(t: float, actor: str, to: Vec3):

@@ -28,6 +28,8 @@ HEADLESS = {
     "performance",      # PerformanceTrace extraction
     "performance_index",  # corpus-wide PerformanceTrace index (SQLite)
     "real_action_proof",  # extract -> compile -> compare, headless
+    "performance_templates",  # real movement fragments mined from the index
+    "presenter_performance_proof",  # Crash enters via a real recording, headless first
     "frame_truth",      # FrameTruth
     "scenario",         # RoundScenario authoring
     "compiler",         # intent -> .dm_73 grammar

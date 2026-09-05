@@ -224,3 +224,88 @@ def test_the_camera_returns_to_the_exact_pov_before_history_resumes():
     mid = built.camera_at(6.5)
     assert mid.origin != before.origin        # it did move in edit time
     assert s.historical_at_edit(6.5) == pytest.approx(4.0)   # history did not
+
+
+# ── a presenter enters by performing a real recording ──────────────────
+
+def _run_in_template():
+    """A hand-built RUN -> STOP -> TURN with the extractor's shape."""
+    from engine.pantheon.performance import (AimSample, AnimSample, PerformanceTrace,
+                                             TransformSample)
+    tr = PerformanceTrace("t", "overkill", "CA", 1, 0, 0)
+    t = 0
+    x = 0.0
+    yaw = 0.0
+    for i in range(140):                       # 3.5s at 25ms
+        if i < 52:            # run
+            v, legs = 320.0, 15
+        elif i < 60:          # decelerate
+            v, legs = 320.0 * (60 - i) / 8, 15
+        else:                 # stopped, turning 90 degrees over 1s
+            v, legs = 0.0, 22
+            if i < 100:
+                yaw += 2.25
+        x += v * 0.025
+        tr.transform.append(TransformSample(t, (x, 0.0, 24.0), (v, 0.0, 0.0), v, False, 1022))
+        tr.aim.append(AimSample(t, yaw % 360, 0.0, 0.0, 0.0))
+        tr.animation.append(AnimSample(t, legs, 11, False, False))
+        t += 25
+    tr.end_ms = t - 25
+    return tr
+
+
+def test_presenter_entrance_is_placed_so_the_recorded_stop_lands_on_the_mark():
+    from engine.pantheon.instruction import place_entrance, _apply
+    tr = _run_in_template()
+    pl = place_entrance(tr, stop_at=(500.0, 500.0, 24.0), face=(500.0, 900.0, 24.0))
+    assert pl["mode"] == "LOCAL_FRAME"
+    # the recorded stop sample, moved into the frame, IS the mark
+    stop = next(s for s in tr.transform if s.speed < 30)
+    w = _apply(stop.origin, pl["offset"], pl["yaw_offset"])
+    assert abs(w[0] - 500.0) < 1e-6 and abs(w[1] - 500.0) < 1e-6
+    # and the run started ~500 units away, where the recording says
+    assert 400 < ((pl["start_world"][0] - 500) ** 2 + (pl["start_world"][1] - 500) ** 2) ** 0.5 < 700
+    assert pl["stop_rel_s"] == pytest.approx(1.5, abs=0.05)
+
+
+def test_entrance_faces_the_camera_at_the_end_of_the_recorded_turn():
+    from engine.pantheon.instruction import place_entrance
+    tr = _run_in_template()
+    pl = place_entrance(tr, stop_at=(500.0, 500.0, 24.0), face=(500.0, 900.0, 24.0))
+    final = (tr.aim[-1].yaw + pl["yaw_offset"]) % 360
+    assert final == pytest.approx(90.0, abs=1e-6)          # +y is toward the camera
+
+
+def test_a_performed_entrance_never_uses_move_to():
+    from engine.pantheon.instruction import AnalysisBreak, InstructionScene, Mode
+    from engine.pantheon.roster import CAST
+    tr = _run_in_template()
+    scn = RoundScenario.clan_arena(map_name="overkill", hostname="T")
+    scn.observer(CAM, yaw=90.0, team=Team.BLUE)
+    k = scn.actor("KEEL", Team.RED).appearance("keel", "bright")
+    k.spawn(A, yaw=0.0, t=0.0, weapon=Weapon.RAIL); k.stand(until=9.0)
+    s = InstructionScene(scn, duration=9.0)
+    s.add_break(AnalysisBreak(at_t=4.0, hold_s=7.0, mode=Mode.PRESENTER,
+                              profile=CAST["GUIDE"], enter_from=(0.0, 0.0, 24.0),
+                              walk_to=(250.0, 300.0, 24.0), face=CAM,
+                              entrance=tr, walk_s=1.5))
+    built, rep = s.build()
+    pres = built.actors["GUIDE~PRESENTER"]
+    assert rep["breaks"][0]["entrance"] == "REAL_PERFORMANCE"
+    assert all(k.recorded for k in pres._keys if k.alive and k.stance.name != "DEAD")
+    assert s.verify_restoration(built)["all_restored"]
+    assert built._alive[Team.RED] == 1 and built._alive.get(Team.BLUE, 0) == 0
+
+
+def test_placement_validity_rejects_a_path_off_walked_ground():
+    from engine.pantheon.instruction import place_entrance, validate_placement
+    from engine.pantheon.navigation import NavigationTruth, Route
+    tr = _run_in_template()
+    pl = place_entrance(tr, stop_at=(500.0, 500.0, 24.0), face=(500.0, 900.0, 24.0))
+    # walked ground that covers the whole retargeted run
+    pts = tuple((500.0 - i * 10.0, 500.0, 24.0) for i in range(60))
+    good = NavigationTruth("overkill", [Route(pts, 24.0)])
+    assert validate_placement(tr, pl, good)["verdict"] == "VALID"
+    # the same ground one floor down: every sample is off the floor
+    bad = NavigationTruth("overkill", [Route(tuple((x, y, z - 300) for x, y, z in pts), -276.0)])
+    assert validate_placement(tr, pl, bad)["verdict"] == "INVALID"
