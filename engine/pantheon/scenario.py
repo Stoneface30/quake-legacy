@@ -576,7 +576,11 @@ class Actor:
                 if a.recorded:
                     # between two recorded snapshots the CLIENT interpolates
                     # position linearly; everything else holds the earlier
-                    # sample, exactly as cgame does
+                    # sample, exactly as cgame does. ON a sample it is that
+                    # sample: returning a's yaw at b's time lagged every
+                    # recorded aim by one snapshot while position was exact.
+                    if f >= 1.0:
+                        return b
                     k = _Keyframe(t, origin, a.yaw, a.stance, a.weapon,
                                   a.health, a.armor, a.alive,
                                   legs_anim=a.legs_anim, torso_anim=a.torso_anim,
