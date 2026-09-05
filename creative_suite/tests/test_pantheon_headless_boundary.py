@@ -35,6 +35,7 @@ HEADLESS = {
     "map_spatial_index",  # behavioural geography from real play
     "performance_library",  # anonymous PERF: references over the index
     "headless_bench",   # loop timings, no render
+    "performance_templates",  # reusable real motion, chosen by measured facts
     "frame_truth",      # FrameTruth
     "scenario",         # RoundScenario authoring
     "compiler",         # intent -> .dm_73 grammar

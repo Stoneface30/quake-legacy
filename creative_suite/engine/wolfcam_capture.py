@@ -255,6 +255,13 @@ def capture_demo(safe_demo: str, windows: list[dict],
         _mock_capture(windows, staging)
         rc = 0
     else:
+        # DEFAULT DENY. A queue that reclaims this job on a server start must
+        # not put a game window on the user's desktop; the operator allows
+        # rendering with PANTHEON_RENDER_ALLOWED=1 and it still defers while
+        # a protected game runs. RenderDenied propagates so the caller can
+        # keep the job QUEUED/DEFERRED rather than FAILED.
+        from creative_suite.engine import render_permit
+        render_permit.require(f"capture_demo:{safe_demo}")
         proc = subprocess.Popen(
             wolfcam_cmd(safe_demo, staging), cwd=staging,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

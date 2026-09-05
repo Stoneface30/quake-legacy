@@ -66,12 +66,27 @@ WEAPON_KIND = {4: "GRENADE", 5: "ROCKET", 8: "PLASMA", 7: "RAIL", 6: "LIGHTNING"
 MISSILE_WEAPONS = {4, 5, 8}
 
 
+# Evidence kinds and the provenance each one carries:
+#   OBSERVED_EVENT    -> OBSERVED      the server said so
+#   STATE_TRANSITION  -> OBSERVED      two recorded samples differ
+#   DERIVED           -> DERIVED       PANTHEON related two observed things
+#   INTERPOLATED      -> INTERPOLATED  a value between two samples (none is
+#                                      emitted today; the slot exists so a
+#                                      future apex-between-samples says so)
+PROVENANCE = {"OBSERVED_EVENT": "OBSERVED", "STATE_TRANSITION": "OBSERVED",
+              "DERIVED": "DERIVED", "INTERPOLATED": "INTERPOLATED"}
+
+
 @dataclass
 class Evidence:
-    kind: str                   # OBSERVED_EVENT | STATE_TRANSITION | DERIVED
+    kind: str                   # OBSERVED_EVENT | STATE_TRANSITION | DERIVED | INTERPOLATED
     t: int                      # serverTime ms
     ref: str                    # e.g. "event:jump_pad", "transform:airborne->grounded"
     detail: dict = field(default_factory=dict)
+
+    @property
+    def provenance(self) -> str:
+        return PROVENANCE[self.kind]
 
 
 @dataclass
@@ -91,6 +106,7 @@ class ActionNode:
         d = asdict(self)
         d["attrs"] = {k: v for k, v in d["attrs"].items() if not k.startswith("_")}
         d["duration_ms"] = self.duration_ms
+        d["provenance"] = sorted({e.provenance for e in self.evidence})
         return d
 
 
@@ -173,7 +189,7 @@ class ActionGraph:
                 "sentence": self.sentence(),
                 "categories": sorted(categories(self)),
                 "nodes": [n.as_dict() for n in self.nodes],
-                "edges": [asdict(e) for e in self.edges],
+                "edges": [{**asdict(e), "provenance": PROVENANCE[e.basis]} for e in self.edges],
                 "rejected": self.rejected}
 
     def save(self, path: Path) -> Path:

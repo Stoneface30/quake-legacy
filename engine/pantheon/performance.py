@@ -286,9 +286,13 @@ def _parse_with_anims(path: Path):
                 "raw_etype": raw,
                 "pos": (st.get(dp._F_POS_X, 0.0), st.get(dp._F_POS_Y, 0.0),
                         st.get(dp._F_POS_Z, 0.0)),
+                # A field the delta never sent IS zero: Q3 omits zero-valued
+                # fields, so "absent" and "client 0" are the same wire state.
+                # Reading None here made every obituary by client 0 unowned.
                 "parm": st.get(dp._F_EVPARM), "weapon": st.get(dp._F_WEAPON),
-                "other": st.get(dp._F_VICTIM), "other2": st.get(dp._F_KILLER),
-                "client": st.get(dp._F_CLIENT)})
+                "other": int(st.get(dp._F_VICTIM, 0) or 0),
+                "other2": int(st.get(dp._F_KILLER, 0) or 0),
+                "client": int(st.get(dp._F_CLIENT, 0) or 0)})
 
     parser._parse_snapshot = hook2
     out = parser.parse()
@@ -398,8 +402,8 @@ def extract_performance(demo: Path, start_ms: int, end_ms: int, client: int,
         # with the fields the parser's rows drop; counting it here as well
         # doubled every temp change_weapon in the round trip.
         ent = ev.get("entity_num")
-        if ent is not None and ent != client:
-            continue
+        if ent is not None and ent >= dp._MAX_CLIENTS:
+            continue                    # a temp entity: read below, once
         mine = ev.get("client_num") == client or (
             ev.get("client_num") is None and client == rec
             and ev["type"] != "obituary")

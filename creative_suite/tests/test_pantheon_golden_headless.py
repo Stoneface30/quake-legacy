@@ -174,8 +174,16 @@ def test_golden_observation_gap(tmp_path):
     d = H.compare(tr, back["PERF"], intentional=compiled.intentional)
     assert d.tracks["position"].unobserved_spans_ms
     assert d.tracks["position"].status in (Status.MATCHED, Status.WITHIN_TOLERANCE)
-    # nothing invented: the reproduction carries exactly the observed samples
-    assert len(back["PERF"].transform) == len(tr.transform)
+    # nothing invented inside the gap: the synthetic HOLDS the last observed
+    # state there (HL-6), it does not move the body, and the comparison never
+    # judged those ticks
+    off = compiled.time_offset_ms
+    held = {s.t: s for s in back["PERF"].transform}
+    real = {s.t: s for s in tr.transform}
+    for a, b in d.tracks["position"].unobserved_spans_ms:
+        last = real[a].origin
+        inside = [held[t].origin for t in held if a + off < t < b + off]
+        assert inside and all(o == last for o in inside), (a, b)
 
 
 def test_golden_teleport(tmp_path):
@@ -201,3 +209,30 @@ def test_golden_teleport(tmp_path):
     _assert_faithful(d, "position")
     g = AG.build(tr)
     assert g.of_kind("TELEPORT"), (g.rejected, [e.kind for e in tr.events])
+
+
+def test_golden_weapon_change(tmp_path):
+    """A recorded weapon switch comes back as the same switch at the same
+    tick, on the weapon track and as the change_weapon event."""
+    con = sqlite3.connect(f"file:{INDEX_DB.as_posix()}?mode=ro", uri=True, timeout=30)
+    rows = con.execute(
+        "select d.path, a.client, a.start_ms, a.end_ms from actions a join demos d "
+        "on d.demo_hash=a.demo_hash where a.kind like 'FIRE_%' and a.is_pov=1 "
+        "and d.error is null order by a.id limit 40").fetchall()
+    con.close()
+    for path, client, lo, hi in rows:
+        if not Path(path).exists():
+            continue
+        tr = H.extract_performance(Path(path), client, lo, hi, parsed=_parsed(Path(path)))
+        if len(tr.weapon) >= 2 and tr.of_kind("change_weapon"):
+            break
+    else:
+        pytest.skip("no weapon change among the first candidates")
+    compiled = H.compile_performance(tr)
+    compiled.save(tmp_path / "wc.dm_73")
+    back = H.reextract(compiled)
+    d = H.compare(tr, back["PERF"], intentional=compiled.intentional)
+    _assert_faithful(d, "weapon", "event:change_weapon")
+    assert [w.weapon for w in back["PERF"].weapon] == [w.weapon for w in tr.weapon]
+    g = AG.build(tr)
+    assert g.of_kind("WEAPON_SWITCH")

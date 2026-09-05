@@ -280,6 +280,7 @@ def get_media_state(item_id: str):
         raise HTTPException(404, f"no such item: {item_id}")
     st = _proxy_for(it)
     return {"item_id": item_id, "state": st.get("state", "PENDING"),
+            "deferred": str(st.get("error") or "").startswith("RENDER DEFERRED"),
             "error": st.get("error"),
             "ready": bool(st.get("state") == "READY" and st.get("mp4_path")
                           and Path(str(st.get("mp4_path"))).exists())}

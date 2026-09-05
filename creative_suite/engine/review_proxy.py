@@ -36,6 +36,8 @@ import subprocess
 import threading
 import time
 from datetime import datetime, timezone
+
+from creative_suite.engine import render_permit
 from pathlib import Path
 from typing import Any
 
@@ -54,6 +56,7 @@ WINDOW_PRE_MS = 4000
 WINDOW_POST_MS = 3000
 
 _LOCK_RETRY_S = 5.0        # requeue delay while another writer holds the lock
+_DEFER_RETRY_S = 30.0      # requeue delay while rendering is denied/deferred
 _MAX_LOCK_WAITS = 240      # give up after ~20 min of a held lock
 
 _queue: "queue.Queue[dict[str, Any] | None]" = queue.Queue()
@@ -398,6 +401,14 @@ def _worker_loop() -> None:
                 _generate(job)
             finally:
                 _release_lock()
+        except render_permit.RenderDenied as rd:
+            # Not a failure: rendering is denied by default or deferred while
+            # a protected game runs. The job stays QUEUED with the reason,
+            # and is looked at again later; a READY proxy keeps playing.
+            _set_state(job["key"], "QUEUED",
+                       error=f"RENDER DEFERRED: {rd.permit.reason}")
+            time.sleep(_DEFER_RETRY_S)
+            _queue.put(job)
         except Exception as exc:  # worker must never die
             _set_state(job["key"], "FAILED", error=str(exc)[:500])
         finally:

@@ -124,6 +124,32 @@ class RetargetValidation:
         return dict(self.__dict__)
 
 
+class SpatialValidity:
+    """NavigationTruth and MapSpatialIndex, asked together.
+
+    A position is valid when EITHER source has seen a player stand there:
+    the navigation routes are exact walked paths from a few demos, the
+    spatial index is the coarse (64u) occupancy of thousands. Neither is
+    wall geometry (a BSP question, later); both are where players went.
+    """
+
+    def __init__(self, spatial=None, navigation=None, *, nav_tolerance: float = 48.0) -> None:
+        self.spatial = spatial
+        self.navigation = navigation
+        self.nav_tolerance = nav_tolerance
+
+    def is_walked(self, pos: Vec3) -> bool:
+        if self.spatial is not None and self.spatial.is_walked(pos):
+            return True
+        if self.navigation is not None:
+            for r in self.navigation.routes:
+                for p in r.points:
+                    if abs(p[2] - pos[2]) <= self.nav_tolerance and 
+                            math.dist((p[0], p[1]), (pos[0], pos[1])) <= self.nav_tolerance:
+                        return True
+        return False
+
+
 def validate_retarget(trace: "PerformanceTrace", rt: Retarget, spatial,
                       *, min_fraction: float = 0.9) -> RetargetValidation:
     """Check every GROUNDED sample of the transformed trace against the

@@ -68,6 +68,8 @@ import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
+
+from creative_suite.engine import render_permit
 from pathlib import Path
 from typing import Any
 
@@ -1806,6 +1808,13 @@ def _worker_loop() -> None:
                 _generate(job)
             finally:
                 review_proxy._release_lock()
+        except render_permit.RenderDenied as rd:
+            # denied by default, or a protected game is running: the job is
+            # DEFERRED, not failed, and is offered again later
+            _set_state(job["preview_key"], STATE_QUEUED,
+                       error=f"RENDER DEFERRED: {rd.permit.reason}")
+            time.sleep(review_proxy._DEFER_RETRY_S)
+            _queue.put(job)
         except Exception as exc:      # the worker must never die
             _set_state(job["preview_key"], STATE_FAILED, error=str(exc)[:500])
         finally:
@@ -2002,6 +2011,7 @@ def _real_capture(job: dict[str, Any], plan: PreviewPlan, tmp_mp4: Path,
         timeout = (wolfcam_capture.LAUNCH_OVERHEAD_S
                    + raw_s * wolfcam_capture.CAPTURE_SLOWDOWN
                    + plan.window_start_ms / 1000.0 / 12.0)
+        render_permit.require(f"director_preview:{key}")
         proc = subprocess.Popen(
             wolfcam_capture.wolfcam_cmd(safe, staging), cwd=staging,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

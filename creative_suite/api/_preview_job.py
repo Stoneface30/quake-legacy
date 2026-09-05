@@ -10,6 +10,8 @@ import asyncio
 import os
 import time
 from pathlib import Path
+
+from creative_suite.engine import render_permit
 from typing import Awaitable, Callable
 
 EmitFn = Callable[[str, int, str], Awaitable[None]]
@@ -50,6 +52,7 @@ async def run_preview_tier_a(
     await emit("engine-launch", 40, wolfcam_exe.name)
     cmd_w = [str(wolfcam_exe), "+set", "fs_homepath", str(preview_dir),
              "+exec", "preview.cfg"]
+    render_permit.require(f"preview_tier_a:part{part:02d}")
     proc = await asyncio.create_subprocess_exec (
         *cmd_w,
         stdout=asyncio.subprocess.PIPE,

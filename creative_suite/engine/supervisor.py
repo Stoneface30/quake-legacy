@@ -26,6 +26,10 @@ class EngineSupervisor:
         self.last_seek_ms: int | None = None
 
     async def start(self) -> None:
+        exe = Path(self.engine_cmd[0]).name.lower() if self.engine_cmd else ""
+        if any(k in exe for k in ("wolfcam", "quake")):
+            from creative_suite.engine import render_permit
+            render_permit.require("engine_supervisor")
         self._proc = await asyncio.create_subprocess_exec (
             *self.engine_cmd,
             stdin=asyncio.subprocess.PIPE,
