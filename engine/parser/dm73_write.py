@@ -100,6 +100,43 @@ STAT_ARMOR = 4
 ET_GENERAL = 0
 ET_PLAYER = 1
 
+# ── animation, learned from real players ────────────────────────────────────
+# Fields 13 and 15 are the two animation slots. Not guessed: `ca_reference`
+# profiled real rendered players across five demos and found 13 carrying
+# {7, 9, 10, 11} and 15 carrying {15, 16, 18, 19, 22}, each also appearing
+# +128. Read against Q3's animNumber_t those are exactly the torso set
+# (ATTACK, DROP, RAISE, STAND) and the legs set (RUN, BACK, JUMP, LAND, IDLE),
+# and 128 is ANIM_TOGGLEBIT.
+#
+# The first synthetic players were built with torso 7 and legs 15+128 held
+# constant, i.e. permanently mid-attack and mid-run, which is why they read as
+# frozen.
+ES_TORSO_ANIM = 13
+ES_LEGS_ANIM = 15
+
+ANIM_TOGGLE = 128
+
+TORSO_ATTACK = 7
+TORSO_DROP = 9
+TORSO_RAISE = 10
+TORSO_STAND = 11
+
+LEGS_RUN = 15
+LEGS_BACK = 16
+LEGS_JUMP = 18
+LEGS_LAND = 19
+LEGS_IDLE = 22
+
+
+def anim(value: int, toggle: bool = False) -> int:
+    """An animation number, optionally with the restart bit flipped.
+
+    A repeated animation only replays when the toggle bit changes -- the same
+    mechanism EV_EVENT_BIT1/BIT2 provide for events. Firing twice without
+    flipping it plays once.
+    """
+    return value | (ANIM_TOGGLE if toggle else 0)
+
 # An event arrives as a TEMP ENTITY whose eType is ET_EVENTS + the event code.
 # Both numbers come from the parser, not from memory: the first draft of this
 # module had EV_OBITUARY at 60.

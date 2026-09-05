@@ -355,3 +355,68 @@ def test_configstring_update_rides_a_server_command(tmp_path):
     d.write_configstring(1, 664, "3")
     out = DM73Parser(d.save(tmp_path / "cs.dm_73")).parse()
     assert out["packet_errors"] == 0
+
+
+# ══ animation, from the real field profile ══════════════════════════════════
+
+def test_animation_fields_and_values_match_the_real_profile():
+    """13 and 15 are the animation slots, and 128 is the restart bit.
+
+    Profiled from real rendered players across five demos: 13 carries
+    {7,9,10,11} and 15 carries {15,16,18,19,22}, each also +128. Read against
+    Q3's animNumber_t those are exactly the torso and legs sets.
+    """
+    assert W.ES_TORSO_ANIM == 13 and W.ES_LEGS_ANIM == 15
+    assert W.ANIM_TOGGLE == 128
+    assert {W.TORSO_ATTACK, W.TORSO_DROP, W.TORSO_RAISE, W.TORSO_STAND} == {7, 9, 10, 11}
+    assert {W.LEGS_RUN, W.LEGS_BACK, W.LEGS_JUMP, W.LEGS_LAND, W.LEGS_IDLE} == {15, 16, 18, 19, 22}
+    assert W.anim(W.LEGS_RUN, True) == 143
+    assert W.anim(W.LEGS_RUN, False) == 15
+
+
+def test_animation_state_machine_round_trips(tmp_path):
+    """idle -> run -> idle -> attack, read back as state.
+
+    The first synthetic players held torso at ATTACK and legs at RUN forever,
+    which renders as a body frozen mid-stride. This asserts the values
+    actually change over time.
+    """
+    d = W.DemoWriter()
+    d.write_gamestate(_ca_configstrings())
+    static = {16: 1022, 17: 1, 24: 1, 28: 4200463}
+    for f in range(160):
+        t, sec = 1000 + f * 50, f / 20.0
+        if sec < 1.5:
+            legs, torso = W.LEGS_IDLE, W.TORSO_STAND
+        elif sec < 5.0:
+            legs, torso = W.LEGS_RUN, W.TORSO_STAND
+        elif sec < 6.0:
+            legs, torso = W.LEGS_IDLE, W.TORSO_STAND
+        else:
+            legs, torso = W.LEGS_IDLE, W.anim(W.TORSO_ATTACK, (f // 4) % 2 == 0)
+        ent = dict(static)
+        ent.update({W.ES_ETYPE: W.ET_PLAYER, W.ES_CLIENTNUM: 1,
+                    W.ES_POS_X: -1400.0 + f, W.ES_POS_Y: 400.0,
+                    W.ES_POS_Z: 538.0, W.ES_LEGS_ANIM: legs,
+                    W.ES_TORSO_ANIM: torso})
+        d.write_snapshot(t, {W.PS_CLIENTNUM: 0, W.PS_ORIGIN_X: 10.0}, {1: ent})
+
+    parser = DM73Parser(d.save(tmp_path / "anim.dm_73"))
+    seen = []
+    orig = parser._parse_snapshot
+
+    def hook(s, e, sn):
+        orig(s, e, sn)
+        st = parser._entity_states.get(1)
+        if st:
+            seen.append((st.get(W.ES_LEGS_ANIM), st.get(W.ES_TORSO_ANIM),
+                         st.get(W.ES_POS_X)))
+    parser._parse_snapshot = hook
+    out = parser.parse()
+
+    assert out["packet_errors"] == 0
+    assert {s[0] for s in seen} == {W.LEGS_IDLE, W.LEGS_RUN}
+    assert W.TORSO_ATTACK in {s[1] for s in seen}
+    assert W.anim(W.TORSO_ATTACK, True) in {s[1] for s in seen}, \
+        "the restart bit must actually flip, or a repeated attack plays once"
+    assert len({s[2] for s in seen}) > 50, "the actor must actually move"

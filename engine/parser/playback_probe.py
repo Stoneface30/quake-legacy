@@ -79,11 +79,14 @@ def acquire_lock() -> None:
     LOCK.parent.mkdir(parents=True, exist_ok=True)
     if LOCK.exists():
         pid = LOCK.read_text().strip()
+        alive = False
         try:
             os.kill(int(pid), 0)
+            alive = True
+        except (OSError, ValueError, SystemError):
+            alive = False          # not a pid, or gone: a stale lock
+        if alive:
             raise SystemExit(f"capture busy (pid {pid}) -- review has priority")
-        except (OSError, ValueError):
-            pass                                  # stale
     LOCK.write_text(str(os.getpid()))
 
 
