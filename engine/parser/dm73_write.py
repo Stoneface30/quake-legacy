@@ -1,23 +1,27 @@
 """Write a .dm_73 Quake Live demo. The inverse of `demo_parse.py`.
 
-WHY THIS EXISTS. The Clan Arena explainer must teach the rules on a round we
-control completely -- known team sizes, known positions, a kill happening
-where the camera is looking -- without spending a historically important round
-on a tutorial and without a single synthetic event touching career statistics.
-That means authoring a demo file rather than finding one.
+WHY THIS EXISTS. The Clan Arena explainer needs a round we control exactly:
+known teams, known positions, a kill happening where the camera is looking,
+and not one synthetic event touching career statistics. Synthesis is the only
+route that gives choreography rather than hope.
 
-THE THING THAT MAKES THIS TRACTABLE. `demo_parse.py` seeds the Q3 Huffman tree
-once from the frequency table and then never updates it -- `receive()` does not
-call `add_ref()`. The tree is STATIC. So encoding is not an adaptive-coder
-problem at all: walk each symbol's node up to the root once, cache the bit
-path, and writing becomes a table lookup that is byte-exact with the reader by
-construction.
+WHAT MAKES IT TRACTABLE. `demo_parse.py` seeds the Q3 Huffman tree once and
+never updates it -- `receive()` does not call `add_ref()`. The tree is STATIC,
+so encoding is a precomputed code table walked from each symbol to the root,
+byte-exact with the reader by construction rather than by agreement.
 
-HOW IT IS PROVEN. Every demo this module writes is read back by the project's
-own `DM73Parser` and compared field by field. A writer validated against its
-own idea of the format proves nothing; validated against the reader that
-consumes 4,292 real demos, it proves a great deal. The final gate is
-WolfcamQL actually playing the file.
+THE FIELD MODEL. States are dicts keyed by the FIELD INDEX, exactly as the
+parser returns them (`{5: 1024.0, 18: 1}`), and the bit widths are imported
+from the parser rather than restated. Naming the fields here would create a
+second table to drift; the parser's index IS the contract, which also makes a
+round-trip comparison a plain dict equality.
+
+TWO ENCODINGS, NOT ONE. An entity integer field is prefixed by a "non-zero"
+bit; a playerstate integer field is NOT -- it is written directly. An entity
+float carries a non-zero bit then a small-int flag; a playerstate float
+carries only the small-int flag. Getting this wrong desyncs the bitstream for
+the rest of the packet, which is why each is written out separately below
+rather than sharing a clever helper.
 
 Byte order is little-endian throughout, matching msg.c.
 """
@@ -26,17 +30,16 @@ from __future__ import annotations
 import struct
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Iterable, Mapping, Sequence
 
 from engine.parser.demo_parse import (
-    _ES_BITS, _PS_BITS, _INT_NODE, _NYT, _get_huff)
+    _ES_BITS, _FLOAT_INT_BIAS, _FLOAT_INT_BITS, _GENTITYNUM_BITS,
+    _MAX_PERSISTANT, _MAX_POWERUPS, _MAX_STATS, _MAX_WEAPONS, _PS_BITS,
+    _SENTINEL, _get_huff)
 
-# ── container constants (docs/reference/dm73-format-deep-dive.md §1) ────────
-# Each message is [int32 sequence][int32 length][payload], and the file ends
-# with a sequence of -1. The length is the payload length in bytes.
+# ── container (docs/reference/dm73-format-deep-dive.md §1) ──────────────────
 DEMO_EOF = -1
 
-# svc_* opcodes, read as 8 bits at the top of each payload
 SVC_BAD = 0
 SVC_NOP = 1
 SVC_GAMESTATE = 2
@@ -48,25 +51,58 @@ SVC_SNAPSHOT = 7
 SVC_EOF = 8
 
 MAX_CONFIGSTRINGS = 1024
-MAX_GAMESTATE_CHARS = 16000
-PACKET_ENTITY_TERMINATOR = 1023      # 10-bit "no more entities"
-MAX_PS_EVENTS = 2
+CS_SERVERINFO = 0
+CS_SYSTEMINFO = 1
+CS_PLAYERS = 529
+ENTITYNUM_NONE = 1023
+
+# Field indices, from demo_parse. Named here only where the round builder has
+# to set them; the wire format never uses the names.
+ES_POS_TIME = 0
+ES_POS_X, ES_POS_Y, ES_POS_Z = 5, 6, 7
+ES_APOS_YAW = 12
+ES_EVENT = 16
+ES_ETYPE = 18
+ES_EFLAGS = 19
+ES_OTHER_ENT = 20
+ES_EVENTPARM = 21
+ES_MODELINDEX = 24
+ES_CLIENTNUM = 28
+ES_OTHER_ENT2 = 30
+
+PS_ORIGIN_X, PS_ORIGIN_Y, PS_ORIGIN_Z = 1, 2, 9
+PS_VEL_X, PS_VEL_Y, PS_VEL_Z = 4, 5, 10
+PS_YAW, PS_PITCH = 6, 7
+PS_EVENT_SEQ = 13
+PS_EVENT0, PS_EVENT1 = 16, 18
+PS_GROUND = 20
+PS_EVPARM0, PS_EVPARM1 = 38, 39
+PS_CLIENTNUM = 40
+PS_WEAPON = 41
+
+STAT_HEALTH = 0
+STAT_ARMOR = 4
+
+ET_GENERAL = 0
+ET_PLAYER = 1
+
+EV_OBITUARY = 60          # entity_event_t, see format doc §7
 
 
 # ── the code table ──────────────────────────────────────────────────────────
 
-_CODES: list[tuple[int, int]] | None = None      # (bits, length) per symbol
+_CODES: list[tuple[int, int]] | None = None
 
 
 def _build_codes() -> list[tuple[int, int]]:
-    """Bit path from root to each symbol, from the reader's own seeded tree.
+    """Bit path root->leaf for each symbol, from the reader's own seeded tree.
 
-    Emitted least-significant-bit-first to match how `receive` consumes them:
-    it walks `node.left` on a 0 bit and `node.right` on a 1, reading bits in
+    Emitted least-significant-bit-first, matching how `receive` consumes them:
+    it takes `node.left` on a 0 bit and `node.right` on a 1, reading bits in
     ascending order within each byte.
     """
     huff = _get_huff()
-    codes: list[tuple[int, int]] = [(0, 0)] * 256
+    out: list[tuple[int, int]] = [(0, 0)] * 256
     for sym in range(256):
         node = huff.loc[sym]
         if node is None:                          # pragma: no cover - seeded
@@ -75,12 +111,12 @@ def _build_codes() -> list[tuple[int, int]]:
         while node.parent is not None:
             path.append(1 if node.parent.right is node else 0)
             node = node.parent
-        path.reverse()                            # root -> leaf
+        path.reverse()
         value = 0
         for i, b in enumerate(path):
             value |= b << i
-        codes[sym] = (value, len(path))
-    return codes
+        out[sym] = (value, len(path))
+    return out
 
 
 def codes() -> list[tuple[int, int]]:
@@ -95,9 +131,10 @@ def codes() -> list[tuple[int, int]]:
 class BitWriter:
     """The mirror of `demo_parse._Bits`.
 
-    `writebits` splits exactly as the reader's `readbits` does: the low `n & 7`
-    bits go out raw, one per bit position, and the remainder goes out as whole
-    Huffman-coded bytes, least significant byte first.
+    PINNED LAYER. The exhaustive round-trip tests over all 256 symbols, every
+    width 1-32 and a mixed primitive stream exist because everything above
+    this is undebuggable if a single bit is misplaced. Do not refactor without
+    them passing.
     """
 
     __slots__ = ("_buf", "_bit")
@@ -106,7 +143,6 @@ class BitWriter:
         self._buf = bytearray()
         self._bit = 0
 
-    # -- raw ---------------------------------------------------------------
     def _put_raw_bit(self, b: int) -> None:
         if self._bit >> 3 >= len(self._buf):
             self._buf.append(0)
@@ -119,9 +155,10 @@ class BitWriter:
         for i in range(length):
             self._put_raw_bit((value >> i) & 1)
 
-    # -- the MSG_Write* family ---------------------------------------------
     def writebits(self, value: int, n: int) -> None:
-        value &= (1 << n) - 1 if n < 64 else value
+        """The low `n & 7` bits go out raw; the rest as Huffman bytes, LSB
+        first -- exactly the split `readbits` performs."""
+        value &= (1 << n) - 1
         nbits = n & 7
         for i in range(nbits):
             self._put_raw_bit((value >> i) & 1)
@@ -146,7 +183,7 @@ class BitWriter:
             self._put_symbol((v >> (8 * i)) & 0xFF)
 
     def writefloat(self, v: float) -> None:
-        for b in struct.pack("<f", v):
+        for b in struct.pack("<f", float(v)):
             self._put_symbol(b)
 
     def writestring(self, s: str) -> None:
@@ -158,201 +195,122 @@ class BitWriter:
         return bytes(self._buf)
 
 
-# ── delta encoders ──────────────────────────────────────────────────────────
-# The reader's field tables are reused directly rather than restated. A second
-# copy of a 53-entry table is a second thing to drift.
+def _is_small_int(v: float) -> bool:
+    """Does this float fit the 13-bit biased-integer short form?"""
+    t = int(v)
+    return float(v) == float(t) and 0 <= t + _FLOAT_INT_BIAS < (1 << _FLOAT_INT_BITS)
 
-def _write_delta_fields(w: BitWriter, bits: Sequence[int],
-                        from_state: dict, to_state: dict,
-                        names: Sequence[str]) -> None:
-    """Shared body of entity and playerstate delta encoding.
 
-    Writes the count of fields up to the last changed one, then per field a
-    single "changed" bit, then the value. A float field is sent either as a
-    13-bit truncated integer when it is a small whole number, or as a full 32
-    bits -- the same two cases the reader decodes.
+# ── entity delta ────────────────────────────────────────────────────────────
+
+def write_entity_delta(w: BitWriter, from_state: Mapping[int, float],
+                       to_state: Mapping[int, float] | None) -> None:
+    """One packet entity.
+
+    `to_state=None` writes the removal bit. An empty change set writes the
+    no-delta form, which is one bit instead of a field sweep.
     """
-    last_changed = 0
-    for i, name in enumerate(names):
-        if from_state.get(name, 0) != to_state.get(name, 0):
-            last_changed = i + 1
-    w.writebyte(last_changed)
-    for i in range(last_changed):
-        name = names[i]
-        old = from_state.get(name, 0)
-        new = to_state.get(name, 0)
-        if old == new:
+    if to_state is None:
+        w.writebits(1, 1)                      # removed
+        return
+    w.writebits(0, 1)
+
+    changed = [i for i in range(len(_ES_BITS))
+               if from_state.get(i, 0) != to_state.get(i, 0)]
+    if not changed:
+        w.writebits(0, 1)                      # no delta
+        return
+    w.writebits(1, 1)
+
+    last = changed[-1] + 1
+    w.writebyte(last)
+    for i in range(last):
+        if i not in changed:
             w.writebits(0, 1)
             continue
         w.writebits(1, 1)
-        nbits = bits[i]
-        if nbits == 0:                            # float field
-            if new == 0:
-                w.writebits(0, 1)                 # "is zero"
+        value = to_state.get(i, 0)
+        if _ES_BITS[i] == 0:                   # float field
+            if value == 0:
+                w.writebits(0, 1)              # zero: nothing follows
             else:
                 w.writebits(1, 1)
-                fv = float(new)
-                trunc = int(fv)
-                if fv == trunc and 0 <= trunc + 4096 < (1 << 13):
-                    w.writebits(0, 1)             # small integral
-                    w.writebits(trunc + 4096, 13)
+                if _is_small_int(value):
+                    w.writebits(0, 1)
+                    w.writebits(int(value) + _FLOAT_INT_BIAS, _FLOAT_INT_BITS)
                 else:
-                    w.writebits(1, 1)             # full float
-                    w.writefloat(fv)
-        else:
-            if new == 0:
+                    w.writebits(1, 1)
+                    w.writefloat(value)
+        else:                                  # integer field
+            if value == 0:
                 w.writebits(0, 1)
             else:
                 w.writebits(1, 1)
-                w.writebits(int(new), nbits)
+                w.writebits(int(value), _ES_BITS[i])
 
 
-@dataclass
-class EntityState:
-    """One packet entity. Only the fields the explainer needs are modelled;
-    everything else stays at its baseline value, which is what a delta is
-    for."""
-    number: int
-    pos_trBase: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    apos_trBase: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    eType: int = 0
-    eFlags: int = 0
-    clientNum: int = 0
-    modelindex: int = 0
-    event: int = 0
-    eventParm: int = 0
-    otherEntityNum: int = 0
-    otherEntityNum2: int = 0
+# ── playerstate delta ───────────────────────────────────────────────────────
 
-    def as_fields(self) -> dict:
-        x, y, z = self.pos_trBase
-        _, yaw, _ = self.apos_trBase
-        return {
-            "pos.trBase[0]": x, "pos.trBase[1]": y, "pos.trBase[2]": z,
-            "apos.trBase[1]": yaw,
-            "eType": self.eType, "eFlags": self.eFlags,
-            "clientNum": self.clientNum, "modelindex": self.modelindex,
-            "event": self.event, "eventParm": self.eventParm,
-            "otherEntityNum": self.otherEntityNum,
-            "otherEntityNum2": self.otherEntityNum2,
-        }
+def write_playerstate_delta(w: BitWriter, from_state: Mapping[int, float],
+                            to_state: Mapping[int, float], *,
+                            stats: Mapping[int, int] | None = None,
+                            persistant: Mapping[int, int] | None = None,
+                            ammo: Mapping[int, int] | None = None,
+                            powerups: Mapping[int, int] | None = None) -> None:
+    """The followed player's state.
 
-
-# ── the file container ──────────────────────────────────────────────────────
-
-_GENTITYNUM_BITS = 10
-_CS_SERVERINFO = 0
-_CS_PLAYERS = 529
-
-
-@dataclass
-class Packet:
-    """One [seq][len][payload] record. The payload holds a sequence of
-    messages terminated by svc_EOF, exactly as CL_ParseServerMessage loops."""
-    sequence: int
-    payload: bytes
-
-    def encode(self) -> bytes:
-        return (struct.pack("<i", self.sequence)
-                + struct.pack("<i", len(self.payload)) + self.payload)
-
-
-class DemoWriter:
-    """Assemble a .dm_73.
-
-    The demo is built as whole packets and flushed at the end, because the
-    length prefix has to be known before the payload is written and a demo
-    that teaches an eight-player round is far too small to be worth streaming.
+    NOT the entity encoding. A playerstate integer field is written directly
+    with no non-zero prefix, and a playerstate float carries only the
+    small-int flag. `_read_playerstate` is the authority for both.
     """
+    changed = [i for i in range(len(_PS_BITS))
+               if from_state.get(i, 0) != to_state.get(i, 0)]
+    last = (changed[-1] + 1) if changed else 0
+    w.writebyte(last)
+    for i in range(last):
+        if i not in changed:
+            w.writebits(0, 1)
+            continue
+        w.writebits(1, 1)
+        value = to_state.get(i, 0)
+        if _PS_BITS[i] == 0:                   # float: small-int flag only
+            if _is_small_int(value):
+                w.writebits(0, 1)
+                w.writebits(int(value) + _FLOAT_INT_BIAS, _FLOAT_INT_BITS)
+            else:
+                w.writebits(1, 1)
+                w.writefloat(value)
+        else:                                  # integer: direct, no prefix
+            w.writebits(int(value), _PS_BITS[i])
 
-    def __init__(self, *, client_num: int = 0, checksum_feed: int = 0) -> None:
-        self._packets: list[Packet] = []
-        self._seq = 0
-        self.client_num = client_num
-        self.checksum_feed = checksum_feed
-
-    # -- packet plumbing ---------------------------------------------------
-    def _new_payload(self) -> BitWriter:
-        w = BitWriter()
-        w.writelong(self._seq)          # reliable-acknowledge; the reader
-        return w                        # reads and discards this
-
-    def _flush(self, w: BitWriter) -> None:
-        w.writebyte(SVC_EOF)
-        self._packets.append(Packet(self._seq, w.bytes()))
-        self._seq += 1
-
-    # -- gamestate ---------------------------------------------------------
-    def write_gamestate(self, configstrings: dict[int, str],
-                        baselines: dict[int, dict] | None = None) -> None:
-        """The opening packet: every configstring, then entity baselines.
-
-        Configstring 0 carries the serverinfo -- `\g_gametype\4\mapname\...`
-        -- which is where the reader learns the map and that this is Clan
-        Arena. Player configstrings start at 529.
-        """
-        w = self._new_payload()
-        w.writebyte(SVC_GAMESTATE)
-        w.writelong(self._seq)                    # inner ack
-        for idx in sorted(configstrings):
-            value = configstrings[idx]
-            if not value:
-                continue
-            if idx >= MAX_CONFIGSTRINGS:
-                raise ValueError(f"configstring index {idx} out of range")
-            w.writebyte(SVC_CONFIGSTRING)
-            w.writeshort(idx)
-            w.writestring(value)
-        for num, state in sorted((baselines or {}).items()):
-            w.writebyte(SVC_BASELINE)
-            w.writebits(num, _GENTITYNUM_BITS)
-            write_entity_delta(w, {}, state)
-        w.writebyte(SVC_EOF)                      # end of the gamestate list
-        w.writelong(self.client_num)
-        w.writelong(self.checksum_feed)
-        self._flush(w)
-
-    # -- server command ----------------------------------------------------
-    def write_server_command(self, seq: int, text: str) -> None:
-        """A reliable server command -- `print`, `cp`, `scores`, and the
-        round announcements the explainer needs."""
-        w = self._new_payload()
-        w.writebyte(SVC_SERVERCOMMAND)
-        w.writelong(seq)
-        w.writestring(text)
-        self._flush(w)
-
-    # -- output ------------------------------------------------------------
-    def to_bytes(self) -> bytes:
-        out = bytearray()
-        for p in self._packets:
-            out += p.encode()
-        # The reader stops on a sequence of -1 or a non-positive length.
-        out += struct.pack("<i", DEMO_EOF) + struct.pack("<i", DEMO_EOF)
-        return bytes(out)
-
-    def save(self, path: str | Path) -> Path:
-        path = Path(path)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_bytes(self.to_bytes())
-        return path
+    sections = (stats, persistant, ammo, powerups)
+    if not any(s for s in sections):
+        w.writebits(0, 1)                      # no extra sections
+        return
+    w.writebits(1, 1)
+    for values, count, long_values in ((stats, _MAX_STATS, False),
+                                       (persistant, _MAX_PERSISTANT, False),
+                                       (ammo, _MAX_WEAPONS, False),
+                                       (powerups, _MAX_POWERUPS, True)):
+        if not values:
+            w.writebits(0, 1)
+            continue
+        w.writebits(1, 1)
+        mask = 0
+        for j in values:
+            if not 0 <= j < count:
+                raise ValueError(f"index {j} outside a {count}-slot section")
+            mask |= 1 << j
+        w.writeshort(mask)
+        for j in range(count):
+            if mask & (1 << j):
+                if long_values:
+                    w.writelong(int(values[j]))
+                else:
+                    w.writeshort(int(values[j]))
 
 
-# Field names in wire order, matching demo_parse's _ES_BITS table positions.
-# Only the ones the explainer sets are named; the rest are placeholders so the
-# index of every named field stays correct.
-ES_NAMES: list[str] = [f"_es{i}" for i in range(len(_ES_BITS))]
-for _i, _n in ((0, "pos.trTime"), (5, "pos.trBase[0]"), (6, "pos.trBase[1]"),
-               (7, "pos.trBase[2]"), (12, "apos.trBase[1]"), (16, "event"),
-               (17, "angles2[1]"), (18, "eType"), (19, "eFlags"),
-               (20, "otherEntityNum"), (21, "eventParm"), (24, "modelindex"),
-               (28, "clientNum"), (30, "otherEntityNum2")):
-    ES_NAMES[_i] = _n
-
-
-def write_entity_delta(w: BitWriter, from_state: dict, to_state: dict) -> None:
-    _write_delta_fields(w, _ES_BITS, from_state, to_state, ES_NAMES)
-
+# ── info strings ────────────────────────────────────────────────────────────
 
 SEP = chr(92)          # a single backslash
 
@@ -361,13 +319,10 @@ def info_string(pairs: Sequence[tuple[str, str]]) -> str:
     r"""Build a Q3 info string: \key\value\key\value.
 
     Assembled from pairs rather than written as a literal, because the literal
-    form is a trap. Two separate bugs came out of it: `\t` in an f-string is a
-    TAB, not backslash-t, so the team key silently became whitespace glued to
-    the player's name, and `\0` became a NUL that truncated the rest. Joining
-    real separators has no escapes to get wrong.
-
-    The leading separator matters too -- the reader pairs key/value by
-    position after stripping it, so a missing one shifts every field.
+    form is a trap that produced two bugs in a row: `\t` in an f-string is a
+    TAB, which glued the team key onto every player's name, and `\0` is a NUL
+    that truncated the rest. The leading separator matters too -- the reader
+    pairs by position after stripping it, so a missing one shifts every field.
     """
     out = []
     for k, v in pairs:
@@ -380,9 +335,17 @@ def info_string(pairs: Sequence[tuple[str, str]]) -> str:
 def serverinfo(mapname: str, *, gametype: int = 4, hostname: str,
                maxclients: int = 16, extra: dict[str, str] | None = None) -> str:
     """CS_SERVERINFO. Gametype 4 is Clan Arena (bg_public.h GT_CA)."""
-    pairs = [("g_gametype", str(gametype)), ("mapname", mapname),
-             ("sv_hostname", hostname), ("sv_maxclients", str(maxclients)),
-             ("protocol", "73")]
+    pairs = [("sv_maxclients", str(maxclients)), ("g_gametype", str(gametype)),
+             ("mapname", mapname), ("sv_hostname", hostname),
+             ("protocol", "73"), ("gamename", "baseq3"),
+             ("g_instagib", "0"), ("sv_privateClients", "0")]
+    pairs += list((extra or {}).items())
+    return info_string(pairs)
+
+
+def systeminfo(*, pure: int = 0, extra: dict[str, str] | None = None) -> str:
+    """CS_SYSTEMINFO. `sv_pure 0` so playback does not demand pak checksums."""
+    pairs = [("sv_pure", str(pure)), ("sv_serverid", "1")]
     pairs += list((extra or {}).items())
     return info_string(pairs)
 
@@ -392,6 +355,149 @@ def player_configstring(name: str, *, team: int, model: str = "sarge",
     """A CS_PLAYERS entry. `t` is the team: 1 red, 2 blue."""
     return info_string([
         ("n", name), ("t", str(team)), ("model", model), ("hmodel", model),
-        ("hc", str(handicap)), ("w", "0"), ("l", "0"), ("skill", " 5.00"),
-        ("tt", "0"), ("tl", "0"),
+        ("c1", "4"), ("c2", "5"), ("hc", str(handicap)), ("w", "0"),
+        ("l", "0"), ("skill", " 5.00"), ("tt", "0"), ("tl", "0"),
     ])
+
+
+# ── the file ────────────────────────────────────────────────────────────────
+
+@dataclass
+class Packet:
+    sequence: int
+    payload: bytes
+
+    def encode(self) -> bytes:
+        return (struct.pack("<i", self.sequence)
+                + struct.pack("<i", len(self.payload)) + self.payload)
+
+
+class DemoWriter:
+    """Assemble a .dm_73.
+
+    Built as whole packets and flushed at the end: the length prefix has to be
+    known before the payload is written, and a teaching round is far too small
+    to be worth streaming.
+    """
+
+    def __init__(self, *, client_num: int = 0, checksum_feed: int = 0) -> None:
+        self._packets: list[Packet] = []
+        self._seq = 0
+        self.client_num = client_num
+        self.checksum_feed = checksum_feed
+        # accumulated wire state, so each write emits a true delta
+        self._ps: dict[int, float] = {}
+        self._ents: dict[int, dict[int, float]] = {}
+
+    # -- plumbing ----------------------------------------------------------
+    def _new_payload(self) -> BitWriter:
+        w = BitWriter()
+        w.writelong(self._seq)          # reliable-acknowledge
+        return w
+
+    # One spare byte after svc_EOF. Q3 derives its read cursor from the BIT
+    # position as `readcount = (bit >> 3) + 1` and then refuses any read where
+    # `readcount > cursize`. So when a payload's bits happen to end exactly on
+    # a byte boundary, the cursor sits one byte past the buffer and the very
+    # next MSG_ReadByte returns -1 -- which the engine reports as
+    # "Illegible server message -1".
+    #
+    # That is why only SOME structurally identical snapshots failed: it
+    # depends on the total bit length, not on the contents. Real demos never
+    # show it because their payloads come out of a netchan buffer with slack
+    # after the terminator. One byte of slack removes the whole class.
+    TAIL_PAD = 1
+
+    def _flush(self, w: BitWriter) -> None:
+        w.writebyte(SVC_EOF)
+        payload = w.bytes() + bytes(self.TAIL_PAD)
+        self._packets.append(Packet(self._seq, payload))
+        self._seq += 1
+
+    # -- gamestate ---------------------------------------------------------
+    def write_gamestate(self, configstrings: Mapping[int, str],
+                        baselines: Mapping[int, Mapping[int, float]] | None = None
+                        ) -> None:
+        w = self._new_payload()
+        w.writebyte(SVC_GAMESTATE)
+        w.writelong(self._seq)                    # inner ack
+        for idx in sorted(configstrings):
+            value = configstrings[idx]
+            if not value:
+                continue
+            if not 0 <= idx < MAX_CONFIGSTRINGS:
+                raise ValueError(f"configstring index {idx} out of range")
+            w.writebyte(SVC_CONFIGSTRING)
+            w.writeshort(idx)
+            w.writestring(value)
+        for num, state in sorted((baselines or {}).items()):
+            w.writebyte(SVC_BASELINE)
+            w.writebits(num, _GENTITYNUM_BITS)
+            write_entity_delta(w, {}, state)
+            self._ents[num] = dict(state)
+        w.writebyte(SVC_EOF)
+        w.writelong(self.client_num)
+        w.writelong(self.checksum_feed)
+        self._flush(w)
+
+    def write_server_command(self, seq: int, text: str) -> None:
+        w = self._new_payload()
+        w.writebyte(SVC_SERVERCOMMAND)
+        w.writelong(seq)
+        w.writestring(text)
+        self._flush(w)
+
+    # -- snapshot ----------------------------------------------------------
+    def write_snapshot(self, server_time: int,
+                       playerstate: Mapping[int, float],
+                       entities: Mapping[int, Mapping[int, float] | None],
+                       *, stats: Mapping[int, int] | None = None,
+                       areamask: bytes = b"",
+                       snap_flags: int = 0, full: bool = True) -> None:
+        """One frame.
+
+        `full=True` writes deltaNum 0, which tells the client to reset to the
+        gamestate baseline. Every frame being a full update costs bandwidth
+        nobody is paying for here and removes an entire class of desync from a
+        file that has to be right the first time it is played.
+
+        AREAMASK: exactly `len(areamask)` bytes follow the length byte. The
+        project previously read len+1 on a belief that QL stores count-1; it
+        does not, and the extra byte desynced 73.6% of packets. The writer
+        must not reintroduce the asymmetry.
+        """
+        w = self._new_payload()
+        w.writebyte(SVC_SNAPSHOT)
+        w.writelong(server_time)
+        w.writebyte(0 if full else 1)
+        w.writebyte(snap_flags)
+        w.writebyte(len(areamask))
+        for b in areamask:
+            w.writebyte(b)
+
+        from_ps: Mapping[int, float] = {} if full else self._ps
+        write_playerstate_delta(w, from_ps, playerstate, stats=stats)
+        self._ps = dict(playerstate)
+
+        from_ents = {} if full else self._ents
+        for num in sorted(entities):
+            state = entities[num]
+            w.writebits(num, _GENTITYNUM_BITS)
+            write_entity_delta(w, from_ents.get(num, {}), state)
+        w.writebits(_SENTINEL, _GENTITYNUM_BITS)
+        self._ents = {n: dict(s) for n, s in entities.items() if s is not None}
+        self._flush(w)
+
+    # -- output ------------------------------------------------------------
+    def to_bytes(self) -> bytes:
+        out = bytearray()
+        for p in self._packets:
+            out += p.encode()
+        out += struct.pack("<i", DEMO_EOF) + struct.pack("<i", DEMO_EOF)
+        return bytes(out)
+
+    def save(self, path: str | Path) -> Path:
+        path = Path(path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(self.to_bytes())
+        return path
