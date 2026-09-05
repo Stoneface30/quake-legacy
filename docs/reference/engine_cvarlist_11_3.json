@@ -1,0 +1,2048 @@
+{
+ "r_picmip": [
+  {
+   "name": "r_picmipGreyScale",
+   "value": "0",
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "latched": true,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "r_picmipGreyScaleValue",
+   "value": "0.5",
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "latched": true,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "r_picmip",
+   "value": "0",
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "latched": true,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "r_fastsky": [
+  {
+   "name": "r_fastsky",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "r_fastSkyColor",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "r_subdivisions": [
+  {
+   "name": "r_subdivisions",
+   "value": "1",
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "latched": true,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "r_vertexlight": [
+  {
+   "name": "r_vertexLight",
+   "value": "0",
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "latched": true,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "r_lightmap": [
+  {
+   "name": "r_lightmap",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "r_lightmapColor",
+   "value": "",
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "latched": true,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "r_mapoverbright*": [
+  {
+   "name": "r_mapOverBrightBitsCap",
+   "value": "255",
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "latched": true,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "r_mapOverBrightBitsValue",
+   "value": "1.0",
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "latched": true,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "r_mapOverBrightBits",
+   "value": "1",
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "latched": true,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "r_overbright*": [
+  {
+   "name": "r_overBrightBits",
+   "value": "1",
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "latched": true,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "r_overBrightBitsValue",
+   "value": "1.0",
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "latched": true,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "r_gamma": [
+  {
+   "name": "r_gamma",
+   "value": "0.85",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "r_intensity": [
+  {
+   "name": "r_intensity",
+   "value": "1",
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "latched": true,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "r_ext_compress*": [
+  {
+   "name": "r_ext_compressed_textures",
+   "value": "0",
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "latched": true,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "r_texturemode": [
+  {
+   "name": "r_textureMode",
+   "value": "GL_LINEAR_MIPMAP_LINEAR",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "r_detailtextures": [
+  {
+   "name": "r_detailtextures",
+   "value": "1",
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "latched": true,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "r_dynamiclight": [
+  {
+   "name": "r_dynamiclight",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_drawgun": [
+  {
+   "name": "cg_drawGun",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_gun*": [
+  {
+   "name": "cg_gunX",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_gunY",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_gunZ",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_gunSize",
+   "value": "1.0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_gunSizeThirdPerson",
+   "value": "1.0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_fov*": [
+  {
+   "name": "cg_fov",
+   "value": "110",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_fovy",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_fovStyle",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_fovForceAspectWidth",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_fovForceAspectHeight",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_fovIntermission",
+   "value": "90",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_zoomfov": [
+  {
+   "name": "cg_zoomFov",
+   "value": "60",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_forcemodel": [
+  {
+   "name": "cg_forceModel",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_enemy*": [
+  {
+   "name": "cg_enemyHeadColor",
+   "value": "0x2a8000",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_enemyTorsoColor",
+   "value": "0x2a8000",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_enemyLegsColor",
+   "value": "0x2a8000",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_enemyHeadSkin",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_enemyTorsoSkin",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_enemyLegsSkin",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_enemyRailColor1",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_enemyRailColor2",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_enemyRailColor1Team",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_enemyRailColor2Team",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_enemyRailRings",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_enemyRailNudge",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_enemyRailItemColor",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_enemyRailItemColorTeam",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_enemyFlagColor",
+   "value": "0x00ff00",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_enemyHeadModel",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_enemyModel",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_team*": [
+  {
+   "name": "cg_teamChatTime",
+   "value": "3000",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamChatHeight",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamChatsOnly",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamChatBeep",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamChatBeepMaxTime",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamModel",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamHeadModel",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamHeadSkin",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamTorsoSkin",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamLegsSkin",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamHeadColor",
+   "value": "0xffffff",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamTorsoColor",
+   "value": "0xffffff",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamLegsColor",
+   "value": "0xffffff",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamRailColor1",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamRailColor2",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamRailColor1Team",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamRailColor2Team",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamRailRings",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamRailNudge",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamRailItemColor",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamRailItemColorTeam",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamFlagColor",
+   "value": "0xffffff",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamKillWarning",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_own*": [],
+ "cg_self*": [],
+ "cg_rail*": [
+  {
+   "name": "cg_railTrailTime",
+   "value": "600",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_railQL",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_railQLRailRingWhiteValue",
+   "value": "0.45",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_railNudge",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_railRings",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_railRadius",
+   "value": "4",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_railRotation",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_railSpacing",
+   "value": "5",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_railItemColor",
+   "value": "0xd4af37",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_railUseOwnColors",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_railFromMuzzle",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_old*": [
+  {
+   "name": "cg_oldRocket",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_grenade*": [
+  {
+   "name": "cg_grenadeColor",
+   "value": "0xffffff",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_grenadeColorAlpha",
+   "value": "255",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_grenadeTeamColor",
+   "value": "0xffff00",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_grenadeTeamColorAlpha",
+   "value": "255",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_grenadeEnemyColor",
+   "value": "0x00ff00",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_grenadeEnemyColorAlpha",
+   "value": "255",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_rocket*": [
+  {
+   "name": "cg_rocketAimBot",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_plasma*": [
+  {
+   "name": "cg_plasmaStyle",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_lightning*": [
+  {
+   "name": "cg_lightningImpact",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_lightningImpactSize",
+   "value": "1.0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_lightningImpactOthersSize",
+   "value": "0.0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_lightningImpactCap",
+   "value": "192",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_lightningImpactCapMin",
+   "value": "60",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_lightningImpactProject",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_lightningStyle",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_lightningRenderStyle",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_lightningAngleOriginStyle",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_lightningSize",
+   "value": "8",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_truelightning": [
+  {
+   "name": "cg_trueLightning",
+   "value": "1.0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_impact*": [
+  {
+   "name": "cg_impactSparks",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_impactSparksLifetime",
+   "value": "250",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_impactSparksSize",
+   "value": "8",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_impactSparksVelocity",
+   "value": "128",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_impactSparksColor",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_impactSparksHighlight",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_muzzleflash": [
+  {
+   "name": "cg_muzzleFlash",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_marks*": [
+  {
+   "name": "cg_marks",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_brass*": [
+  {
+   "name": "cg_brassTime",
+   "value": "2500",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_smoke*": [
+  {
+   "name": "cg_smokeRadius_SG",
+   "value": "32",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_smokeRadius_GL",
+   "value": "32",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_smokeRadius_NG",
+   "value": "16",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_smokeRadius_RL",
+   "value": "8",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_smokeRadius_PL",
+   "value": "32",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_smokeRadius_breath",
+   "value": "16",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_smokeRadius_dust",
+   "value": "24",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_smokeRadius_flight",
+   "value": "8",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_smokeRadius_haste",
+   "value": "8",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_shadows": [
+  {
+   "name": "cg_shadows",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_gibs": [
+  {
+   "name": "cg_gibs",
+   "value": "15",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_gibStepTime",
+   "value": "50",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_gibSparksSize",
+   "value": "3.5",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_gibSparksColor",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_gibSparksHighlight",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_crosshair*": [
+  {
+   "name": "cg_crosshairSize",
+   "value": "24",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_crosshairColor",
+   "value": "0xffffff",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_crosshairPulse",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_crosshairHealth",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_crosshairHitStyle",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_crosshairHitColor",
+   "value": "0xff0000",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_crosshairHitTime",
+   "value": "200",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_crosshairX",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_crosshairY",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_crosshairBrightness",
+   "value": "1.0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_crosshairAlpha",
+   "value": "255",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_crosshairAlphaAdjust",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_draw2d": [
+  {
+   "name": "cg_draw2D",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_simpleitems": [
+  {
+   "name": "cg_simpleItems",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_simpleItemsScale",
+   "value": "1.0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_simpleItemsBob",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_simpleItemsHeightOffset",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_wh*": [
+  {
+   "name": "cg_wh",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_whIncludeDeadBody",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_whIncludeProjectile",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_whShader",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_whColor",
+   "value": "0x0000ff",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_whAlpha",
+   "value": "200",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_whEnemyShader",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_whEnemyColor",
+   "value": "0x00ff00",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_whEnemyAlpha",
+   "value": "200",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cl_avi*": [
+  {
+   "name": "cl_aviFrameRateDivider",
+   "value": "1",
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": true
+  },
+  {
+   "name": "cl_aviPipeExtension",
+   "value": "mkv",
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": true
+  },
+  {
+   "name": "cl_aviPipeCommand",
+   "value": "-threads 0 -c:v ffv1 -level 3 -c:a pcm_s16le -y",
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": true
+  },
+  {
+   "name": "cl_aviFrameRate",
+   "value": "60",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cl_aviCodec",
+   "value": "mjpeg",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cl_aviAllowLargeFiles",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cl_aviFetchMode",
+   "value": "GL_RGB",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cl_aviExtension",
+   "value": "avi",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cl_aviNoAudioHWOutput",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "com_maxfps": [
+  {
+   "name": "com_maxfps",
+   "value": "125",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "com_maxfpsUnfocused",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "com_maxfpsMinimized",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "r_swapinterval": [
+  {
+   "name": "r_swapInterval",
+   "value": "0",
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "latched": true,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "r_finish": [
+  {
+   "name": "r_finish",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "*RedBlueRail*": [],
+ "cg_red*": [],
+ "cg_blue*": [],
+ "cg_freecam*": [
+  {
+   "name": "cg_freecam_noclip",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_freecam_sensitivity",
+   "value": "0.1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_freecam_yaw",
+   "value": "1.0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_freecam_pitch",
+   "value": "1.0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_freecam_speed",
+   "value": "400",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_freecam_crosshair",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_freecam_useTeamSettings",
+   "value": "2",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_freecam_rollValue",
+   "value": "0.5",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_freecam_useServerView",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_freecam_unlockPitch",
+   "value": "1",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "cg_useCustom*": [
+  {
+   "name": "cg_useCustomRedBlueModels",
+   "value": "0",
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": true
+  }
+ ],
+ "*railcolor*": [
+  {
+   "name": "cg_enemyRailColor1",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_enemyRailColor2",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_enemyRailColor1Team",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_enemyRailColor2Team",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamRailColor1",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamRailColor2",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamRailColor1Team",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamRailColor2Team",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ],
+ "*railitem*": [
+  {
+   "name": "cg_railItemColor",
+   "value": "0xd4af37",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_enemyRailItemColor",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_enemyRailItemColorTeam",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamRailItemColor",
+   "value": "",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  },
+  {
+   "name": "cg_teamRailItemColorTeam",
+   "value": "0",
+   "flags": [
+    "ARCHIVE"
+   ],
+   "latched": false,
+   "cheat": false,
+   "user_created": false
+  }
+ ]
+}

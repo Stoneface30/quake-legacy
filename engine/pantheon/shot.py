@@ -18,7 +18,7 @@ import shutil
 import subprocess
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from pathlib import Path
 from typing import Sequence
@@ -68,6 +68,8 @@ class VisualProfile:
                                           # SC_ParseColorFromStr rejects hex
     xray_enemy_alpha: int = 190
     extra: dict = field(default_factory=dict)
+    unpin: tuple = ()          # cvars this profile deliberately
+                               # leaves to a ConfigScene variant
 
     def cvars(self) -> dict:
         c = {
@@ -111,7 +113,19 @@ class VisualProfile:
             c["cg_whColor"] = f'"{self.xray_enemy_color}"'
             c["cg_whAlpha"] = self.xray_enemy_alpha
         c.update(self.extra)
+        for name in self.unpin:
+            c.pop(name, None)
         return c
+
+    def without(self, *names: str) -> "VisualProfile":
+        """A copy that stops pinning `names`, so a scene can demonstrate them.
+
+        The profile exists to hold everything still. A scene about cg_drawGun
+        cannot use a profile that pins cg_drawGun, and silently letting the
+        variant win would mean the constant is not constant.
+        """
+        return replace(self, name=f"{self.name}_nopin",
+                       unpin=tuple(sorted({*self.unpin, *names})))
 
 
 @dataclass
