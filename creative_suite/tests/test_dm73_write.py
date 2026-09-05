@@ -207,7 +207,7 @@ def test_snapshot_stream_round_trips_position_and_time(tmp_path):
               W.PS_WEAPON: 6, W.PS_GROUND: 1023}
         ents = {c: {W.ES_ETYPE: W.ET_PLAYER, W.ES_CLIENTNUM: c,
                     W.ES_POS_X: x + c * 40, W.ES_POS_Y: -300.0 + c * 20,
-                    W.ES_POS_Z: 64.0, W.ES_MODELINDEX: 1} for c in range(8)}
+                    W.ES_POS_Z: 64.0} for c in range(8)}
         d.write_snapshot(t, ps, ents,
                          stats={W.STAT_HEALTH: 200, W.STAT_ARMOR: 100})
     out = DM73Parser(d.save(tmp_path / "snaps.dm_73")).parse()
@@ -244,3 +244,114 @@ def test_server_command_text_survives(tmp_path):
     out = DM73Parser(d.save(tmp_path / "cmd.dm_73")).parse()
     assert out["packet_errors"] == 0
     assert any("SYNTHETIC EXPLAINER" in t["text"] for t in out["server_text"])
+
+
+# ══ field indices: the parser is the only authority ═════════════════════════
+
+def test_entity_field_indices_come_from_the_parser():
+    """These were invented once and every test still passed, because the tests
+    compared the invented indices against themselves. The engine got players
+    whose eType landed in eFlags and whose position landed in velocity, and
+    drew nothing. Bind them to `demo_parse` so that cannot recur."""
+    from engine.parser import demo_parse as dp
+    assert (W.ES_POS_X, W.ES_POS_Y, W.ES_POS_Z) == (dp._F_POS_X, dp._F_POS_Y,
+                                                    dp._F_POS_Z) == (1, 2, 5)
+    assert W.ES_ETYPE == dp._F_ETYPE == 12
+    assert W.ES_CLIENTNUM == dp._F_CLIENT == 21
+    assert W.ES_GROUND == dp._F_GROUND == 16
+    assert W.ES_EVENT == dp._F_EVENT == 10
+    assert W.ES_OTHER_ENT == dp._F_VICTIM == 19
+    assert W.ES_OTHER_ENT2 == dp._F_KILLER == 31
+    assert W.EV_OBITUARY == dp._EV_OBITUARY == 58
+    assert W.ET_EVENTS == dp._ET_EVENTS == 13
+
+
+# ══ the padding class of failure ════════════════════════════════════════════
+
+def test_every_packet_carries_slack_after_svc_eof():
+    """Q3 derives its cursor from the BIT position as (bit >> 3) + 1 and
+    refuses a read where readcount > cursize, so a payload whose bits end
+    exactly on a byte boundary leaves the cursor one byte past the buffer and
+    the next MSG_ReadByte returns -1. Wolfcam reported that as
+    "Illegible server message -1" on 13 of 162 packets and died in
+    CL_PeekSnapshot. It was intermittent because it depends on total bit
+    length, not content -- so the guard is structural, not a sample."""
+    assert W.DemoWriter.TAIL_PAD >= 1
+    d = W.DemoWriter()
+    d.write_gamestate(_ca_configstrings())
+    for f in range(30):
+        d.write_snapshot(1000 + f * 50,
+                         {W.PS_CLIENTNUM: 0, W.PS_ORIGIN_X: 1.0 + f},
+                         {1: {W.ES_ETYPE: W.ET_PLAYER, W.ES_CLIENTNUM: 1,
+                              W.ES_POS_X: float(f)}})
+    for pkt in d._packets:
+        assert pkt.payload[-W.DemoWriter.TAIL_PAD:] == bytes(W.DemoWriter.TAIL_PAD)
+
+
+# ══ obituary ════════════════════════════════════════════════════════════════
+
+def test_obituary_matches_the_shape_the_engine_emits():
+    """Real obituary deltas in the corpus look like
+    {1: x, 2: y, 5: z, 12: 71, 14: mod, 19: victim, 31: killer}."""
+    e = W.obituary_entity(killer=1, victim=5, mod=7, pos=(10.0, 20.0, 30.0))
+    assert e[W.ES_ETYPE] == 71                      # ET_EVENTS + EV_OBITUARY
+    assert e[W.ES_EVENTPARM] == 7
+    assert e[W.ES_OTHER_ENT] == 5
+    assert e[W.ES_OTHER_ENT2] == 1
+
+
+def test_obituary_round_trips_killer_victim_mod_and_time(tmp_path):
+    d = W.DemoWriter()
+    d.write_gamestate(_ca_configstrings())
+    kill_t = 3000
+    for f in range(60):          # t runs to 3950, so kill_t is actually reached
+        t = 1000 + f * 50
+        ents = {c: {W.ES_ETYPE: W.ET_PLAYER, W.ES_CLIENTNUM: c,
+                    W.ES_POS_X: 100.0 + c, W.ES_POS_Y: 40.0, W.ES_POS_Z: 50.0}
+                for c in range(1, 8)}
+        if t == kill_t:
+            ents[512] = W.obituary_entity(killer=1, victim=5, mod=7,
+                                          pos=(120.0, 40.0, 50.0))
+        d.write_snapshot(t, {W.PS_CLIENTNUM: 0, W.PS_ORIGIN_X: float(f)}, ents)
+    out = DM73Parser(d.save(tmp_path / "obit.dm_73")).parse()
+    assert out["packet_errors"] == 0
+    obits = [e for e in out["events"] if e["type"] == "obituary"]
+    assert len(obits) == 1
+    e = obits[0]
+    assert e["killer_client"] == 1
+    assert e["victim_client"] == 5
+    assert e["weapon"] == 7
+    assert e["server_time_ms"] == kill_t
+    assert e["killer_team"] == "RED"
+    assert e["victim_team"] == "BLUE"
+
+
+def test_two_deaths_in_the_same_slot_need_the_toggle_bit(tmp_path):
+    """The parser compares the RAW eType and drops a repeat, which is exactly
+    what EV_EVENT_BIT1/BIT2 exist to prevent. Without a flipped toggle the
+    second death silently never happened."""
+    d = W.DemoWriter()
+    d.write_gamestate(_ca_configstrings())
+    for f in range(60):
+        t = 1000 + f * 50
+        ents = {1: {W.ES_ETYPE: W.ET_PLAYER, W.ES_CLIENTNUM: 1,
+                    W.ES_POS_X: 10.0}}
+        if t == 2000:
+            ents[512] = W.obituary_entity(1, 5, 7, (1.0, 2.0, 3.0), toggle=0)
+        if t == 3000:
+            ents[512] = W.obituary_entity(1, 6, 7, (1.0, 2.0, 3.0), toggle=0x100)
+        d.write_snapshot(t, {W.PS_CLIENTNUM: 0, W.PS_ORIGIN_X: float(f)}, ents)
+    out = DM73Parser(d.save(tmp_path / "two.dm_73")).parse()
+    obits = [e for e in out["events"] if e["type"] == "obituary"]
+    assert len(obits) == 2, "the toggle bit is what distinguishes them"
+    assert [e["victim_client"] for e in obits] == [5, 6]
+
+
+def test_configstring_update_rides_a_server_command(tmp_path):
+    """svc_configstring only appears inside the gamestate; a mid-demo change
+    arrives as `cs <index> "<value>"`, which is what CA alive counts use."""
+    d = W.DemoWriter()
+    d.write_gamestate(_ca_configstrings())
+    d.write_configstring(1, 664, "3")
+    out = DM73Parser(d.save(tmp_path / "cs.dm_73")).parse()
+    assert out["packet_errors"] == 0

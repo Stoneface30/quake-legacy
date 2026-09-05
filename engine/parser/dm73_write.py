@@ -33,9 +33,11 @@ from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
 from engine.parser.demo_parse import (
-    _ES_BITS, _FLOAT_INT_BIAS, _FLOAT_INT_BITS, _GENTITYNUM_BITS,
-    _MAX_PERSISTANT, _MAX_POWERUPS, _MAX_STATS, _MAX_WEAPONS, _PS_BITS,
-    _SENTINEL, _get_huff)
+    _ES_BITS, _F_CLIENT, _F_EFLAGS, _F_ETYPE, _F_EVENT, _F_EVPARM, _F_GROUND,
+    _F_KILLER, _F_PITCH, _F_POS_X, _F_POS_Y, _F_POS_Z, _F_VEL_X, _F_VEL_Y,
+    _F_VEL_Z, _F_VICTIM, _F_WEAPON, _F_YAW, _FLOAT_INT_BIAS, _FLOAT_INT_BITS,
+    _GENTITYNUM_BITS, _MAX_PERSISTANT, _MAX_POWERUPS, _MAX_STATS,
+    _MAX_WEAPONS, _PS_BITS, _SENTINEL, _ET_EVENTS, _EV_OBITUARY, _get_huff)
 
 # ── container (docs/reference/dm73-format-deep-dive.md §1) ──────────────────
 DEMO_EOF = -1
@@ -56,19 +58,31 @@ CS_SYSTEMINFO = 1
 CS_PLAYERS = 529
 ENTITYNUM_NONE = 1023
 
-# Field indices, from demo_parse. Named here only where the round builder has
-# to set them; the wire format never uses the names.
-ES_POS_TIME = 0
-ES_POS_X, ES_POS_Y, ES_POS_Z = 5, 6, 7
-ES_APOS_YAW = 12
-ES_EVENT = 16
-ES_ETYPE = 18
-ES_EFLAGS = 19
-ES_OTHER_ENT = 20
-ES_EVENTPARM = 21
-ES_MODELINDEX = 24
-ES_CLIENTNUM = 28
-ES_OTHER_ENT2 = 30
+# Entity field indices. IMPORTED from the parser, never restated.
+#
+# The first version of this module invented them -- position at 5/6/7, eType at
+# 18, clientNum at 28 -- and every round-trip test passed, because the tests
+# compared those indices against themselves. The engine received players whose
+# eType landed in eFlags and whose position landed in velocity, and drew
+# nothing. There is exactly one authority for these numbers and it is
+# `demo_parse`, which reads 4,292 real demos with them.
+ES_POS_X = _F_POS_X            # 1  pos.trBase[0]
+ES_POS_Y = _F_POS_Y            # 2  pos.trBase[1]
+ES_POS_Z = _F_POS_Z            # 5  pos.trBase[2]
+ES_VEL_X = _F_VEL_X            # 3  pos.trDelta[0]
+ES_VEL_Y = _F_VEL_Y            # 4  pos.trDelta[1]
+ES_VEL_Z = _F_VEL_Z            # 7  pos.trDelta[2]
+ES_APOS_YAW = _F_YAW           # 6  apos.trBase[1]
+ES_APOS_PITCH = _F_PITCH       # 8  apos.trBase[0]
+ES_EVENT = _F_EVENT            # 10
+ES_ETYPE = _F_ETYPE            # 12
+ES_EVENTPARM = _F_EVPARM       # 14
+ES_GROUND = _F_GROUND          # 16 groundEntityNum; 1023 = airborne
+ES_EFLAGS = _F_EFLAGS          # 18
+ES_OTHER_ENT = _F_VICTIM       # 19 otherEntityNum  (obituary victim)
+ES_WEAPON = _F_WEAPON          # 20
+ES_CLIENTNUM = _F_CLIENT       # 21
+ES_OTHER_ENT2 = _F_KILLER      # 31 otherEntityNum2 (obituary killer)
 
 PS_ORIGIN_X, PS_ORIGIN_Y, PS_ORIGIN_Z = 1, 2, 9
 PS_VEL_X, PS_VEL_Y, PS_VEL_Z = 4, 5, 10
@@ -86,7 +100,36 @@ STAT_ARMOR = 4
 ET_GENERAL = 0
 ET_PLAYER = 1
 
-EV_OBITUARY = 60          # entity_event_t, see format doc §7
+# An event arrives as a TEMP ENTITY whose eType is ET_EVENTS + the event code.
+# Both numbers come from the parser, not from memory: the first draft of this
+# module had EV_OBITUARY at 60.
+ET_EVENTS = _ET_EVENTS         # 13
+EV_OBITUARY = _EV_OBITUARY     # 58
+
+# Event entities carry two toggle bits so two identical consecutive events can
+# be told apart. The parser masks them off with `& ~0x300` and compares the RAW
+# value, so a second obituary at the same entity slot must flip one or it is
+# read as a repeat of the first and dropped.
+EV_TOGGLE_BITS = 0x300
+
+
+def obituary_entity(killer: int, victim: int, mod: int,
+                    pos: tuple[float, float, float],
+                    *, toggle: int = 0) -> dict[int, float]:
+    """A death, in the shape the engine actually emits.
+
+    Taken from real obituary deltas in the corpus, which look like
+    `{1: x, 2: y, 5: z, 12: 71, 14: mod, 19: victim, 31: killer}` -- eType 71
+    being ET_EVENTS + EV_OBITUARY.
+    """
+    x, y, z = pos
+    return {
+        ES_ETYPE: ET_EVENTS + EV_OBITUARY + (EV_TOGGLE_BITS & toggle),
+        ES_POS_X: x, ES_POS_Y: y, ES_POS_Z: z,
+        ES_EVENTPARM: mod,
+        ES_OTHER_ENT: victim,
+        ES_OTHER_ENT2: killer,
+    }
 
 
 # ── the code table ──────────────────────────────────────────────────────────
@@ -439,6 +482,16 @@ class DemoWriter:
         w.writelong(self.client_num)
         w.writelong(self.checksum_feed)
         self._flush(w)
+
+    def write_configstring(self, seq: int, index: int, value: str) -> None:
+        """A configstring CHANGE mid-demo.
+
+        Not `svc_configstring` -- that opcode only appears inside the
+        gamestate. After it, the server sends `cs <index> "<value>"` as a
+        reliable server command, which is what the parser's
+        `_parse_servercommand` absorbs and what CA round state rides on.
+        """
+        self.write_server_command(seq, f'cs {index} "{value}"')
 
     def write_server_command(self, seq: int, text: str) -> None:
         w = self._new_payload()
