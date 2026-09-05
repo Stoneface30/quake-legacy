@@ -14,6 +14,14 @@ real player entities, showing which entity fields actually vary while a player
 idles, runs, fires and dies.
 
 Read-only. Nothing here writes to a cache or a demo.
+
+NAMES NEVER LEAVE THIS MODULE. A CA demo's server text is chat, and chat
+carries opponent nicknames verbatim. The first run of this extractor wrote
+them into JSON that was committed to a public repository. Traces are now
+redacted by default -- server text is reduced to its kind and length, and the
+demo is identified by a hash rather than by a filename that contains the
+recorder's handle. `--identifying` restores the raw form for local work and
+writes it somewhere that is gitignored.
 """
 from __future__ import annotations
 
@@ -24,6 +32,10 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
+
+# Server-text kinds that are pure protocol and cannot contain a nickname.
+# Everything else is redacted to its shape.
+SAFE_TEXT_KINDS = frozenset()
 
 import engine.parser.demo_parse as dp
 from engine.parser.demo_parse import DM73Parser
@@ -118,7 +130,27 @@ class PlayerFieldProfile:
         return out
 
 
-def trace_demo(path: Path, *, max_rounds: int = 6) -> dict[str, Any]:
+def _redact(text_rows: list[dict], keep: bool) -> list[dict]:
+    """Chat is the nickname channel. Keep its shape, drop its content."""
+    if keep:
+        return text_rows
+    return [{"server_time_ms": r["server_time_ms"], "kind": r["kind"],
+             "chars": len(r.get("text", "")), "round": r.get("round"),
+             "text": "<redacted: may contain player names>"}
+            for r in text_rows]
+
+
+def _demo_id(path: Path, keep: bool) -> str:
+    """A stable id that is not the filename -- QL demo names embed the
+    recorder's handle."""
+    if keep:
+        return path.name
+    import hashlib
+    return "demo-" + hashlib.sha256(path.name.encode()).hexdigest()[:16]
+
+
+def trace_demo(path: Path, *, max_rounds: int = 6,
+               identifying: bool = False) -> dict[str, Any]:
     """Parse one demo and pull out round traces plus the player field profile."""
     parser = DM73Parser(path)
     cs_log: list[dict] = []
@@ -159,11 +191,13 @@ def trace_demo(path: Path, *, max_rounds: int = 6) -> dict[str, Any]:
                      "victim": e.get("victim_client"),
                      "weapon": e.get("weapon_name")}
                     for e in out["events"] if lo <= e["server_time_ms"] <= hi]
-        t.server_text = [x for x in out["server_text"] if lo <= x["server_time_ms"] <= hi]
+        t.server_text = _redact(
+            [x for x in out["server_text"] if lo <= x["server_time_ms"] <= hi],
+            identifying)
         traces.append(t)
 
     return {
-        "demo": Path(path).name,
+        "demo": _demo_id(Path(path), identifying),
         "map": out["map"],
         "gametype": out["gametype"],
         "packet_errors": out["packet_errors"],
@@ -196,6 +230,9 @@ def main() -> int:
     ap.add_argument("--out", type=Path, default=Path("docs/reference/ca_rounds"))
     ap.add_argument("--demos", type=int, default=5)
     ap.add_argument("--rounds", type=int, default=6)
+    ap.add_argument("--identifying", action="store_true",
+                    help="keep chat text and demo filenames. Local use only -- "
+                         "the output must never be committed.")
     args = ap.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
 
@@ -203,19 +240,20 @@ def main() -> int:
     summaries = []
     for name, path in pick_reference_demos(args.demos):
         try:
-            tr = trace_demo(Path(path), max_rounds=args.rounds)
+            tr = trace_demo(Path(path), max_rounds=args.rounds,
+                            identifying=args.identifying)
         except Exception as exc:
-            print(f"  {name[:44]:44s} FAILED {type(exc).__name__}: {exc}")
+            print(f"  {_demo_id(Path(path), args.identifying)[:44]:44s} FAILED {type(exc).__name__}: {exc}")
             continue
-        dest = args.out / (Path(name).stem.replace(" ", "_") + ".json")
+        dest = args.out / (tr["demo"] + ".json")
         dest.write_text(json.dumps(tr, indent=1), encoding="utf-8")
         alive = sum(len(r["alive_transitions"]) for r in tr["rounds"])
         kills = sum(1 for r in tr["rounds"] for e in r["events"]
                     if e["type"] == "obituary")
-        print(f"  {name[:44]:44s} map={tr['map']:<14} rounds={tr['n_rounds']:3d} "
+        print(f"  {tr['demo'][:44]:44s} map={tr['map']:<14} rounds={tr['n_rounds']:3d} "
               f"traced={len(tr['rounds'])} kills={kills:3d} alive_moves={alive:3d} "
               f"errors={tr['packet_errors']}")
-        summaries.append({"demo": name, "map": tr["map"],
+        summaries.append({"demo": tr["demo"], "map": tr["map"],
                           "rounds": tr["n_rounds"], "traced": len(tr["rounds"]),
                           "kills": kills, "alive_moves": alive,
                           "file": str(dest)})
