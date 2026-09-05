@@ -39,6 +39,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from creative_suite.engine import capture_guard
 from creative_suite.engine.process_liveness import process_alive
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -57,6 +58,10 @@ WINDOW_POST_MS = 3000
 
 _LOCK_RETRY_S = 5.0        # requeue delay while another writer holds the lock
 _MAX_LOCK_WAITS = 240      # give up after ~20 min of a held lock
+# How long to wait before checking again whether the user is still
+# playing. No cap and no failure state: a queued clip can wait for a
+# whole evening of Quake, and the reviewer sees QUEUED, not FAILED.
+_GAME_WAIT_S = 20.0
 
 _queue: "queue.Queue[dict[str, Any] | None]" = queue.Queue()
 _worker: threading.Thread | None = None
@@ -422,6 +427,15 @@ def _worker_loop() -> None:
         # already in this process's queue and capture it twice.
         requeued = False
         try:
+            # THE USER MAY BE PLAYING. A capture opens a wolfcam window and
+            # Windows hands it the foreground, so running one now would alt
+            # tab them out of a live round. The job is not urgent and is not
+            # dropped: it stays QUEUED and runs when the game closes.
+            if capture_guard.game_is_running():
+                time.sleep(_GAME_WAIT_S)
+                _queue.put(job)
+                requeued = True
+                continue
             if not _try_acquire_lock():
                 job["lock_waits"] = job.get("lock_waits", 0) + 1
                 if job["lock_waits"] > _MAX_LOCK_WAITS:

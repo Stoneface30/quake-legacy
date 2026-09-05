@@ -1999,9 +1999,14 @@ def _real_capture(job: dict[str, Any], plan: PreviewPlan, tmp_mp4: Path,
         timeout = (wolfcam_capture.LAUNCH_OVERHEAD_S
                    + raw_s * wolfcam_capture.CAPTURE_SLOWDOWN
                    + plan.window_start_ms / 1000.0 / 12.0)
+        # Minimized, not activated -- never take the foreground from
+        # a game that is running. See capture_guard.
+        from creative_suite.engine.capture_guard import (
+            quiet_startup_info)
         proc = subprocess.Popen(
             wolfcam_capture.wolfcam_cmd(safe, staging), cwd=staging,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            startupinfo=quiet_startup_info())
         try:
             proc.wait(timeout=timeout)
         except subprocess.TimeoutExpired:

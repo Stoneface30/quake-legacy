@@ -552,7 +552,14 @@ def get_round(item_id: str):
     d.pop("content_hash", None)          # private provenance, never to the UI
     return {"item_id": item_id, "available": True,
             "round": d, "media_start_ms": start, "media_end_ms": end,
-            "media_duration_s": round((end - start) / 1000.0, 1)}
+            "media_duration_s": round((end - start) / 1000.0, 1),
+            # FAIL CLOSED. A round whose length is not credible must not be
+            # offered as "WATCH FULL ROUND": pressing that button replaced a
+            # working clip with a black frame and the words "still rendering
+            # -- try again", which is what the user actually saw.
+            "full_round_available": bool(ctx.duration_credible),
+            "duration_provenance": ctx.duration_provenance,
+            "duration_note": ctx.duration_note}
 
 
 @router.get("/usage/{occurrence_id}")
@@ -576,13 +583,8 @@ def usage_summary():
     return pu.summary()
 
 
-@router.get("/media/round/{item_id}")
-def get_round_media(item_id: str):
-    """The whole round, rendered on demand only.
-
-    Never pre-rendered: full-round media is minutes of wolfcam per round and
-    the user asks for it on a small fraction of moments.
-    """
+def _round_proxy(item_id: str, *, retry: bool = False):
+    """The full-round capture window, and the job that fills it."""
     from creative_suite.engine import round_story as rs
     it = rc.item(item_id)
     if it is None or it.round_no is None:
@@ -590,15 +592,61 @@ def get_round_media(item_id: str):
     ctx = rs.round_context(it.content_hash, it.round_no)
     if ctx is None:
         raise HTTPException(404, "no observed events in that round")
+    if not ctx.duration_credible:
+        # A round whose length is not observable has no full-round window to
+        # render. Refusing is the honest answer; the alternative was a
+        # zero-length clip advertised as the whole round.
+        raise HTTPException(
+            409, {"reason": "the length of this round is not observable",
+                  "provenance": ctx.duration_provenance,
+                  "note": ctx.duration_note})
     start, end = rs.round_window(ctx)
     try:
-        st = review_proxy.request_proxy(frag_id=it.source_id,
-                                        demo_name=it.demo_name,
-                                        start_ms=start, end_ms=end)
+        return it, review_proxy.request_proxy(
+            frag_id=it.source_id, demo_name=it.demo_name, start_ms=start,
+            end_ms=end, **({"retry": True} if retry else {}))
+    except HTTPException:
+        raise
     except Exception as e:                                     # noqa: BLE001
         raise HTTPException(503, f"{type(e).__name__}: {e}")
+
+
+@router.get("/media_state/round/{item_id}")
+def get_round_media_state(item_id: str):
+    """Poll the full round WITHOUT touching the video element.
+
+    The page used to set `video.src` straight to the round media and find out
+    from a failed `play()` -- which blanked a perfectly good clip. State is a
+    question; playing is an answer.
+    """
+    _it, st = _round_proxy(item_id)
+    path = st.get("mp4_path")
+    return {"item_id": item_id, "job_id": st.get("key"),
+            "state": st.get("state", "PENDING"), "error": st.get("error"),
+            "ready": bool(st.get("state") == "READY" and path
+                          and Path(path).exists())}
+
+
+@router.post("/media_retry/round/{item_id}")
+def retry_round_media(item_id: str):
+    _it, st = _round_proxy(item_id, retry=True)
+    return st
+
+
+@router.get("/media/round/{item_id}")
+def get_round_media(item_id: str, v: str | None = None):
+    """The whole round, rendered on demand only.
+
+    Never pre-rendered: full-round media is minutes of wolfcam per round and
+    the user asks for it on a small fraction of moments.
+    """
+    _it, st = _round_proxy(item_id)
     path = st.get("mp4_path")
     if st.get("state") == "READY" and path and Path(path).exists():
+        if v == "mobile":
+            small = _mobile_variant(Path(path))
+            if small is not None:
+                return FileResponse(small, media_type="video/mp4")
         return FileResponse(path, media_type="video/mp4")
     raise HTTPException(
         status_code=425,

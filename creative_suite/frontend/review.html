@@ -97,6 +97,8 @@
   #tagrail button.on .tk{color:#8fbf8f}
   #tagrail .tgroup{width:100%;font-size:10px;color:#555;letter-spacing:.12em;
     margin-top:4px}
+  .dgrid .v.nd{color:#8a8a93;letter-spacing:.06em;font-size:11px}
+  .dgrid .v.range{color:#e8c46a}
   .buttons button:active{transform:scale(.985)}
   .buttons .k{font-size:10px;color:var(--dim);letter-spacing:.1em}
   .buttons .n{font-size:13px;font-weight:600;letter-spacing:.03em;
@@ -576,17 +578,57 @@ async function renderRound(it){
   });
   box.appendChild(list);
 
+  // NEVER OFFER A ROUND WHOSE LENGTH IS NOT KNOWN.
+  //
+  // This is the exact button the user pressed. It advertised "WATCH FULL
+  // ROUND (0.0s)" -- because round duration used to be the span between the
+  // first and last observed kill, and 51.2% of rounds contain one kill -- and
+  // then pointed <video> straight at media that had never been rendered. The
+  // working clip went black and the button said "still rendering, try
+  // again". Both halves are fixed: the offer is gated on a credible
+  // duration, and the media is polled instead of assumed.
+  if (d.full_round_available === false){
+    const note = el("div", "conf", "full round length not observable here"
+      + (d.duration_note ? " — " + d.duration_note : ""));
+    box.appendChild(note);
+    return;
+  }
   const b = el("button", null, "WATCH FULL ROUND ("
                 + d.media_duration_s + "s)");
   b.id = "watchround";
   // On demand only. Full-round media costs minutes of wolfcam and the user
   // wants it on a small fraction of moments.
-  b.onclick = () => {
+  b.onclick = async () => {
+    const mine = cur;
+    b.disabled = true;
     b.textContent = "rendering the round…";
-    v.hidden = false; $("ph").hidden = true;
-    v.src = API + "/media/round/" + it.item_id;
-    v.loop = false;
-    v.play().catch(() => { b.textContent = "still rendering — try again"; });
+    const started = Date.now();
+    // THE CLIP KEEPS PLAYING while the round renders. Setting v.src to a
+    // resource that does not exist yet is what produced the black frame.
+    while (cur === mine && Date.now() - started < MEDIA_TIMEOUT_MS){
+      let st;
+      try { st = await mediaJSON(API + "/media_state/round/" + mine.item_id); }
+      catch(e){ b.disabled = false; b.textContent = "round unavailable — retry";
+                return; }
+      if (cur !== mine) return;
+      if (st.ready){
+        v.hidden = false; $("ph").hidden = true;
+        v.src = API + "/media/round/" + mine.item_id
+          + (isSmallScreen() ? "?v=mobile" : "");
+        v.loop = false; v.play().catch(() => {});
+        b.textContent = "watching the full round";
+        return;
+      }
+      if (["FAILED", "ERROR"].includes(st.state)){
+        b.disabled = false;
+        b.textContent = "round render failed — retry";
+        return;
+      }
+      b.textContent = "rendering the round… " + (st.state || "");
+      await new Promise(r => setTimeout(r, 2000));
+    }
+    b.disabled = false;
+    b.textContent = "still rendering — press again to keep waiting";
   };
   box.appendChild(b);
 }
@@ -1208,14 +1250,18 @@ function pruneUnknownIds(section){
 
 function pruneUnknown(section, grid, reason){
   const kids = [...grid.children];
-  const known = kids.filter(n => n.classList.contains("v") && !n.dataset.unk);
+  // A row marked `keep` is an answer even when it has no number -- the
+  // accuracy row saying NOT DERIVABLE is the case that matters, and pruning
+  // it was how the reviewer ended up with no accuracy information at all.
+  const known = kids.filter(n => n.classList.contains("v")
+                                 && (!n.dataset.unk || n.dataset.keep));
   if (!known.length){
     const note = el("div", "conf", reason || "nothing measurable here");
     grid.replaceChildren();
-    section.appendChild(note);
+    if (reason) section.appendChild(note);
     return false;
   }
-  kids.forEach(n => { if (n.dataset.unk) n.remove(); });
+  kids.forEach(n => { if (n.dataset.unk && !n.dataset.keep) n.remove(); });
   return true;
 }
 
@@ -1283,29 +1329,52 @@ async function renderDossier(it){
   }
   kids.push(st);
 
+  // ACCURACY IS ALWAYS SHOWN, even when the answer is that it cannot be
+  // derived. Asked for directly, and it is the right call: silence reads as
+  // "nobody measured this", while NOT DERIVABLE with a reason says which
+  // weapons the pain stream can and cannot answer for.
   const a = d.action, act = el("div", "dsec");
   act.appendChild(el("h4", null, a.weapon || "action"));
   const ag = el("div", "dgrid");
   ag.append(...drow(a.unit, a.shots));
-  if (a.confidence === "NOT_DERIVABLE"){
-    ag.append(...drow("accuracy", null));
-  } else if (a.accuracy_upper_pct && a.accuracy_upper_pct !== a.accuracy_pct){
-    ag.append(...drow("accuracy",
-      a.accuracy_pct + "-" + a.accuracy_upper_pct + "%"));
-    ag.append(...drow("hits", a.hits_confirmed + " confirmed, "
-      + a.hits_ambiguous + " ambiguous"));
-  } else if (a.accuracy_pct !== null && a.accuracy_pct !== undefined){
-    ag.append(...drow("accuracy", a.accuracy_pct + "%"));
+
+  const accRow = (label, value, cls) => {
+    const k = el("div", "k", label), val = el("div", "v " + (cls || ""));
+    val.textContent = value;
+    // Protected from the UNKNOWN pruner: this row is the answer, not a gap.
+    k.dataset.keep = val.dataset.keep = "1";
+    ag.append(k, val);
+  };
+
+  if (a.accuracy_pct !== null && a.accuracy_pct !== undefined){
+    if (a.accuracy_upper_pct && a.accuracy_upper_pct !== a.accuracy_pct){
+      // A RANGE, NOT A NUMBER. Somebody else was shooting the same target,
+      // so the true value lies between "only the confirmed kill" and "every
+      // pain event in the window was mine".
+      accRow("accuracy", a.accuracy_pct + "–" + a.accuracy_upper_pct + "%",
+             "range");
+      ag.append(...drow("hits", a.hits_confirmed + " confirmed, "
+        + a.hits_ambiguous + " ambiguous"));
+    } else {
+      accRow("accuracy", a.accuracy_pct + "%");
+      if (a.hits_confirmed !== null && a.hits_confirmed !== undefined)
+        ag.append(...drow("hits", String(a.hits_confirmed)));
+    }
   } else {
-    ag.append(...drow("accuracy", null));
+    accRow("accuracy", "NOT DERIVABLE", "nd");
   }
   if (a.engagement_ms)
     ag.append(...drow("engagement", (a.engagement_ms / 1000).toFixed(2) + "s"));
   act.appendChild(ag);
-  pruneUnknown(act, ag, a.note
-    || "the actor did not hold the camera, so their own trigger is not here");
-  if (a.note && !act.textContent.includes(a.note))
-    act.appendChild(el("div", "conf", a.note));
+  pruneUnknown(act, ag, "");
+  // Why, in the weapon's own terms. For the lightning gun this is the whole
+  // story: the server throttles pain events to about three a second and the
+  // gun fires twenty, so its hits cannot be counted from them at all.
+  const why = a.note || (a.accuracy_pct === null || a.accuracy_pct === undefined
+    ? "this weapon fires faster than the server reports damage, so hits "
+      + "cannot be counted from the pain stream"
+    : "");
+  if (why) act.appendChild(el("div", "conf", why));
   kids.push(act);
 
   const gm = el("div", "dsec"), G = d.geometry, M = d.movement;

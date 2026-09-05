@@ -272,9 +272,14 @@ def capture_demo(safe_demo: str, windows: list[dict],
         _mock_capture(windows, staging)
         rc = 0
     else:
+        # Minimized and NOT activated. Wolfcam is a game client: a new
+        # top-level window takes the foreground, and doing that to someone
+        # mid-round costs them the round. See capture_guard.
+        from creative_suite.engine.capture_guard import quiet_startup_info
         proc = subprocess.Popen(
             wolfcam_cmd(safe_demo, staging, profile=profile), cwd=staging,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            startupinfo=quiet_startup_info())
         try:
             rc = proc.wait(timeout=timeout)
         except subprocess.TimeoutExpired:

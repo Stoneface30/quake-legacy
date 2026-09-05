@@ -49,7 +49,11 @@ STORY_MIN_TEAM_KILLS = 2          # the clan fought it together
 class RoundEvent:
     """One thing that happened, placed on the round's clock."""
     t_ms: int
-    offset_ms: int                 # from the first event in the round
+    # From the ROUND's start, not from the first death. Measuring from the
+    # first kill made every round's opening event read "+0.0s" -- which,
+    # beside a round header that now states a real duration, said the frag
+    # happened at the instant the round began.
+    offset_ms: int
     kind: str                      # FRAG / DEATH / TELEPORT / JUMPPAD ...
     actor: str | None = None
     victim: str | None = None
@@ -69,7 +73,14 @@ class RoundContext:
     map_name: str | None
     start_ms: int
     end_ms: int
-    duration_ms: int
+    # The interval the round is now believed to occupy, and where that belief
+    # comes from. It is NOT the span between the first and last observed
+    # kill: a round with one kill has a zero-length kill span, and 51.2% of
+    # rounds in this corpus have exactly one.
+    duration_ms: int | None
+    duration_provenance: str = "KILL_SPAN"
+    duration_credible: bool = True
+    duration_note: str = ""
     events: list[RoundEvent] = field(default_factory=list)
     user_kills: int = 0
     team_kills: int = 0
@@ -149,6 +160,10 @@ def round_context(content_hash: str, round_no: int,
     meta = _reviews_and_usage(ids)
     t0 = int(occ[0]["server_time_ms"])
     t1 = int(occ[-1]["server_time_ms"])
+    from creative_suite.engine import round_bounds as rbm
+    b = rbm.bounds_for(content_hash, round_no, db=db)
+    # Offsets are measured from the round's start where one is known.
+    t0 = b.start_ms if b.start_ms is not None else t0
 
     events: list[RoundEvent] = []
     user_kills = team_kills = enemy_kills = 0
@@ -226,8 +241,11 @@ def round_context(content_hash: str, round_no: int,
 
     return RoundContext(
         content_hash=content_hash, round_no=round_no,
-        map_name=occ[0]["map"], start_ms=t0, end_ms=t1,
-        duration_ms=t1 - t0, events=events, user_kills=user_kills,
+        map_name=occ[0]["map"], start_ms=b.start_ms if b.start_ms is not None
+        else t0, end_ms=b.end_ms if b.end_ms is not None else t1,
+        duration_ms=b.duration_ms, duration_provenance=b.provenance,
+        duration_credible=b.credible, duration_note=b.note,
+        events=events, user_kills=user_kills,
         team_kills=team_kills, enemy_kills=enemy_kills, user_died=user_died,
         team_size=size, alive_curve=curve, alive_provenance=DERIVED,
         is_story_candidate=story, story_reasons=reasons,

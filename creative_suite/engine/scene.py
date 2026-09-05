@@ -286,9 +286,27 @@ def build_scene(content_hash: str, round_no: int,
 
 
 def scene_for_item(item_id: str, db: Path = RECOGNITION_DB) -> Scene | None:
-    """The scene a review item belongs to, if it belongs to one."""
+    """The scene a review item belongs to, if it belongs to one.
+
+    A FRAGMENT CANNOT DEFINE A ROUND. Some demos in the archive are slices
+    cut out of longer recordings -- hand-made frag extracts, partial replays
+    -- and they carry no round start, no round end and often one kill. Where
+    the moment was also recorded by a fuller demo, the round is read from
+    that instead. The occurrence id never changes, so every human decision
+    stays attached to the same moment and simply gains a better source.
+    """
     from creative_suite.engine import review_corpus as rc
     it = rc.item(item_id)
     if it is None or it.round_no is None:
         return None
-    return build_scene(it.content_hash, it.round_no, db=db)
+    content_hash = it.content_hash
+    try:
+        from engine.parser import demo_lineage as dl
+        better = dl.better_source_for(int(it.source_id), recog=db)
+        if better:
+            content_hash = better
+    except Exception:                                          # noqa: BLE001
+        # Lineage is an improvement, never a dependency: without it the
+        # scene is built from the observation the occurrence layer chose.
+        pass
+    return build_scene(content_hash, it.round_no, db=db)
