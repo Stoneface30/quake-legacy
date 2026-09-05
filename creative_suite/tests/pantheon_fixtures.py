@@ -45,11 +45,12 @@ def jumppad_rocket_trace(n: int = 60, start: int = START, client: int = 5,
                                                (900.0, 0.0, 0.0)))
     p = lambda i: tr.transform[i].origin
     tr.events = [
-        ActionEvent(start + STEP * 10, "jump_pad", None, p(10), None, 0),
-        ActionEvent(start + STEP * 18, "fire_weapon", 5, p(18), None, None),
+        ActionEvent(start + STEP * 10, "jump_pad", None, p(10), None, 0, code=9),
+        ActionEvent(start + STEP * 18, "fire_weapon", 5, p(18), None, None, code=20),
         ActionEvent(start + STEP * 30, "missile_hit", 5, (300.0 + 22.0 * 30, -20.0, 90.0),
-                    None, 0),
-        ActionEvent(start + STEP * 30, "obituary", 6, (960.0, -20.0, 90.0), victim, None),
+                    None, 0, code=47, carrier="TEMP", other_entity=victim),
+        ActionEvent(start + STEP * 30, "obituary", 6, (960.0, -20.0, 90.0), victim, 6,
+                    code=58, carrier="TEMP", other_entity=victim),
     ]
     return tr
 
@@ -69,5 +70,6 @@ def victim_trace(n: int = 60, start: int = START, client: int = 1,
         tr.aim.append(AimSample(t, 210.0, 0.0, 0.0, 0.0))
         tr.animation.append(AnimSample(t, 15, 11, False, False))
     tr.weapon.append(WeaponSample(start, 7))
-    tr.events = [ActionEvent(start + STEP * 30, "pain", None, (960.0, 40.0, 60.0), None, 25)]
+    tr.events = [ActionEvent(start + STEP * 30, "pain", None, (960.0, 40.0, 60.0), None, 25,
+                             code=53)]
     return tr

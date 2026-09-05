@@ -19,7 +19,7 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Mapping, Sequence
+from typing import Iterable, Mapping, Sequence
 
 from engine.pantheon import performance as P
 from engine.pantheon.compare import PerformanceDiff, Tolerances, compare
@@ -72,6 +72,31 @@ def extract_performance(demo: Path, actor: int | str, start_ms: int,
 def parse(demo: Path):
     """Parse once, reuse across several extractions from the same demo."""
     return P._parse_with_anims(Path(demo))
+
+
+def team_of(parsed, client: int) -> Team:
+    """The team the demo's configstrings gave this client."""
+    out = parsed[0]
+    players = out.get("players") or {}
+    p = players.get(client) or players.get(str(client)) or {}
+    t = str(p.get("team", "")).upper()
+    return Team.BLUE if t in ("BLUE", "2") else Team.RED
+
+
+def context_windows(parsed, lo: int, hi: int, *, exclude: Iterable[int] = (),
+                    min_samples: int = 4) -> dict[str, tuple[int, int, int]]:
+    """CONTEXT ACTOR POLICY: every other client the recorder observed in the
+    window is performed from his own trace; nobody is fabricated to match a
+    frame. Fewer than `min_samples` samples is noise, not an actor."""
+    out = parsed[0]
+    seen: dict[int, int] = {}
+    for e in out["entities"]:
+        c = e["client_num"]
+        if c is not None and lo <= e["server_time_ms"] <= hi:
+            seen[c] = seen.get(c, 0) + 1
+    ex = set(exclude)
+    return {f"CTX{c}": (c, lo, hi) for c, n in sorted(seen.items())
+            if c not in ex and n >= min_samples}
 
 
 # ── compile ────────────────────────────────────────────────────────────────
@@ -174,22 +199,25 @@ def compile_performance(traces: PerformanceTrace | Mapping[str, PerformanceTrace
         a._recorded_client = tr.client        # so impacts can name their victim
         actors[name] = a
 
-    # kills: an obituary in a trace whose victim is another cast member
+    # kills: an obituary in a trace whose victim is another cast member.
+    # A RECORDED obituary (a temp-entity event with its code) is replayed
+    # verbatim by perform(); the round is credited without a second entity.
     by_client = {traces[n].client: n for n in names}
     intentional: set[str] = set()
     if kills:
         for name in names:
             for ev in traces[name].of_kind("obituary"):
                 victim = by_client.get(ev.other_client)
+                when = round(t0s[name] + (ev.t - traces[name].start_ms) / 1000.0, 3)
                 if victim is None or victim == name:
-                    # the victim is not in the cast: there is no body to
-                    # kill, so the obituary is a declared difference, not a
-                    # silently invented one
-                    intentional.add("obituary")
+                    if ev.code is None:
+                        # not replayed, no body to kill: a declared difference
+                        intentional.add("obituary")
                     continue
-                when = t0s[name] + (ev.t - traces[name].start_ms) / 1000.0
-                actors[name].kill(actors[victim], mod=_weapon_for_mod(ev.weapon),
-                                  t=round(when, 3))
+                if ev.code is not None:
+                    actors[name].credit_kill(actors[victim], t=when)
+                else:
+                    actors[name].kill(actors[victim], mod=_weapon_for_mod(ev.weapon), t=when)
 
     duration = t0 + (max_end - min_start) / 1000.0 + 0.3
     demo = scn.compile(duration=duration)
@@ -246,9 +274,14 @@ def run(demo: Path, windows: Mapping[str, tuple[int | str, int, int]], *,
         retarget: Retarget | None = None,
         tol: Tolerances = Tolerances(),
         intentional: Sequence[str] = (),
+        context: bool = False,
         out_dir: Path = OUT, label: str = "headless") -> HeadlessResult:
     """extract -> compile -> reextract -> compare, timed, for a set of
-    `name -> (actor, start_ms, end_ms)` windows on one demo."""
+    `name -> (actor, start_ms, end_ms)` windows on one demo.
+
+    `context=True` adds every other client the recorder observed across the
+    union of the windows, each performed from his own trace on the team the
+    demo gave him (context actor policy)."""
     demo = Path(demo)
     timings: dict[str, float] = {}
 
@@ -257,6 +290,16 @@ def run(demo: Path, windows: Mapping[str, tuple[int | str, int, int]], *,
     timings["parse"] = round((time.perf_counter() - t) * 1000, 1)
 
     t = time.perf_counter()
+    windows = dict(windows)
+    cast = dict(cast or {})
+    if context:
+        lo = min(w[1] for w in windows.values())
+        hi = max(w[2] for w in windows.values())
+        named = {P.recorder_client(parsed[0]) if a == "POV" else int(a)
+                 for a, _, _ in windows.values()}
+        for name, (c, a, b) in context_windows(parsed, lo, hi, exclude=named).items():
+            windows[name] = (c, a, b)
+            cast.setdefault(name, CastMember(name, team_of(parsed, c)))
     traces = {name: extract_performance(demo, actor, lo, hi, parsed=parsed)
               for name, (actor, lo, hi) in windows.items()}
     timings["extract"] = round((time.perf_counter() - t) * 1000, 1)

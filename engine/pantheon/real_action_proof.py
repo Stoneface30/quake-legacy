@@ -70,18 +70,49 @@ def build():
     a.perform(shooter, t0=T0)
     v = scn.actor("VICTIM", Team.BLUE).appearance("visor", "default")
     v.perform(victim, t0=T0)
+    # CONTEXT ACTOR POLICY: every other client the recorder OBSERVED in the
+    # window is reproduced from his own trace; nobody is fabricated to match a
+    # frame. A client with fewer than 4 samples is noise, not an actor.
+    context = {}
+    for c in sorted({e["client_num"] for e in out["entities"]
+                     if e["client_num"] is not None
+                     and lo <= e["server_time_ms"] <= hi}):
+        if c in (SHOOTER, VICTIM):
+            continue
+        tr = extract_performance(demo, lo, hi, c, parsed=parsed)
+        if len(tr.transform) < 4:
+            continue
+        team = _team_of(out, c)
+        x = scn.actor(f"CTX{c}", team).appearance("sarge", "default")
+        x.perform(tr, t0=T0)
+        context[c] = {"samples": len(tr.transform), "team": team.name,
+                      "first_ms": tr.transform[0].t - lo,
+                      "last_ms": tr.transform[-1].t - lo}
     ob = [e for e in out["events"] if e["type"] == "obituary"
           and e.get("killer_client") == SHOOTER and lo <= e["server_time_ms"] <= hi]
-    if ob:
+    if ob and not any(e.code == 58 for e in shooter.events):
+        # only when the trace did NOT carry the obituary itself (it does here:
+        # the temp-entity event is replayed verbatim, so authoring a second
+        # one would put two obituaries in the synthetic demo)
         from engine.pantheon.scenario import Weapon
         a.kill(v, mod=Weapon.ROCKET, t=T0 + (ob[0]["server_time_ms"] - lo) / 1000.0)
+    else:
+        # the CA alive counter still has to learn about the kill
+        scn._alive[v.team] -= 1
 
     duration = T0 + (hi - lo) / 1000.0 + 0.3
     OUT.mkdir(parents=True, exist_ok=True)
     synth = scn.compile(duration=duration).save(OUT / f"{SCENE_ID}.dm_73")
     FrameTruth.from_scenario(scn, duration=duration).save(
         OUT / f"{SCENE_ID}.frametruth.json")
+    scn.context_actors = context
     return demo, shooter, victim, scn, a, v, synth, out, ob
+
+
+def _team_of(out: dict, client: int) -> Team:
+    p = (out.get("players") or {}).get(client) or (out.get("players") or {}).get(str(client)) or {}
+    t = str(p.get("team", "")).upper()
+    return Team.BLUE if t in ("BLUE", "2") else Team.RED
 
 
 def differential(shooter: PerformanceTrace, victim: PerformanceTrace,
@@ -142,14 +173,17 @@ def differential(shooter: PerformanceTrace, victim: PerformanceTrace,
 
     # projectiles: every real sample must come back at the same time/place
     real_pj = {(p.t - shooter.start_ms): p for p in shooter.projectiles}
-    synth_pj = {}
+    synth_pj: dict[int, list] = {}
     for m in back["missiles"]:
-        synth_pj.setdefault(m["server_time_ms"] - 1000 - int(T0 * 1000), m)
+        synth_pj.setdefault(m["server_time_ms"] - 1000 - int(T0 * 1000), []).append(m)
     pj_err = []
     for dt, p in real_pj.items():
-        m = synth_pj.get(dt)
-        if m is None:
+        # context actors fire too: at one tick there may be several missiles,
+        # so the shooter's is the one at his missile's position
+        cands = synth_pj.get(dt) or []
+        if not cands:
             continue
+        m = min(cands, key=lambda m: math.dist(p.origin, (m["origin_x"], m["origin_y"], m["origin_z"])))
         pj_err.append(math.dist(p.origin, (m["origin_x"], m["origin_y"], m["origin_z"])))
     pj = {"samples_real": len(real_pj), "samples_matched": len(pj_err),
           "position_max_u": round(max(pj_err), 3) if pj_err else None,
@@ -157,39 +191,55 @@ def differential(shooter: PerformanceTrace, victim: PerformanceTrace,
                       and max(pj_err) <= TOL["position_u"] else
                       "MISSING" if not pj_err else "TOLERANCE_DIFFERENCE")}
 
-    # events: fire, jump pad, obituary
-    real_ev = sorted((e.t - shooter.start_ms, e.kind) for e in shooter.events
-                     if e.kind in ("fire_weapon", "jump_pad"))
-    synth_ob = [e for e in back["events"] if e["type"] == "obituary"]
-    ev = {"real_fire_and_pad": real_ev,
-          "synthetic_obituary": [(e["server_time_ms"] - 1000 - int(T0 * 1000),
-                                  e.get("weapon_name"), e.get("victim_client"))
-                                 for e in synth_ob],
-          "real_obituary": [(o["server_time_ms"] - shooter.start_ms,
-                             o.get("weapon_name"), o.get("victim_client")) for o in ob],
-          "verdict": "INTENTIONAL_DIFFERENCE"}
-    ev["note"] = ("fire_weapon and jump_pad are EVENTS on the player entity; the "
-                  "compiler does not yet emit them, so the synthetic demo carries "
-                  "the ANIMATION and the MISSILE of the shot but not the event "
-                  "codes. The obituary is authored from the real one.")
+    # THE EVENT CHAIN: every EV_* the real demo carried for the shooter must
+    # come back from the synthetic demo at the same tick with the same code,
+    # weapon and parm. Compared as (t, code, weapon) multisets.
+    base = 1000 + int(T0 * 1000)
+    real_chain = sorted((e.t - shooter.start_ms, e.code, e.weapon, e.kind)
+                        for e in shooter.events if e.code is not None)
+    synth_chain = sorted((e["server_time_ms"] - base, e["event_code"],
+                          e.get("weapon"), e["type"])
+                         for e in back["events"] if e.get("event_code") is not None)
+    # an obituary's weapon is its MOD in eventParm, which the parser reports
+    # under 'weapon' for the synthetic and not for the raw temp entity
+    norm = lambda t, c, w: (t, c, None if c == 58 else w)
+    real_keys = [norm(t, c, w) for t, c, w, _ in real_chain]
+    synth_keys = [norm(t, c, w) for t, c, w, _ in synth_chain]
+    missing = [r for r in real_chain if norm(r[0], r[1], r[2]) not in synth_keys]
+    extra = [x for x in synth_chain if norm(x[0], x[1], x[2]) not in real_keys]
+    # the synthetic also carries the victim's and context actors' events;
+    # only the shooter's chain is judged here
+    ev = {"real": real_chain, "synthetic_count": len(synth_chain),
+          "missing_from_synthetic": missing,
+          "verdict": "MATCHED" if not missing else "MISSING"}
+    ev["note"] = ("player-carried events (jump_pad, fire_weapon, pain) are emitted "
+                  "on the actor's entity with alternating toggle bits; temp-entity "
+                  "events (missile_hit/miss, obituary) get their own entity with "
+                  "position, dir byte, weapon and otherEntityNum. cgame renders the "
+                  "smoke puff, muzzle flash, explosion and plays every sound from "
+                  "these codes -- nothing is composited.")
     return {"shooter": track(shooter, a_client), "victim": track(victim, v_client),
             "projectiles": pj, "events": ev,
             "packet_errors": back["packet_errors"], "tolerances": TOL}
 
 
 def main() -> int:
-    """The proof, through the promoted headless loop (engine.pantheon.headless).
-
-    The differential above is kept as the original instrument; the verdict
-    that ships is `compare()`'s, trace against trace, with events judged like
-    every other track now that the compiler emits them.
-    """
+    """The proof through the promoted headless loop (engine.pantheon.headless):
+    shooter, victim and every observed context actor, compared trace against
+    trace by compare(). build()/differential() above remain the original
+    instrument and still run under `--legacy`."""
+    import sys
+    if "--legacy" in sys.argv:
+        demo, shooter, victim, scn, a, v, synth, out, ob = build()
+        diff = differential(shooter, victim, synth, a.client, v.client, ob)
+        print(json.dumps(diff, indent=1, default=str)[:4000])
+        return 0
     from engine.pantheon import headless as H
     demo = source_path()
     lo, hi = PAD_MS - PRE_MS, PAD_MS + POST_MS
     res = H.run(demo, {"SHOOTER": (SHOOTER, lo, hi), "VICTIM": (VICTIM, lo, hi)},
                 cast={"SHOOTER": ("sarge", "default"), "VICTIM": ("visor", "default")},
-                out_dir=OUT, label=SCENE_ID)
+                context=True, out_dir=OUT, label=SCENE_ID)
     shooter = res.traces["SHOOTER"]
     report = {
         "scene_id": SCENE_ID, "demo_hash": DEMO_HASH, "map": shooter.map,
@@ -198,12 +248,11 @@ def main() -> int:
         "jump_pad_ms": PAD_MS,
         "speed": shooter.speed_profile(),
         "anim_sequence": shooter.anim_sequence(),
-        "rocket_fires_ms_rel_pad": [e.t - PAD_MS for e in shooter.events
-                                    if e.kind == "fire_weapon" and e.weapon == 5],
-        "obituary": [(e.t - PAD_MS, e.weapon, e.other_client)
-                     for e in shooter.events if e.kind == "obituary"],
+        "event_chain": [(e.t - PAD_MS, e.kind, e.code, e.carrier) for e in shooter.events],
         "max_yaw_rate": max(abs(x.yaw_rate) for x in shooter.aim),
         "projectile_samples": len(shooter.projectiles),
+        "context_actors": {n: len(t.transform) for n, t in res.traces.items()
+                           if n.startswith("CTX")},
         "retarget": "EXACT_WORLD",
         "synthetic_demo": str(res.compiled.path),
         "timings_ms": res.timings_ms,
@@ -212,11 +261,9 @@ def main() -> int:
     }
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / f"{SCENE_ID}.report.json").write_text(json.dumps(report, indent=1))
-    print(f"real   : {shooter.map} client {SHOOTER} -> {VICTIM}, "
-          f"{shooter.duration_ms()}ms, {len(shooter.transform)} samples, "
-          f"airborne {shooter.speed_profile()['airborne_ms']}ms, "
-          f"rocket at {report['rocket_fires_ms_rel_pad']} ms after pad, "
-          f"kill at {report['obituary']}")
+    print(f"real   : {shooter.map} client {SHOOTER} -> {VICTIM}, {shooter.duration_ms()}ms, "
+          f"{len(shooter.transform)} samples, {len(shooter.events)} events, "
+          f"context {report['context_actors']}")
     print(f"synth  : {res.compiled.path}  timings_ms={res.timings_ms}")
     for name, d in res.diffs.items():
         print(f"  {name:8s} {d.semantic_fidelity}: {d.summary()}")

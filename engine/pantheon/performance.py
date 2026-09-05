@@ -52,6 +52,8 @@ WP_ROCKET, WP_RAIL = 5, 7
 # restated bg_public.h. A first version wrote {3, 4}, which the parser reads
 # as MACHINEGUN and GRENADE; the index shows rocket kills at 6 and 7.
 MOD_ROCKET = {code for code, name in dp._MOD_NAMES.items() if name.startswith("ROCKET")}
+TELEPORT_JUMP_U = 300.0      # a body does not move this far in one snapshot
+TELEPORT_REACH_U = 256.0     # body origin vs the teleporter trigger's origin
 
 
 # ── the schema ─────────────────────────────────────────────────────────────
@@ -107,6 +109,10 @@ class ActionEvent:
     position: tuple[float, float, float] | None = None
     other_client: int | None = None      # victim for obituary, else None
     parm: int | None = None
+    code: int | None = None              # EV_* number, as the engine sent it
+    carrier: str = "PLAYER"              # PLAYER: on the player's entity
+                                         # TEMP: its own temp entity (impacts)
+    other_entity: int | None = None      # TEMP: otherEntityNum (what was hit)
 
 
 @dataclass
@@ -196,7 +202,9 @@ class PerformanceTrace:
                                            t3(x["origin"]), t3(x["velocity"]))
                           for x in d.get("projectiles", [])]
         tr.events = [ActionEvent(x["t"], x["kind"], x.get("weapon"), t3(x.get("position")),
-                                 x.get("other_client"), x.get("parm"))
+                                 x.get("other_client"), x.get("parm"),
+                                 code=x.get("code"), carrier=x.get("carrier", "PLAYER"),
+                                 other_entity=x.get("other_entity"))
                      for x in d.get("events", [])]
         return tr
 
@@ -248,9 +256,44 @@ def _parse_with_anims(path: Path):
                 "legs_toggle": bool(l & ANIM_TOGGLE),
                 "torso_toggle": bool(to & ANIM_TOGGLE)})
 
-    parser._parse_snapshot = hook
+    # Temp-entity events (missile hits, misses) carry otherEntityNum -- the
+    # thing that was hit -- which the parser's event rows do not keep. They
+    # are read here off the entity state, edge-detected on the raw eType
+    # exactly as the parser does, so an identical consecutive event with the
+    # other toggle bit is still a new event.
+    temp_events: list[dict] = []
+    prev_et: dict[int, int] = {}
+    ET_EVENTS = 13
+    orig_hook = hook
+
+    def hook2(s, events, snapshots):
+        orig_hook(s, events, snapshots)
+        t = parser._last_server_time
+        # A temp entity that left the snapshot is gone; the next occupant of
+        # its slot is a new entity even if its eType happens to repeat. The
+        # parser forgets a removed entity's edge state; so must this.
+        for num in [n for n in prev_et if n not in parser._entity_states]:
+            del prev_et[num]
+        for num, st in parser._entity_states.items():
+            raw = int(st.get(dp._F_ETYPE, 0) or 0)
+            if raw <= ET_EVENTS:
+                continue
+            if prev_et.get(num) == raw:
+                continue
+            prev_et[num] = raw
+            temp_events.append({
+                "t": t, "entity": num, "code": (raw & ~0x300) - ET_EVENTS,
+                "raw_etype": raw,
+                "pos": (st.get(dp._F_POS_X, 0.0), st.get(dp._F_POS_Y, 0.0),
+                        st.get(dp._F_POS_Z, 0.0)),
+                "parm": st.get(dp._F_EVPARM), "weapon": st.get(dp._F_WEAPON),
+                "other": st.get(dp._F_VICTIM), "other2": st.get(dp._F_KILLER),
+                "client": st.get(dp._F_CLIENT)})
+
+    parser._parse_snapshot = hook2
     out = parser.parse()
     out["recorder_track"] = recorder
+    out["temp_events"] = temp_events
     return out, anims
 
 
@@ -349,18 +392,73 @@ def extract_performance(demo: Path, start_ms: int, end_ms: int, client: int,
         t = ev["server_time_ms"]
         if not win(t):
             continue
-        # playerstate events carry no entity clientNum: None means the POV
+        # PLAYER-CARRIED events live on the body's own entity (entity number
+        # == client slot) or, for the recorder, in the playerstate (entity
+        # None). A row from any other entity is a temp entity, read below
+        # with the fields the parser's rows drop; counting it here as well
+        # doubled every temp change_weapon in the round trip.
+        ent = ev.get("entity_num")
+        if ent is not None and ent != client:
+            continue
         mine = ev.get("client_num") == client or (
             ev.get("client_num") is None and client == rec
             and ev["type"] != "obituary")
-        killer = ev.get("killer_client") == client
-        if not (mine or killer):
+        if not mine:
             continue
         pos = (None if ev.get("pos_x") is None
                else (ev["pos_x"], ev["pos_y"], ev["pos_z"]))
         tr.events.append(ActionEvent(
-            t, ev["type"], ev.get("weapon"), pos,
-            ev.get("victim_client") if killer else None, ev.get("event_parm")))
+            t, ev["type"], ev.get("weapon"), pos, None, ev.get("event_parm"),
+            code=ev.get("event_code"), carrier="PLAYER"))
+    # TEMP-ENTITY events attributed to this client. Attribution is by what
+    # the event IS, never by a reused entity slot: a missile slot that turns
+    # into an impact is his only if HIS missile was in that slot on the
+    # previous tick; a rail trail or any other temp event is his only if the
+    # entity names him; an obituary is his as the killer.
+    last_missile: dict[int, int] = {}
+    for pr in tr.projectiles:
+        last_missile[pr.entity] = max(last_missile.get(pr.entity, 0), pr.t)
+    for te in out.get("temp_events", []):
+        if not win(te["t"]):
+            continue
+        code = te["code"]
+        if code in (dp._EV_MISSILE_HIT, dp._EV_MISSILE_MISS, 49):
+            mine = 0 <= te["t"] - last_missile.get(te["entity"], -10**9) <= 60                 or (te["client"] == client and te["entity"] not in last_missile)
+        elif code == dp._EV_OBITUARY:
+            mine = te.get("other2") == client
+        elif code in (dp._EV_PLAYER_TELEPORT_IN, dp._EV_PLAYER_TELEPORT_OUT):
+            continue                                 # attributed below
+        else:
+            mine = te["client"] == client
+        if not mine:
+            continue
+        name = dp._EV_NAMES.get(code, {49: "missile_miss_metal"}.get(code, f"ev_{code}"))
+        pos = tuple(float(x or 0.0) for x in te["pos"])
+        tr.events.append(ActionEvent(
+            te["t"], name, te["weapon"], pos,
+            te["other"] if code == dp._EV_OBITUARY else None, te["parm"], code=code,
+            carrier="TEMP", other_entity=te["other"]))
+    # TELEPORTS are temp entities at the teleporter, not events on the body.
+    # Attribute an out/in pair to this client only when HIS transform jumps
+    # between those two places at that time: the event names the machine,
+    # the discontinuity names the traveller, and both ends must agree.
+    tele = [te for te in out.get("temp_events", [])
+            if win(te["t"]) and te["code"] in (dp._EV_PLAYER_TELEPORT_IN,
+                                               dp._EV_PLAYER_TELEPORT_OUT)]
+    for a, b in zip(tr.transform, tr.transform[1:]):
+        if math.dist(a.origin, b.origin) < TELEPORT_JUMP_U:
+            continue
+        outs = [te for te in tele if te["code"] == dp._EV_PLAYER_TELEPORT_OUT
+                and abs(te["t"] - b.t) <= 100
+                and math.dist(a.origin, te["pos"]) <= TELEPORT_REACH_U]
+        ins = [te for te in tele if te["code"] == dp._EV_PLAYER_TELEPORT_IN
+               and abs(te["t"] - b.t) <= 100
+               and math.dist(b.origin, te["pos"]) <= TELEPORT_REACH_U]
+        for te, name in [(o, "teleport_out") for o in outs[:1]] +                         [(i, "teleport_in") for i in ins[:1]]:
+            tr.events.append(ActionEvent(
+                te["t"], name, None, tuple(float(x or 0.0) for x in te["pos"]),
+                None, te["parm"], code=te["code"], carrier="TEMP",
+                other_entity=te["other"]))
     tr.events.sort(key=lambda e: e.t)
     return tr
 

@@ -220,6 +220,19 @@ class _Keyframe:
 
 
 @dataclass
+class _RecordedEvent:
+    """An EV_* the demo carried, replayed at its tick."""
+    t: float
+    actor: str
+    code: int
+    carrier: str                 # PLAYER | TEMP
+    weapon: int | None
+    parm: int | None
+    position: Vec3 | None
+    other_entity: int | None
+
+
+@dataclass
 class _ProjectileKey:
     """One observed missile sample, attributed to the actor who fired it."""
     t: float
@@ -233,18 +246,12 @@ class _ProjectileKey:
 @dataclass
 class _Event:
     t: float
-    kind: str                      # "kill" | "fire" | "damage" | "recorded:<ev>"
+    kind: str                      # "kill" | "fire" | "damage"
     actor: str
     target: str | None = None
     weapon: Weapon | None = None
     amount: int = 0
     position: Vec3 | None = None
-    # A RECORDED event keeps the engine's own numbers so the compiler can
-    # emit it as game state: the weapon slot as sent, the eventParm, and the
-    # other client involved (the victim of an obituary).
-    weapon_num: int | None = None
-    parm: int | None = None
-    other_client: int | None = None
 
 
 class Actor:
@@ -277,6 +284,7 @@ class Actor:
         # counters must not learn about him.
         self.counts_toward_roster = True
         self._spawned = False
+        self._recorded_events: list = []
 
     # -- state ---------------------------------------------------------
     def spawn(self, at: Vec3, *, yaw: float = 0.0, t: float = 0.0,
@@ -356,12 +364,19 @@ class Actor:
             self._s._projectiles.append(_ProjectileKey(
                 t0 + (pr.t - base) / 1000.0, self.name, pr.entity, pr.weapon,
                 place(pr.origin), turn(pr.velocity)))
+        # THE EVENT CHAIN, verbatim. Player-carried events (jump pad, fire,
+        # pain, death) go on this actor's entity at their tick; temp-entity
+        # events (impacts, obituary) get their own entity. cgame turns them
+        # into the smoke puff, muzzle flash, explosion and every sound -- so
+        # emitting the right codes IS the effects and IS the audio.
         for ev in trace.events:
-            self._s._events.append(_Event(
-                round(t0 + (ev.t - base) / 1000.0, 3), f"recorded:{ev.kind}",
-                self.name, None, None,
-                position=(place(ev.position) if ev.position and None not in ev.position else None),
-                weapon_num=ev.weapon, parm=ev.parm, other_client=ev.other_client))
+            if ev.code is None:
+                continue
+            pos = (place(ev.position) if ev.position and None not in ev.position
+                   else None)
+            self._recorded_events.append(_RecordedEvent(
+                round(t0 + (ev.t - base) / 1000.0, 3), self.name, ev.code,
+                ev.carrier, ev.weapon, ev.parm, pos, ev.other_entity))
         return self
 
     def arm(self, weapon: Weapon, *, t: float | None = None) -> "Actor":
@@ -549,6 +564,20 @@ class Actor:
         victim._die(when)
         self._s._events.append(_Event(when, "kill", self.name, victim.name, mod,
                                       position=victim._at(when).origin))
+        self._s._alive[victim.team] -= 1
+        self._s._alive_log.append((when, dict(self._s._alive)))
+        return self
+
+    def credit_kill(self, victim: "Actor", *, t: float | None = None) -> "Actor":
+        """Count a kill the demo already carries as a recorded obituary.
+
+        The obituary temp entity is replayed verbatim by perform(); authoring
+        a second one through kill() put two obituaries in the synthetic demo.
+        This updates the round (alive counters, the victim's state) and emits
+        nothing.
+        """
+        when = self._last().t if t is None else t
+        victim._die(when)
         self._s._alive[victim.team] -= 1
         self._s._alive_log.append((when, dict(self._s._alive)))
         return self

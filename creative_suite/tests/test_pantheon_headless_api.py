@@ -196,7 +196,7 @@ def test_frame_truth_carries_the_recorded_pose_and_the_sound_intent(tmp_path):
     assert sounds["recorded:fire_weapon"] == "weapon.fire.ROCKET"
     assert sounds["recorded:jump_pad"] == "world.jump_pad"
     assert sounds["recorded:missile_hit"] == "impact.ROCKET"
-    assert "kill" in sounds
+    assert sounds["recorded:obituary"] == "player.death"
 
 
 def test_run_reports_timings_without_a_parse_of_anything_real(tmp_path, monkeypatch):

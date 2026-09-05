@@ -85,6 +85,7 @@ SOUND_INTENT = {
     "pain": "player.pain",
     "death": "player.death",
     "kill": "player.death",
+    "obituary": "player.death",
     "gib_player": "player.gib",
     "drown": "player.drown",
     "teleport_in": "world.teleport.in",
@@ -216,6 +217,24 @@ class FrameTruth:
                 kind=e.kind, actor=e.actor, target=e.target,
                 weapon=weapon, amount=e.amount, position=e.position,
                 sound=sound_intent(e.kind, weapon)))
+        # recorded EV_* replayed verbatim by perform(): the cue sheet names
+        # them in game terms with their sound intent
+        from engine.parser.demo_parse import _EV_NAMES
+        for a in scn.actors.values():
+            for re_ in getattr(a, "_recorded_events", []):
+                tick = int(round(re_.t * SNAPSHOT_HZ))
+                name = _EV_NAMES.get(re_.code, f"ev_{re_.code}")
+                weapon = None
+                if re_.weapon is not None:
+                    try:
+                        weapon = Weapon(int(re_.weapon)).name
+                    except ValueError:
+                        weapon = f"WP_{re_.weapon}"
+                buckets.setdefault(tick, []).append(SemanticEvent(
+                    t=re_.t, server_time_ms=base_ms + tick * SNAPSHOT_MS,
+                    kind=f"recorded:{name}", actor=a.name, weapon=weapon,
+                    amount=re_.parm or 0, position=re_.position,
+                    sound=sound_intent(name, weapon)))
         if scn._win:
             tick = int(round(scn._win[0] * SNAPSHOT_HZ))
             buckets.setdefault(tick, []).append(SemanticEvent(
