@@ -38,10 +38,12 @@ from typing import Iterable, Sequence
 Vec3 = tuple[float, float, float]
 Cell = tuple[int, int, int]
 
-FRAGS_DB = Path("G:/QUAKE_LEGACY/creative_suite/database/frags_rebuilt.db")
-RECOG_DB = Path("G:/QUAKE_LEGACY/creative_suite/database/frag_recognition.db")
-INDEX_DB = Path("G:/QUAKE_LEGACY/creative_suite/database/performance_index.db")
-CACHE = Path("G:/QUAKE_LEGACY/creative_suite/generated/pantheon/map_spatial")
+from engine.pantheon import performance_index as PI
+from engine.pantheon import store as S
+
+FRAGS_DB = S.FRAGS_DB
+RECOG_DB = S.RECOG_DB
+CACHE = S.map_spatial_dir()
 
 CELL = 64.0
 FLOOR_BAND = 96.0            # one level, as NavigationTruth reads it
@@ -208,8 +210,8 @@ def map_hashes(map_name: str) -> list[str]:
     return rows
 
 
-def build(map_name: str, *, max_traces: int = 4000, max_demos: int | None = None,
-          verbose: bool = False) -> MapSpatialIndex:
+def build(map_name: str, *, max_traces: int = 20000, max_demos: int | None = None,
+          per_demo_events: int = 3000, verbose: bool = False) -> MapSpatialIndex:
     t0 = time.time()
     idx = MapSpatialIndex(map_name)
     hashes = map_hashes(map_name)
@@ -224,12 +226,18 @@ def build(map_name: str, *, max_traces: int = 4000, max_demos: int | None = None
     if RECOG_DB.exists():
         con = sqlite3.connect(f"file:{RECOG_DB.as_posix()}?mode=ro", uri=True)
         kinds = tuple(EVENT_LAYER)
-        for i in range(0, len(hashes), 400):
-            chunk = hashes[i:i + 400]
-            q = (f"select type, x, y, z from semantic_events_v1 where content_hash in "
-                 f"({','.join('?' * len(chunk))}) and type in ({','.join('?' * len(kinds))}) "
-                 f"and x is not null and y is not null and z is not null")
-            for kind, x, y, z in con.execute(q, (*chunk, *kinds)):
+        # ONE DEMO AT A TIME, never a type-filtered scan of the 34M-row
+        # table: (content_hash, server_time_ms) is the only useful index
+        # (the review geography found the same). Rows past `per_demo` are
+        # strided, not truncated, so a match's whole length is sampled.
+        for h in hashes:
+            rows = con.execute(
+                f"select type, x, y, z from semantic_events_v1 where content_hash=? "
+                f"and type in ({','.join('?' * len(kinds))}) and x is not null "
+                f"and y is not null and z is not null order by server_time_ms",
+                (h, *kinds)).fetchall()
+            stride = max(1, len(rows) // per_demo_events)
+            for kind, x, y, z in rows[::stride]:
                 idx.add_event(kind, (x, y, z))
                 n_ev += 1
         # confirmed teleports: out and in ends
@@ -248,42 +256,31 @@ def build(map_name: str, *, max_traces: int = 4000, max_demos: int | None = None
     if verbose:
         print(f"  events {n_ev} in {time.time() - t0:.1f}s", flush=True)
 
-    # walked space, landings and encounters from the performance index
+    # walked space, landings and encounters from the compact index: every
+    # action row carries its grounded path as packed cells, its origin at
+    # the anchor tick and, for a jump pad, where the body came down. No
+    # trace is reconstructed here.
     n_tr = 0
-    if INDEX_DB.exists():
-        con = sqlite3.connect(f"file:{INDEX_DB.as_posix()}?mode=ro", uri=True, timeout=30)
+    if S.index_db().exists():
+        con = PI._ro()
         prefixes = {h[:16] for h in hashes}
-        # jump pads first (landings), then kills (encounters), then fires.
-        # One query per kind so each rides ix_actions_kind(kind, map) instead
-        # of sorting every row of the map -- with the 50 KB trace blobs
-        # inline, that sort read gigabytes before returning a row.
-        share = {"JUMP_PAD": 0.4, "KILL": 0.3, "FIRE_ROCKET": 0.2, "FIRE_RAIL": 0.1}
-        rows = []
-        for kind, frac in share.items():
-            rows.extend(con.execute(
-                "select kind, t_ms, victim, trace_json from actions "
-                "where kind=? and map=? limit ?",
-                (kind, map_name, max(1, int(max_traces * frac)))).fetchall())
-        for kind, t_ms, victim, tj in rows:
-            d = json.loads(tj)
-            if d.get("demo_hash") not in prefixes:
+        q = ("select kind, demo_hash, path_cells, origin_x, origin_y, origin_z, "
+             "landing_x, landing_y, landing_z, victim from actions where map=? limit ?")
+        for kind, dh, cells, ox, oy, oz, lx, ly, lz, victim in con.execute(q, (map_name, max_traces)):
+            if dh not in prefixes:
                 continue
             n_tr += 1
-            grounded = [tuple(s["origin"]) for s in d["transform"] if not s["airborne"]]
-            idx.add_walked_path(grounded)
-            if kind == "JUMP_PAD":
-                launched = False
-                for s in d["transform"]:
-                    if abs(s["t"] - t_ms) <= 150 and s["velocity"][2] > LAUNCH_VZ:
-                        launched = True
-                    if launched and not s["airborne"] and s["t"] > t_ms + 150:
-                        idx.add_landing(tuple(s["origin"]))
-                        break
-            if kind == "KILL":
-                at = [s for s in d["transform"] if s["t"] == t_ms]
-                ob = [e for e in d["events"] if e["kind"] == "obituary" and e.get("position")]
-                if at and ob and None not in ob[0]["position"]:
-                    idx.add_encounter(tuple(at[0]["origin"]), tuple(ob[0]["position"]))
+            path = PI.unpack_cells(cells)
+            prev = None
+            for c in path:
+                idx.layers["walked"][c] += 1
+                if prev is not None and prev != c:
+                    idx.adjacency[(prev, c)] += 1
+                prev = c
+            if kind == "JUMP_PAD" and lx is not None:
+                idx.add_landing((lx, ly, lz))
+            if kind == "KILL" and ox is not None:
+                idx.layers["combat"][cell_of((ox, oy, oz))] += 1
         con.close()
     idx.sources["traces"] = n_tr
 

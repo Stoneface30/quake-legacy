@@ -29,7 +29,6 @@ from engine.pantheon.performance import (PerformanceTrace, _parse_with_anims,
                                          extract_performance)
 from engine.pantheon.scenario import RoundScenario, Team
 
-INDEX_DB = Path("G:/QUAKE_LEGACY/creative_suite/database/performance_index.db")
 DEMO_HASH = "4db16c445bcaafce"
 SHOOTER, VICTIM = 5, 1
 PAD_MS = 1198725
@@ -43,9 +42,12 @@ TOL = {"position_u": 1.0, "yaw_deg": 0.5, "pitch_deg": 0.5,
 
 
 def source_path() -> Path:
-    con = sqlite3.connect(f"file:{INDEX_DB.as_posix()}?mode=ro", uri=True)
-    (p,) = con.execute("select path from demos where demo_hash=?",
-                       (DEMO_HASH,)).fetchone()
+    """From the corpus catalogue, by content hash prefix: the proof does not
+    depend on any index being built."""
+    from engine.pantheon import store as S
+    con = sqlite3.connect(f"file:{S.FRAGS_DB.as_posix()}?mode=ro", uri=True)
+    (p,) = con.execute("select path from demos where content_hash like ? limit 1",
+                       (DEMO_HASH + "%",)).fetchone()
     con.close()
     return Path(p)
 

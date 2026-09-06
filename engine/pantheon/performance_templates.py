@@ -35,8 +35,8 @@ from typing import Iterable, Sequence
 from engine.pantheon import action_graph as AG
 from engine.pantheon.performance import PerformanceTrace
 
-INDEX_DB = Path("G:/QUAKE_LEGACY/creative_suite/database/performance_index.db")
-TEMPLATE_DB = Path("G:/QUAKE_LEGACY/creative_suite/database/performance_templates.db")
+from engine.pantheon import performance_index as PI
+from engine.pantheon import store as S
 GROUPS = ("RUN_IN", "RUN_STOP", "RUN_IN_STOP_TURN", "TURN_90", "TURN_180",
           "COMBAT_STRAFE", "RETREAT", "CHASE", "JUMP", "LAND", "JUMP_PAD",
           "JUMP_PAD_ROCKET", "RAIL_FLICK", "ROCKET_PREDICTION")
@@ -181,7 +181,8 @@ def derive(tr: PerformanceTrace) -> list[PerformanceTemplate]:
 
 # ── the library ────────────────────────────────────────────────────────────
 
-def _open(path: Path = TEMPLATE_DB) -> sqlite3.Connection:
+def _open(path: Path | None = None) -> sqlite3.Connection:
+    path = path or S.template_db()
     path.parent.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(path, timeout=60)
     con.executescript(SCHEMA)
@@ -190,27 +191,32 @@ def _open(path: Path = TEMPLATE_DB) -> sqlite3.Connection:
 
 def build(*, limit: int = 3000, map_name: str | None = None,
           kinds: Sequence[str] = ("JUMP_PAD", "FIRE_ROCKET", "FIRE_RAIL", "KILL"),
-          db: Path = TEMPLATE_DB, verbose: bool = False) -> dict:
+          db: Path | None = None, verbose: bool = False) -> dict:
     """Derive templates from index traces (sampled per kind) into the
     template DB. Re-runnable: templates are keyed by their stable id."""
     t0 = time.time()
-    src = sqlite3.connect(f"file:{INDEX_DB.as_posix()}?mode=ro", uri=True, timeout=120)
+    src = PI._ro()
     con = _open(db)
     scanned = n_tpl = 0
     per_kind = max(1, limit // len(kinds))
     for kind in kinds:
-        q = "select trace_json from actions where kind=?"
+        # grouped by demo so each demo is parsed once for all its windows
+        q = "select trace_locator from actions where kind=?"
         args: list = [kind]
         if map_name:
             q += " and map=?"; args.append(map_name)
-        q += " limit ?"; args.append(per_kind)
-        for (tj,) in src.execute(q, args):
+        q += " order by demo_hash, t_ms limit ?"; args.append(per_kind)
+        for (loc,) in src.execute(q, args).fetchall():
             scanned += 1
             try:
-                tr = PerformanceTrace.from_dict(json.loads(tj))
+                tr = PI.trace_for(loc)
                 tpls = derive(tr)
             except Exception:
                 continue
+            if tpls:
+                # a trace that yielded templates is worth keeping: one
+                # compressed copy, however many templates point at it
+                PI.cache_trace(tr, reason="template")
             for t in tpls:
                 con.execute("""insert or replace into templates values
                     (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
@@ -241,7 +247,7 @@ def find(grp: str, *, distance: tuple[float, float] | None = None,
          duration_ms: tuple[int, int] | None = None,
          ending_stance: str | None = None, weapon: str | None = None,
          airborne: bool | None = None, map_name: str | None = None,
-         limit: int = 5, db: Path = TEMPLATE_DB) -> list[PerformanceTemplate]:
+         limit: int = 5, db: Path | None = None) -> list[PerformanceTemplate]:
     """The closest REAL performances to the constraints. Range constraints
     filter; the result is ranked by distance to each range's centre, in
     units of the range's half-width, so a request is answered by the trace
@@ -277,7 +283,7 @@ def find(grp: str, *, distance: tuple[float, float] | None = None,
     return sorted(rows, key=score)[:limit]
 
 
-def load(tpl: PerformanceTemplate | str, db: Path = TEMPLATE_DB) -> PerformanceTrace:
+def load(tpl: PerformanceTemplate | str, db: Path | None = None) -> PerformanceTrace:
     """The exact segment of the stored trace this template names."""
     if isinstance(tpl, str):
         parts = tpl.split(":")
@@ -289,17 +295,17 @@ def load(tpl: PerformanceTemplate | str, db: Path = TEMPLATE_DB) -> PerformanceT
         if r is None:
             raise KeyError(tpl)
         tpl = _row(r)
-    src = sqlite3.connect(f"file:{INDEX_DB.as_posix()}?mode=ro", uri=True, timeout=120)
-    row = src.execute("select trace_json from actions where demo_hash=? and client=? "
+    src = PI._ro()
+    row = src.execute("select trace_locator from actions where demo_hash=? and client=? "
                       "and start_ms<=? and end_ms>=? order by abs(t_ms-?) limit 1",
                       (tpl.demo_hash, tpl.client, tpl.start_ms, tpl.end_ms, tpl.start_ms)).fetchone()
     src.close()
     if row is None:
         raise KeyError(f"{tpl.id}: source window no longer in the index")
-    return _segment(PerformanceTrace.from_dict(json.loads(row[0])), tpl.start_ms, tpl.end_ms)
+    return _segment(PI.trace_for(row[0], cache=True, reason="template"), tpl.start_ms, tpl.end_ms)
 
 
-def counts(db: Path = TEMPLATE_DB) -> dict:
+def counts(db: Path | None = None) -> dict:
     con = _open(db)
     out = dict(con.execute("select grp, count(*) from templates group by 1").fetchall())
     con.close()

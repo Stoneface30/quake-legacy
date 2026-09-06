@@ -20,9 +20,11 @@ from engine.pantheon import action_graph as AG
 from engine.pantheon import headless as H
 from engine.pantheon.compare import Status
 
-INDEX_DB = Path("G:/QUAKE_LEGACY/creative_suite/database/performance_index.db")
-RECOG_DB = Path("G:/QUAKE_LEGACY/creative_suite/database/frag_recognition.db")
-FRAGS_DB = Path("G:/QUAKE_LEGACY/creative_suite/database/frags_rebuilt.db")
+from engine.pantheon import store as S
+
+INDEX_DB = S.index_db()
+RECOG_DB = S.RECOG_DB
+FRAGS_DB = S.FRAGS_DB
 
 pytestmark = pytest.mark.skipif(not INDEX_DB.exists(), reason="performance index not on this machine")
 
@@ -157,7 +159,7 @@ def test_golden_observation_gap(tmp_path):
     rows = con.execute(
         "select d.path, a.client, a.start_ms, a.end_ms from actions a join demos d "
         "on d.demo_hash=a.demo_hash where a.is_pov=0 and a.samples between 20 and 120 "
-        "and d.error is null order by a.id limit 40").fetchall()
+        "and d.error is null order by a.demo_hash, a.t_ms limit 40").fetchall()
     con.close()
     for path, client, lo, hi in rows:
         if not Path(path).exists():
@@ -218,7 +220,7 @@ def test_golden_weapon_change(tmp_path):
     rows = con.execute(
         "select d.path, a.client, a.start_ms, a.end_ms from actions a join demos d "
         "on d.demo_hash=a.demo_hash where a.kind like 'FIRE_%' and a.is_pov=1 "
-        "and d.error is null order by a.id limit 40").fetchall()
+        "and d.error is null order by a.demo_hash, a.t_ms limit 40").fetchall()
     con.close()
     for path, client, lo, hi in rows:
         if not Path(path).exists():

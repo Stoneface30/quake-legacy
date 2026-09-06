@@ -26,7 +26,8 @@ PANTHEON = Path(__file__).resolve().parents[2] / "engine" / "pantheon"
 # Modules that ARE the engine. None of them may know a renderer exists.
 HEADLESS = {
     "performance",      # PerformanceTrace extraction
-    "performance_index",  # corpus-wide PerformanceTrace index (SQLite)
+    "performance_index",  # corpus-wide discovery index (lightweight rows, no trace copies)
+    "store",            # where derived performance data lives (configurable root)
     "real_action_proof",  # extract -> compile -> compare, headless
     "headless",         # the loop: extract / compile / reextract / compare / run
     "retarget",         # EXACT_WORLD / LOCAL_FRAME rigid transform + map validity

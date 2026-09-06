@@ -28,7 +28,9 @@ from typing import Iterable
 from engine.pantheon import action_graph as AG
 from engine.pantheon.performance import PerformanceTrace
 
-INDEX_DB = Path("G:/QUAKE_LEGACY/creative_suite/database/performance_index.db")
+from engine.pantheon import performance_index as PI
+from engine.pantheon import store as S
+
 PREFIX = "PERF"
 
 # category -> SQL over `actions` (a AS the anchor row). Every rule names the
@@ -75,7 +77,7 @@ class PerformanceRef:
 
 
 def _open() -> sqlite3.Connection:
-    return sqlite3.connect(f"file:{INDEX_DB.as_posix()}?mode=ro", uri=True, timeout=30)
+    return PI._ro()
 
 
 def find(category: str, *, map_name: str | None = None, limit: int = 20,
@@ -95,39 +97,37 @@ def find(category: str, *, map_name: str | None = None, limit: int = 20,
     con = _open()
     rows = con.execute(
         f"select a.demo_hash, a.client, a.t_ms, a.map, a.kind, a.outcome, a.outcome_ms, "
-        f"a.max_speed, a.airborne_ms, a.max_yaw_rate, a.projectile_samples, a.is_pov "
+        f"a.max_speed, a.airborne_ms, a.max_yaw_rate, a.projectile_samples, a.is_pov, "
+        f"a.trace_locator, a.performance_id "
         f"from actions a where {where} order by {order} limit ?", (*args, limit)).fetchall()
     con.close()
     return [PerformanceRef(category, r[0], r[1], r[2], r[3],
                            {"kind": r[4], "outcome": r[5], "outcome_ms": r[6],
                             "max_speed": r[7], "airborne_ms": r[8],
                             "max_yaw_rate": r[9], "projectile_samples": r[10],
-                            "pov": bool(r[11])})
+                            "pov": bool(r[11]), "trace_locator": r[12],
+                            "index_id": r[13]})
             for r in rows]
 
 
-def load(ref: PerformanceRef | str) -> PerformanceTrace:
-    """The stored trace for a reference: the nearest indexed window of that
-    client in that demo to the reference time."""
+def load(ref: PerformanceRef | str, *, cache: bool = False) -> PerformanceTrace:
+    """The trace for a reference: the index names the window (trace_locator)
+    and the engine reconstructs it from the demo -- or hands back the cached
+    copy when one was kept. The index never stored it."""
     if isinstance(ref, str):
         ref = PerformanceRef.parse(ref)
     con = _open()
     row = con.execute(
-        "select trace_json from actions where demo_hash=? and client=? "
+        "select trace_locator from actions where demo_hash=? and client=? "
         "order by abs(t_ms-?) limit 1", (ref.demo_hash, ref.client, ref.t_ms)).fetchone()
     con.close()
     if row is None:
         raise KeyError(f"{ref.id}: not in the index")
-    return PerformanceTrace.from_dict(json.loads(row[0]))
+    return PI.trace_for(row[0], cache=cache, reason=f"library:{ref.category}")
 
 
 def demo_path(demo_hash: str) -> Path:
-    con = _open()
-    row = con.execute("select path from demos where demo_hash=?", (demo_hash,)).fetchone()
-    con.close()
-    if row is None:
-        raise KeyError(demo_hash)
-    return Path(row[0])
+    return PI.demo_path(demo_hash)
 
 
 def categorize(trace: PerformanceTrace) -> set[str]:
@@ -145,6 +145,7 @@ def counts(*, map_name: str | None = None) -> dict:
         "by_kind_outcome": {f"{k}:{o}": n for k, o, n in con.execute(
             "select kind, outcome, count(*) from actions group by 1, 2")},
         "categories": {}}
+    out["by_kind_outcome"] = out["by_kind_outcome"]
     for cat, where in COARSE_SQL.items():
         args: list = []
         w = where
@@ -161,15 +162,15 @@ def sample_fine_categories(*, limit: int = 200, map_name: str | None = None) -> 
     ActionGraph. A sample, and labelled as one: the full-corpus number needs
     the materialised pass (`--materialize`), which is a batch job."""
     con = _open()
-    q = "select trace_json from actions"
+    q = "select trace_locator from actions"
     args: list = []
     if map_name:
         q += " where map=?"; args.append(map_name)
-    q += " order by id desc limit ?"; args.append(limit)
+    q += " order by demo_hash, t_ms limit ?"; args.append(limit)
     tally: dict[str, int] = {}
     n = 0
-    for (tj,) in con.execute(q, args):
-        tr = PerformanceTrace.from_dict(json.loads(tj))
+    for (loc,) in con.execute(q, args):
+        tr = PI.trace_for(loc)               # reconstructed; one parse per demo
         n += 1
         for c in categorize(tr):
             tally[c] = tally.get(c, 0) + 1
