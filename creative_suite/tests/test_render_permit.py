@@ -246,3 +246,45 @@ def test_health_reports_a_critical_disk(monkeypatch):
     assert h.status == oh.CRITICAL
     assert any("fail to SAVE" in a for a in h.alerts)
     assert h.disk["can_capture_one"] is False
+
+
+# ── three questions, three answers ──────────────────────────────────────────
+
+def test_a_verdict_is_not_blocked_by_a_render_threshold():
+    """A judgement is a few hundred bytes and the only irreplaceable data in
+    the system. Refusing to save one because there is not enough room to
+    FILM something trades the thing that cannot be regenerated for the thing
+    that always can."""
+    from creative_suite.engine import operator_health as oh
+    ok, why = oh.db_write_safe()
+    assert ok, why
+    assert oh.SINGLE_FLOOR_GB < oh.BATCH_FLOOR_GB
+
+
+def test_the_write_probe_leaves_nothing_behind():
+    """It proves the database accepts a write by trying one and rolling it
+    back. A probe that littered would be a probe that lies about the next
+    reading."""
+    from creative_suite.engine import operator_health as oh
+    from creative_suite.engine import review_corpus as rc
+    before = _human_count()
+    oh.db_write_safe()
+    c = rc.conn()
+    try:
+        left = [r[0] for r in c.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' "
+            "AND name LIKE '%probe%'")]
+    finally:
+        c.close()
+    assert left == [], f"the probe left {left}"
+    assert _human_count() == before, "the probe touched human rows"
+
+
+def _human_count() -> int:
+    from creative_suite.engine import review_corpus as rc
+    c = rc.conn()
+    try:
+        return c.execute("SELECT COUNT(*) FROM human_reviews WHERE "
+                         "provenance='HUMAN_USER'").fetchone()[0]
+    finally:
+        c.close()

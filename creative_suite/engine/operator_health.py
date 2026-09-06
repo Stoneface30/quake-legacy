@@ -39,6 +39,57 @@ BATCH_FLOOR_GB = 25.0
 # verdict can fail to save. This is the number that matters most.
 CRITICAL_GB = 1.0
 
+# ── three questions, three answers ──────────────────────────────────────────
+#
+# They were one number and that was wrong. A human verdict is a few hundred
+# bytes; refusing to save it because there is not enough room to FILM
+# something would throw away the only irreplaceable data in the system to
+# protect the most reproducible. Media can always be rendered again. A
+# judgement cannot.
+
+def db_write_safe(path: Path = REPO_ROOT) -> tuple[bool, str]:
+    """Can a verdict be written RIGHT NOW?
+
+    Answered by trying it, not by a threshold: a transaction that is opened
+    and rolled back tells the truth about this filesystem, this file and
+    this moment, where a free-space number is only a proxy for it.
+    """
+    import sqlite3 as _sq
+    try:
+        from creative_suite.engine import review_corpus as rc
+        c = rc.conn()
+    except Exception as exc:                                   # noqa: BLE001
+        return False, f"review database unavailable: {type(exc).__name__}"
+    try:
+        c.execute("BEGIN IMMEDIATE")
+        c.execute("CREATE TABLE IF NOT EXISTS _write_probe(x INTEGER)")
+        c.execute("INSERT INTO _write_probe(x) VALUES (1)")
+        c.execute("ROLLBACK")
+        return True, "a verdict can be written"
+    except _sq.Error as exc:
+        return False, f"the review database cannot accept a write: {exc}"
+    finally:
+        c.close()
+
+
+def render_safe(path: Path = REPO_ROOT) -> tuple[bool, str]:
+    """Room for one capture, its AVI scratch and the MP4 beside it."""
+    free = free_gb(path)
+    if free < 0:
+        return False, "free space could not be read"
+    return (free >= SINGLE_FLOOR_GB,
+            f"{free:.1f} GB free, {SINGLE_FLOOR_GB:.0f} GB needed for a capture")
+
+
+def large_build_safe(path: Path = REPO_ROOT) -> tuple[bool, str]:
+    """Room for a corpus pass, an index rebuild or a batch of captures."""
+    free = free_gb(path)
+    if free < 0:
+        return False, "free space could not be read"
+    return (free >= BATCH_FLOOR_GB,
+            f"{free:.1f} GB free, {BATCH_FLOOR_GB:.0f} GB needed for a batch")
+
+
 OK = "OK"
 WARN = "WARN"
 CRITICAL = "CRITICAL"
@@ -168,6 +219,21 @@ def check(path: Path = REPO_ROOT) -> Health:
 
     h.media = media_state()
     h.reviews = review_state()
+
+    write_ok, write_why = db_write_safe(path)
+    render_ok, render_why = render_safe(path)
+    build_ok, build_why = large_build_safe(path)
+    h.disk["db_write_safe"] = write_ok
+    h.disk["render_safe"] = render_ok
+    h.disk["large_build_safe"] = build_ok
+    h.disk["db_write_note"] = write_why
+    if not write_ok:
+        h.status = CRITICAL
+        h.alerts.append(f"HUMAN VERDICTS CANNOT SAVE: {write_why}")
+    elif h.status == CRITICAL:
+        # The disk is desperate but the one thing that must not be lost can
+        # still be written. Say so, because it changes what the user does.
+        h.alerts.append("verdicts can still be saved; only rendering is blocked")
 
     if h.media.get("readable") and h.media["by_state"].get("FAILED"):
         h.alerts.append(f"{h.media['by_state']['FAILED']} media job(s) FAILED")

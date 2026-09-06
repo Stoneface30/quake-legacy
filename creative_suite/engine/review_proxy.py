@@ -176,10 +176,52 @@ def proxy_key(content_hash: str, start_ms: int, end_ms: int, profile_id: str) ->
     return h.hexdigest()
 
 
+def _playable(row: sqlite3.Row | None) -> dict[str, Any] | None:
+    """A row is only READY if the file it points at is actually there."""
+    if row is None:
+        return None
+    d = dict(row)
+    if d.get("state") != "READY":
+        return None
+    mp4 = d.get("mp4_path")
+    if not mp4 or not Path(str(mp4)).exists():
+        return None
+    return d
+
+
 def get_state(frag_id: int) -> dict[str, Any]:
-    """Latest proxy state for a frag. MISSING when never requested."""
+    """The best thing this frag can show right now. MISSING if never asked.
+
+    A READY clip beats a pending one even when the pending one is newer.
+    Changing the review profile to 720p30 changed the cache key, and without
+    this the 126 clips already on disk turned into spinners the moment a
+    replacement was queued -- a strictly worse reviewer than the day before.
+
+    An older proxy for the same frag, start and end differs only in review
+    QUALITY: everything that changes what is shown (source, point of view,
+    camera, enemy-model semantics, time bounds) is in the key beside the
+    profile, so it cannot silently differ.
+    """
+    profile = _profile_id()
     conn = editorial_conn()
     try:
+        current = conn.execute(
+            "SELECT * FROM review_proxies WHERE frag_id = ? AND profile_id = ?"
+            " ORDER BY updated_at DESC, key DESC LIMIT 1",
+            (frag_id, profile)).fetchone()
+        best = _playable(current)
+        if best is None:
+            # Any other profile, most recent first: an older look that plays.
+            for row in conn.execute(
+                    "SELECT * FROM review_proxies WHERE frag_id = ? AND "
+                    "profile_id <> ? ORDER BY updated_at DESC, key DESC",
+                    (frag_id, profile)):
+                best = _playable(row)
+                if best is not None:
+                    best["compatible_older_profile"] = True
+                    break
+        if best is not None:
+            return best
         row = conn.execute(
             "SELECT * FROM review_proxies WHERE frag_id = ? "
             "ORDER BY updated_at DESC, key DESC LIMIT 1",
@@ -191,6 +233,8 @@ def get_state(frag_id: int) -> dict[str, Any]:
         return {"state": "MISSING"}
     d = dict(row)
     if d["state"] == "READY":
+        # READY in the table but gone from disk. Nothing playable survived
+        # the ladder above, so this is the honest answer.
         mp4 = d.get("mp4_path")
         if not mp4 or not Path(str(mp4)).exists():
             d["state"] = "FAILED"
