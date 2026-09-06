@@ -44,11 +44,19 @@ DEFAULT_GAMES = (
     "quakelive_x64.exe",
 )
 
-# Escape hatches, both honest about what they do.
-#   CS_CAPTURE_GAMES     override the watch list (comma separated)
-#   CS_CAPTURE_ANYTIME=1 capture even while a game is running
+# CS_CAPTURE_GAMES overrides the watch list (comma separated). It changes
+# WHICH processes count as "playing", never whether playing matters.
 _ENV_GAMES = "CS_CAPTURE_GAMES"
-_ENV_ANYTIME = "CS_CAPTURE_ANYTIME"
+
+# CS_CAPTURE_ANYTIME is GONE, deliberately and without a fallback. It meant
+# "capture even while a game is running", which is the one thing the render
+# permit forbids outright, and a second switch for the same decision is how
+# the user ends up hunting for the one that is actually in effect. The single
+# authority is engine.pantheon.render_permit; PANTHEON_RENDER=off is the way
+# to turn rendering off, and nothing turns the running-game rule off.
+#
+# This function now answers ONLY "is a game on screen". Whether that means
+# anything is the permit's decision, not this module's.
 
 
 def watched_games() -> tuple[str, ...]:
@@ -65,8 +73,6 @@ def game_is_running() -> bool:
     would rather delay a capture we could have run than steal the screen
     from a game we could not see.
     """
-    if os.getenv(_ENV_ANYTIME) == "1":
-        return False
     names = watched_games()
     try:
         import psutil

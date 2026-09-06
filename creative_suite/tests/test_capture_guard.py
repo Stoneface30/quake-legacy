@@ -24,7 +24,6 @@ from creative_suite.engine import capture_guard as cg
 # ── deciding whether it is safe to open a window ────────────────────────────
 
 def test_a_running_game_is_detected(monkeypatch):
-    monkeypatch.delenv(cg._ENV_ANYTIME, raising=False)
     monkeypatch.setattr(cg, "watched_games", lambda: ("quakelive_steam.exe",))
 
     class P:
@@ -35,7 +34,6 @@ def test_a_running_game_is_detected(monkeypatch):
 
 
 def test_nothing_running_means_it_is_safe(monkeypatch):
-    monkeypatch.delenv(cg._ENV_ANYTIME, raising=False)
     monkeypatch.setattr("psutil.process_iter", lambda attrs=None: [])
     assert cg.game_is_running() is False
 
@@ -46,8 +44,6 @@ def test_an_unreadable_process_list_waits(monkeypatch):
     A delayed clip costs nothing. A stolen foreground costs a round, so an
     unanswerable question is answered "they are playing".
     """
-    monkeypatch.delenv(cg._ENV_ANYTIME, raising=False)
-
     def boom(attrs=None):
         raise OSError("no access")
 
@@ -55,11 +51,19 @@ def test_an_unreadable_process_list_waits(monkeypatch):
     assert cg.game_is_running() is True
 
 
-def test_the_user_can_override(monkeypatch):
-    monkeypatch.setenv(cg._ENV_ANYTIME, "1")
+def test_this_module_only_answers_whether_a_game_is_on_screen(monkeypatch):
+    """It used to carry its own CS_CAPTURE_ANYTIME override, which meant
+    "capture even while a game is running" -- the one thing the render
+    permit forbids outright. Two switches for one decision is how a user
+    ends up hunting for the one actually in effect, so this module lost
+    its own. See engine.pantheon.render_permit."""
+    src = Path(cg.__file__).read_text(encoding="utf-8")
+    assert "CS_CAPTURE_ANYTIME" not in src.split("# CS_CAPTURE_ANYTIME")[0]
+    assert not hasattr(cg, "_ENV_ANYTIME")
+    monkeypatch.setenv("CS_CAPTURE_ANYTIME", "1")
     monkeypatch.setattr("psutil.process_iter",
                         lambda attrs=None: (_ for _ in ()).throw(OSError()))
-    assert cg.game_is_running() is False
+    assert cg.game_is_running() is True, "the retired switch still overrides"
 
 
 def test_the_watch_list_is_configurable(monkeypatch):
@@ -93,15 +97,16 @@ def test_every_wolfcam_launch_asks_for_a_quiet_window():
 
 # ── and the queue defers rather than failing ────────────────────────────────
 
-def test_the_worker_parks_a_job_while_a_game_is_running():
+def test_the_worker_asks_the_one_authority_before_capturing():
     """Deferred, never FAILED: the reviewer keeps a spinner, not an error,
-    and the clip appears once the game closes."""
+    and the clip appears once the permit opens. The worker no longer asks
+    this module directly -- it asks the render permit, which asks us."""
     src = (REPO_ROOT / "creative_suite" / "engine"
            / "review_proxy.py").read_text(encoding="utf-8")
     i = src.index("def _worker_loop")
-    block = src[i:i + 2000]
-    assert "capture_guard.game_is_running()" in block
+    block = src[i:i + 2200]
+    assert "render_permit.check(" in block
     # It goes back on the queue; it is not marked FAILED.
-    j = block.index("game_is_running()")
+    j = block.index("render_permit.check(")
     park = block[j:j + 300]
     assert "_queue.put(job)" in park and "FAILED" not in park

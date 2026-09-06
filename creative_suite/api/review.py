@@ -117,6 +117,49 @@ def get_item(item_id: str):
     return it.to_dict()
 
 
+@router.get("/location/{item_id}")
+def get_location(item_id: str):
+    """Where this moment happened, and how the killer got there.
+
+    Learned from recorded positions across the whole archive -- no map file
+    is read and no renderer is involved. Absent geography is reported as
+    absent: `available: false` beats a confident guess.
+    """
+    it = rc.item(item_id)
+    if it is None:
+        raise HTTPException(404, f"no such item: {item_id}")
+    if it.item_type not in ("USER_FRAG", "FRAG"):
+        return {"item_id": item_id, "available": False,
+                "reason": "not a kill"}
+    try:
+        from engine.pantheon import map_context as mc
+        ctx = mc.context_for_kill(int(it.source_id))
+    except Exception as e:                                     # noqa: BLE001
+        return {"item_id": item_id, "available": False,
+                "reason": f"{type(e).__name__}"}
+    if ctx is None:
+        return {"item_id": item_id, "available": False,
+                "reason": "no learned geography for this position"}
+    return {"item_id": item_id, "available": True, **ctx}
+
+
+@router.get("/map_regions/{map_name}")
+def get_map_regions(map_name: str):
+    """The learned regions of one map, for inspection."""
+    from engine.pantheon import map_geography as mg
+    idx = mg.load_index(map_name)
+    if idx is None:
+        raise HTTPException(404, f"no geography for {map_name}")
+    from engine.pantheon import map_context as mc
+    return {"map": map_name,
+            "layers": [{"layer": la.layer, "z_lo": la.z_lo, "z_hi": la.z_hi,
+                        "samples": la.samples,
+                        "word": mc.layer_word(idx, la.layer)}
+                       for la in idx.layers],
+            "regions": [r.to_dict() for r in sorted(
+                idx.regions.values(), key=lambda r: r.region_id)]}
+
+
 @router.post("/verdict")
 def post_verdict(v: Verdict):
     it = rc.item(v.item_id)
@@ -442,6 +485,32 @@ def get_media(item_id: str, v: str | None = None):
                 "hint": "clip is rendering; verdicts do not wait for it"})
 
 
+
+# ── render permission is a separate question from serving the reviewer ──────
+
+def _permit_view() -> dict[str, Any]:
+    """What the page needs to say WHY nothing is being filmed right now.
+
+    The reviewer runs while the user games; that is the point. It just has
+    no right to open a renderer window, and a job waiting on the permit is
+    DEFERRED, not broken.
+    """
+    from engine.pantheon import render_permit
+    return render_permit.status()
+
+
+def _deferred(st: dict[str, Any]) -> bool:
+    """Is this job waiting on permission rather than on work?"""
+    if st.get("state") not in ("QUEUED", "PENDING", "MISSING"):
+        return False
+    return not _permit_view()["permit"] == "GRANTED"
+
+
+@router.get("/render_permit")
+def render_permit_state():
+    return _permit_view()
+
+
 @router.get("/media_state/{item_id}")
 def get_media_state(item_id: str):
     it = rc.item(item_id)
@@ -450,6 +519,7 @@ def get_media_state(item_id: str):
     st = _proxy_for(it)
     return {"item_id": item_id, "state": st.get("state", "PENDING"),
             "error": st.get("error"),
+            "render_deferred": _deferred(st), "permit": _permit_view(),
             "ready": bool(st.get("state") == "READY" and st.get("mp4_path")
                           and Path(str(st.get("mp4_path"))).exists())}
 
@@ -534,6 +604,31 @@ class UsageUpdate(BaseModel):
     detail: str = ""
 
 
+
+def _round_source(it) -> tuple[str, str, str]:
+    """(content_hash, demo_name, why) for the recording that speaks for this
+    item's round.
+
+    Reading the round from the ITEM's own demo was the unfinished half of
+    the lineage work: a moment whose best observation is a hand-cut fragment
+    got its round bounded, described and rendered from that fragment, which
+    holds neither edge of it. The occurrence never moves -- this picks a
+    camera, not a moment.
+    """
+    try:
+        from engine.parser import demo_lineage as dl
+        src = dl.canonical_source_for(int(it.source_id))
+        if src is not None and src.changed:
+            nm = dl.demo_name_of(src.content_hash)
+            if nm:                       # no name, no file to capture from
+                return src.content_hash, nm, src.reason
+        if src is not None:
+            return it.content_hash, it.demo_name, src.reason
+    except Exception:                                          # noqa: BLE001
+        pass                             # an improvement, never a dependency
+    return it.content_hash, it.demo_name, "UNCHANGED"
+
+
 @router.get("/round/{item_id}")
 def get_round(item_id: str):
     from creative_suite.engine import round_story as rs
@@ -543,7 +638,8 @@ def get_round(item_id: str):
     if it.round_no is None:
         return {"item_id": item_id, "available": False,
                 "reason": "this moment has no round attributed"}
-    ctx = rs.round_context(it.content_hash, it.round_no)
+    content_hash, _demo_name, source_reason = _round_source(it)
+    ctx = rs.round_context(content_hash, it.round_no)
     if ctx is None:
         return {"item_id": item_id, "available": False,
                 "reason": "no observed events in that round"}
@@ -559,7 +655,8 @@ def get_round(item_id: str):
             # -- try again", which is what the user actually saw.
             "full_round_available": bool(ctx.duration_credible),
             "duration_provenance": ctx.duration_provenance,
-            "duration_note": ctx.duration_note}
+            "duration_note": ctx.duration_note,
+            "source_preference": source_reason}
 
 
 @router.get("/usage/{occurrence_id}")
@@ -589,7 +686,8 @@ def _round_proxy(item_id: str, *, retry: bool = False):
     it = rc.item(item_id)
     if it is None or it.round_no is None:
         raise HTTPException(404, f"no round for {item_id}")
-    ctx = rs.round_context(it.content_hash, it.round_no)
+    content_hash, demo_name, _why = _round_source(it)
+    ctx = rs.round_context(content_hash, it.round_no)
     if ctx is None:
         raise HTTPException(404, "no observed events in that round")
     if not ctx.duration_credible:
@@ -603,7 +701,7 @@ def _round_proxy(item_id: str, *, retry: bool = False):
     start, end = rs.round_window(ctx)
     try:
         return it, review_proxy.request_proxy(
-            frag_id=it.source_id, demo_name=it.demo_name, start_ms=start,
+            frag_id=it.source_id, demo_name=demo_name, start_ms=start,
             end_ms=end, **({"retry": True} if retry else {}))
     except HTTPException:
         raise
@@ -623,6 +721,7 @@ def get_round_media_state(item_id: str):
     path = st.get("mp4_path")
     return {"item_id": item_id, "job_id": st.get("key"),
             "state": st.get("state", "PENDING"), "error": st.get("error"),
+            "render_deferred": _deferred(st), "permit": _permit_view(),
             "ready": bool(st.get("state") == "READY" and path
                           and Path(path).exists())}
 

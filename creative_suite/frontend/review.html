@@ -316,6 +316,7 @@
 
   <aside>
     <div id="dossier"></div>
+    <div id="dloc"></div>
     <div class="why" id="why"></div>
     <div id="usage"></div>
     <div id="povs"></div>
@@ -1219,6 +1220,40 @@ async function restoreSession(){
   };
 })();
 
+// ── where it happened ───────────────────────────────────────────────────────
+// Learned from every position anyone was ever recorded standing in on this
+// map -- not from a map file, and never from a community callout we were
+// not told. Two rows, in the dossier only: the mobile strip stays the strip.
+//
+// A generation counter guards against the slow answer for the PREVIOUS clip
+// landing on the current one; the same pattern the tag rail uses.
+let locationGeneration = 0;
+async function renderLocation(it, box){
+  const gen = ++locationGeneration;
+  box = document.getElementById("dloc") || box;
+  box.replaceChildren();
+  let d = null;
+  try { d = await (await fetch(API + "/location/"
+                               + encodeURIComponent(it.item_id))).json(); }
+  catch (e) { return; }
+  if (gen !== locationGeneration || !cur || cur.item_id !== it.item_id) return;
+  if (!d || !d.available || (!d.location && !d.approach)) return;
+
+  const sec = el("div", "dsec");
+  sec.appendChild(el("h4", null, "location"));
+  const g = el("div", "dgrid");
+  if (d.location){
+    g.append(...drow("where", d.location.label));
+    g.append(...drow("layer", d.location.layer_word.toLowerCase()
+                              + " of " + d.map));
+  }
+  if (d.approach) g.append(...drow("approach", d.approach.label));
+  sec.appendChild(g);
+  // No pruning here: every row this block emits is an answer, and the block
+  // is simply not built when there is nothing to say.
+  box.replaceChildren(sec);
+}
+
 // ── director dossier ────────────────────────────────────────────────────────
 // Partial truth is fine; false certainty is not. Every value is measured or
 // shown as UNKNOWN. Nothing is defaulted to zero.
@@ -1278,6 +1313,7 @@ async function renderDossier(it){
   const box = $("dossier");
   if (!box) return;
   box.replaceChildren();
+  renderLocation(it, box);          // independent; never blocks the dossier
   let d;
   try { d = await (await fetch(API + "/dossier/" + it.item_id)).json(); }
   catch(e){ return; }

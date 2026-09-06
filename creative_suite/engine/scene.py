@@ -302,9 +302,9 @@ def scene_for_item(item_id: str, db: Path = RECOGNITION_DB) -> Scene | None:
     content_hash = it.content_hash
     try:
         from engine.parser import demo_lineage as dl
-        better = dl.better_source_for(int(it.source_id), recog=db)
-        if better:
-            content_hash = better
+        src = dl.canonical_source_for(int(it.source_id), recog=db)
+        if src is not None and src.changed:
+            content_hash = src.content_hash
     except Exception:                                          # noqa: BLE001
         # Lineage is an improvement, never a dependency: without it the
         # scene is built from the observation the occurrence layer chose.

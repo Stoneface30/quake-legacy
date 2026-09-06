@@ -269,3 +269,101 @@ def better_source_for(occurrence_id: int, recog: Path = RECOG_DB,
         return None
     best = max(cands, key=lambda d: (d["round_starts"], d["kills"]))
     return best["content_hash"]
+
+
+# ── the canonical source ladder ─────────────────────────────────────────────
+
+COMPLETE_SOURCE = "COMPLETE_SOURCE"      # a full recording, and it saw the kill
+BEST_POV = "BEST_POV"                    # full recording, recorded by the user
+ONLY_FRAGMENT = "ONLY_FRAGMENT"          # nothing fuller exists; use it anyway
+UNCHANGED = "UNCHANGED"                  # the chosen observation was already best
+
+
+@dataclass(frozen=True)
+class Source:
+    content_hash: str
+    reason: str
+    changed: bool
+
+
+def canonical_source_for(occurrence_id: int, recog: Path = RECOG_DB,
+                         epoch: Path = EPOCH_DB,
+                         prefer_client: int | None = None) -> Source | None:
+    """Which recording should speak for the round around this kill?
+
+    THE LADDER, in order:
+
+        1. a COMPLETE recording that also has the round's own start markers
+        2. among equals, the one recorded from the user's point of view
+        3. a fragment, but only when nothing fuller observed the moment
+
+    Step 2 matters because two full demos of the same match are not equally
+    useful: the one the user recorded is the one whose camera is theirs, and
+    a round watched from someone else's eyes is a different clip even when
+    it is the same round.
+
+    A FRAGMENT IS NEVER DELETED and never disqualified as evidence. It stays
+    a perfectly good observation of the moment it holds; it is simply not
+    asked to describe boundaries it cannot see.
+
+    THE OCCURRENCE ID DOES NOT MOVE. This picks a camera, not a moment, so
+    every human verdict, tag and note stays attached to exactly what it was
+    written about.
+    """
+    with _ro(recog) as c:
+        obs = [dict(r) for r in c.execute(
+            "SELECT content_hash, recorder_client, is_recorder_killer "
+            "FROM kill_events_v1 WHERE occurrence_id=?",
+            (int(occurrence_id),))]
+        best_now = c.execute(
+            "SELECT k.content_hash FROM kill_occurrences_v1 o JOIN "
+            "kill_events_v1 k ON k.kill_event_id=o.best_observation_id "
+            "WHERE o.occurrence_id=?", (int(occurrence_id),)).fetchone()
+    if not obs or best_now is None:
+        return None
+    current = best_now["content_hash"]
+
+    hashes = sorted({o["content_hash"] for o in obs})
+    with conn(epoch) as c:
+        qs = ",".join("?" * len(hashes))
+        lin = {r["content_hash"]: dict(r) for r in c.execute(
+            "SELECT * FROM demo_lineage_v1 WHERE content_hash IN (" + qs + ")",
+            hashes)}
+    if not lin:
+        return Source(current, UNCHANGED, False)
+
+    def usable(h: str) -> bool:
+        d = lin.get(h)
+        if d is None:
+            return False
+        return d["lineage"] in (FULL_RECORDING, UNIQUE_FRAGMENT) and \
+            d["kills"] >= SHORT_KILLS
+
+    pov = {o["content_hash"]: bool(o["is_recorder_killer"]) for o in obs}
+    full = [h for h in hashes if usable(h)]
+    if not full:
+        # Every observation is a fragment. Keep the one already chosen: a
+        # different fragment is not an improvement, only a different sliver.
+        return Source(current, ONLY_FRAGMENT, False)
+
+    # Rank: the user's own point of view first, then the demo that saw most
+    # of the match (round markers, then kills), then the hash for stability.
+    def rank(h: str) -> tuple:
+        d = lin[h]
+        return (0 if pov.get(h) else 1, -int(d["round_starts"]),
+                -int(d["kills"]), h)
+
+    best = min(full, key=rank)
+    reason = BEST_POV if pov.get(best) else COMPLETE_SOURCE
+    if best == current:
+        return Source(current, UNCHANGED, False)
+    return Source(best, reason, True)
+
+
+def demo_name_of(content_hash: str, recog: Path = RECOG_DB) -> str | None:
+    """Local filename for a hash. Local data only -- never persisted into a
+    tracked file, never printed into a public artefact."""
+    with _ro(recog) as c:
+        r = c.execute("SELECT demo_name FROM scanned_demos WHERE "
+                      "content_hash=?", (content_hash,)).fetchone()
+    return r["demo_name"] if r else None
