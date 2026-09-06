@@ -23,6 +23,12 @@ def test_every_execution_proven_cvar_was_listed_by_the_running_client():
     for cap in CAP.WOLFCAM_11_3.values():
         if cap.evidence is not CAP.Evidence.EXECUTION_PROVEN:
             continue
+        if cap.measured:
+            # Evidence of a different kind: the engine was observed ACTING on
+            # the cvar. Stronger than a listing, and the only thing available
+            # for a family the probe never asked about.
+            assert len(cap.measured) >= 40,                 f"{cap.name} claims a measurement without describing it"
+            continue
         for cvar in cap.cvars:
             assert cvar.lower() in lower, (
                 f"{cap.name} claims EXECUTION_PROVEN for {cvar}, which the "

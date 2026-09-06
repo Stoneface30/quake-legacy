@@ -45,6 +45,18 @@ from typing import Sequence
 DESKTOP_NAME = "pantheon_render"
 
 
+# A HIDDEN RENDER HAS NO BUSINESS OWNING THE POINTER.
+#
+# Measured 2026-09-06 on a real capture, after the operator reported the mouse
+# being boxed into the invisible window: as shipped, GetClipCursor came back
+# (107, 130, 2027, 1210) throughout the run -- the render window's rectangle,
+# on a 3000x1440 desktop. `in_nograb 1` and `in_mouse 0` each released it on
+# their own, and each still filmed. Both are set, because they say two
+# different things and the render wants both: do not grab, and do not read
+# the mouse at all.
+OFFSCREEN_SETS = {"in_nograb": 1, "in_mouse": 0}
+
+
 def ENGINE_ENV() -> dict[str, str]:
     """SDL's default video-driver probe fails on this machine ("No available
     video device") and the engine answers by reverting to SAFE VALUES --
@@ -275,6 +287,55 @@ def foreground() -> ForegroundState:
     return ForegroundState(int(hwnd or 0), int(pid.value), buf.value)
 
 
+class _RECT(ctypes.Structure):
+    _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long),
+                ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
+
+
+SM_XVIRTUALSCREEN, SM_YVIRTUALSCREEN = 76, 77
+SM_CXVIRTUALSCREEN, SM_CYVIRTUALSCREEN = 78, 79
+
+
+def virtual_screen() -> tuple[int, int, int, int]:
+    """The whole desktop the operator can move a mouse across."""
+    if sys.platform != "win32":
+        return (0, 0, 0, 0)
+    u = _u32()
+    x, y = u.GetSystemMetrics(SM_XVIRTUALSCREEN), u.GetSystemMetrics(SM_YVIRTUALSCREEN)
+    return (x, y, x + u.GetSystemMetrics(SM_CXVIRTUALSCREEN),
+            y + u.GetSystemMetrics(SM_CYVIRTUALSCREEN))
+
+
+def cursor_clip() -> tuple[int, int, int, int]:
+    """Where the operator's mouse is allowed to go, right now.
+
+    A Quake client grabs the mouse. The hidden desktop keeps its WINDOW off
+    the screen, and the operator reported the pointer being confined anyway
+    while a capture ran -- so this is measured on every run rather than
+    assumed away, like the window and the foreground before it.
+    """
+    if sys.platform != "win32":
+        return (0, 0, 0, 0)
+    r = _RECT()
+    _u32().GetClipCursor(ctypes.byref(r))
+    return (r.left, r.top, r.right, r.bottom)
+
+
+def cursor_is_confined() -> bool:
+    clip, screen = cursor_clip(), virtual_screen()
+    if clip == (0, 0, 0, 0):
+        return False
+    return (clip[2] - clip[0]) < (screen[2] - screen[0]) or            (clip[3] - clip[1]) < (screen[3] - screen[1])
+
+
+def release_cursor() -> bool:
+    """Hand the pointer back. ClipCursor(NULL) frees it for the whole
+    session; harmless when nothing had confined it."""
+    if sys.platform != "win32":
+        return False
+    return bool(_u32().ClipCursor(None))
+
+
 def visible_windows_of(pid: int) -> list[str]:
     """Titles of the process's windows ON THE INTERACTIVE DESKTOP. A process
     on another desktop contributes nothing here, which is the whole point:
@@ -363,6 +424,7 @@ class OffscreenRun:
     log_tail: str = ""
     detail: str = ""
     foreground_during: list = field(default_factory=list)
+    cursor_clips: list = field(default_factory=list)
 
     render_pid: int = 0
 
@@ -376,6 +438,14 @@ class OffscreenRun:
                    for f in (self.foreground_during or []) + [self.foreground_after])
 
     @property
+    def confined_cursor(self) -> bool:
+        """Did the operator's pointer get boxed in while this ran? Reported
+        by the user against the hidden desktop, so it is measured, not
+        assumed: a window nobody can see that still owns the mouse is worse
+        than a visible one."""
+        return bool(self.cursor_clips)
+
+    @property
     def foreground_moved(self) -> bool:
         """Reported for information; not a failure on its own."""
         return self.foreground_before.get("hwnd") != self.foreground_after.get("hwnd")
@@ -385,6 +455,8 @@ class OffscreenRun:
                 "seconds": round(self.seconds, 1),
                 "visible_windows": self.visible_windows,
                 "stole_focus": self.stole_focus,
+                "confined_cursor": self.confined_cursor,
+                "cursor_clips": self.cursor_clips[:4],
                 "foreground_moved": self.foreground_moved,
                 "foreground_before": self.foreground_before,
                 "foreground_after": self.foreground_after,
@@ -411,6 +483,7 @@ def run_engine(argv: Sequence[str], *, cwd: Path, timeout: float,
     before = foreground()
     seen: list[str] = []
     during: list[dict] = []
+    clips: list[tuple] = []
     pid = 0
     t0 = time.time()
     rc: int | None = None
@@ -428,6 +501,8 @@ def run_engine(argv: Sequence[str], *, cwd: Path, timeout: float,
                     # round, and a check that only looks afterwards misses it.
                     seen.extend(w for w in visible_windows_of(proc.pid) if w not in seen)
                     during.append(foreground().as_dict())
+                    if cursor_is_confined():
+                        clips.append(cursor_clip())
                     rc = proc.wait(poll)
                     if rc is not None:
                         break
@@ -443,9 +518,14 @@ def run_engine(argv: Sequence[str], *, cwd: Path, timeout: float,
     tail = ""
     if log and log.exists():
         tail = log.read_text(encoding="utf-8", errors="replace")
+    # Whatever the run did, the operator gets the pointer back. A capture
+    # that leaves the mouse boxed into an invisible window is exactly as
+    # disruptive as one that steals the screen.
+    if clips:
+        release_cursor()
     return OffscreenRun(rc == 0, rc, time.time() - t0, seen, before.as_dict(),
                         after.as_dict(), tail, detail, render_pid=pid,
-                        foreground_during=during)
+                        foreground_during=during, cursor_clips=clips)
 
 
 def probe_gl(staging: Path, *, timeout: float = 120.0) -> dict:
@@ -469,7 +549,10 @@ def probe_gl(staging: Path, *, timeout: float = 120.0) -> dict:
             str(staging), "+set", "logfile", "2", "+set", "r_fullscreen", "0",
             "+set", "r_mode", "-1", "+set", "r_customwidth", "1280",
             "+set", "r_customheight", "720", "+set", "s_initsound", "0",
-            "+set", "com_maxfps", "60", "+wait", "200", "+quit"]
+            "+set", "com_maxfps", "60",
+            *[a for k, v in OFFSCREEN_SETS.items()
+              for a in ("+set", str(k), str(v))],
+            "+wait", "200", "+quit"]
     run = run_engine(argv, cwd=Path(staging), timeout=timeout, env=ENGINE_ENV(),
                      purpose="runtime capability proof: offscreen GL", log=console)
     text = run.log_tail
@@ -517,7 +600,8 @@ def capture(safe_demo: str, windows: list[dict], *, staging: Path,
     # The profile also decides the LATCHED launch cvars (the review exposure
     # among them), which only apply from the command line -- so it has to be
     # named here as well as in the cfg.
-    argv = wc.wolfcam_cmd(safe_demo, staging, profile=profile)
+    argv = wc.wolfcam_cmd(safe_demo, staging, profile=profile,
+                          extra_sets=dict(OFFSCREEN_SETS))
     console = staging / "wolfcam-ql" / "qconsole.log"
     run = run_engine(argv, cwd=staging, timeout=timeout, purpose=purpose,
                      log=console, env=ENGINE_ENV(), desktop=desktop)
@@ -526,7 +610,8 @@ def capture(safe_demo: str, windows: list[dict], *, staging: Path,
     avis = {k: str(v[0]) for k, v in made.items() if v}
     # The interactive leg is EXPECTED to put a window on the screen -- that is
     # the behaviour being replaced. Only the hidden leg is judged on it.
-    quiet = desktop is None or (not run.visible_windows and not run.stole_focus)
+    quiet = desktop is None or (not run.visible_windows and not run.stole_focus
+                                and not run.confined_cursor)
     return {"ok": bool(avis) and quiet, "desktop": desktop or "interactive",
             "avis": avis, "missing": [k for k, v in made.items() if not v],
             **{k: v for k, v in run.as_dict().items() if k != "log_tail"}}

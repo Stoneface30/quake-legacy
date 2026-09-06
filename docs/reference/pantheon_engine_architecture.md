@@ -200,11 +200,121 @@ Proven on this machine, 2026-09-06:
 | Real capture through the project's own staging and cfg | AVI produced, 1920x1080, 8.5 s |
 | Visible window / stolen foreground during captures | none / none |
 
+**The pointer, added 2026-09-06.** The operator reported the mouse boxed into
+the invisible window while a capture ran. Measured on a real capture:
+`GetClipCursor` returned `(107, 130, 2027, 1210)` -- the render window's
+rectangle -- for the whole run, on a 3000x1440 desktop. `in_nograb 1` and
+`in_mouse 0` each released it and each still filmed; the offscreen launch now
+sets both, the watcher samples the clip rectangle every run, and a capture
+that confines the pointer is not `ok`. A hidden window that owns the mouse is
+worse than a visible one, because nobody can see what has taken it.
+
 `engine/pantheon/offscreen.py` watches the operator's desktop THROUGHOUT a
 run, not only afterwards, and attributes a stolen foreground to the render
 only when the foreground belongs to the render process -- an operator
 switching app mid-capture is not a failure. The render permit still applies:
 offscreen removes the stolen screen, not GPU and disk contention.
+
+## The layer contract
+
+One authority per layer. A layer may read the one below it and must not know
+the one above exists.
+
+| Layer | Module | Owns |
+|---|---|---|
+| DemoProtocolRegistry | `engine/parser/protocol.py` | every wire number, from the engine's own tables |
+| CanonicalTruth | `engine/parser/` | what the demo says, decoded |
+| PerformanceTrace | `performance.py` | how a body moved, aimed and fought |
+| FrameTruth | `frame_truth.py` | one clock, recorded pose, sound intent |
+| ActionGraph | `action_graph.py` | the semantic reading, with evidence |
+| Scene / RoundScenario | `scenario.py` | what is being authored |
+| MapSpatialIndex | `map_spatial_index.py`, `geography.py` | where things happen |
+| ReviewMoment | `review_moment.py` | the one object a reviewer reads |
+| HumanDirection | `creative_intent.py`, `director_notes.py`, `ideas.py` | what the director said, verbatim |
+| MomentPossibilities | `possibilities.py` | what could be done, and why |
+| EffectRecipe | `effect_recipes.py` | the film grammar, as semantics |
+| ChoreographyPlan / TimeMap / CameraPlan | *not built* | how it would be staged |
+| VisualProfile | `visual_profile.py` | film words to backend values, in one function |
+| FilmProfile | `defaults.py` | the project's versioned defaults |
+| ShotSpec / RenderJob | `shot.py`, `backends.py` | what to film |
+| BackendPlanner | `backend_planner.py` | which backend takes which pass |
+| CapabilityRegistry | `capabilities.py` | what a backend can do, and how we know |
+| VisualProofRegistry | `visual_proof.py` | what a person judged, and when it expired |
+
+Three classes of module, enforced by
+`creative_suite/tests/test_pantheon_headless_boundary.py`:
+
+- **HEADLESS** — may not import a backend and may not name one.
+- **NAMES_BACKENDS_AS_DATA** — may name a backend (a planner must; a proof is
+  only valid for the backend it was taken on) but may not import or launch one.
+- **BACKEND_ALLOWED** — may spawn the engine, through the render permit.
+
+## VisualProofRegistry
+
+Some questions are settled by arithmetic and some only by a person with eyes.
+`visual_proof.py` keeps the second kind, so they are asked once.
+
+    UNTESTED · AUTOMATED_PASS · NEEDS_VISUAL_CONFIRMATION ·
+    VISUALLY_PROVEN · VISUALLY_REJECTED · REGRESSION
+
+A proof is banked against the three things that can invalidate it -- the
+backend, the profile and the engine version. Ask for it with those and you get
+the banked answer; ask with a different profile and you get REGRESSION, not a
+stale yes. No automated result promotes itself: only `judge()` produces
+VISUALLY_PROVEN, and it records what the person said.
+
+Seeded 2026-09-06 with nine capabilities: four proven (the green Keel review
+enemy, no visible window, no stolen focus, no burned name on a public export)
+and five waiting on a person -- among them the X-ray overlay, which was filmed
+under the old window backend and has not been re-shot.
+
+**Do not ask the user to confirm** parser fields, timestamps, identity hashes
+or collision maths. **Do ask** whether the enemy is visibly Keel, whether a
+camera feels right, whether an effect communicates the action.
+
+## EffectRecipeRegistry
+
+`effect_recipes.py` holds the film grammar as semantics: what a treatment is,
+what truth it needs, when a director would reach for it, and which
+capabilities a backend would have to have. It contains no cvar, no command and
+no camera maths -- a test enforces that.
+
+    CONCEPT · SEMANTICALLY_SUPPORTED · BACKEND_SUPPORTED ·
+    VISUALLY_PROVEN · PRODUCTION_READY
+
+Status is DERIVED on every call from the capability and proof registries, so
+it cannot go stale and cannot be declared. Twenty recipes are registered; ten
+have a backend for every capability they need; none is PRODUCTION_READY,
+because that needs a run through the pipeline rather than a registry entry.
+
+## The director's list
+
+`ideas.py` holds all 306 consolidated ideas verbatim, and `director_notes.py`
+holds the 28 original free-form notes they were consolidated from -- typos
+included, because a cleaned-up note is a different note. The columns the
+director asked for (required truth, best backend, status, visual proof) are
+derived per row; storing them would mean 306 stale rows the first time a
+capability moved.
+
+Seventy-four ideas are carried by a recipe. Two hundred and thirty-two are
+not, and that list is the backlog. Reading the original notes turned up
+twenty-three requirements the numbered list had lost, sixteen of which no
+recipe carries -- the rail beam building along its path like Wanted, the
+scoreboard rendered into the map's ad space, damage staying above the enemy's
+head, the out-shaft statistic, the mishap corpus. Four carry a caution because
+building them naively would produce a false claim: the rail is hitscan, so a
+"beam building" shot is a reconstruction and must be labelled one.
+
+## MomentPossibilities
+
+`possibilities.py` answers "what could we do with this moment" from the
+indexed evidence, with a reason attached to every answer, and it renders
+nothing. Compatibility is DERIVED; a recommendation is a MACHINE_SUGGESTION;
+the choice is HUMAN. Those three never merge.
+
+A "no" names what is missing -- the truth the demo does not carry, or the
+capability no backend has proven -- which is why the output is useful rather
+than discouraging.
 
 ## Backend A/B conformance
 
@@ -313,8 +423,40 @@ python -m engine.pantheon.doctor --json   # machine-readable
 
 PARSER · EXTRACT · ACTION_GRAPH · RETARGET · COMPILE · PARSE_BACK · COMPARE ·
 FRAME_TRUTH · INDEX · RECONSTRUCT · GEOGRAPHY · TEMPLATES · TRACE_CACHE ·
-PROTOCOL · CAPABILITIES · VISUAL_PROFILE · OFFSCREEN · RENDER_PERMIT ·
-NO_RENDERER.
+RECIPES · VISUAL_PROOF · IDEAS · PROFILES · PLANNER · PROTOCOL ·
+CAPABILITIES · VISUAL_PROFILE · OFFSCREEN · RENDER_PERMIT · NO_RENDERER.
 
-19 checks, all green on this machine. The OFFSCREEN check probes the desktop
+24 checks, all green on this machine. The OFFSCREEN check probes the desktop
 mechanism with a harmless GUI process; the doctor never launches the game.
+
+## Project default profiles
+
+`defaults.py`. No magic numbers anywhere else; a profile's id is a hash of its
+contents, so anything cached against it can tell when it is stale.
+
+| Profile | For | Picture | Enemy |
+|---|---|---|---|
+| REVIEW_V1 | judging, including on a phone | 1280x720 30 | forced green Keel |
+| FPV_FILM_V1 | the delivered first-person image | 1920x1080 60 | as the demo authored |
+| CINEMATIC_CLEAN_V1 | free camera, follow, projectile camera | 1920x1080 60 | as authored, no HUD |
+| ANALYSIS_V1 | explaining: frozen action, presenters | 1920x1080 60 | forced, for readability |
+| PUBLIC_EXPORT_V1 | anything that leaves this machine | 1920x1080 60 | as authored, no name in frame |
+
+## Subsystem maturity
+
+Derived from the registries and the doctor, not from how the work feels.
+`python -m engine.pantheon.maturity`.
+
+| Subsystem | Maturity | Gap |
+|---|---|---|
+| GAME_TRUTH | PRODUCTION_READY | -- |
+| PERFORMANCE | PRODUCTION_READY | -- |
+| RENDER | PRODUCTION_READY | -- |
+| SPATIAL | PARTIAL | 40 maps have too few demos to learn a structure |
+| REVIEW | PARTIAL | health, armour, accuracy and round are NOT_DERIVABLE from an index row; the frontend does not consume the contract yet |
+| CAMERA | PARTIAL | collision, sight-line and composition are not wired into a planner |
+| VISUAL_PROOF | PARTIAL | five capabilities waiting on a person |
+| EFFECTS | CONCEPT | no recipe is visually proven through the offscreen backend; none has a choreography builder |
+| DIRECTOR | CONCEPT | nothing turns a note into a ChoreographyPlan |
+| BLENDER_BRIDGE | CONCEPT | deliberately not built |
+| COMFYUI_BRIDGE | BLOCKED | not started; must never decide game truth |

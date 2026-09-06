@@ -39,6 +39,16 @@ HEADLESS = {
     "headless_bench",   # loop timings, no render
     "performance_templates",  # reusable real motion, chosen by measured facts
     "trace_cache",      # which rebuilt traces earn a stored copy, and why
+    "visual_proof",     # what a person judged on screen; reads a db, films nothing
+    "effect_recipes",   # the film grammar as semantics; no backend detail
+    "possibilities",    # which recipes a moment can carry, and why
+    "ideas",            # the director's 306-item master list, verbatim
+    "director_notes",   # the original free-form notes it came from
+    "creative_intent",  # a human note, kept as written
+    "review_moment",    # the one object the reviewer reads
+    "backend_planner",  # which backend does which pass; plans, never launches
+    "defaults",         # versioned project profiles; values, not behaviour
+    "maturity",         # how finished each subsystem is, by measurement
     "map_geography",    # height layers, watershed regions, route graph (review authority, adopted)
     "map_context",      # place / approach words for a moment, over map_geography
     "geography",        # the one API over map_geography + map_spatial_index
@@ -73,6 +83,23 @@ BACKEND_ALLOWED = {
     "visual_profile",   # the one translator from film words to backend values
     "doctor",           # the self-test: it REPLACES Popen to prove nothing spawns,
                         # and reads the permit to report it -- launches nothing
+}
+
+# A THIRD CLASS, because two were not enough.
+#
+# These modules choose between backends, or record which one a proof was taken
+# against, or quote the director naming one. They must still never IMPORT a
+# backend and never launch anything -- what they may do is say the name. A
+# planner that cannot name what it is planning for is not a planner, and a
+# proof that cannot say what it was filmed on is not evidence.
+NAMES_BACKENDS_AS_DATA = {
+    "backend_planner",  # its whole job is choosing one
+    "effect_recipes",   # each recipe says which backend would suit it
+    "visual_proof",     # a proof is only valid for the backend it was taken on
+    "ideas",            # the director's own words, and they name backends
+    "director_notes",   # likewise, verbatim
+    "defaults",         # a profile names the engine cfg it expects
+    "maturity",         # it reports per backend, so it names them
 }
 
 FORBIDDEN_IMPORTS = {
@@ -194,10 +221,29 @@ def _code_tokens(path: Path) -> list[tuple[int, str]]:
     return out
 
 
-@pytest.mark.parametrize("path", _headless_modules(), ids=lambda p: p.stem)
+def _vocabulary_modules() -> list[Path]:
+    return [p for p in _headless_modules() if p.stem not in NAMES_BACKENDS_AS_DATA]
+
+
+@pytest.mark.parametrize("path", _vocabulary_modules(), ids=lambda p: p.stem)
 def test_headless_module_speaks_no_backend_vocabulary(path: Path):
     hits = [(ln, tok) for ln, tok in _code_tokens(path)
             for word in BACKEND_TOKENS if word.lower() in tok.lower()]
     assert not hits, (f"{path.name} carries backend vocabulary in code: {hits[:5]}. "
                       "CameraPlan may state intent; a cvar, a capture cfg, an AVI or "
                       "a process is a backend's business (HL-1).")
+
+
+@pytest.mark.parametrize(
+    "path", sorted(PANTHEON / f"{m}.py" for m in NAMES_BACKENDS_AS_DATA
+                   if (PANTHEON / f"{m}.py").exists()),
+    ids=lambda p: p.stem)
+def test_a_module_that_names_a_backend_still_never_reaches_one(path: Path):
+    """Naming is allowed here; importing and launching are not."""
+    hit = sorted(i for i in _imports(path)
+                 if i in FORBIDDEN_IMPORTS
+                 or i.startswith("creative_suite.engine.wolfcam_capture"))
+    assert not hit, f"{path.name} imports a backend: {hit}"
+    src = path.read_text(encoding="utf-8")
+    for word in ("Popen", "CreateProcess", "os.system", "capture_demo("):
+        assert word not in src, f"{path.name} can start a process ({word})"

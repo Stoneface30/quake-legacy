@@ -63,6 +63,15 @@ class Capability:
     cvars: tuple[str, ...] = ()           # backend detail; callers never see it
     note: str = ""
     probe: str = ""                       # what would raise the evidence level
+    # HOW THE EVIDENCE WAS OBTAINED, when it was not the cvarlist.
+    #
+    # A cvarlist line proves the engine REGISTERS a name. A measured change in
+    # behaviour proves the engine ACTS on it, which is stronger and is the
+    # only evidence available for a family the probe never asked about --
+    # `in_*` was never probed, so its absence from the capture says nothing.
+    # Naming the measurement here keeps the audit honest instead of widening
+    # it: a capability with this field set must say what was measured.
+    measured: str = ""
 
     @property
     def usable(self) -> bool:
@@ -73,7 +82,7 @@ class Capability:
     def as_dict(self) -> dict:
         return {"name": self.name, "evidence": self.evidence.name, "how": self.how,
                 "cvars": list(self.cvars), "note": self.note, "probe": self.probe,
-                "usable": self.usable}
+                "measured": self.measured, "usable": self.usable}
 
 
 # ── WolfcamQL 11.3, the binary we film with ────────────────────────────────
@@ -195,15 +204,157 @@ WOLFCAM_11_3: dict[str, Capability] = {c.name: c for c in (
         "SW_SHOWMINNOACTIVE is defence in depth, NOT this capability: a "
         "minimised window is still on the user's desktop and taskbar",
         probe="engine.pantheon.offscreen.probe_isolation() with a harmless GUI process"),
+
+    # ── from the 2026-09-06 command research, source-backed ───────────────
+    # docs/reference/2026-09-06-capture-effects-command-reference.md gives the
+    # file and line for each. SOURCE_REGISTERED means the handler is in the
+    # canonical tree and nothing has run it here yet; that is below the bar
+    # for `usable`, and deliberately so.
+    Capability(
+        "FREEZE_ENTITY", Evidence.SOURCE_REGISTERED,
+        "entityfreeze handler in the canonical wolfcam tree (W:7055-7095)",
+        (), "Holds ONE selected entity while the rest of the scene runs. "
+            "Repeating the command unfreezes it. This is not a scene freeze "
+            "and not a particle freeze.",
+        probe="run entityfreeze on a known entity in a capture and look"),
+    Capability(
+        "TIME_SCALE", Evidence.SOURCE_REGISTERED,
+        "timescale is registered CHEAT/SYSTEMINFO in common.c:3089",
+        (), "Changes engine time, so it changes the simulation, not a "
+            "finished video's rate. Demo-playback permission and what happens "
+            "to audio both need proof.",
+        probe="capture the same window at 1.0 and 0.5 and compare frame count"),
+    Capability(
+        "SHADER_REMAP", Evidence.SOURCE_REGISTERED,
+        "remapshader / clearremappedshader handlers (W:7437-7476)",
+        (), "Substitutes one existing shader for another; it cannot invent a "
+            "material. Whether a usable wireframe or hidden-world shader "
+            "exists in the QL asset set is a separate question.",
+        probe="remap a known world shader and grab a frame"),
+    Capability(
+        "CHASE_ENTITY", Evidence.SOURCE_REGISTERED,
+        "chase / view handlers (W:1024-1125)",
+        (), "Follows or aims at an entity number. Entity numbers are reused, "
+            "so the projectile's lifetime has to come from the trace, not "
+            "from the slot.",
+        probe="chase a rocket entity resolved from a real trace"),
+    Capability(
+        "CVAR_RAMP", Evidence.SOURCE_REGISTERED,
+        "cvarinterp / clearcvarinterp handlers (W:7244-7298)",
+        (), "Continuous ramp of any cvar. The default clock is game time; the "
+            "`real` clock is wall time and is not deterministic for a capture.",
+        probe="ramp cg_fov over a captured window and measure the frames"),
+    Capability(
+        "SCENE_FX", Evidence.SOURCE_REGISTERED,
+        "fxload / runfx / runfxat handlers (W:6136, W:7661-7845)",
+        (), "Invokes an authored FX definition. runfxat captures omitted "
+            "coordinates when the command is PROCESSED, so pre-seek setup can "
+            "bind the wrong origin; prefer explicit coordinates.",
+        probe="load an fx library and run one at a known position"),
+    Capability(
+        "DEPTH_OF_FIELD", Evidence.DOCUMENTED,
+        "native q3mme dof keypoints (cg_demos_dof.c:581-590); wolfcam has a "
+        "similarly named imported handler that is a separate proof",
+        (), "q3mme grammar, not Wolfcam's. Registering it does not mean the "
+            "binary we film with can do it.",
+        probe="run the q3mme build, or prove wolfcam's imported handler"),
+    Capability(
+        "SYNTHETIC_PERFORMANCE", Evidence.EXECUTION_PROVEN,
+        "PANTHEON compiles a .dm_73 that the same extractor reads back and "
+        "compare() passes on every track; the doctor does it on every run",
+        (),
+        "This is OUR capability, not the client's: the engine authors the "
+        "demo and the client only plays it. What is unproven is whether a "
+        "given authored PERFORMANCE reads as intended, which is a visual "
+        "question and belongs to the proof registry.",
+        probe="already measured; COMPILE / PARSE_BACK / COMPARE in the doctor",
+        measured="a compiled scenario round-trips: 9,969 bytes of .dm_73, 92 "
+                 "transform samples read back, PASS on 11 tracks, and the "
+                 "event chain matches the source"),
+    Capability(
+        "POINTER_NOT_GRABBED", Evidence.EXECUTION_PROVEN,
+        "measured on a real capture 2026-09-06: as shipped GetClipCursor "
+        "returned the render window's rectangle for the whole run",
+        ("in_nograb", "in_mouse"),
+        "The operator reported the mouse boxed into the invisible window. "
+        "in_nograb 1 and in_mouse 0 each released it and each still filmed; "
+        "the offscreen launch sets both.",
+        probe="already measured; the watcher samples GetClipCursor every run",
+        measured="GetClipCursor sampled throughout three real captures: as "
+                 "shipped (107,130,2027,1210) on a (0,0,3000,1440) desktop, "
+                 "then unconfined with in_nograb 1, and again with in_mouse 0. "
+                 "The 11.3 cvarlist capture never probed an in_* family, so "
+                 "its silence about these names is not evidence."),
+)}
+
+# The offscreen backend drives the SAME binary, so it inherits every
+# capability and differs only in how the process is hosted -- and in the one
+# entry the hosting IS: a hardware GL context on a desktop nobody is viewing,
+# which the interactive client cannot claim and this one measured.
+_OFFSCREEN = dict(WOLFCAM_11_3)
+_OFFSCREEN["HIDDEN_OFFSCREEN_CONTEXT"] = Capability(
+    "HIDDEN_OFFSCREEN_CONTEXT", Evidence.EXECUTION_PROVEN,
+    "CreateDesktopW + STARTUPINFOW.lpDesktop; the client initialised "
+    "GL_RENDERER 'NVIDIA GeForce RTX 5060 Ti/PCIe/SSE2' there and filmed "
+    "1920x1080 with no visible window and no stolen foreground",
+    (),
+    "SW_SHOWMINNOACTIVE is defence in depth, NOT this capability: a minimised "
+    "window is still on the user's desktop and taskbar.",
+    probe="already measured; doctor re-probes the mechanism every run")
+
+# ── backends that do not exist yet, named honestly ────────────────────────
+#
+# Registering a future backend is not the same as building one. Every entry
+# below is UNKNOWN and therefore not usable; what they buy is that a recipe
+# can say WHICH backend would have to grow before it could be filmed, instead
+# of the whole idea sitting in a chat log.
+
+def _unknown(name: str, how: str, probe: str, note: str = "") -> Capability:
+    return Capability(name, Evidence.UNKNOWN, how, (), note, probe=probe)
+
+
+BLENDER: dict[str, Capability] = {c.name: c for c in (
+    _unknown("CUSTOM_CHARACTER_POSE", "Blender can pose an armature; nothing "
+             "here imports a QL character rig yet",
+             "import one MD3 with its animation and pose it"),
+    _unknown("CUSTOM_POINTING", "a presenter pointing at a named place is an "
+             "authored pose, not a recorded one",
+             "pose an actor pointing at a map position from MapGeography"),
+    _unknown("OBJECT_ID", "per-object ids for masking",
+             "render a frame with an object-index pass"),
+    _unknown("CRYPTOMATTE", "coverage-accurate mattes",
+             "render a cryptomatte pass and pull one actor"),
+    _unknown("DEPTH", "a real depth pass, not a re-shaded approximation",
+             "render Z and check it against known geometry distances"),
+    _unknown("NORMAL", "a normal pass", "render normals on known geometry"),
+    _unknown("WORLD_TRANSFORM", "moving the world rather than the camera",
+             "transform a loaded BSP and keep the actors registered to it"),
+    _unknown("WALL_REMOVAL", "deleting geometry, which no shader remap can do",
+             "hide one brush group and keep the room lit"),
+    _unknown("CUSTOM_GEOMETRY", "objects the game does not have",
+             "place authored geometry in map coordinates"),
+    _unknown("IMPOSSIBLE_CAMERA", "a camera the engine could not hold",
+             "fly through a wall and keep the actors correct"),
+)}
+
+# What PANTHEON itself can do to finished frames. These are OURS, so the
+# evidence ladder is about our code, not a game binary.
+PANTHEON_COMPOSITOR: dict[str, Capability] = {c.name: c for c in (
+    _unknown("ANALYSIS_OVERLAY", "graphics drawn over a finished frame from "
+             "FrameTruth", "draw one annotated frame from a real moment"),
+    _unknown("PICTURE_IN_PICTURE", "a second angle inside the frame",
+             "composite two captures of the same serverTime window"),
+    _unknown("MAP_DIAGRAM", "a diagram of the round from MapGeography",
+             "draw one round's routes from the spatial index"),
+    _unknown("HELD_FRAME", "a whole-scene hold, which entityfreeze is not",
+             "hold a finished frame and ramp back into motion"),
 )}
 
 BACKENDS: dict[str, dict[str, Capability]] = {
     "WOLFCAM_REFERENCE": WOLFCAM_11_3,
-    # The offscreen backend drives the SAME binary, so it inherits every
-    # capability and differs only in how the process is hosted. Its own
-    # HIDDEN_OFFSCREEN_CONTEXT entry is replaced once the isolation probe
-    # passes on this machine.
-    "PANTHEON_QUAKE_OFFSCREEN": WOLFCAM_11_3,
+    "PANTHEON_QUAKE_OFFSCREEN": _OFFSCREEN,
+    "BLENDER": BLENDER,
+    "PANTHEON_COMPOSITOR": PANTHEON_COMPOSITOR,
 }
 
 

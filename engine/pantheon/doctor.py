@@ -28,6 +28,11 @@ reason; only a check that ran and gave the wrong answer is FAIL.
     GEOGRAPHY       regions, layers, routes, cells
     TEMPLATES       a template found by its measured facts
     TRACE_CACHE     what is kept, why, and whether it is inside its budget
+    RECIPES         the film grammar, and what each one is still missing
+    VISUAL_PROOF    what a person judged, and what is waiting on one
+    IDEAS           the director's list, and how much of it has a route
+    PROFILES        the versioned project defaults
+    PLANNER         which backend would take which pass
     RENDER_PERMIT   the one contract, and its answer here
     NO_RENDERER     nothing spawned a process during any of the above
 """
@@ -115,6 +120,11 @@ class Doctor:
             self.run("GEOGRAPHY", self._geography)
             self.run("TEMPLATES", self._templates)
             self.run("TRACE_CACHE", self._trace_cache)
+            self.run("RECIPES", self._recipes)
+            self.run("VISUAL_PROOF", self._visual_proof_registry)
+            self.run("IDEAS", self._ideas)
+            self.run("PROFILES", self._profiles)
+            self.run("PLANNER", self._planner)
             self.run("PROTOCOL", self._protocol)
             self.run("CAPABILITIES", self._capabilities)
             self.run("VISUAL_PROFILE", self._visual_profile)
@@ -349,6 +359,58 @@ class Doctor:
         return OK, (f"{rep['traces']} traces, {rep['bytes'] / 1e6:.1f} MB of "
                     f"{rep['budget_bytes'] / 1e6:.0f} MB ({share})"), rep
 
+    def _recipes(self):
+        from engine.pantheon import effect_recipes as ER
+        rep = ER.report()
+        concept = [d["id"] for d in rep["detail"] if d["status"] == "CONCEPT"]
+        if concept:
+            return FAIL, f"recipes asking for truth this engine has no name for: {concept}", rep
+        counts = ", ".join(f"{k.split('_')[0].lower()} {v}"
+                           for k, v in sorted(rep["by_status"].items()))
+        return OK, f"{rep['recipes']} recipes ({counts})", rep
+
+    def _visual_proof_registry(self):
+        from engine.pantheon import visual_proof as VP
+        rep = VP.report()
+        if not rep["capabilities"]:
+            return SKIP, "nothing banked yet; run --seed", rep
+        waiting = rep["awaiting_human"]
+        return OK, (f"{rep['capabilities']} capabilities judged; "
+                    f"{rep['by_status'].get('VISUALLY_PROVEN', 0)} proven, "
+                    f"{waiting} waiting on a person"), rep
+
+    def _ideas(self):
+        from engine.pantheon import director_notes as DN
+        from engine.pantheon import ideas as ID
+        rep = ID.report()
+        notes = DN.report()
+        if rep["ideas"] != 306:
+            return FAIL, f"the master list is {rep['ideas']} long, not 306", rep
+        return OK, (f"{rep['ideas']} ideas, {rep['carried_by_a_recipe']} carried "
+                    f"by a recipe, {rep['no_recipe_yet']} with no route yet; "
+                    f"{notes['notes']} original notes, "
+                    f"{notes['not_carried_by_any_recipe']} of their requirements "
+                    f"uncarried"), {**rep, "notes": notes}
+
+    def _profiles(self):
+        from engine.pantheon import defaults as D
+        rep = D.report()
+        ids = set(rep["profiles"].values())
+        if len(ids) != len(rep["profiles"]):
+            return FAIL, "two profiles hash to the same id", rep
+        return OK, (f"{len(rep['profiles'])} versioned profiles; review "
+                    f"{rep['default_review']}, film {rep['default_film']}"), rep
+
+    def _planner(self):
+        from engine.pantheon import backend_planner as BP
+        plan = BP.plan(recipes=("XRAY_ACTOR", "ENEMY_POV_REPLAY"))
+        beauty = plan.passes[0]
+        if beauty.backend is None:
+            return FAIL, "no backend can deliver a beauty pass", plan.as_dict()
+        return OK, (f"beauty -> {beauty.backend}, "
+                    f"{len(plan.passes)} passes, "
+                    f"{len(plan.unsupported)} unsupported"), plan.as_dict()
+
     def _protocol(self):
         from engine.parser import protocol as P
         if not P.CANONICAL_MSG_C.exists():
@@ -369,9 +431,18 @@ class Doctor:
         if not C.RUNTIME_CVARLIST.exists():
             return SKIP, "no 11.3 cvarlist capture", {}
         registered = {c.lower() for c in C.runtime_registered_cvars()}
+        # A capability whose evidence is a MEASURED behaviour change is not
+        # audited against the cvarlist: the list proves registration, the
+        # measurement proves effect, and the probe never asked about every
+        # family. It must still say what was measured, which is checked below.
         bad = [(cap.name, cvar) for cap in C.WOLFCAM_11_3.values()
-               if cap.evidence is C.Evidence.EXECUTION_PROVEN
+               if cap.evidence is C.Evidence.EXECUTION_PROVEN and not cap.measured
                for cvar in cap.cvars if cvar.lower() not in registered]
+        unsupported = [cap.name for cap in C.WOLFCAM_11_3.values()
+                       if cap.measured and len(cap.measured) < 40]
+        if unsupported:
+            return FAIL, (f"claims a measurement without describing it: "
+                          f"{unsupported}"), {}
         if bad:
             return FAIL, f"claims EXECUTION_PROVEN for cvars the runtime does not list: {bad[:3]}", {}
         rep = C.report()
