@@ -300,6 +300,59 @@ PANTHEON intro: FRAGMOVIE VIDEOS/IntroPart2.mp4
 
 *Archive footer:* full text of all superseded P1-* versions (P1-G v3, P1-H v3, P1-L v2/v3, P1-Y v1, P1-Z v1, P1-AA v1, P1-CC v1, P1-G legacy, P1-L Part-4-2026-04-17, P1-H "NO TRANSITIONS") lives in `docs/_archive/claude-md-superseded-2026-04-19.md`. Grep by rule ID to retrieve.
 
+## HARD RULES — PANTHEON HEADLESS (HL) [2026-09-05]
+
+PANTHEON is the engine. WolfcamQL is a replaceable Quake rasterizer and an external compatibility oracle. It does not run the pipeline.
+
+```
+RAW .dm_73 → DM73 parser → canonical game state → PerformanceTrace → FrameTruth
+  → Scene / TimeMap / RoundScenario → ChoreographyPlan → ShotSpec → RenderJob
+                                                                      │
+                                              Wolfcam · Blender · future renderer
+                                              (backends — bottom row ONLY)
+```
+Everything above the bottom row runs without launching a game.
+
+### Rule HL-1: Wolfcam never touches game truth
+- **WHAT** Wolfcam may NOT participate in PerformanceTrace extraction, action compilation, semantic validation, movement retargeting, aim reproduction, projectile reproduction, or FrameTruth generation. Those are `engine/pantheon/{performance,frame_truth,scenario,compiler,navigation,motion_reference,instruction,roster,presenter}.py` and none of them may import `wolfcam_capture`, `subprocess`, `shot`, `cvar_probe` or `ab_scene`.
+- **WHERE** Enforced statically by `creative_suite/tests/test_pantheon_headless_boundary.py` (AST import scan). A new module under `engine/pantheon/` must be classified HEADLESS or BACKEND_ALLOWED there, or the suite fails.
+- **WHY** Latched cvars applying a launch late, cvars that never registered, archived q3config leaking between experiments, SDL falling back to 856x480, `+demo` dropped past 32 `+` groups — all backend contamination. A boundary on the import graph makes it impossible for any of that to reach performance, scene, timing or camera truth.
+
+### Rule HL-2: Wolfcam has exactly four jobs, each through the backend interface
+- **WHAT** `REFERENCE_RENDER` · `EXTERNAL_DM73_VALIDATION` · `RUNTIME_CAPABILITY_PROOF` · `FINAL_QUAKE_BEAUTY`. Every launch goes through `engine.pantheon.backends.render(backend, shot=, out_dir=, use=)` with a declared `BackendUse`. No default use, no other reason to launch.
+- **WHERE** `engine/pantheon/backends.py` (`BackendUse`, `RenderBackend` protocol, `WolfcamReference`). `shot.py::render` is the Wolfcam implementation, not a public entry point.
+- **WHY** A launch that cannot name its purpose is the pattern that put Wolfcam in charge. Blender (object IDs, Cryptomatte, depth, normals, arbitrary cameras) and an offscreen Quake renderer register here later; Wolfcam stays as the oracle they are compared against.
+
+### Rule HL-3: Headless checks pass before anything renders
+- **WHAT** The development cycle for any action reproduction is `extract_performance → retarget → compile → compare` in seconds, headless. Only when `report.semantic_fidelity == PASS` does `render(backend="WOLFCAM_REFERENCE", use=REFERENCE_RENDER)` run. A failed headless check renders nothing.
+- **WHERE** Spec: `docs/superpowers/specs/2026-09-05-pantheon-headless-first-design.md`. The jump-pad→rocket check sheet (position/velocity at pad and apex, yaw/pitch trace error, fire delta, rocket spawn/trajectory error, impact time/location error) is the template.
+- **WHY** `change → launch Wolfcam → capture → wait → look → discover mistake → relaunch` was right for the colour path and latched cvars. It is the wrong loop for movement/action logic, which is arithmetic on the demo's own serverTime.
+
+### Rule HL-4: Do not reimplement the Quake renderer to remove Wolfcam
+- **WHAT** BSP, MD3, QL shaders, lightmaps, animation interpolation, effects, particles, marks, PVS, native cgame rendering come from Wolfcam for free. Headless *engine* now; headless *renderer* is a separate project (Route 1 offscreen GL adapter, Route 2 Blender) and blocks nothing.
+- **WHY** Replacing the rasterizer buys no truth. The boundary is what fixes the iteration loop, not the renderer.
+
+### Rule HL-5: Character is not performance
+- **WHAT** A `PerformanceTrace` says how a body moved, aimed and fought; it carries a demo hash and a client slot, never a name. A `roster.PresenterProfile` (model, skin, voice, gesture vocabulary) says WHO performs it. `headless.compile_performance(trace, cast=...)` joins them at compile time and nowhere earlier. Anarki can perform a trace recorded from anyone.
+- **WHERE** `engine/pantheon/headless.py::CastMember` · `engine/pantheon/roster.py::PresenterProfile` · `performance_library.py` references are `PERF:<category>:<hash>:<client>:<t_ms>`.
+- **WHY** Reusable performances are the library; identities are not, and the public repo never carries one.
+
+### Rule HL-6: Observation gaps stay gaps
+- **WHAT** Where the source demo carried no sample of a player (the recorder lost sight, the entity left the snapshot), the trace has no sample, the synthetic holds the last known state, and `compare()` reports the span as `UNOBSERVED`. Nothing interpolates across a multi-second absence and calls it source truth. An event the transform contradicts (a jump pad without a launch, a teleport without a discontinuity) is `rejected` with a reason, never a node.
+- **WHERE** `engine/pantheon/compare.py` (`GAP_MS`, `unobserved_spans_ms`) · `engine/pantheon/action_graph.py` (`rejected`, transform validation) · `performance_index.py::_launched`.
+- **WHY** The false jump-pad attribution on the POV client (flat on the ground at z=600 through the whole "jump") showed an event alone can lie; only the transform can confirm it.
+
+### Rule HL-7: Events and sound are game state, emitted by the compiler
+- **WHAT** Every recorded `EV_*` is replayed with its own code and carrier: player-carried events (fire, jump pad, pain, death, weapon change) on the actor's entity with alternating toggle bits; temp-entity events (impacts, rail trails, obituaries, teleports) as their own `ET_EVENTS` entity with position, parm, weapon and `otherEntityNum` mapped to the synthetic cast. Attribution of a temp event to a player is by what the event IS (his missile in that slot on the previous tick; the entity naming him; him as the killer; for teleports, the out/in pair AND his own discontinuity), never by a reused entity slot. The synthetic `.dm_73` therefore parses back to the same event tracks as the source (`event:* = MATCHED`). `FrameTruth.SemanticEvent.sound` names the sound intent (`weapon.fire.ROCKET`, `world.jump_pad`, `impact.ROCKET`, `player.pain`, ...); a backend decides the sample and the mix. Never patch an explosion or a sound into a renderer to cover a missing event.
+- **WHERE** `performance.py::extract_performance` (temp-event attribution) · `scenario.py::_RecordedEvent` / `Actor.perform` · `compiler.py` (`rec_player_ev`, `rec_temp_ev`) · `frame_truth.py::SOUND_INTENT`.
+- **WHY** REAL_ACTION_TRACE_PROOF_01 sat at `events = INTENTIONAL_DIFFERENCE` until the compiler emitted them; now every event track on the real jump-pad rocket is MATCHED, headless, in 168 ms.
+
+### Rule HL-8: One RenderPermit, and a running game always wins (user requirement, 2026-09-05)
+- **WHAT** `engine/pantheon/render_permit.py` is the ONE authority. The ONE setting is `PANTHEON_RENDER=off|auto|on` (default `auto`): `off` never renders; `auto` and `on` render only when no protected game is running; a running game ALWAYS defers, whatever the setting says. There is no force variable, persistent or inherited. Every game-process launch (capture_demo, director_preview, director_session, _preview_job, engine supervisor, shot.render, cvar_probe, playback_probe) imports that module and asks `check()`/`require()` immediately before spawning. A refused queue job stays `QUEUED` with `RENDER DEFERRED`, never FAILED; a READY proxy keeps playing. The process scan is psutil or a toolhelp snapshot, never `tasklist`. `SW_SHOWMINNOACTIVE` on the capture window is defence in depth, not the mechanism.
+- **DISK** Three thresholds in `engine/pantheon/disk_policy.py`, never one: `REVIEW_DB_WRITE_SAFE` (a verdict is tiny), `RENDER_JOB_SAFE` (expected output + margin; the permit DEFERS below it), `LARGE_BUILD_SAFE` (an index build refuses to start). Derived data lives under `PANTHEON_PERFORMANCE_STORE`; no drive letter in engine code.
+- **WHERE** `engine/pantheon/render_permit.py` · `engine/pantheon/disk_policy.py` · `creative_suite/engine/capture_guard.py` (process list, window flags) · `creative_suite/tests/test_render_permit.py` (every launch site must ask; a second module or a retired switch name fails the suite) · `creative_suite/tests/conftest.py` (no test can create a game process) · `docs/reference/pantheon_ownership.md`.
+- **WHY** A review origin coming up reclaimed queued proxy jobs and launched Wolfcam over the game the user was playing; two sessions then wrote two permits with two switch sets (`PANTHEON_RENDER_ALLOWED/FORCE` vs `PANTHEON_RENDER`). One contract, one module, and no configuration that means "film over my match".
+
 ## HARD RULES — Demo Parser & Highlight Criteria
 
 ### Rule P3-A: Own Highlight Criteria Before Demo Extraction

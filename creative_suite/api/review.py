@@ -79,7 +79,7 @@ def get_queue(order: str = rc.ORDER_WORST_FIRST, offset: int = 0,
               actor: str | None = None, opponent: str | None = None,
               pov: str | None = None, merge: str | None = None,
               min_round_kills: int | None = None,
-              funny: str | None = None):
+              funny: str | None = None, view: str = "frags"):
     # Named parameters, not a query string the browser composes. The filter
     # whitelist lives in review_corpus and refuses anything it does not know.
     filters = {k: v for k, v in
@@ -89,9 +89,18 @@ def get_queue(order: str = rc.ORDER_WORST_FIRST, offset: int = 0,
                 "min_round_kills": min_round_kills,
                 "funny": funny}.items() if v}
     try:
-        items = rc.queue(order=order, limit=limit, offset=offset,
-                         item_type=item_type, unreviewed_only=unreviewed_only,
-                         corpus=corpus, filters=filters)
+        if view not in ("frags", "rounds"):
+            raise ValueError("view must be frags or rounds")
+        grouped_total = None
+        if view == "rounds":
+            corpus = corpus or rc.USER_AND_PTN
+            items, grouped_total = rc.round_queue(
+                order=order, limit=limit, offset=offset, corpus=corpus,
+                unreviewed_only=unreviewed_only, filters=filters)
+        else:
+            items = rc.queue(order=order, limit=limit, offset=offset,
+                             item_type=item_type, unreviewed_only=unreviewed_only,
+                             corpus=corpus, filters=filters)
     except ValueError as e:
         raise HTTPException(400, str(e))
     if corpus:
@@ -99,13 +108,14 @@ def get_queue(order: str = rc.ORDER_WORST_FIRST, offset: int = 0,
     with _lock:
         _state["order"] = order
         _state["cursor"] = offset
-    _prefetch(items[:PREFETCH],
-              key=f"{corpus}|{item_type}|{order}|{sorted(filters.items())}")
+    if view == "frags":
+        _prefetch(items[:PREFETCH],
+                  key=f"{corpus}|{item_type}|{order}|{sorted(filters.items())}")
     return {"order": order, "offset": offset, "item_type": item_type,
             "corpus": corpus,
-            "filters": filters,
-            "total": rc.count_items(item_type, corpus=corpus,
-                                    filters=filters),
+            "filters": filters, "view": view,
+            "total": grouped_total if grouped_total is not None else rc.count_items(
+                item_type, corpus=corpus, filters=filters),
             "items": [i.to_dict() for i in items]}
 
 
@@ -164,6 +174,22 @@ def post_verdict(v: Verdict):
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {**out, "progress": rc.progress(it.item_type)}
+
+
+@router.post("/verdict/round")
+def post_round_verdict(v: Verdict):
+    try:
+        return rc.record_round(v.item_id, v.role, v.note, provenance=rc.HUMAN_USER)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/note/round")
+def post_round_note(n: Note):
+    try:
+        return rc.annotate_round(n.item_id, n.note)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @router.post("/note")

@@ -476,7 +476,19 @@ _PUBLIC_EXPORT = {
     "cg_drawScores": 0,
 }
 
+FAST_REVIEW_LAUNCH_SETS = {
+    **REVIEW_LAUNCH_SETS,
+    "r_customwidth": 1280,
+    "r_customheight": 720,
+    "r_fboAntiAlias": 2,
+}
+
 PROFILES = {
+    "TR4SH_FAST_REVIEW_V1": {
+        **_QUALITY, **_GAMEPLAY_MASTER_V2, **_REVIEW_V2,
+        "cl_aviFrameRate": 30,
+        "r_jpegCompressionQuality": 80,
+    },
     "TR4SH_PUBLIC_EXPORT": {**_QUALITY, **_PUBLIC_EXPORT},
     "TR4SH_REVIEW_V2": {**_QUALITY, **_GAMEPLAY_MASTER_V2, **_REVIEW_V2},
     "TR4SH_SPEED_REVIEW": {**_QUALITY, **_SPEED_REVIEW},
@@ -490,6 +502,7 @@ PROFILES = {
 }
 
 _CFG_FILES = {
+    "TR4SH_FAST_REVIEW_V1": "wolfcam_tr4sh_fast_review_v1.cfg",
     "TR4SH_PUBLIC_EXPORT": "wolfcam_tr4sh_public_export.cfg",
     "TR4SH_REVIEW_V2": "wolfcam_tr4sh_review_v2.cfg",
     "TR4SH_SPEED_REVIEW": "wolfcam_tr4sh_speed_review.cfg",
@@ -512,6 +525,9 @@ SPEED_PROFILE_NAME = "TR4SH_SPEED_REVIEW"
 # clips can never be served as current review clips. Regeneration is on
 # demand; nothing is mass recaptured.
 REVIEW_PROFILE_NAME = "TR4SH_REVIEW_V2"
+# Lightweight on-demand proxies retain the review look; master captures and
+# existing director capture intents keep their frozen quality settings.
+FAST_REVIEW_PROFILE_NAME = "TR4SH_FAST_REVIEW_V1"
 # The profile every clip that leaves this repository is captured with. It is
 # separate from the batch profile on purpose: the batch profile films the
 # user's own movie, where "You fragged <name>" is a deliberate beat, and this
@@ -580,6 +596,8 @@ def launch_sets_for(profile: str = PROFILE_NAME) -> dict:
     different captures would share a cache key and the old washed-out clips
     would keep being served.
     """
+    if profile == FAST_REVIEW_PROFILE_NAME:
+        return FAST_REVIEW_LAUNCH_SETS
     return REVIEW_LAUNCH_SETS if profile == REVIEW_PROFILE_NAME else LAUNCH_SETS
 
 

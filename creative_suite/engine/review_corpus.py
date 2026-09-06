@@ -28,7 +28,7 @@ the event is. What it cannot know is what the event is FOR.
 from __future__ import annotations
 
 import sqlite3
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, replace
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
@@ -216,6 +216,7 @@ RECORDER_OWN_ARCHIVE = "RECORDER_OWN_ARCHIVE"
 PTN_FRAGS = "PTN_FRAGS"
 USER_AND_PTN = "USER_AND_PTN"
 ALL_PLAYERS = "ALL_PLAYERS"
+OTHER_PLAYERS = "OTHER_PLAYERS"
 # Telefrags are excluded from every normal queue because they demonstrate no
 # aim -- the map decided them. They are NOT deleted, because teleporters are
 # part of what Quake looks like and the documentary wants real teleportation.
@@ -230,7 +231,7 @@ TELEFRAG_DOC = "TELEFRAG_DOC"
 NO_KILL_ACTIONS = "NO_KILL_ACTIONS"
 
 CORPORA = (USER_FRAGS, RECORDER_OWN_ARCHIVE, PTN_FRAGS, USER_AND_PTN,
-           ALL_PLAYERS, TELEFRAG_DOC, NO_KILL_ACTIONS)
+           ALL_PLAYERS, OTHER_PLAYERS, TELEFRAG_DOC, NO_KILL_ACTIONS)
 
 # The old names, kept so nothing that referenced them breaks silently. They
 # are deliberately not in CORPORA: "MY_FRAGS" was the misnomer.
@@ -312,6 +313,7 @@ CORPUS_ITEM_TYPE = {
     PTN_FRAGS: CLAN_FRAG,
     USER_AND_PTN: ALL_KILL,    # narrowed to user + roster in the SQL
     ALL_PLAYERS: ALL_KILL,
+    OTHER_PLAYERS: ALL_KILL,
     TELEFRAG_DOC: ALL_KILL,      # same family, opposite junk rule
     NO_KILL_ACTIONS: ACTION,
 }
@@ -324,6 +326,7 @@ CORPUS_LABEL = {
     PTN_FRAGS: "pTn CONFIRMED-MEMBER FRAGS",
     USER_AND_PTN: "USER + pTn (unique occurrences)",
     ALL_PLAYERS: "ALL CANONICAL PLAYER KILLS",
+    OTHER_PLAYERS: "OTHER PLAYERS",
     TELEFRAG_DOC: "TELEFRAGS (documentary only)",
     NO_KILL_ACTIONS: "ACTION WITH NO KILL",
 }
@@ -422,7 +425,7 @@ def corpus_status(corpus: str) -> dict[str, Any]:
                          "because the map decided them and they demonstrate "
                          "no aim. Kept reachable because teleporters are "
                          "part of what Quake looks like")}
-    if corpus in (PTN_FRAGS, USER_AND_PTN, ALL_PLAYERS):
+    if corpus in (PTN_FRAGS, USER_AND_PTN, ALL_PLAYERS, OTHER_PLAYERS):
         it = CORPUS_ITEM_TYPE[corpus]
         total = count_items(it, corpus=corpus)
         out = {
@@ -750,6 +753,9 @@ def _kill_where(item_type: str, corpus: str | None = None
         both, bp = _in(roster_norms() | user_norms())
         return (f"o.killer_class = 'PLAYER' AND o.killer_name_norm IN {both}",
                 bp)
+    if item_type == ALL_KILL and corpus == OTHER_PLAYERS:
+        both, bp = _in(roster_norms() | user_norms())
+        return (f"o.killer_class = 'PLAYER' AND o.killer_name_norm NOT IN {both}", bp)
     if item_type == ALL_KILL:
         return "o.killer_class = 'PLAYER'", []
     raise ValueError(f"not an occurrence-backed family: {item_type!r}")
@@ -933,6 +939,9 @@ class ReviewItem:
     window_end_ms: int | None = None
     human_role: str | None = None
     note: str = ""
+    review_unit: str = "frag"
+    round_frag_count: int = 1
+    round_score: float | None = None
 
     @property
     def start_ms(self) -> int:
@@ -1058,7 +1067,7 @@ def record(item_id: str, item_type: str, source_id: int, role: str,
     return {"item_id": item_id, "human_role": role, "note": keep}
 
 
-def annotate(item_id: str, note: str) -> dict[str, Any]:
+def annotate(item_id: str, note: str, *, source_id: int | None = None) -> dict[str, Any]:
     """A note without a verdict. Saving a thought must never force a
     decision."""
     with conn() as c:
@@ -1074,7 +1083,7 @@ def annotate(item_id: str, note: str) -> dict[str, Any]:
                 "INSERT INTO human_reviews(item_id,item_type,source_id,"
                 "human_role,note,reviewed_at,review_version) "
                 "VALUES(?,?,?,'',?,datetime('now'),?)",
-                (item_id, kind, int(sid or 0), note, REVIEW_VERSION))
+                (item_id, kind, source_id if source_id is not None else int(sid or 0), note, REVIEW_VERSION))
         c.execute("INSERT INTO human_review_log(item_id,human_role,note,at) "
                   "VALUES(?,NULL,?,datetime('now'))", (item_id, note))
     return {"item_id": item_id, "note": note}
@@ -1329,6 +1338,90 @@ def queue(order: str = ORDER_WORST_FIRST, limit: int = 50, offset: int = 0,
             human_role=(rv.get("human_role") or None) or None,
             note=rv.get("note") or ""))
     return out
+
+
+
+def _round_review_key(content_hash: str, round_no: int) -> str:
+    # Internal storage key only: private provenance is never returned to the UI.
+    return f"ROUND:{content_hash}:{round_no}"
+
+
+def record_round(item_id: str, role: str, note: str | None = None,
+                 provenance: str = HUMAN_USER) -> dict[str, Any]:
+    it = item(item_id)
+    if it is None or it.item_type not in KILL_BACKED or not it.round_no or it.round_no <= 0:
+        raise ValueError("this item has no reviewable round")
+    out = record(_round_review_key(it.content_hash, it.round_no), "ROUND",
+                 it.round_no, role, note, provenance=provenance)
+    return {**out, "item_id": item_id, "review_unit": "round"}
+
+
+def annotate_round(item_id: str, note: str) -> dict[str, Any]:
+    it = item(item_id)
+    if it is None or it.item_type not in KILL_BACKED or not it.round_no or it.round_no <= 0:
+        raise ValueError("this item has no reviewable round")
+    out = annotate(_round_review_key(it.content_hash, it.round_no), note,
+                   source_id=it.round_no)
+    return {**out, "item_id": item_id, "review_unit": "round"}
+
+
+def round_queue(order: str = ORDER_BEST_FIRST, limit: int = 50, offset: int = 0,
+                corpus: str = USER_AND_PTN, unreviewed_only: bool = False,
+                filters: dict[str, Any] | None = None
+                ) -> tuple[list[ReviewItem], int]:
+    """One eligible round per page position, ranked by its best known score.
+
+    The representative is stable when sort direction changes. Unknown scores
+    stay last. Round zero is not a round and keeps individual occurrences.
+    Round verdicts never overwrite the component frags' creative decisions.
+    """
+    if order not in ORDERS:
+        raise ValueError(f"unknown order {order!r}")
+    item_type = CORPUS_ITEM_TYPE.get(corpus)
+    if item_type not in KILL_BACKED:
+        raise ValueError("round view requires a player-frag corpus")
+    if not _kill_table_exists():
+        return [], 0
+    where, params = _kill_where(item_type, corpus)
+    fw, fp = _filter_sql(filters)
+    jw, jp = junk_sql(corpus)
+    params += fp + jp
+    select = _DEATH_SELECT if item_type == DEATH else _KILL_SELECT
+    key = ("CASE WHEN round > 0 THEN 'ROUND:' || content_hash || ':' || round "
+           "ELSE 'OCC:' || id END")
+    cte = (f"WITH base AS ({select} WHERE {where}{fw}{jw}), "
+           f"keyed AS (SELECT *, {key} AS review_key FROM base), "
+           "ranked AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY review_key "
+           "ORDER BY (highlight_score IS NULL), highlight_score DESC, id) AS pick, "
+           "COUNT(*) OVER (PARTITION BY review_key) AS round_frag_count FROM keyed), "
+           "chosen AS (SELECT ranked.*, rv.human_role AS round_role, rv.note AS round_note "
+           "FROM ranked LEFT JOIN round_review_state rv USING (review_key) WHERE pick=1)")
+    eligible = " WHERE COALESCE(round_role, '') = ''" if unreviewed_only else ""
+    direction = "ASC" if order == ORDER_WORST_FIRST else "DESC"
+    with conn() as editorial:
+        saved = editorial.execute(
+            "SELECT item_id, item_type, source_id, human_role, note FROM human_reviews "
+            "WHERE item_type='ROUND' OR item_type IN (" +
+            ",".join("?" for _ in KILL_BACKED) + ")", tuple(KILL_BACKED)).fetchall()
+    with _rec() as c:
+        # A TEMP table keeps the recognition database read-only and avoids
+        # attaching a writable editorial store or huge SQL parameter lists.
+        c.execute("CREATE TEMP TABLE round_review_state (review_key TEXT PRIMARY KEY, human_role TEXT, note TEXT)")
+        c.executemany("INSERT OR IGNORE INTO round_review_state VALUES (?,?,?)", [
+            (r["item_id"] if r["item_type"] == "ROUND" else f"OCC:{r['source_id']}",
+             r["human_role"], r["note"]) for r in saved])
+        total = int(c.execute(cte + " SELECT COUNT(*) FROM chosen" + eligible, params).fetchone()[0])
+        rows = c.execute(cte + " SELECT * FROM chosen" + eligible +
+                         " ORDER BY (highlight_score IS NULL), highlight_score " + direction +
+                         ", id LIMIT ? OFFSET ?", (*params, limit, offset)).fetchall()
+    result = []
+    for i, row in enumerate(rows):
+        rv = {"human_role": row["round_role"], "note": row["round_note"]}
+        result.append(replace(_kill_item(row, item_type, offset + i + 1, total, rv),
+                              review_unit="round" if row["round"] and row["round"] > 0 else "frag",
+                              round_frag_count=int(row["round_frag_count"]),
+                              round_score=row["highlight_score"]))
+    return result, total
 
 
 def canonical_count(item_type: str = USER_FRAG, corpus: str | None = None

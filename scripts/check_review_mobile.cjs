@@ -37,7 +37,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_MODULE || 'playwright');
   await page.goto('http://review.test/'); await page.waitForFunction(()=>typeof cur!=='undefined' && cur?.source_id===1);
   await page.waitForTimeout(300);
   assert(!await page.locator('#v').getAttribute('src').then(x=>x?.includes('/media/scene/')), 'pending scene must not replace ready proxy');
-  await page.locator('#d-note summary').click();
+  if (!await page.locator('#d-note').getAttribute('open').then(x=>x!==null)) await page.locator('#d-note summary').click();
   await page.locator('#note').fill('synthetic annotation');
   await page.evaluate(()=>{verdict('T4_KEEP_NORMAL');verdict('T4_KEEP_NORMAL');}); await page.waitForTimeout(500);
   assert.equal(votes.length,1,'double tap saves once');
