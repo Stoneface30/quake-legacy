@@ -318,9 +318,21 @@ def build(map_name: str, *, max_traces: int = 20000, max_demos: int | None = Non
     if S.index_db().exists():
         con = PI._ro()
         prefixes = {h[:16] for h in hashes}
+        # PER KIND, ALWAYS. `select ... where map=? limit N` reads through
+        # ix_actions_map(map, kind), so an unordered cap returns rows in KIND
+        # order and silently drops every kind past the cut -- on campgrounds
+        # the first 200,000 rows were FIRE_* only, and no jump pad or kill
+        # reached the index. A cap may thin a kind; it may never delete one.
+        kinds = [r[0] for r in con.execute(
+            "select distinct kind from actions where map=? order by kind", (map_name,))]
+        per_kind = max(1, max_traces // max(1, len(kinds)))
         q = ("select kind, demo_hash, path_cells, origin_x, origin_y, origin_z, "
-             "landing_x, landing_y, landing_z, victim from actions where map=? limit ?")
-        for kind, dh, cells, ox, oy, oz, lx, ly, lz, victim in con.execute(q, (map_name, max_traces)):
+             "landing_x, landing_y, landing_z, victim, client, t_ms "
+             "from actions where map=? and kind=? limit ?")
+        rows = [r for k in kinds for r in con.execute(q, (map_name, k, per_kind))]
+        kills: list[tuple] = []
+        for (kind, dh, cells, ox, oy, oz, lx, ly, lz,
+             victim, client, t_ms) in rows:
             if dh not in prefixes:
                 continue
             n_tr += 1
@@ -335,6 +347,20 @@ def build(map_name: str, *, max_traces: int = 20000, max_demos: int | None = Non
                 idx.add_landing((lx, ly, lz))
             if kind == "KILL" and ox is not None:
                 idx.layers["combat"][cell_of((ox, oy, oz))] += 1
+                if victim is not None:
+                    kills.append((dh, victim, t_ms, (ox, oy, oz)))
+        # ENCOUNTERS: killer cell -> victim cell, both from observed rows.
+        # The victim's position comes from HIS OWN nearest indexed action, not
+        # from the killer's trace and not from the obituary's event position
+        # (which is where the body was, not where he was standing when the
+        # shot left). A victim with no row near the kill contributes nothing.
+        for dh, victim, t_ms, killer_pos in kills:
+            row = con.execute(
+                "select origin_x, origin_y, origin_z from actions where demo_hash=? "
+                "and client=? and abs(t_ms-?) <= 2000 and origin_x is not null "
+                "order by abs(t_ms-?) limit 1", (dh, victim, t_ms, t_ms)).fetchone()
+            if row is not None:
+                idx.add_encounter(killer_pos, row)
         con.close()
     idx.sources["traces"] = n_tr
 

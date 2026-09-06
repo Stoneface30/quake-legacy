@@ -52,3 +52,19 @@ def test_local_frame_retarget_is_refused_off_the_walked_space():
 def test_cells_are_64_units():
     assert CELL == 64.0
     assert cell_of((63.9, -0.1, 128.0)) == (0, -1, 2)
+
+
+def test_the_row_cap_thins_a_kind_but_never_deletes_one():
+    """`where map=? limit N` reads through ix_actions_map(map, kind), so an
+    unordered cap returns rows in KIND order and drops every kind past the
+    cut. The build samples per kind instead."""
+    import ast
+    from pathlib import Path
+    import engine.pantheon.map_spatial_index as MSI
+    src = Path(MSI.__file__).read_text(encoding="utf-8")
+    i = src.index("def build(")
+    body = src[i:]
+    assert "and kind=? limit ?" in body, "the cap is not applied per kind"
+    assert "select distinct kind from actions where map=?" in body
+    # and no unqualified capped scan survives
+    assert "from actions where map=? limit ?" not in body
