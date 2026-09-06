@@ -35,11 +35,14 @@ RESOLUTION ORDER, most specific first:
 
     1. PANTHEON_RENDER=off|on|auto   the user's explicit decision
     2. a game is running             DEFERRED, always, whatever else says
-    3. otherwise                     GRANTED
+    3. not enough free disk          DEFERRED
+    4. otherwise                     GRANTED
 
 `on` still yields to a running game. There is no value that says "film over
 the top of my match", because there is no situation in which that is what
-someone wanted.
+someone wanted. It yields to a full disk too: on 2026-09-06 the headless
+performance index took G: to 1.4 MB free, and a capture started in that
+state cannot even record its own failure.
 """
 from __future__ import annotations
 
@@ -92,11 +95,13 @@ def legacy_override_present() -> bool:
     return os.getenv(LEGACY_ENV) == "1"
 
 
-def check(*, purpose: str = "render") -> Decision:
+def check(*, purpose: str = "render",
+          batch: bool = False) -> Decision:
     """May `purpose` open a renderer window right now?
 
     Callers pass their own name so the reason string reads as an answer to
-    the question that was actually asked.
+    the question that was actually asked. `batch=True` asks for the headroom
+    a whole run needs rather than one clip's worth.
     """
     if mode() == MODE_OFF:
         return Decision(Permit.DENIED,
@@ -109,6 +114,18 @@ def check(*, purpose: str = "render") -> Decision:
     if capture_guard.game_is_running():
         return Decision(Permit.DEFERRED,
                         f"{purpose} deferred: a game is running")
+
+    # NO ROOM IS NOT PERMISSION EITHER. A capture that cannot finish leaves
+    # broken media and a system with no space to record that it broke. This
+    # is DEFERRED, not DENIED: the user has not decided anything, the disk
+    # has, and it becomes runnable again the moment space is freed.
+    from creative_suite.engine import operator_health as oh
+    free = oh.free_gb()
+    floor = oh.BATCH_FLOOR_GB if batch else oh.SINGLE_FLOOR_GB
+    if 0 <= free < floor:
+        return Decision(Permit.DEFERRED,
+                        f"{purpose} deferred: {free:.1f} GB free, "
+                        f"{floor:.0f} GB needed")
 
     return Decision(Permit.GRANTED, f"{purpose} granted: nothing to disturb")
 

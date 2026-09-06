@@ -132,8 +132,8 @@ def get_location(item_id: str):
         return {"item_id": item_id, "available": False,
                 "reason": "not a kill"}
     try:
-        from engine.pantheon import map_context as mc
-        ctx = mc.context_for_kill(int(it.source_id))
+        from engine.pantheon import map_authority as ma
+        ctx = ma.location_of(int(it.source_id))
     except Exception as e:                                     # noqa: BLE001
         return {"item_id": item_id, "available": False,
                 "reason": f"{type(e).__name__}"}
@@ -146,18 +146,11 @@ def get_location(item_id: str):
 @router.get("/map_regions/{map_name}")
 def get_map_regions(map_name: str):
     """The learned regions of one map, for inspection."""
-    from engine.pantheon import map_geography as mg
-    idx = mg.load_index(map_name)
-    if idx is None:
+    from engine.pantheon import map_authority as ma
+    out = ma.regions_of(map_name)
+    if out is None:
         raise HTTPException(404, f"no geography for {map_name}")
-    from engine.pantheon import map_context as mc
-    return {"map": map_name,
-            "layers": [{"layer": la.layer, "z_lo": la.z_lo, "z_hi": la.z_hi,
-                        "samples": la.samples,
-                        "word": mc.layer_word(idx, la.layer)}
-                       for la in idx.layers],
-            "regions": [r.to_dict() for r in sorted(
-                idx.regions.values(), key=lambda r: r.region_id)]}
+    return out
 
 
 @router.post("/verdict")
@@ -504,6 +497,13 @@ def _deferred(st: dict[str, Any]) -> bool:
     if st.get("state") not in ("QUEUED", "PENDING", "MISSING"):
         return False
     return not _permit_view()["permit"] == "GRANTED"
+
+
+@router.get("/operator_health")
+def operator_health():
+    """Origin, worker, queue, disk and permit, in one read. Changes nothing."""
+    from creative_suite.engine import operator_health as oh
+    return oh.check().to_dict()
 
 
 @router.get("/render_permit")

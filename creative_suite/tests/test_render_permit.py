@@ -28,9 +28,16 @@ def _clean_env(monkeypatch):
     monkeypatch.delenv(rp.LEGACY_ENV, raising=False)
 
 
-def _quiet(monkeypatch, playing: bool):
-    from creative_suite.engine import capture_guard
+def _quiet(monkeypatch, playing: bool, free_gb: float = 400.0):
+    """Pin BOTH inputs the permit reads.
+
+    Leaving disk to the real drive made two tests fail the moment G: filled
+    up -- correctly, but they are about the game rule, not the disk rule,
+    and a test should fail for the reason it is named after.
+    """
+    from creative_suite.engine import capture_guard, operator_health
     monkeypatch.setattr(capture_guard, "game_is_running", lambda: playing)
+    monkeypatch.setattr(operator_health, "free_gb", lambda *a, **k: free_gb)
 
 
 # ── the three answers ───────────────────────────────────────────────────────
@@ -173,3 +180,55 @@ def test_serving_the_reviewer_starts_no_capture(monkeypatch):
 
     assert captured == [], "a capture ran while a game was on screen"
     assert any(a[1] == "QUEUED" for a, _k in seen), "job was not left queued"
+
+
+# ── a full disk is not permission either ────────────────────────────────────
+
+def test_no_room_defers_rather_than_denies(monkeypatch):
+    """On 2026-09-06 the headless performance index took G: to 1.4 MB free.
+    The user decided nothing; the disk did -- so this is DEFERRED, and it
+    becomes runnable the moment space is freed."""
+    _quiet(monkeypatch, False)
+    from creative_suite.engine import operator_health as oh
+    monkeypatch.setattr(oh, "free_gb", lambda *a, **k: 0.1)
+    d = rp.check(purpose="review proxy capture")
+    assert d.permit is rp.Permit.DEFERRED
+    assert "0.1 GB free" in d.reason
+
+
+def test_a_batch_needs_more_headroom_than_one_clip(monkeypatch):
+    """A batch that fills the drive halfway leaves broken media AND a system
+    with no space to record that it broke."""
+    _quiet(monkeypatch, False)
+    from creative_suite.engine import operator_health as oh
+    monkeypatch.setattr(oh, "free_gb", lambda *a, **k: 10.0)
+    assert rp.check().permit is rp.Permit.GRANTED
+    assert rp.check(batch=True).permit is rp.Permit.DEFERRED
+
+
+def test_plenty_of_room_is_granted(monkeypatch):
+    _quiet(monkeypatch, False)
+    from creative_suite.engine import operator_health as oh
+    monkeypatch.setattr(oh, "free_gb", lambda *a, **k: 400.0)
+    assert rp.check(batch=True).permit is rp.Permit.GRANTED
+
+
+def test_health_never_deletes_anything():
+    """Freeing space is the user's decision. This module reports and gates;
+    it does not tidy up."""
+    import inspect
+    from creative_suite.engine import operator_health as oh
+    src = inspect.getsource(oh)
+    for word in ("unlink(", "rmtree", "remove(", "DELETE", "os.remove"):
+        assert word not in src, f"operator_health can {word}"
+
+
+def test_health_reports_a_critical_disk(monkeypatch):
+    from creative_suite.engine import operator_health as oh
+    monkeypatch.setattr(oh.shutil, "disk_usage",
+                        lambda p: type("U", (), {"free": 1 << 20,
+                                                 "total": 1 << 40})())
+    h = oh.check()
+    assert h.status == oh.CRITICAL
+    assert any("fail to SAVE" in a for a in h.alerts)
+    assert h.disk["can_capture_one"] is False
