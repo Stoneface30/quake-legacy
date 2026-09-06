@@ -66,6 +66,8 @@ BACKEND_ALLOWED = {
     "proof0_color", "proof_b_identity", "proof_c_rails",
     "ca_explainer",     # end-to-end explainer, may render
     "color_format",     # a fact about the Wolfcam cvar format, decided on pixels
+    "doctor",           # the self-test: it REPLACES Popen to prove nothing spawns,
+                        # and reads the permit to report it -- launches nothing
 }
 
 FORBIDDEN_IMPORTS = {
