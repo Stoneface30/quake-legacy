@@ -77,3 +77,26 @@ def test_run_in_stop_turn_requires_physical_continuity():
                          "RUN_IN_STOP_TURN") == "ends airborne"
     # a jump-pad flight is not a grounded run
     assert PT.admissible(jumppad_rocket_trace(), 500_000, 500_000 + 25 * 59, "RUN_IN") is not None
+
+
+def test_a_template_is_a_reference_to_a_real_trace_never_an_average():
+    """The library indexes REAL segments. A synthesized median curve would
+    give every character the same robotic motion; a reference keeps one
+    person's timing."""
+    import ast
+    from pathlib import Path
+    # CODE only: the docstring is allowed to say why averaging is wrong.
+    tree = ast.parse(Path(PT.__file__).read_text(encoding="utf-8"))
+    called = {getattr(n.func, "attr", None) or getattr(n.func, "id", "")
+              for n in ast.walk(tree) if isinstance(n, ast.Call)}
+    for word in ("mean", "median", "average", "fmean", "interp", "smooth", "resample"):
+        assert word not in called, f"the template library calls {word}()"
+    t = PT.derive(jumppad_rocket_trace())[0]
+    row = set(t.as_dict())
+    # a template row names a window; it carries no sample series of its own
+    assert {"demo_hash", "client", "start_ms", "end_ms"} <= row
+    assert not (row & {"transform", "aim", "animation", "samples", "path"})
+    # and loading one returns the recorded samples, unmodified
+    seg = PT._segment(jumppad_rocket_trace(), t.start_ms, t.end_ms)
+    original = {s.t: s.origin for s in jumppad_rocket_trace().transform}
+    assert seg.transform and all(s.origin == original[s.t] for s in seg.transform)
