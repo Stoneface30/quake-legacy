@@ -82,6 +82,13 @@ def get_queue(order: str = rc.ORDER_WORST_FIRST, offset: int = 0,
               funny: str | None = None, view: str = "frags"):
     # Named parameters, not a query string the browser composes. The filter
     # whitelist lives in review_corpus and refuses anything it does not know.
+    # AN EMPTY item_type EMPTIED THE WHOLE REVIEWER. The count path falls
+    # back to the corpus default, the row path did not, so a restored
+    # session that carried `item_type=` reported 33,102 candidates and
+    # returned none of them -- a reviewer that looks broken while insisting
+    # there is plenty to do. Empty means "whatever this corpus is".
+    if not item_type:
+        item_type = rc.CORPUS_ITEM_TYPE.get(corpus or "", rc.FRAG)
     filters = {k: v for k, v in
                {"weapon": weapon, "map": map, "trait": trait,
                 "death_cause": death_cause, "actor": actor,

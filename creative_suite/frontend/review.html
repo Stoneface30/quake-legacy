@@ -322,7 +322,7 @@
   <div class="brand">PANTHEON <span>REVIEW</span></div>
   <select id="corpus"></select>
   <button class="hbtn" id="order" title="Change score order"></button>
-  <select id="reviewview" aria-label="Review unit"><option value="rounds">Whole rounds</option><option value="frags">Individual moments</option></select>
+  <select id="reviewview" aria-label="Review unit"><option value="frags">Moments (round context)</option><option value="rounds">Whole rounds</option></select>
   <button class="hbtn" id="togglefilters">FILTERS</button>
   <div class="counts" id="counts"></div>
 </header>
@@ -378,7 +378,7 @@
         <span class="h">never show me this again</span></button>
     </div>
     <div id="rail"></div>
-    <div class="transport"><button id="prev" class="hbtn">Previous</button><button id="replay" class="hbtn">Replay</button><button id="next" class="hbtn">Next</button><span id="review-summary" aria-live="polite"></span></div>
+    <div class="transport"><button id="prev" class="hbtn">Previous</button><button id="replay" class="hbtn">Replay</button><button id="next" class="hbtn">Next</button><span id="review-summary" aria-live="polite"></span><span id="roundctx" class="conf"></span></div>
     <details id="effect-tags"><summary>Effect tags</summary><div id="tagrail"></div></details>
   </div>
 
@@ -427,7 +427,7 @@
 const API = "/api/review";
 let items = [], idx = 0, offset = 0, order = "BEST_FIRST", cur = null;
 let itemType = "ALL_KILL", corpus = "USER_AND_PTN", filters = {};
-let reviewView = "rounds";
+let reviewView = "frags";   // TARGET is a frag; see roundIsWorthWatching
 let savingVerdict = false, mediaGeneration = 0;
 const MEDIA_TIMEOUT_MS = 180000;
 const $ = id => document.getElementById(id);
@@ -766,6 +766,26 @@ async function renderRound(it){
   if (it.review_unit === "round") b.click();
 }
 
+// ── option A: when is the round worth watching? ─────────────────────────────
+//
+// TWO OR MORE OF YOUR OWN FRAGS. That is the whole rule. One frag in a round
+// is 79.5% of rounds and playing the round around it is mostly dead air;
+// two or more is a passage of play you can direct as one scene -- "build
+// through the four frags, freeze after F2, stutter into F4" -- which is the
+// thing that cannot be said through a six second keyhole.
+//
+// It changes PLAYBACK only. The verdict still posts against the frag.
+const ROUND_CONTEXT_MIN_FRAGS = 2;
+
+function userFragsInScene(scene){
+  if (!scene || !scene.events) return 0;
+  return scene.events.filter(e => e.takes_verdict && e.is_user).length;
+}
+
+function roundIsWorthWatching(scene){
+  return userFragsInScene(scene) >= ROUND_CONTEXT_MIN_FRAGS;
+}
+
 async function show(item = items[idx]){
   clearTimeout(show._p);
   const generation = ++mediaGeneration;
@@ -801,6 +821,12 @@ async function show(item = items[idx]){
           delete v.dataset.sceneId;
           v.src = API + "/media/" + mine.item_id + (isSmallScreen() ? "?v=mobile" : "");
           v.loop = true; v.play().catch(() => {});
+        } else {
+          // ROUND CONTEXT IS ALREADY LOADED. Moving F1 -> F2 inside one round
+          // must MOVE THE PLAYHEAD, not fetch anything: the media is the same
+          // media, and re-rendering it per frag is the keyhole all over again.
+          seekToEvent(sceneState, mine.source_id);
+          v.play().catch(() => {});
         }
         return;
       }
@@ -835,7 +861,10 @@ async function verdict(role){
   savingVerdict = true;
   document.querySelectorAll(".buttons button").forEach(b => b.disabled = true);
   try {
-    const response = await fetch(API + (mine.review_unit === "round" ? "/verdict/round" : "/verdict"), {
+    // ROUND IS CONTEXT, NOT VERDICT IDENTITY. A round-level
+    // classification may earn its place later; it is not the
+    // human contract, and four frags must not collapse into one.
+    const response = await fetch(API + "/verdict", {
       method: "POST", headers: {"Content-Type": "application/json"},
       body: JSON.stringify({item_id: mine.item_id, role, note: note || null}),
       signal: AbortSignal.timeout(15000)
@@ -1633,6 +1662,59 @@ async function renderDossier(it){
 // wolfcam runs of the same thirty seconds.
 let sceneState = null;
 
+// Swap the short proxy for the whole round, if and when the round is ready.
+// Called after the scene is known; never blocks, never blanks.
+async function offerRoundContext(it, scene){
+  if (!roundIsWorthWatching(scene)) return;
+  const mine = cur, generation = mediaGeneration;
+  const note = $("roundctx");
+  if (note) note.textContent = "round context preparing…";
+  const started = Date.now();
+  while (cur === mine && generation === mediaGeneration){
+    let st;
+    try { st = await mediaJSON(API + "/media_state/round/" + mine.item_id); }
+    catch(e){ if (note) note.textContent = ""; return; }
+    if (cur !== mine || generation !== mediaGeneration) return;
+    if (st.ready){
+      // Only now does anything touch the <video>.
+      v.hidden = false; $("ph").hidden = true;
+      v.src = API + "/media/round/" + mine.item_id
+              + (isSmallScreen() ? "?v=mobile" : "");
+      v.loop = false;
+      v.dataset.sceneId = scene.scene_id;
+      seekToEvent(scene, mine.source_id);
+      v.play().catch(() => {});
+      if (note) note.textContent = "round context · "
+        + userFragsInScene(scene) + " of your frags";
+      return;
+    }
+    if (["FAILED", "ERROR"].includes(st.state)){
+      if (note) note.textContent = "round context unavailable — showing the frag";
+      return;
+    }
+    if (st.render_deferred || st.state === "DEFERRED"){
+      if (note) note.textContent = "round render deferred — showing the frag";
+      return;
+    }
+    if (Date.now() - started >= MEDIA_TIMEOUT_MS){
+      if (note) note.textContent = "round context still preparing — showing the frag";
+      return;
+    }
+    await new Promise(r => setTimeout(r, 2000));
+  }
+}
+
+// Move the playhead to one event inside the round already loaded. No reload,
+// no re-render: the same media element, a different second.
+function seekToEvent(scene, occurrenceId){
+  const ev = (scene.events || []).find(e => e.occurrence_id === occurrenceId);
+  if (!ev || scene.media_start_ms == null) return false;
+  const t = (ev.t_ms - scene.media_start_ms) / 1000;
+  if (!isFinite(t) || t < 0) return false;
+  try { v.currentTime = t; } catch(e){ return false; }
+  return true;
+}
+
 async function renderRail(it){
   const rail = $("rail");
   if (!rail) return;
@@ -1644,6 +1726,7 @@ async function renderRail(it){
   if (cur !== it) return;
   if (!s.available || s.mode !== "SCENE_MODE") { delete v.dataset.sceneId; return; }
   sceneState = s;
+  offerRoundContext(it, s);      // playback only; never blocks
   const rowEl = el("div", "railrow");
   s.events.forEach(ev => {
     const b = el("button", "rev" + (ev.takes_verdict ? "" : " noteonly"));
