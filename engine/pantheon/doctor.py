@@ -113,6 +113,10 @@ class Doctor:
             self.run("RECONSTRUCT", self._reconstruct)
             self.run("GEOGRAPHY", self._geography)
             self.run("TEMPLATES", self._templates)
+            self.run("PROTOCOL", self._protocol)
+            self.run("CAPABILITIES", self._capabilities)
+            self.run("VISUAL_PROFILE", self._visual_profile)
+            self.run("OFFSCREEN", self._offscreen)
             self.run("RENDER_PERMIT", self._render_permit)
         finally:
             subprocess.Popen = orig_popen                         # type: ignore[assignment]
@@ -322,6 +326,73 @@ class Doctor:
         t = found[0]
         return OK, (f"{sum(counts.values())} templates in {len(counts)} groups; "
                     f"{grp} -> {t.id} ({t.duration_ms} ms, {t.distance_u:.0f} u)"), counts
+
+    def _protocol(self):
+        from engine.parser import protocol as P
+        if not P.CANONICAL_MSG_C.exists():
+            return SKIP, f"no engine source at {P.CANONICAL_MSG_C}", {}
+        ents = P.parse_canonical_table("entityStateFieldsQldm73")
+        pss = P.parse_canonical_table("playerStateFieldsQ3")
+        if len(ents) != len(P.ENTITY_FIELDS) or len(pss) != len(P.PLAYER_FIELDS):
+            return FAIL, (f"engine {len(ents)}/{len(pss)} fields, registry "
+                          f"{len(P.ENTITY_FIELDS)}/{len(P.PLAYER_FIELDS)}"), {}
+        for (m, w), f in list(zip(ents, P.ENTITY_FIELDS)) + list(zip(pss, P.PLAYER_FIELDS)):
+            if m != f.name or P.canonical_bits(w) != f.bits:
+                return FAIL, f"{m} disagrees with the registry at index {f.index}", {}
+        return OK, (f"{len(ents)} entity + {len(pss)} playerstate fields match the "
+                    f"engine's own tables"), {}
+
+    def _capabilities(self):
+        from engine.pantheon import capabilities as C
+        if not C.RUNTIME_CVARLIST.exists():
+            return SKIP, "no 11.3 cvarlist capture", {}
+        registered = {c.lower() for c in C.runtime_registered_cvars()}
+        bad = [(cap.name, cvar) for cap in C.WOLFCAM_11_3.values()
+               if cap.evidence is C.Evidence.EXECUTION_PROVEN
+               for cvar in cap.cvars if cvar.lower() not in registered]
+        if bad:
+            return FAIL, f"claims EXECUTION_PROVEN for cvars the runtime does not list: {bad[:3]}", {}
+        rep = C.report()
+        return OK, (f"{len(rep['usable'])} usable, "
+                    f"{len(rep['not_established'])} not established "
+                    f"(e.g. {sorted(rep['not_established'])[:2]})"), rep["not_established"]
+
+    def _visual_profile(self):
+        """Checks the translator's OUTPUT without spelling a cvar: the names
+        come from the capability registry, which is where backend detail is
+        allowed to live."""
+        from engine.pantheon import capabilities as C
+        from engine.pantheon import visual_profile as VP
+        p = VP.profile("REVIEW")
+        c = p.resolve()
+        enemy_model = C.get("FORCE_ENEMY_MODEL").cvars[0]
+        team_model = C.get("FORCE_TEAM_MODEL").cvars[0]
+        every = C.get("FORCE_ALL_MODELS").cvars[0]
+        want = f'"{p.enemy_model}/{p.enemy_skin}"'
+        if c.get(enemy_model) != want:
+            return FAIL, f"REVIEW does not force {p.enemy_model}: {c.get(enemy_model)}", {}
+        if c.get(team_model) != '""' or c.get(every) != 0:
+            return FAIL, "REVIEW would change teammates as well as enemies", {}
+        return OK, (f"{len(VP.PROFILES)} profiles; REVIEW forces the enemy to "
+                    f"{p.enemy_model}/{p.enemy_skin} in "
+                    f"rgb{p.enemy_colour} and leaves teammates and self alone"), {}
+
+    def _offscreen(self):
+        import sys as _sys
+        from engine.pantheon import offscreen as O
+        if _sys.platform != "win32":
+            return SKIP, "hidden desktops are a Windows mechanism", {}
+        # The MECHANISM only, with a harmless GUI process. The doctor never
+        # launches the game and never puts a window on the operator's screen.
+        r = O.probe_isolation(dwell=1.2)
+        if not r.ran:
+            return FAIL, r.detail, {}
+        if r.visible_windows:
+            return FAIL, f"a window reached the operator's desktop: {r.visible_windows}", {}
+        if r.foreground_before["hwnd"] != r.foreground_after["hwnd"]:
+            return FAIL, "the foreground moved while a hidden-desktop process ran", {}
+        return OK, ("hidden desktop isolates a GUI process: no window, no focus "
+                    "change (probed with a harmless process, not the game)"), r.as_dict()
 
     def _render_permit(self):
         from engine.pantheon import render_permit as rp

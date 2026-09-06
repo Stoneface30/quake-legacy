@@ -150,6 +150,7 @@ def test_only_the_backend_layer_spells_cvars():
         "engine/pantheon/visual_profile.py",     # the one translator
         "engine/pantheon/capabilities.py",       # names them as backend detail
         "engine/pantheon/shot.py",               # the WOLFCAM_REFERENCE backend
+        "engine/pantheon/offscreen.py",          # the PANTHEON_QUAKE_OFFSCREEN backend
         "engine/pantheon/cvar_probe.py",         # RUNTIME_CAPABILITY_PROOF
         "engine/pantheon/ab_scene.py",           # the A/B capture harness
         "engine/pantheon/color_format.py",       # the cvar value format itself

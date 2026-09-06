@@ -32,6 +32,19 @@ def _no_game_process_ever():
                 raise AssertionError(f"test tried to launch a game process: {args!r}")
             super().__init__(args, *a, **k)
 
+    # The offscreen backend does not use Popen -- it calls CreateProcessW
+    # directly to place the process on a hidden desktop -- so the guard has
+    # to cover that door too, or the suite could film something.
+    from engine.pantheon import offscreen as _offscreen
+    orig_spawn_desktop = _offscreen.spawn_on_desktop
+
+    def guarded_spawn_desktop(argv, *a, **k):
+        if _argv_names_a_game(argv):
+            raise AssertionError(f"test tried to launch a game process: {argv!r}")
+        return orig_spawn_desktop(argv, *a, **k)
+
+    _offscreen.spawn_on_desktop = guarded_spawn_desktop
+
     async def guarded_spawn(program, *args, **kwargs):
         if _argv_names_a_game(program):
             raise AssertionError(f"test tried to launch a game process: {program!r}")
@@ -44,3 +57,4 @@ def _no_game_process_ever():
     finally:
         _subprocess.Popen = orig_popen
         _asyncio.create_subprocess_exec = orig_spawn
+        _offscreen.spawn_on_desktop = orig_spawn_desktop

@@ -16,6 +16,8 @@ it asks for the truth.
 ```
 RAW .dm_73
    → DM73 parser                          engine/parser/
+   → protocol registry                    engine/parser/protocol.py, checked
+                                          against the engine's own tables
    → canonical game state                 players, movement, aim, animation,
                                           weapons, projectiles, events, round
                                           state, POV
@@ -26,6 +28,7 @@ RAW .dm_73
    → compiler                             intent → the observed CA grammar
    → .dm_73                               synthetic, parses back identically
    → ShotSpec → RenderJob
+        ├── PANTHEON_QUAKE_OFFSCREEN  hidden desktop, proven
         ├── WOLFCAM_REFERENCE   shipped
         ├── BLENDER             planned
         └── OFFSCREEN_QUAKE     planned
@@ -160,6 +163,44 @@ fails if one stops asking, if a second permit module appears, or if a new
 `Popen` of wolfcamql shows up anywhere. `creative_suite/tests/conftest.py`
 fails any test that tries to create a game process.
 
+## PANTHEON_QUAKE_OFFSCREEN
+
+The reviewer must never take the screen. The backend does not rewrite the
+renderer: it runs the SAME WolfcamQL 11.3 binary on a **separate Windows
+desktop** (`CreateDesktopW`, then `STARTUPINFOW.lpDesktop`). A window created
+there cannot reach the interactive desktop, its taskbar or its foreground --
+by construction, because those belong to a desktop object the process is not
+on. `SW_SHOWMINNOACTIVE` remains defence in depth and is explicitly not this
+mechanism: a minimised window is still on the user's desktop.
+
+Proven on this machine, 2026-09-06:
+
+| | Result |
+|---|---|
+| GUI process isolation (harmless process, not the game) | no visible window, foreground unmoved |
+| Engine GL context on the hidden desktop | `GL_RENDERER: NVIDIA GeForce RTX 5060 Ti/PCIe/SSE2`, clean exit |
+| Real capture through the project's own staging and cfg | AVI produced, 1920x1080, 8.5 s |
+| Visible window / stolen foreground during captures | none / none |
+
+`engine/pantheon/offscreen.py` watches the operator's desktop THROUGHOUT a
+run, not only afterwards, and attributes a stolen foreground to the render
+only when the foreground belongs to the render process -- an operator
+switching app mid-capture is not a failure. The render permit still applies:
+offscreen removes the stolen screen, not GPU and disk contention.
+
+## Capabilities and visual profiles
+
+A caller asks for a capability or a named profile, never a cvar.
+`engine/pantheon/capabilities.py` records what each backend can do and the
+strongest evidence for it (DOCUMENTED / SOURCE_REGISTERED / BINARY_REGISTERED
+/ EXECUTION_PROVEN / VISUALLY_PROVEN); only EXECUTION_PROVEN or better may be
+used, because the engine accepts an unregistered cvar and silently does
+nothing. `engine/pantheon/visual_profile.py` is the one place film words
+become engine values. `REVIEW` forces the enemy to Keel, the bright skin and
+PANTHEON green, and leaves teammates and self alone -- three separate
+mechanisms, proven on pixels at
+`docs/visual-record/2026-09-06/green_keel/`.
+
 ## Self-test
 
 ```
@@ -168,5 +209,8 @@ python -m engine.pantheon.doctor --json   # machine-readable
 ```
 
 PARSER · EXTRACT · ACTION_GRAPH · RETARGET · COMPILE · PARSE_BACK · COMPARE ·
-FRAME_TRUTH · INDEX · RECONSTRUCT · GEOGRAPHY · TEMPLATES · RENDER_PERMIT ·
-NO_RENDERER.
+FRAME_TRUTH · INDEX · RECONSTRUCT · GEOGRAPHY · TEMPLATES · PROTOCOL ·
+CAPABILITIES · VISUAL_PROFILE · OFFSCREEN · RENDER_PERMIT · NO_RENDERER.
+
+18 checks, all green on this machine. The OFFSCREEN check probes the desktop
+mechanism with a harmless GUI process; the doctor never launches the game.
