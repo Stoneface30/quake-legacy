@@ -30,10 +30,11 @@ def test_walked_cells_floors_and_connectivity():
     assert idx.coverage()["cells"]["jump_pad_launch"] == 1
 
 
-def test_round_trips_through_json(tmp_path):
+def test_round_trips_through_the_geography_store(tmp_path):
     idx = _index()
-    p = idx.save(tmp_path / "campgrounds.json")
-    back = MapSpatialIndex.load("campgrounds", p)
+    db = idx.save(tmp_path / "map_geography.db")
+    assert MapSpatialIndex.available(db) == ["campgrounds"]
+    back = MapSpatialIndex.load("campgrounds", db)
     assert back.layers["walked"] == idx.layers["walked"]
     assert back.adjacency == idx.adjacency and back.encounters == idx.encounters
     assert back.coverage()["floors"] == idx.coverage()["floors"]

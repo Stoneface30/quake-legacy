@@ -81,9 +81,8 @@ class MapGeography:
             self._spatial_tried = True
             try:
                 from engine.pantheon.map_spatial_index import MapSpatialIndex
-                path = S.map_spatial_dir() / f"{self.map}.json"
-                if path.exists():
-                    self._spatial = MapSpatialIndex.load(self.map, path)
+                if self.map in MapSpatialIndex.available():
+                    self._spatial = MapSpatialIndex.load(self.map)
             except Exception:
                 self._spatial = None
         return self._spatial
