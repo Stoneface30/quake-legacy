@@ -276,24 +276,49 @@ def index_demo(path: str) -> dict:
     missiles_by: dict[int, list] = {}
     for m in out["missiles"]:
         missiles_by.setdefault(m.get("other"), []).append(m)
-    view_cache: dict[int, tuple] = {}
-
-    def view(c: int) -> tuple:
-        if c not in view_cache:
-            o = dict(out)
-            o["entities"] = ents_by.get(c, [])
-            o["missiles"] = missiles_by.get(c, [])
-            view_cache[c] = (o, anims_by.get(c, []))
-        return view_cache[c]
-
-    ev_times = [e["server_time_ms"] for e in out["events"]]
     import bisect
+    # ...and per WINDOW: every list is sorted on serverTime, so an anchor's
+    # window is two bisects, not a scan. The extractor still filters by
+    # client and by window itself; it just receives only what can match.
+    for lst in ents_by.values():
+        lst.sort(key=lambda r: r["server_time_ms"])
+    for lst in anims_by.values():
+        lst.sort(key=lambda a: a["t"])
+    for lst in missiles_by.values():
+        lst.sort(key=lambda m: m["server_time_ms"])
+    keyed = {
+        c: ([r["server_time_ms"] for r in ents_by.get(c, [])],
+            [a["t"] for a in anims_by.get(c, [])],
+            [m["server_time_ms"] for m in missiles_by.get(c, [])])
+        for c in clients}
+    events_sorted = sorted(out["events"], key=lambda e: e["server_time_ms"])
+    ev_times = [e["server_time_ms"] for e in events_sorted]
+    temps_sorted = sorted(out.get("temp_events", []), key=lambda t: t["t"])
+    temp_times = [t["t"] for t in temps_sorted]
+    rec_track = out.get("recorder_track", [])
+    rec_times = [r["t"] for r in rec_track]
+
+    def window(lst, times, lo, hi):
+        return lst[bisect.bisect_left(times, lo):bisect.bisect_right(times, hi)]
+
+    def view(c: int, lo: int, hi: int) -> tuple:
+        et, at, mt = keyed[c]
+        o = dict(out)
+        o["entities"] = window(ents_by.get(c, []), et, lo, hi)
+        o["missiles"] = window(missiles_by.get(c, []), mt, lo, hi)
+        o["events"] = window(events_sorted, ev_times, lo, hi)
+        o["temp_events"] = window(temps_sorted, temp_times, lo, hi)
+        # the recorder is identified from the FIRST playerstate row, which
+        # may lie outside the window; keep it in front, windowed rows after
+        o["recorder_track"] = rec_track[:1] + (window(rec_track, rec_times, lo, hi)
+                                               if c == rec else [])
+        return o, window(anims_by.get(c, []), at, lo, hi)
 
     def outcome_fast(c: int, t: int) -> tuple:
         i = bisect.bisect_right(ev_times, t)
         j = bisect.bisect_right(ev_times, t + 2500)
         best = None
-        for e in out["events"][i:j]:
+        for e in events_sorted[i:j]:
             if e["type"] == "obituary" and e.get("killer_client") == c:
                 return ("KILL", e["server_time_ms"] - t, e.get("victim_client"))
             cc = e.get("client_num") if e.get("client_num") is not None else rec
@@ -309,7 +334,7 @@ def index_demo(path: str) -> dict:
         seen.add(key)
         lo, hi = t - PRE_MS, t + POST_MS
         try:
-            tr = extract_performance(p, lo, hi, c, parsed=view(c))
+            tr = extract_performance(p, lo, hi, c, parsed=view(c, lo, hi))
         except Exception:
             continue
         if len(tr.transform) < 10:
