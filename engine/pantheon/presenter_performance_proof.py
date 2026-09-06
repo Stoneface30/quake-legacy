@@ -147,11 +147,14 @@ def build(*, camera: bool = False, line: bool = False, scene_id: str = SCENE_ID)
         # largest. Then the dolly is planned to that solved end.
         comp = compose_three(presenter=stand, shooter=shooter_at, target=target_at,
                              map_name=MAP, pk3_path=str(MAP_PAK), start_pos=cam_pos,
-                             distance=(150.0, 260.0))
+                             # 02B: the +x side of her mark is solid wall, so the
+                             # only settles that SEE all three are on the corridor
+                             # axis; a high camera keeps the depth stack readable
+                             distance=(240.0, 360.0), height=(48.0, 96.0, 160.0, 220.0))
         plan = camera_plan_to_presenter(
             start_pos=cam_pos, start_yaw=_yaw(cam_pos, mid), start_pitch=0.0,
             subject=stand, subject_face_yaw=_yaw(stand, cam_pos), map_name=MAP,
-            begin_ms=stop_ms + 200, duration_ms=1800,
+            begin_ms=stop_ms + 200, duration_ms=2200,
             hold_until_ms=int(hold_s * 1000) - 100,
             pk3_path=r"C:\Program Files (x86)\Steam\steamapps\common\Quake Live\baseq3\pak00.pk3",
             end_pos=comp["camera"], look_at=comp["look_at"],

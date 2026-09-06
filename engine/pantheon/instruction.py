@@ -755,8 +755,22 @@ def _overlap(a: dict, b: dict) -> float:
     return w * h / small
 
 
+SUBJECT_EYE_Z = 26.0   # DEFAULT_VIEWHEIGHT; mirrors camera_paths.SUBJECT_EYE_Z
+PRESENTER_MIN_RATIO = 0.7   # her on-screen height vs the largest fighter
+
+
+def sightlines_clear(tracer, cam: Vec3, subjects) -> bool:
+    """True when every subject's eye, chest and feet are unobstructed from cam."""
+    for s in subjects:
+        for dz in (SUBJECT_EYE_Z, SUBJECT_EYE_Z * 0.5, 4.0):
+            if tracer.line_blocked(cam, (s[0], s[1], s[2] + dz)):
+                return False
+    return True
+
+
 def compose_three(*, presenter: Vec3, shooter: Vec3, target: Vec3, map_name: str,
-                  distance: tuple[float, float] = (170.0, 210.0), height: float = 32.0,
+                  distance: tuple[float, float] = (170.0, 210.0),
+                  height: float | tuple[float, ...] = 32.0,
                   pk3_path: str | None = None, start_pos: Vec3 | None = None) -> dict:
     """Find a settle position from which Crash, Keel, Visor AND the line
     between the two are all readable, and Crash reads as the presenter.
@@ -796,22 +810,37 @@ def compose_three(*, presenter: Vec3, shooter: Vec3, target: Vec3, map_name: str
     mid = tuple((a + b) / 2 for a, b in zip(shooter, target))
     best, tried = None, 0
     path_mid: dict = {}
-    why = {"solid": 0, "path": 0, "behind": 0, "frame": 0, "size": 0, "overlap": 0, "line": 0}
+    why = {"solid": 0, "path": 0, "occluded": 0, "behind": 0, "frame": 0, "size": 0,
+           "overlap": 0, "line": 0}
     steps = 4
     ds = [distance[0] + (distance[1] - distance[0]) * i / (steps - 1) for i in range(steps)]
+    heights = (height,) if isinstance(height, (int, float)) else tuple(height)
     for d in ds:
+      for h in heights:
         for az_deg in range(0, 360, 5):
             az = math.radians(az_deg)
             cam = (presenter[0] + d * math.cos(az), presenter[1] + d * math.sin(az),
-                   presenter[2] + height)
+                   presenter[2] + h)
             if tracer is not None and not cp.point_in_open_space(tracer, cam):
                 why["solid"] += 1
                 continue
             if not path_clear(cam):
                 why["path"] += 1
                 continue
+            # The projection is blind to walls. A settle in open space with a
+            # clear dolly can still stare into a pillar between it and the
+            # cast (02B's first render did exactly that). Every subject must
+            # be visible from the settle -- eye, chest and feet -- and the
+            # presenter from the dolly's mid, or the settle is rejected.
+            if tracer is not None and not sightlines_clear(tracer, cam,
+                                                          (presenter, shooter, target)):
+                why["occluded"] += 1
+                continue
+            if tracer is not None and path_mid.get(id(cam)) and                     not sightlines_clear(tracer, path_mid[id(cam)], (presenter,)):
+                why["occluded"] += 1
+                continue
             tried += 1
-            for bias in (0.55, 0.7):
+            for bias in (0.4, 0.55, 0.7):
                 look = tuple(eye(presenter)[i] * bias + eye(mid)[i] * (1 - bias) for i in range(3))
                 ang = cp.look_at_angles(cam, look)           # (pitch, yaw, roll)
                 pitch, yaw = ang[0], ang[1]
@@ -822,9 +851,9 @@ def compose_three(*, presenter: Vec3, shooter: Vec3, target: Vec3, map_name: str
                 if not (_inside(bp, 0.05) and _inside(bs, 0.05) and _inside(bt, 0.05)):
                     why["frame"] += 1
                     continue
-                if bp["h"] < bs["h"] or bp["h"] < bt["h"]:
+                if bp["h"] < PRESENTER_MIN_RATIO * max(bs["h"], bt["h"]):
                     why["size"] += 1
-                    continue                                # she is the presenter
+                    continue        # Crash may be slightly smaller (02B brief)
                 if max(_overlap(bp, bs), _overlap(bp, bt), _overlap(bs, bt)) > 0.2:
                     why["overlap"] += 1
                     continue
@@ -843,7 +872,7 @@ def compose_three(*, presenter: Vec3, shooter: Vec3, target: Vec3, map_name: str
                     best = {"score": round(score, 3), "camera": cam, "look_at": look,
                             "path_mid": path_mid.get(id(cam)),
                             "yaw": round(yaw, 2), "pitch": round(pitch, 2), "distance_u": d,
-                            "azimuth_deg": az_deg, "bias": bias,
+                            "azimuth_deg": az_deg, "bias": bias, "height_u": h,
                             "presenter_bbox": bp, "shooter_bbox": bs, "target_bbox": bt,
                             "line_px": round(line_px, 1),
                             "line_ends": [list(map(round, e1)), list(map(round, e2))]}
@@ -853,7 +882,8 @@ def compose_three(*, presenter: Vec3, shooter: Vec3, target: Vec3, map_name: str
     best["candidates_in_open_space"] = tried
     best["rejections"] = why
 
-    best["collision"] = ("real BSP: settle in open space and start->mid->settle unblocked"
+    best["collision"] = ("real BSP: settle in open space, start->mid->settle unblocked, "
+                         "eye/chest/feet of all three subjects visible from the settle"
                          if tracer else f"UNCHECKED: {tracer_note or 'no tracer'}")
     return best
 

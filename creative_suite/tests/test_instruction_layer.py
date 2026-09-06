@@ -313,3 +313,42 @@ def test_placement_validity_rejects_a_path_off_walked_ground():
     # the same ground one floor down: every sample is off the floor
     bad = NavigationTruth("overkill", [Route(tuple((x, y, z - 300) for x, y, z in pts), -276.0)])
     assert validate_placement(tr, pl, bad)["verdict"] == "INVALID"
+
+
+# ── compose_three: the projection is blind to walls; the tracer is not ────
+class _PillarTracer:
+    """A pillar: the wall segment x = 100, |y| <= 60. Any segment crossing it is blocked."""
+
+    def line_blocked(self, a, b):
+        if (a[0] - 100.0) * (b[0] - 100.0) >= 0:
+            return False
+        t = (100.0 - a[0]) / (b[0] - a[0])
+        return abs(a[1] + t * (b[1] - a[1])) <= 60.0
+
+
+def test_compose_three_rejects_settles_that_cannot_see_the_cast(monkeypatch):
+    """02B's first render stared into a pillar: the settle was open space with
+    a clear dolly, but geometry stood between it and all three subjects.
+    Settles whose sight-line to the presenter crosses the pillar must be
+    rejected as `occluded`, and the winner must see all three."""
+    from creative_suite.engine import camera_paths as cp
+    from engine.pantheon import instruction as ins
+    pillar = _PillarTracer()
+    monkeypatch.setattr(cp, "bsp_tracer", lambda *_a, **_k: pillar)
+    P, K, V = (0.0, 0.0, 0.0), (-150.0, 220.0, 0.0), (-150.0, -220.0, 0.0)
+    best = ins.compose_three(presenter=P, shooter=K, target=V, map_name="x",
+                             distance=(150.0, 260.0), height=(32.0, 120.0),
+                             start_pos=(200.0, 200.0, 0.0))
+    assert best["rejections"]["occluded"] > 0
+    assert ins.sightlines_clear(pillar, best["camera"], (P, K, V))
+    assert "visible from the settle" in best["collision"]
+    # the pillar hides her from straight ahead: the winner is off that axis
+    assert not (abs(best["camera"][1]) <= 60.0 and best["camera"][0] > 100.0)
+
+
+def test_sightlines_check_eye_chest_and_feet():
+    class Low:                                            # a waist-high parapet
+        def line_blocked(self, a, b):
+            return b[2] < 10.0                            # feet hidden, eye visible
+    assert not __import__("engine.pantheon.instruction", fromlist=["x"]).sightlines_clear(
+        Low(), (100.0, 0.0, 40.0), ((0.0, 0.0, 0.0),))
