@@ -30,8 +30,8 @@ from pathlib import Path
 from engine.pantheon.frame_truth import FrameTruth
 from engine.pantheon.instruction import (AnalysisBreak, Graphic, InstructionScene,
                                          Line, Mode, camera_plan_to_presenter,
-                                         place_entrance, validate_placement,
-                                         validate_placement_shared)
+                                         compose_three, place_entrance,
+                                         validate_placement, validate_placement_shared)
 from engine.pantheon.navigation import NavigationTruth
 from engine.pantheon.roster import CAST
 from engine.pantheon.scenario import RoundScenario, Team, Weapon
@@ -42,7 +42,7 @@ NAV_CACHE = Path(f".tmp/nav_{MAP}.json")
 TEMPLATE = "RUN_IN_STOP_TURN_01"
 OUT = Path(".tmp/synthetic")
 # the installed map archive the BSP tracer reads (read-only, ENG-4)
-MAP_PAK = Path(r"C:\Program Files (x86)\Steam\steamapps\common\Quake Liveaseq3\pak00.pk3")
+MAP_PAK = Path("C:/Program Files (x86)/Steam/steamapps/common/Quake Live/baseq3/pak00.pk3")
 
 HIST_DURATION = 7.0
 FREEZE_T = 4.0
@@ -142,12 +142,21 @@ def build(*, camera: bool = False, line: bool = False, scene_id: str = SCENE_ID)
     if camera:
         stop_ms = int((0.15 + placement["stop_rel_s"]) * 1000)
         hold_s = 12.0
+        # 02B: the settle is SOLVED, not chosen -- Crash, Keel, Visor and
+        # the Keel->Visor line must all be readable from it, with Crash the
+        # largest. Then the dolly is planned to that solved end.
+        comp = compose_three(presenter=stand, shooter=shooter_at, target=target_at,
+                             map_name=MAP, pk3_path=str(MAP_PAK), start_pos=cam_pos,
+                             distance=(150.0, 260.0))
         plan = camera_plan_to_presenter(
             start_pos=cam_pos, start_yaw=_yaw(cam_pos, mid), start_pitch=0.0,
             subject=stand, subject_face_yaw=_yaw(stand, cam_pos), map_name=MAP,
             begin_ms=stop_ms + 200, duration_ms=1800,
             hold_until_ms=int(hold_s * 1000) - 100,
-            pk3_path=r"C:\Program Files (x86)\Steam\steamapps\common\Quake Live\baseq3\pak00.pk3")
+            pk3_path=r"C:\Program Files (x86)\Steam\steamapps\common\Quake Live\baseq3\pak00.pk3",
+            end_pos=comp["camera"], look_at=comp["look_at"],
+            mid_pos=comp.get("path_mid"))
+        plan["composition"] = comp
     spoken = Line(LINE_TEXT, LINE_WAV, "SYNTHETIC_TTS", "GUIDE") if line else None
 
     scene = InstructionScene(scn, duration=HIST_DURATION)
@@ -188,8 +197,10 @@ def build(*, camera: bool = False, line: bool = False, scene_id: str = SCENE_ID)
         "motion_quality": motion,
         "restoration": restoration,
         "camera": ({k: (list(v) if isinstance(v, tuple) else v)
-                    for k, v in plan.items() if k != "keyframes"}
-                   | {"keyframes": len(plan["keyframes"])} if plan
+                    for k, v in plan.items() if k not in ("keyframes", "composition")}
+                   | {"keyframes": len(plan["keyframes"]),
+                      "composition": {k: (list(v) if isinstance(v, tuple) else v)
+                                      for k, v in plan["composition"].items()}} if plan
                    else {"origin": list(cam_pos), "moves": False}),
         "dialogue": ({"text": LINE_TEXT, "audio": str(LINE_WAV), "source_kind": "SYNTHETIC_TTS",
                       "cue_start_edit_s": scene.cues[0].start_t if scene.cues else None}
@@ -285,6 +296,12 @@ def main() -> int:
         c = rep["camera"]
         print(f"camera     : {c['status']} {c['keyframes']} dense kfs @{c['hz']}Hz, begins +{c['begin_ms']}ms "
               f"for {c['duration_ms']}ms, min clearance {c['min_clearance_u']}u, {c['collision']}")
+        k = c["composition"]
+        fmt = lambda b: f"x{int(b['x0'])}-{int(b['x1'])} y{int(b['y0'])}-{int(b['y1'])} h{int(b['h'])}"
+        print(f"composition: settle {k['distance_u']:.0f}u az{k['azimuth_deg']} pitch{k['pitch']} | "
+              f"CRASH {fmt(k['presenter_bbox'])} | KEEL {fmt(k['shooter_bbox'])} | "
+              f"VISOR {fmt(k['target_bbox'])} | line {k['line_px']}px {k['line_ends']} | "
+              f"{k['candidates_in_open_space']} open-space candidates, {k['collision']}")
     if rep.get("dialogue"):
         print(f"dialogue   : {rep['dialogue']}")
     return 0

@@ -171,6 +171,7 @@ class InstructionScene:
         self.breaks: list[AnalysisBreak] = []
         self.facts: list[TacticalFact] = []
         self.placements: list[dict] = []
+        self._graphic_from: dict[float, float] = {}
 
     def add_break(self, brk: AnalysisBreak) -> "InstructionScene":
         if any(abs(b.at_t - brk.at_t) < 0.5 for b in self.breaks):
@@ -368,6 +369,9 @@ class InstructionScene:
                 source_kind=SourceKind[b.line.source_kind],
                 profile=b.line.voice_profile, spatial=SpatialMode.DIEGETIC))
             t += dur
+        # the graphic is MOTIVATED by the line: it appears once "this." has
+        # landed, not while she is still walking in
+        self._graphic_from[b.at_t] = t + 0.15
         speak_until = e0 + b.hold_s - walk_s - 0.2
         if t > speak_until:
             raise ValueError(
@@ -439,7 +443,7 @@ class InstructionScene:
             return
         shooter = out.actors[b.graphic_from]
         target_at = src.actors[b.graphic_to]._at(b.at_t).origin
-        t = e0 + b.walk_s + 0.35            # after he has turned to camera
+        t = self._graphic_from.get(b.at_t, e0 + b.walk_s + 0.35)
         while t < e0 + b.hold_s - b.walk_s - 0.3:
             out._events.append(_analysis_rail(t, b.graphic_from, target_at))
             t += 0.5
@@ -648,7 +652,9 @@ def camera_plan_to_presenter(*, start_pos: Vec3, start_yaw: float, start_pitch: 
                              subject: Vec3, subject_face_yaw: float, map_name: str,
                              begin_ms: int, duration_ms: int, hold_until_ms: int,
                              close_u: float = 140.0, lateral_deg: float = 28.0,
-                             hz: float = 40.0, pk3_path: str | None = None) -> dict:
+                             hz: float = 40.0, pk3_path: str | None = None,
+                             end_pos: Vec3 | None = None, look_at: Vec3 | None = None,
+                             mid_pos: Vec3 | None = None) -> dict:
     """A medium-wide -> low dolly -> lateral arc -> settle, on the project's
     own camera machinery, collision-checked against the real BSP.
 
@@ -664,14 +670,15 @@ def camera_plan_to_presenter(*, start_pos: Vec3, start_yaw: float, start_pitch: 
     """
     from creative_suite.engine import camera_paths as cp
     from creative_suite.engine import camera_compiler_v2 as cc
-    aim = (subject[0], subject[1], subject[2] + cp.SUBJECT_EYE_Z)
-    # the conversational mark: `close_u` in front of her, offset by
-    # `lateral_deg` off her facing line so she is not dead-centre-flat
-    az = math.radians(subject_face_yaw + lateral_deg)
-    end_pos = (subject[0] + close_u * math.cos(az), subject[1] + close_u * math.sin(az),
-               subject[2] + cp.SUBJECT_EYE_Z + 6.0)
-    mid = ((start_pos[0] + end_pos[0]) / 2, (start_pos[1] + end_pos[1]) / 2,
-           min(start_pos[2], end_pos[2]) - 4.0)          # the low dolly
+    aim = look_at or (subject[0], subject[1], subject[2] + cp.SUBJECT_EYE_Z)
+    if end_pos is None:
+        # the conversational mark: `close_u` in front of her, offset by
+        # `lateral_deg` off her facing line so she is not dead-centre-flat
+        az = math.radians(subject_face_yaw + lateral_deg)
+        end_pos = (subject[0] + close_u * math.cos(az), subject[1] + close_u * math.sin(az),
+                   subject[2] + cp.SUBJECT_EYE_Z + 6.0)
+    mid = mid_pos or ((start_pos[0] + end_pos[0]) / 2, (start_pos[1] + end_pos[1]) / 2,
+                      min(start_pos[2], end_pos[2]) - 4.0)   # the low dolly
     sparse = [
         cp._kf(0, start_pos, (start_pitch, start_yaw, 0.0), cp.DEFAULT_FOV),
         cp._kf(begin_ms, start_pos, (start_pitch, start_yaw, 0.0), cp.DEFAULT_FOV),
@@ -695,6 +702,160 @@ def camera_plan_to_presenter(*, start_pos: Vec3, start_yaw: float, start_pitch: 
             "collision": note, "start": start_pos, "end": end_pos,
             "close_u": close_u, "lateral_deg": lateral_deg,
             "begin_ms": begin_ms, "duration_ms": duration_ms, "hz": hz}
+
+
+# ── composition: the camera explains a relationship ────────────────────────
+FOV_X = 110.0                # cg_fov, from the runtime inventory
+FRAME_W, FRAME_H = 1920, 1080
+BODY_H, BODY_W = 56.0, 24.0  # a standing player's silhouette, world units
+
+
+def project(cam: Vec3, yaw: float, pitch: float, p: Vec3) -> tuple[float, float] | None:
+    """Pinhole projection of a world point, in pixels. None if behind."""
+    dx, dy, dz = p[0] - cam[0], p[1] - cam[1], p[2] - cam[2]
+    a = math.radians(yaw)
+    f = dx * math.cos(a) + dy * math.sin(a)
+    r = -dx * math.sin(a) + dy * math.cos(a)
+    b = math.radians(pitch)
+    fz = f * math.cos(b) - dz * math.sin(b)      # forward after pitch
+    uz = dz * math.cos(b) + f * math.sin(b)      # up after pitch (pitch>0 looks down)
+    if fz <= 8.0:
+        return None
+    half = math.tan(math.radians(FOV_X / 2))
+    half_y = half * (FRAME_H / FRAME_W)
+    return (FRAME_W / 2 - (r / fz) / half * (FRAME_W / 2),
+            FRAME_H / 2 - (uz / fz) / half_y * (FRAME_H / 2))
+
+
+def bbox(cam: Vec3, yaw: float, pitch: float, origin: Vec3) -> dict | None:
+    """Screen box of a standing body at `origin`, from its feet and head."""
+    pts = []
+    for dz in (0.0, BODY_H):
+        for dx in (-BODY_W / 2, BODY_W / 2):
+            for dy in (-BODY_W / 2, BODY_W / 2):
+                q = project(cam, yaw, pitch, (origin[0] + dx, origin[1] + dy, origin[2] + dz))
+                if q is None:
+                    return None
+                pts.append(q)
+    xs, ys = [q[0] for q in pts], [q[1] for q in pts]
+    return {"x0": min(xs), "y0": min(ys), "x1": max(xs), "y1": max(ys),
+            "h": max(ys) - min(ys)}
+
+
+def _inside(b: dict, margin: float = 0.08) -> bool:
+    return (b["x0"] >= FRAME_W * margin and b["x1"] <= FRAME_W * (1 - margin)
+            and b["y0"] >= FRAME_H * margin and b["y1"] <= FRAME_H * (1 - margin))
+
+
+def _overlap(a: dict, b: dict) -> float:
+    w = max(0.0, min(a["x1"], b["x1"]) - max(a["x0"], b["x0"]))
+    h = max(0.0, min(a["y1"], b["y1"]) - max(a["y0"], b["y0"]))
+    small = min((a["x1"] - a["x0"]) * (a["y1"] - a["y0"]),
+                (b["x1"] - b["x0"]) * (b["y1"] - b["y0"])) or 1.0
+    return w * h / small
+
+
+def compose_three(*, presenter: Vec3, shooter: Vec3, target: Vec3, map_name: str,
+                  distance: tuple[float, float] = (170.0, 210.0), height: float = 32.0,
+                  pk3_path: str | None = None, start_pos: Vec3 | None = None) -> dict:
+    """Find a settle position from which Crash, Keel, Visor AND the line
+    between the two are all readable, and Crash reads as the presenter.
+
+    Candidates: every azimuth around the presenter at 5-degree steps, at
+    distances in `distance`, at eye height. The camera looks at a point
+    biased toward the presenter but pulled toward the shooter/target
+    midpoint. Scored on: all three boxes inside the safe frame, presenter
+    tallest, no overlap above 15%, line length on screen. Every candidate is
+    checked for open space against the real BSP; the winner's clearance is
+    reported. Headless.
+    """
+    from creative_suite.engine import camera_paths as cp
+    tracer = None
+    tracer_note = ""
+    try:
+        tracer = cp.bsp_tracer(map_name, pk3_path)
+    except Exception as exc:                            # pragma: no cover
+        tracer_note = f"bsp_tracer failed: {exc!r}"[:160]
+    eye = lambda o: (o[0], o[1], o[2] + cp.SUBJECT_EYE_Z)
+
+    def path_clear(cam):
+        """The dolly from the start to this settle must not cross geometry:
+        start -> a low mid -> settle, each leg traced. A settle that can only
+        be reached through a wall is not a settle."""
+        if tracer is None or start_pos is None:
+            return True
+        # try a low mid first (the dolly dips), then a level one, then a
+        # slightly raised one: the first clear route wins and is recorded
+        for dz in (-4.0, 0.0, +24.0, +48.0):
+            mid_ = ((start_pos[0] + cam[0]) / 2, (start_pos[1] + cam[1]) / 2,
+                    min(start_pos[2], cam[2]) + dz)
+            if not (tracer.line_blocked(start_pos, mid_) or tracer.line_blocked(mid_, cam)):
+                path_mid[id(cam)] = mid_
+                return True
+        return False
+    mid = tuple((a + b) / 2 for a, b in zip(shooter, target))
+    best, tried = None, 0
+    path_mid: dict = {}
+    why = {"solid": 0, "path": 0, "behind": 0, "frame": 0, "size": 0, "overlap": 0, "line": 0}
+    steps = 4
+    ds = [distance[0] + (distance[1] - distance[0]) * i / (steps - 1) for i in range(steps)]
+    for d in ds:
+        for az_deg in range(0, 360, 5):
+            az = math.radians(az_deg)
+            cam = (presenter[0] + d * math.cos(az), presenter[1] + d * math.sin(az),
+                   presenter[2] + height)
+            if tracer is not None and not cp.point_in_open_space(tracer, cam):
+                why["solid"] += 1
+                continue
+            if not path_clear(cam):
+                why["path"] += 1
+                continue
+            tried += 1
+            for bias in (0.55, 0.7):
+                look = tuple(eye(presenter)[i] * bias + eye(mid)[i] * (1 - bias) for i in range(3))
+                ang = cp.look_at_angles(cam, look)           # (pitch, yaw, roll)
+                pitch, yaw = ang[0], ang[1]
+                bp, bs, bt = (bbox(cam, yaw, pitch, o) for o in (presenter, shooter, target))
+                if not (bp and bs and bt):
+                    why["behind"] += 1
+                    continue
+                if not (_inside(bp, 0.05) and _inside(bs, 0.05) and _inside(bt, 0.05)):
+                    why["frame"] += 1
+                    continue
+                if bp["h"] < bs["h"] or bp["h"] < bt["h"]:
+                    why["size"] += 1
+                    continue                                # she is the presenter
+                if max(_overlap(bp, bs), _overlap(bp, bt), _overlap(bs, bt)) > 0.2:
+                    why["overlap"] += 1
+                    continue
+                e1 = project(cam, yaw, pitch, eye(shooter)); e2 = project(cam, yaw, pitch, eye(target))
+                if e1 is None or e2 is None:
+                    why["behind"] += 1
+                    continue
+                line_px = math.dist(e1, e2)
+                if line_px < FRAME_W * 0.2:
+                    why["line"] += 1
+                    continue
+                # prefer: bigger presenter, longer line, presenter off-centre
+                score = bp["h"] / FRAME_H * 2.0 + line_px / FRAME_W + \
+                    0.3 * (1.0 - abs((bp["x0"] + bp["x1"]) / 2 - FRAME_W / 2) / FRAME_W)
+                if best is None or score > best["score"]:
+                    best = {"score": round(score, 3), "camera": cam, "look_at": look,
+                            "path_mid": path_mid.get(id(cam)),
+                            "yaw": round(yaw, 2), "pitch": round(pitch, 2), "distance_u": d,
+                            "azimuth_deg": az_deg, "bias": bias,
+                            "presenter_bbox": bp, "shooter_bbox": bs, "target_bbox": bt,
+                            "line_px": round(line_px, 1),
+                            "line_ends": [list(map(round, e1)), list(map(round, e2))]}
+    if best is None:
+        raise RuntimeError(f"no settle keeps presenter, shooter, target and the line in "
+                           f"frame -- rejected: {why}")
+    best["candidates_in_open_space"] = tried
+    best["rejections"] = why
+
+    best["collision"] = ("real BSP: settle in open space and start->mid->settle unblocked"
+                         if tracer else f"UNCHECKED: {tracer_note or 'no tracer'}")
+    return best
 
 
 def _analysis_rail(t: float, actor: str, to: Vec3):

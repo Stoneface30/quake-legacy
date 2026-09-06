@@ -21,7 +21,7 @@ from engine.pantheon.presenter_performance_proof import build
 from engine.pantheon.shot import (PassKind, ShotSpec, SourceKind, VisualProfile,
                                   analysis_graphic_commands)
 
-SCENE_ID = "PRESENTER_CAMERA_DIALOGUE_PROOF_02"
+SCENE_ID = "PRESENTER_CAMERA_DIALOGUE_PROOF_02B"
 SHOT_START = 0.8
 FFPROBE = Path("G:/QUAKE_LEGACY/creative_suite/tools/ffmpeg/ffprobe.exe")
 
