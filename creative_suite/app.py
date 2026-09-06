@@ -58,6 +58,25 @@ def create_app() -> FastAPI:
     @app.on_event("startup")  # pyright: ignore[reportDeprecated]
     async def _cinema_startup() -> None:  # pyright: ignore[reportUnusedFunction]
         await app.state.job_queue.start()
+        # Review proxy jobs are queued in memory and recorded in SQLite, so a
+        # restart leaves rows marked QUEUED that no worker knows about. They
+        # cannot recover on their own: request_proxy sees QUEUED and returns
+        # early, BEFORE it would start a worker, so every later request
+        # short-circuits and the page renders forever with no Retry to press.
+        #
+        # This is the controlled scheduler pass -- once per process, at
+        # startup. Status reads still never move a job.
+        try:
+            from creative_suite.engine import review_proxy
+            # _ensure_worker both STARTS the drain thread and reclaims. Doing
+            # only the reclaim would put jobs on a queue nothing is reading:
+            # the worker is created lazily by request_proxy, and a request
+            # for an already-QUEUED row returns before it gets there.
+            review_proxy._ensure_worker()
+        except Exception as exc:                               # noqa: BLE001
+            # Never block startup for this. The reviewer works without it;
+            # it just has to be asked again.
+            print(f"[review] job reclaim skipped: {exc!r}", flush=True)
 
     @app.on_event("shutdown")  # pyright: ignore[reportDeprecated]
     async def _cinema_shutdown() -> None:  # pyright: ignore[reportUnusedFunction]
@@ -176,6 +195,12 @@ def create_app() -> FastAPI:
     if WEB_ROOT.exists():
         app.mount("/web", StaticFiles(directory=str(WEB_ROOT)), name="web")
     if cfg.phase1_output_dir.exists():
+        # Specific mounts precede /media: Starlette uses the first match.
+        preview_dir = cfg.phase1_output_dir.parent / "creative_suite" / "generated" / "preview"
+        app.mount("/media/preview", StaticFiles(directory=str(preview_dir), check_dir=False),
+                  name="media-preview")
+        app.mount("/media/phase1", StaticFiles(directory=str(cfg.phase1_output_dir)),
+                  name="media-phase1")
         app.mount(
             "/media",
             StaticFiles(directory=str(cfg.phase1_output_dir)),
@@ -189,8 +214,6 @@ def create_app() -> FastAPI:
         vendor_dir = FRONTEND_ROOT / "vendor"
         if vendor_dir.exists():
             app.mount("/vendor", StaticFiles(directory=str(vendor_dir)), name="vendor")
-    if cfg.phase1_output_dir.exists():
-        app.mount("/media/phase1", StaticFiles(directory=str(cfg.phase1_output_dir)), name="media-phase1")
 
     _engine_graph = _ENGINE_GRAPH_DIR
     if _engine_graph.exists():

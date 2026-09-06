@@ -162,27 +162,6 @@ class ShotSpec:
                 "provenance": self.provenance}
 
 
-# ── render permission ───────────────────────────────────────────────────────
-# Wolfcam takes the screen. It is never launched on a whim: a launch needs an
-# explicit RenderPermit -- the env var, or a permit file whose first line
-# says who granted it and until when. Without one the job is DEFERRED and the
-# headless proof stands on its own.
-RENDER_PERMIT_ENV = "PANTHEON_RENDER_PERMIT"
-RENDER_PERMIT_FILE = MAIN / "output" / "demo_v2" / "RENDER_PERMIT"
-
-
-class RenderDeferred(RuntimeError):
-    """No permit: nothing was launched. Not a failure of the proof."""
-
-
-def render_permitted() -> tuple[bool, str]:
-    if os.environ.get(RENDER_PERMIT_ENV):
-        return True, f"env {RENDER_PERMIT_ENV}"
-    if RENDER_PERMIT_FILE.exists():
-        return True, RENDER_PERMIT_FILE.read_text(encoding="utf-8").strip().splitlines()[0]
-    return False, "no permit"
-
-
 MAX_CONSOLE_LINES = 32   # qcommon/common.c -- Com_ParseCommandLine silently
                          # STOPS parsing once this many `+` groups exist, so an
                          # over-long launch line drops the trailing `+demo` and
@@ -197,13 +176,6 @@ def render(spec: ShotSpec, out_dir: Path, *, base_ms: int = 1000) -> Path:
     automatically.
     """
     from creative_suite.engine import wolfcam_capture as wc
-
-    ok, why = render_permitted()
-    if not ok:
-        raise RenderDeferred(
-            f"{spec.shot_id}: RENDER_DEFERRED -- no RenderPermit ({why}). "
-            f"Headless proof only; set {RENDER_PERMIT_ENV} or write "
-            f"{RENDER_PERMIT_FILE} to launch.")
 
     bad = spec.unsupported_passes()
     if bad:
@@ -285,6 +257,8 @@ def render(spec: ShotSpec, out_dir: Path, *, base_ms: int = 1000) -> Path:
     # driver makes the first attempt succeed, so the shot is filmed at the
     # resolution it asked for instead of a quarter of it.
     env = dict(os.environ, SDL_VIDEODRIVER="windib")
+    from engine.pantheon import render_permit
+    render_permit.require(f"reference_render:{spec.shot_id}")
     proc = subprocess.Popen(cmd, cwd=wc.STAGING, env=env,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:

@@ -60,12 +60,50 @@ class SemanticEvent:
     """Something that happened, in game terms. The overlay's cue sheet."""
     t: float
     server_time_ms: int
-    kind: str                       # fire | damage | kill | round_win | ...
+    kind: str                       # fire | damage | kill | round_win | recorded:<ev>
     actor: str | None = None
     target: str | None = None
     weapon: str | None = None
     amount: int = 0
     position: Vec3 | None = None
+    # SOUND IS GAME STATE, not a renderer afterthought. Where Quake emits a
+    # sound for an event, the intent is named here in game terms; a backend
+    # decides which sample, which mix, which reverb.
+    sound: str | None = None
+
+
+# kind (authored or recorded, prefix stripped) -> sound intent. Weapon-bearing
+# kinds are formatted with the weapon name.
+SOUND_INTENT = {
+    "fire": "weapon.fire.{weapon}",
+    "fire_weapon": "weapon.fire.{weapon}",
+    "jump_pad": "world.jump_pad",
+    "jump": "player.jump",
+    "missile_hit": "impact.{weapon}",
+    "missile_miss": "impact.{weapon}.world",
+    "railtrail": "weapon.rail.trail",
+    "pain": "player.pain",
+    "death": "player.death",
+    "kill": "player.death",
+    "obituary": "player.death",
+    "gib_player": "player.gib",
+    "drown": "player.drown",
+    "teleport_in": "world.teleport.in",
+    "teleport_out": "world.teleport.out",
+    "change_weapon": "weapon.change",
+    "item_pickup": "item.pickup",
+    "noammo": "weapon.noammo",
+}
+
+
+def sound_intent(kind: str, weapon: str | None) -> str | None:
+    base = kind.split(":", 1)[1] if kind.startswith("recorded:") else kind
+    fmt = SOUND_INTENT.get(base)
+    if fmt is None:
+        return None
+    if "{weapon}" in fmt:
+        return fmt.format(weapon=weapon or "UNKNOWN")
+    return fmt
 
 
 @dataclass
@@ -164,13 +202,39 @@ class FrameTruth:
         # events bucketed onto the tick they land on, so an overlay asking
         # "what happened this frame" gets an answer aligned to the picture
         buckets: dict[int, list[SemanticEvent]] = {}
+        from engine.pantheon.scenario import Weapon
         for e in scn._events:
             tick = int(round(e.t * SNAPSHOT_HZ))
+            weapon = e.weapon.name if e.weapon else None
+            wn = getattr(e, "weapon_num", None)
+            if weapon is None and wn is not None:
+                try:
+                    weapon = Weapon(int(wn)).name
+                except ValueError:
+                    weapon = f"WP_{wn}"
             buckets.setdefault(tick, []).append(SemanticEvent(
                 t=e.t, server_time_ms=base_ms + tick * SNAPSHOT_MS,
                 kind=e.kind, actor=e.actor, target=e.target,
-                weapon=e.weapon.name if e.weapon else None,
-                amount=e.amount, position=e.position))
+                weapon=weapon, amount=e.amount, position=e.position,
+                sound=sound_intent(e.kind, weapon)))
+        # recorded EV_* replayed verbatim by perform(): the cue sheet names
+        # them in game terms with their sound intent
+        from engine.parser.demo_parse import _EV_NAMES
+        for a in scn.actors.values():
+            for re_ in getattr(a, "_recorded_events", []):
+                tick = int(round(re_.t * SNAPSHOT_HZ))
+                name = _EV_NAMES.get(re_.code, f"ev_{re_.code}")
+                weapon = None
+                if re_.weapon is not None:
+                    try:
+                        weapon = Weapon(int(re_.weapon)).name
+                    except ValueError:
+                        weapon = f"WP_{re_.weapon}"
+                buckets.setdefault(tick, []).append(SemanticEvent(
+                    t=re_.t, server_time_ms=base_ms + tick * SNAPSHOT_MS,
+                    kind=f"recorded:{name}", actor=a.name, weapon=weapon,
+                    amount=re_.parm or 0, position=re_.position,
+                    sound=sound_intent(name, weapon)))
         if scn._win:
             tick = int(round(scn._win[0] * SNAPSHOT_HZ))
             buckets.setdefault(tick, []).append(SemanticEvent(
@@ -196,12 +260,18 @@ class FrameTruth:
             actors: dict[str, ActorTruth] = {}
             for a in scn.actors.values():
                 k = a._at(t)
+                # A RECORDED sample carries the engine's own pose; the stance
+                # tables are the fallback for authored keys only.
+                legs = k.legs_anim if getattr(k, "legs_anim", None) is not None                     else _LEGS[k.stance]
+                torso = k.torso_anim if getattr(k, "torso_anim", None) is not None                     else _TORSO[k.stance]
+                vel = tuple(round(v, 3) for v in (k.velocity or (0.0, 0.0, 0.0)))
                 actors[a.name] = ActorTruth(
                     actor_id=a.name, client=a.client, team=a.team.label,
                     position=tuple(round(v, 3) for v in k.origin),
-                    yaw=round(k.yaw, 2), health=k.health, armor=k.armor,
-                    weapon=k.weapon.name, alive=k.stance is not Stance.DEAD,
-                    legs_anim=_LEGS[k.stance], torso_anim=_TORSO[k.stance])
+                    yaw=round(k.yaw, 2), pitch=round(getattr(k, "pitch", 0.0), 2),
+                    velocity=vel, health=k.health, armor=k.armor,
+                    weapon=k.weapon.name, alive=k.stance is not Stance.DEAD and k.alive,
+                    legs_anim=legs, torso_anim=torso)
 
             red, blue = alive_at(t)
             if scn._round_begin is None:

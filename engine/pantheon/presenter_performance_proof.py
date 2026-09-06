@@ -18,7 +18,7 @@ feet on the floor) and restoration are proven before any render, and the
 render itself waits for a RenderPermit.
 
     python -m engine.pantheon.presenter_performance_proof            # headless
-    python -m engine.pantheon.presenter_performance_proof --film
+    python -m engine.pantheon.presenter_camera_film                  # render
 """
 from __future__ import annotations
 
@@ -29,9 +29,9 @@ from pathlib import Path
 
 from engine.pantheon.frame_truth import FrameTruth
 from engine.pantheon.instruction import (AnalysisBreak, Graphic, InstructionScene,
-                                         Mode, place_entrance, validate_placement)
+                                         Mode, place_entrance, validate_placement,
+                                         validate_placement_shared)
 from engine.pantheon.navigation import NavigationTruth
-from engine.pantheon.performance_templates import load_template
 from engine.pantheon.roster import CAST
 from engine.pantheon.scenario import RoundScenario, Team, Weapon
 
@@ -45,6 +45,30 @@ HIST_DURATION = 7.0
 FREEZE_T = 4.0
 HOLD_S = 8.0
 PRESENTER = CAST["GUIDE"]              # Crash, trainer skin
+
+
+def load_template(name: str):
+    """The ACCEPTED entrance, exactly as filmed: the prologue's saved segment.
+
+    The shared template DB's RUN_IN_STOP_TURN group currently admits windows
+    that end AIRBORNE and one 525ms/1294u entry (a discontinuity); the
+    usable entrance was found by the prologue's continuity + one-floor
+    criteria and is kept verbatim here. Reported to the shared session; not
+    re-derived here.
+    """
+    import json
+    from engine.pantheon.performance import (AimSample, AnimSample, PerformanceTrace,
+                                             TransformSample, WeaponSample)
+    d = json.loads((Path("docs/reference/performance_templates") / f"{name}.json")
+                   .read_text(encoding="utf-8"))
+    tr = PerformanceTrace(d["demo_hash"], d["map"], d["gametype"], d["client"],
+                          d["start_ms"], d["end_ms"])
+    tr.transform = [TransformSample(**{k: (tuple(v) if isinstance(v, list) else v)
+                                       for k, v in x.items()}) for x in d["transform"]]
+    tr.aim = [AimSample(**x) for x in d["aim"]]
+    tr.animation = [AnimSample(**x) for x in d["animation"]]
+    tr.weapon = [WeaponSample(**x) for x in d["weapon"]]
+    return tr
 
 
 def build():
@@ -78,16 +102,27 @@ def build():
                    if r.floor_z >= top - FLOOR_BAND for pt in r.points})
     cands = [p for p in pool if 150 < math.dist(p, camera) < 340
              and math.dist(p, mid) > 120]
-    tried, placement, validity, stand = 0, None, None, None
+    # The mark is chosen by the SHARED verdict (retarget.validate_retarget
+    # over MapSpatialIndex + NavigationTruth at 48u): every candidate at
+    # conversational distance is placed and judged, and the first that
+    # passes is the mark. The prologue's same-floor check is kept as a
+    # second opinion in the report only.
+    tried, placement, validity, stand, best_frac = 0, None, None, None, -1.0
     for cand in sorted(cands, key=lambda p: abs(math.dist(p, camera) - 230)):
         pl = place_entrance(template, stop_at=cand, face=camera)
-        va = validate_placement(template, pl, nav)
+        pre = validate_placement(template, pl, nav)
         tried += 1
-        if va["verdict"] == "VALID":
-            stand, placement, validity = cand, pl, va
+        if pre["verdict"] != "VALID":
+            continue                                  # cheap prefilter
+        shared = validate_placement_shared(template, pl, MAP, nav)
+        if shared.get("ok"):
+            stand, placement, validity = cand, pl, {"shared": shared, "prologue_same_floor": pre}
             break
-        if placement is None or va["off_walked_ground"] < validity["off_walked_ground"]:
-            stand, placement, validity = cand, pl, va
+        if shared.get("fraction_walked", 0) > best_frac:
+            best_frac = shared["fraction_walked"]
+            stand, placement, validity = cand, pl, {"shared": shared, "prologue_same_floor": pre}
+    if placement is None:
+        raise RuntimeError(f"{MAP}: no mark at conversational distance passes placement")
     validity["marks_tried"] = tried
 
     scene = InstructionScene(scn, duration=HIST_DURATION)
@@ -116,7 +151,8 @@ def build():
                             "map": template.map, "duration_s": template.duration_ms() / 1000},
         "presenter": {"role": PRESENTER.role, "model": PRESENTER.model,
                       "skin": PRESENTER.skin},
-        "placement": {k: (list(v) if isinstance(v, tuple) else v)
+        "placement": {k: (list(v) if isinstance(v, tuple)
+                          else v.as_dict() if hasattr(v, "as_dict") else v)
                       for k, v in placement.items()},
         "placement_validity": validity,
         "motion_quality": motion,
@@ -188,8 +224,6 @@ def _yaw(a, b) -> float:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--film", action="store_true")
-    ap.add_argument("--shots", type=Path, default=Path(".tmp/shots"))
     args = ap.parse_args()
     demo, scene, built, rep = build()
     b = rep["breaks"][0]
@@ -199,27 +233,11 @@ def main() -> int:
     pl = rep["placement"]
     print(f"placement  : {pl['mode']} yaw_offset={pl['yaw_offset']} start={[round(c) for c in pl['start_world']]} "
           f"stop={[round(c) for c in pl['stop_world']]} stop@{pl['stop_rel_s']}s turned@{pl['turned_rel_s']}s")
-    print(f"validity   : {rep['placement_validity']}")
+    print(f"validity   : shared={rep['placement_validity']['shared']}")
+    print(f"             prologue={rep['placement_validity']['prologue_same_floor']}")
     print(f"motion     : {rep['motion_quality']}")
     print(f"freeze     : t={b['historical_t_s']}s -> edit {b['edit_freeze_start_s']}..{b['edit_freeze_end_s']}s")
     print(f"restoration: all_restored={rep['restoration']['all_restored']}")
-    if args.film:
-        from engine.pantheon.backends import BackendUse, render
-        from engine.pantheon.shot import PassKind, ShotSpec, SourceKind, VisualProfile
-        spec = ShotSpec(shot_id=SCENE_ID, source=demo.resolve(),
-                        source_kind=SourceKind.SYNTHETIC, start_s=0.8,
-                        end_s=rep["edit_duration_s"] - 0.3,
-                        visual=VisualProfile(name="PRESENTER_PERF", extra={
-                            "cg_railUseOwnColors": 0,
-                            "cg_teamRailColor1": '"0x28c8ff"', "cg_teamRailColor2": '"0x28c8ff"',
-                            "cg_enemyLegsColor": '""', "cg_enemyTorsoColor": '""',
-                            "cg_enemyHeadColor": '""', "cg_teamLegsColor": '""',
-                            "cg_teamTorsoColor": '""', "cg_teamHeadColor": '""',
-                            "r_mapOverBrightBits": 2, "r_gamma": 1.2, "cg_shadows": 0}),
-                        passes=(PassKind.BEAUTY,), provenance="PRESENTER_PERFORMANCE_PROOF")
-        avi = render("WOLFCAM_REFERENCE", shot=spec, out_dir=args.shots,
-                     use=BackendUse.REFERENCE_RENDER)
-        print(f"filmed     : {avi} ({avi.stat().st_size/1e6:.1f} MB)  manifest={spec.manifest['BEAUTY']['duration_s']}s")
     return 0
 
 

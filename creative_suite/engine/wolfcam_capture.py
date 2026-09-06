@@ -89,6 +89,15 @@ def ensure_install(staging: Path = STAGING) -> Path:
     exe = staging / "wolfcamql.exe"
     gamedir = staging / "wolfcam-ql"
     if exe.exists() and (gamedir / "cgamex86.dll").exists():
+        # The binaries are in place, but the PROFILE CFGS are not part of
+        # "installed" -- they change whenever a capture profile changes, and
+        # this early return used to skip writing them. A new profile's cfg
+        # was therefore never created, capture.cfg exec'd a file that did not
+        # exist, and the capture silently ran with none of its cvars. The
+        # only reason it looked partly fixed was that the command-line launch
+        # sets still applied. Rewriting them is cheap and idempotent.
+        from creative_suite.engine import master_profile
+        master_profile.write(gamedir)
         return staging
     staging.mkdir(parents=True, exist_ok=True)
     shutil.copy2(BIN_DIR / "wolfcamql-11.3.exe", exe)
@@ -144,14 +153,18 @@ def stage_demo(demo_path: Path, idx: int = 0, staging: Path = STAGING) -> str:
     return safe
 
 
-def write_capture_cfg(windows: list[dict], staging: Path = STAGING) -> str:
+def write_capture_cfg(windows: list[dict], staging: Path = STAGING,
+                      profile: str | None = None) -> str:
     """One demo's capture script: chained seek/record/stop, then quit.
 
     windows: [{clip_name, start_ms, end_ms}], sorted ascending by start_ms.
     Executed via cgamepostinit.cfg (the reliable post-init hook the stock
     wolfcam automation scripts use).
     """
-    lines = ["exec wolfcam_tr4sh_master_capture.cfg"]
+    from creative_suite.engine import master_profile as _mp
+    cfg_name = _mp._CFG_FILES.get(profile or _mp.PROFILE_NAME,
+                                  "wolfcam_tr4sh_master_capture.cfg")
+    lines = [f"exec {cfg_name}"]
     prev_end = None
     for w in sorted(windows, key=lambda w: w["start_ms"]):
         name = _validate_cfg_token(str(w["clip_name"]))
@@ -191,10 +204,14 @@ def _terminate_cascade(proc: subprocess.Popen) -> None:
 def wolfcam_cmd(safe_demo: str, staging: Path = STAGING,
                 extra_sets: dict | None = None,
                 width: int = WIDTH, height: int = HEIGHT,
-                use_master_profile: bool = True) -> list[str]:
+                use_master_profile: bool = True,
+                profile: str | None = None) -> list[str]:
     if use_master_profile:
         from creative_suite.engine import master_profile
-        merged = dict(master_profile.LAUNCH_SETS)
+        # Which launch sets depends on the profile: the review capture needs
+        # different LATCHED renderer cvars (exposure), and those only take
+        # effect from the command line.
+        merged = dict(master_profile.launch_sets_for(profile))
         merged.update(extra_sets or {})
         extra_sets = merged
     cmd = [
@@ -231,12 +248,12 @@ def _mock_capture(windows: list[dict], staging: Path) -> None:
 
 
 def capture_demo(safe_demo: str, windows: list[dict],
-                 staging: Path = STAGING) -> dict:
+                 staging: Path = STAGING, profile: str | None = None) -> dict:
     """Run one wolfcam session capturing all windows of one demo.
 
     Returns {ok, returncode, elapsed_s, avis: {clip_name: path}, error}.
     """
-    write_capture_cfg(windows, staging)
+    write_capture_cfg(windows, staging, profile)
     videos = staging / "wolfcam-ql" / "videos"
     videos.mkdir(parents=True, exist_ok=True)
     for w in windows:  # remove stale outputs so success detection is honest
@@ -255,9 +272,20 @@ def capture_demo(safe_demo: str, windows: list[dict],
         _mock_capture(windows, staging)
         rc = 0
     else:
+        # Minimized and NOT activated. Wolfcam is a game client: a new
+        # top-level window takes the foreground, and doing that to someone
+        # mid-round costs them the round. See capture_guard.
+        from creative_suite.engine.capture_guard import quiet_startup_info
+        # ASK THE ONE AUTHORITY, even though every queue already did: this
+        # is the process that opens the window, and it must not be reachable
+        # by a caller that forgot. Raises RenderNotPermitted; a queue turns
+        # that into QUEUED + RENDER DEFERRED, never FAILED.
+        from engine.pantheon import render_permit
+        render_permit.require(f"capture_demo:{safe_demo}")
         proc = subprocess.Popen(
-            wolfcam_cmd(safe_demo, staging), cwd=staging,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            wolfcam_cmd(safe_demo, staging, profile=profile), cwd=staging,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            startupinfo=quiet_startup_info())
         try:
             rc = proc.wait(timeout=timeout)
         except subprocess.TimeoutExpired:

@@ -568,6 +568,20 @@ class Actor:
         self._s._alive_log.append((when, dict(self._s._alive)))
         return self
 
+    def credit_kill(self, victim: "Actor", *, t: float | None = None) -> "Actor":
+        """Count a kill the demo already carries as a recorded obituary.
+
+        The obituary temp entity is replayed verbatim by perform(); authoring
+        a second one through kill() put two obituaries in the synthetic demo.
+        This updates the round (alive counters, the victim's state) and emits
+        nothing.
+        """
+        when = self._last().t if t is None else t
+        victim._die(when)
+        self._s._alive[victim.team] -= 1
+        self._s._alive_log.append((when, dict(self._s._alive)))
+        return self
+
     def _die(self, t: float) -> None:
         self.alive = False
         if any(k.recorded for k in self._keys):

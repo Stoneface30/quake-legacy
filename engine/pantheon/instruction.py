@@ -131,6 +131,11 @@ class AnalysisBreak:
     # LOCAL_FRAME so its stopping point is `walk_to` and its final facing is
     # toward `face`. Timing is the recording's own.
     entrance: object | None = None  # performance.PerformanceTrace
+    # A dense, collision-checked camera plan for the hold: [{t_ms (edit ms
+    # from the freeze start), pos, angles(pitch,yaw,roll), fov}]. Built by
+    # camera_plan_to_presenter() from the project's camera_paths /
+    # camera_compiler_v2 machinery. When set, `orbit` is ignored.
+    camera_plan: Sequence[dict] = ()
 
     def __post_init__(self) -> None:
         if self.hold_s < 2 * self.walk_s + 0.4:
@@ -386,6 +391,15 @@ class InstructionScene:
             if right != left:
                 out.append(_replace_t(k, right))
         for b in self.breaks:
+            if b.camera_plan:
+                e0 = _edit_of(tm, b.at_t, bias="left")
+                for kf in b.camera_plan:
+                    k = _Keyframe(round(e0 + kf["t_ms"] / 1000.0, 3), tuple(kf["pos"]),
+                                  float(kf["angles"][1]) % 360.0, Stance.IDLE,
+                                  Weapon.ROCKET, 200, 100, True)
+                    k.pitch = float(kf["angles"][0])
+                    out.append(k)
+                continue
             if not b.orbit:
                 continue
             e0 = _edit_of(tm, b.at_t, bias="left")
@@ -447,6 +461,7 @@ class InstructionScene:
                       "source_kind": b.line.source_kind}
                      if b.line else None),
             "camera_orbit_points": len(b.orbit),
+            "camera_plan_keyframes": len(b.camera_plan),
             "entrance": ("REAL_PERFORMANCE" if b.entrance is not None else "AUTHORED_WALK"),
             "walk_route": [[round(c, 2) for c in p] for p in route],
             "walk_len_units": round(
@@ -549,7 +564,15 @@ def place_entrance(trace, *, stop_at: Vec3, face: Vec3) -> dict:
     for (ta, ya), (tb, yb) in zip(yaws, yaws[1:]):
         if abs((yb - ya + 180) % 360 - 180) > 2.0:
             turned = tb
+    # The transform itself is the SHARED Retarget: same offset/yaw_offset
+    # arithmetic, same perform_kwargs. This function only decides WHICH
+    # local frame (stop on the mark, facing the camera); the object that
+    # carries it is not a prologue fork.
+    from engine.pantheon.retarget import Retarget, TransformMode
+    rt = Retarget(TransformMode.LOCAL_FRAME, offset, yaw_offset % 360.0,
+                  anchor_from=stop.origin, anchor_to=tuple(stop_at))
     return {"mode": "LOCAL_FRAME", "offset": offset, "yaw_offset": round(yaw_offset, 2),
+            "retarget": rt,
             "stop_rel_s": (stop.t - trace.start_ms) / 1000.0,
             "turned_rel_s": (turned - trace.start_ms) / 1000.0,
             "start_world": _apply(T[0].origin, offset, yaw_offset),
@@ -561,6 +584,30 @@ def _apply(o: Vec3, offset: Vec3, yaw_offset: float) -> Vec3:
     c, sn = math.cos(math.radians(yaw_offset)), math.sin(math.radians(yaw_offset))
     return (o[0] * c - o[1] * sn + offset[0], o[0] * sn + o[1] * c + offset[1],
             o[2] + offset[2])
+
+
+def validate_placement_shared(trace, placement: dict, map_name: str, nav) -> dict:
+    """The SHARED validity: retarget.validate_retarget over SpatialValidity
+    (MapSpatialIndex occupancy from thousands of demos + NavigationTruth).
+
+    validate_placement below is the prologue's earlier same-floor check and
+    is kept only as a second opinion in the report; the verdict that gates a
+    render is this one.
+    """
+    from engine.pantheon.retarget import SpatialValidity, validate_retarget
+    spatial = None
+    try:
+        from engine.pantheon.map_spatial_index import MapSpatialIndex
+        spatial = MapSpatialIndex.for_map(map_name)
+    except Exception as exc:                      # pragma: no cover - data
+        spatial_note = f"MapSpatialIndex unavailable: {exc!r}"[:160]
+    else:
+        spatial_note = "MapSpatialIndex + NavigationTruth"
+    sv = SpatialValidity(spatial=spatial, navigation=nav)
+    v = validate_retarget(trace, placement["retarget"], sv)
+    d = v.as_dict() if hasattr(v, "as_dict") else dict(vars(v))
+    d["reference"] = spatial_note
+    return d
 
 
 def validate_placement(trace, placement: dict, nav, *, floor_tol: float = 40.0,
@@ -595,6 +642,59 @@ def validate_placement(trace, placement: dict, nav, *, floor_tol: float = 40.0,
             "worst_xy_u": round(worst_xy, 1), "worst_z_u": round(worst_z, 1),
             "verdict": "VALID" if n_bad == 0 else "INVALID",
             "reference": f"NavigationTruth {nav.map_name}: {len(pts)} walked points"}
+
+
+def camera_plan_to_presenter(*, start_pos: Vec3, start_yaw: float, start_pitch: float,
+                             subject: Vec3, subject_face_yaw: float, map_name: str,
+                             begin_ms: int, duration_ms: int, hold_until_ms: int,
+                             close_u: float = 140.0, lateral_deg: float = 28.0,
+                             hz: float = 40.0, pk3_path: str | None = None) -> dict:
+    """A medium-wide -> low dolly -> lateral arc -> settle, on the project's
+    own camera machinery, collision-checked against the real BSP.
+
+    The camera COMES TO HER: it starts on the historical POV, holds while
+    she runs in (the movement must be readable first), then after her stop
+    dollies to conversational distance on a modest arc so the frozen fight
+    stays in the frame behind her. Position and look-at come from
+    camera_paths; the dense curve from camera_compiler_v2.resample_dense;
+    validity from collision_check_dense over camera_paths.bsp_tracer -- not
+    from any prologue re-implementation. The execution backend differs:
+    keyframes are written into the demo's own point of view rather than a
+    FREECAM_SAMPLED cfg, so the camera is in FrameTruth and in the AVI.
+    """
+    from creative_suite.engine import camera_paths as cp
+    from creative_suite.engine import camera_compiler_v2 as cc
+    aim = (subject[0], subject[1], subject[2] + cp.SUBJECT_EYE_Z)
+    # the conversational mark: `close_u` in front of her, offset by
+    # `lateral_deg` off her facing line so she is not dead-centre-flat
+    az = math.radians(subject_face_yaw + lateral_deg)
+    end_pos = (subject[0] + close_u * math.cos(az), subject[1] + close_u * math.sin(az),
+               subject[2] + cp.SUBJECT_EYE_Z + 6.0)
+    mid = ((start_pos[0] + end_pos[0]) / 2, (start_pos[1] + end_pos[1]) / 2,
+           min(start_pos[2], end_pos[2]) - 4.0)          # the low dolly
+    sparse = [
+        cp._kf(0, start_pos, (start_pitch, start_yaw, 0.0), cp.DEFAULT_FOV),
+        cp._kf(begin_ms, start_pos, (start_pitch, start_yaw, 0.0), cp.DEFAULT_FOV),
+        cp._kf(begin_ms + duration_ms * 0.55, mid, cp.look_at_angles(mid, aim), cp.DEFAULT_FOV),
+        cp._kf(begin_ms + duration_ms, end_pos, cp.look_at_angles(end_pos, aim), cp.DEFAULT_FOV),
+        cp._kf(hold_until_ms, end_pos, cp.look_at_angles(end_pos, aim), cp.DEFAULT_FOV),
+    ]
+    dense = cc.resample_dense(sparse, hz)
+    tracer = None
+    note = "no tracer: collision UNCHECKED"
+    try:
+        tracer = cp.bsp_tracer(map_name, pk3_path)
+        note = f"camera_paths.bsp_tracer({map_name}) over the real BSP"
+    except Exception as exc:                          # pragma: no cover - data
+        note = f"bsp_tracer unavailable: {exc!r}"[:160]
+    subject_track = [(float(k["t_ms"]), *aim) for k in dense]
+    res = cc.collision_check_dense(tracer, dense, subject_track)
+    return {"keyframes": res["keyframes"], "status": res["status"],
+            "min_clearance_u": res.get("min_clearance_u"),
+            "used": res.get("used_count"), "authored": res.get("original_count"),
+            "collision": note, "start": start_pos, "end": end_pos,
+            "close_u": close_u, "lateral_deg": lateral_deg,
+            "begin_ms": begin_ms, "duration_ms": duration_ms, "hz": hz}
 
 
 def _analysis_rail(t: float, actor: str, to: Vec3):
@@ -637,14 +737,7 @@ PANTHEON_GREEN = (60, 235, 90)     # readable against grey arena stone,
 ANALYSIS_SKIN = "bright"
 
 
-def analysis_visual_cvars(*, same_team_as_pov: bool,
-                          rgb: tuple[int, int, int] = PANTHEON_GREEN) -> dict:
-    """Cvars that colour the analysis body and leave history alone.
-
-    `same_team_as_pov` decides which half of the family to write, because the
-    engine classifies by team relation and not by anything this layer controls.
-    """
-    from engine.pantheon.color_format import format_for
-    fam = "cg_team" if same_team_as_pov else "cg_enemy"
-    return {f"{fam}{part}Color": format_for(f"{fam}{part}Color", rgb)
-            for part in ("Legs", "Torso", "Head")}
+# HOW the tint reaches a renderer -- which cvars, in which format -- is the
+# backend's business: engine.pantheon.color_format.analysis_visual_cvars.
+# This layer states the intent (PANTHEON_GREEN on the analysis body, chosen
+# by team relation to the POV) and nothing lower.

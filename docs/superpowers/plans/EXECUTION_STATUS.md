@@ -1,5 +1,7 @@
 # QUAKE LEGACY — Execution Status
 
+> Current review: [2026-09-05 status and verification](../../reference/project-review-2026-09-05.md). Entries below are dated historical evidence, not live readiness.
+
 *Last updated: 2026-08-27 (review-state refresh - see the 2026-08-27 Audit at the end of this file)*
 
 Three plans are being executed via Subagent-Driven Development.

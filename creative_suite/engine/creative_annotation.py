@@ -28,6 +28,7 @@ import re
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
+from collections.abc import Sequence
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -107,6 +108,11 @@ CREATE TABLE IF NOT EXISTS round_annotations (
     written_at   TEXT NOT NULL,
     version      TEXT NOT NULL);
 CREATE INDEX IF NOT EXISTS ix_ra_hash ON round_annotations(content_hash, round);
+CREATE TABLE IF NOT EXISTS scene_event_notes (
+    event_id    TEXT PRIMARY KEY,
+    annotation  TEXT NOT NULL,
+    provenance  TEXT NOT NULL DEFAULT 'HUMAN_USER',
+    written_at  TEXT NOT NULL);
 """
 
 
@@ -181,6 +187,64 @@ def get_round_annotation(content_hash: str, round_no: int
         r = c.execute("SELECT * FROM round_annotations WHERE round_key=?",
                       (round_key(content_hash, int(round_no)),)).fetchone()
     return dict(r) if r else None
+
+
+# -- scene EVENT notes -------------------------------------------------------
+#
+# A note on a moment that carries no verdict. A jump pad can say "music
+# builds here" without becoming a reviewable frag and without demanding a
+# T1-T5 role.
+#
+# THIS LIVED IN THE HTTP ROUTER, and that was the defect. The router created
+# the table on demand, so the only way to read a note was to make a web
+# request -- and `scene.build_scene`, which is what production reads, never
+# did. The director's words were being stored and then never loaded by
+# anything except the page that wrote them. Storage belongs next to the
+# other annotations, where the scene builder can reach it.
+
+
+def set_event_annotation(event_id: str, annotation: str,
+                         provenance: str = HUMAN_USER) -> dict[str, Any]:
+    """A directing note on one scene-rail event, addressed by `event_id`."""
+    now = _now()
+    with conn() as c:
+        c.execute(
+            "INSERT INTO scene_event_notes(event_id, annotation, provenance, "
+            "written_at) VALUES (?,?,?,?) ON CONFLICT(event_id) DO UPDATE SET "
+            "annotation=excluded.annotation, provenance=excluded.provenance, "
+            "written_at=excluded.written_at",
+            (event_id, annotation, provenance, now))
+    return {"event_id": event_id, "annotation": annotation,
+            "provenance": provenance, "written_at": now}
+
+
+def get_event_annotation(event_id: str) -> dict[str, Any] | None:
+    with conn() as c:
+        r = c.execute("SELECT * FROM scene_event_notes WHERE event_id=?",
+                      (event_id,)).fetchone()
+    return dict(r) if r else None
+
+
+def event_annotations(event_ids: Sequence[str]) -> dict[str, dict[str, Any]]:
+    """Every note for a set of rail events, in one query.
+
+    `build_scene` calls this once per scene rather than once per event: a
+    scene can carry thirty movement runs and none of them is worth a round
+    trip of its own.
+    """
+    ids = list(event_ids)
+    if not ids:
+        return {}
+    out: dict[str, dict[str, Any]] = {}
+    with conn() as c:
+        for i in range(0, len(ids), 500):       # SQLite variable limit
+            chunk = ids[i:i + 500]
+            qs = ",".join("?" * len(chunk))
+            for r in c.execute(
+                    f"SELECT * FROM scene_event_notes WHERE event_id IN ({qs})",
+                    chunk):
+                out[r["event_id"]] = dict(r)
+    return out
 
 
 def search(text: str, role: str | None = None, item_type: str | None = None,

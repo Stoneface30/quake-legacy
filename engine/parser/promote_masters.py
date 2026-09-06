@@ -13,6 +13,7 @@ Manifest: output/demo_v2/promoted_master_pool.json.
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import sqlite3
 import sys
@@ -34,18 +35,28 @@ CATEGORY_LISTS = ["top_air_rockets", "top_direct_rockets",
 SPECIALISTS_PER_LIST = 3
 FRAG_PRE_MS, FRAG_POST_MS = 4500, 4000
 
-RENDER_PROOFED = {  # top-4 pixel shots with visual proof strips (2026-08-31)
-    ("CA-pTnTr4sH-qUARanTINe-2011_09_22-18_43_52.dm_73", 291650),
-    ("CA-pTnTr4sH-asylum-2012_08_06-23_01_41.dm_73", 517750),
-    ("CA-Gr0str4sh-quarantine-2012_11_25-12_43_30.dm_73", 248100),
-    ("CA-Gr0sTr4sH-asylum-2013_01_12-16_39_07.dm_73", 640975),
+RENDER_PROOFED_KEYS = {  # top-4 pixel shots with visual proof strips
+    "50e15ff20072b57c557f7ac5bda8d0f339690e8849cc56bdf7d45444ae738945",
+    "c15c22a2a976024eeaec352eb1920db16a8e58c0780e9f767130e3a2eb39f01c",
+    "e64425a4437d30f1ba36475493c0d1e665c179ac9398d8cd6099e73dbde288d3",
+    "ce23f4cb2d1eb545fd08d485bc1830d234e5e962576cc5b5d9fc1a231be7a888",
 }
+
+
+def render_proof_key(demo: str, server_time_ms: int) -> str:
+    """Stable anonymous identity for a visually proofed demo moment."""
+    raw = f"{demo}\0{int(server_time_ms)}".encode("utf-8")
+    return hashlib.sha256(raw).hexdigest()
+
+
+def is_render_proofed(demo: str, server_time_ms: int) -> bool:
+    return render_proof_key(demo, server_time_ms) in RENDER_PROOFED_KEYS
 
 
 def tier_of(kind: str, score: float, classes: set, demo: str, t: int) -> str:
     if kind == "scene":
         return "S+" if score >= 60 else ("S" if score >= 48 else "A")
-    if (demo, t) in RENDER_PROOFED:
+    if is_render_proofed(demo, t):
         return "S+"
     if score >= 40 or ("CLUTCH_1V4_PLUS" in classes and score >= 28):
         return "S+"
@@ -115,7 +126,7 @@ def run() -> dict:
             "server_time_ms": t, "weapon": r["weapon_name"],
             "classes": sorted(classes),
             "reasons": [reason] + json.loads(r["reasons"] or "[]")[:6],
-            "render_proofed": (demo, t) in RENDER_PROOFED,
+            "render_proofed": is_render_proofed(demo, t),
             "tier": tier_of("frag", r["highlight_score"] or 0, classes,
                             demo, t),
             "mode_pool": a.get("mode_pool"),

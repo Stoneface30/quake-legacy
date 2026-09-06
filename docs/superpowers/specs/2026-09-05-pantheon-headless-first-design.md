@@ -1,7 +1,7 @@
 # PANTHEON headless-first — design
 
 **Date:** 2026-09-05 · **Branch:** `feature/pantheon-prologue` · **Rules:** CLAUDE.md HL-1..HL-4
-**Status:** boundary + interface + guard test shipped; retarget/compare loop is the next unit of work.
+**Status:** boundary + interface + guard test shipped (d7b40d77); headless loop, event emission, ActionGraph, MapSpatialIndex, PerformanceLibrary, bench and golden set shipped on `feature/pantheon-headless` (2026-09-05 evening). See §7.
 
 ## 1. The problem
 
@@ -177,3 +177,31 @@ Before continuing the jump-pad rocket reproduction:
    compare frames with the real capture.
 
 No Wolfcam launch before step 4.
+
+## 7. Shipped on `feature/pantheon-headless` (2026-09-05)
+
+| Unit | Module | Proof |
+|---|---|---|
+| Headless API | `engine/pantheon/headless.py` — `extract_performance`, `compile_performance`, `reextract`, `run` | `test_pantheon_headless_api.py` |
+| Retarget | `engine/pantheon/retarget.py` — `EXACT_WORLD`, `LOCAL_FRAME`, `validate_retarget` | same |
+| Compare | `engine/pantheon/compare.py` — `PerformanceDiff`, six statuses, gaps as spans | same |
+| Event emission | `compiler.py` — entity events with sequence bits, temp-entity impacts/trails | REAL_ACTION_TRACE_PROOF_01 `event:* = MATCHED` |
+| Sound intent + recorded pose | `frame_truth.py::SOUND_INTENT`, `ActorTruth.pitch/velocity/legs_anim` | `test_frame_truth_carries_the_recorded_pose_and_the_sound_intent` |
+| ActionGraph | `engine/pantheon/action_graph.py` — evidence-bearing nodes, transform validation, projectile tracks, rail/LG on their own terms, closed category list | `test_action_graph.py`; real trace reads `JUMP_PAD -> AIRBORNE -> FIRE -> PROJECTILE` |
+| MapSpatialIndex | `engine/pantheon/map_spatial_index.py` — 64u cells, layers, adjacency, encounters, floors; feeds `validate_retarget` | `test_map_spatial_index.py` |
+| PerformanceLibrary | `engine/pantheon/performance_library.py` — `PERF:` refs, SQL coarse categories, ActionGraph fine categories | CLI `--counts` |
+| Bench | `engine/pantheon/headless_bench.py` | `creative_suite/generated/pantheon/bench/bench.json` |
+| Golden set | `creative_suite/tests/test_pantheon_golden_headless.py` — real demos, skips without the corpus | run log |
+| Boundary audit | `test_pantheon_headless_boundary.py` — imports AND vocabulary (`wolfcam`, `cvar`, `.avi`, `cam10`, `Popen`, `cg_` ...) | suite |
+
+Rules HL-5 (character != performance), HL-6 (gaps stay gaps), HL-7 (events and sound are game state) added to CLAUDE.md.
+
+## 8. Sprint 2 (2026-09-06): one authority, render permission, templates
+
+- **Merge reconciliation.** `feature/pantheon-prologue` merged into `feature/pantheon-headless` (de07fb6e). The prologue's event chain (`ActionEvent.code/carrier/other_entity`, temp-entity events read off entity state, `_RecordedEvent` replayed by the compiler) is the surviving extraction/compilation; the headless branch's parallel emission was dropped. On top: attribution by event semantics (missile impact = his missile in that slot on the previous tick; rail trail = entity names him; obituary = him as killer; teleport = out/in pair AND his own discontinuity), parser rows from entities >= MAX_CLIENTS never double-counted, absent wire fields read as zero, removed temp entities forgotten by the edge detector, otherEntityNum mapped real -> synthetic, recorded obituaries credited not re-authored, context actors performed from their own traces.
+- **Temp entities are fresh entities.** eType is 8 bits on the wire; the toggle bits were truncated (316 -> 60) and two identical impacts on consecutive ticks in one slot read as one. Temp emissions rotate through a 96-slot pool; same-tick extra player events go out as external temp entities.
+- **RenderPermit** (`engine/pantheon/render_permit.py`, HL-8, unified with the review branch on 2026-09-06): `PANTHEON_RENDER=off|auto|on`, default `auto`; a running game always defers; no force variable; queues keep `QUEUED` + `RENDER DEFERRED`; eight launch sites gated; conftest forbids any game process in tests.
+- **Performance templates** (`performance_templates.py`): `TPL:<group>:<hash>:<client>:<start_ms>`, 12,969 real segments from 2,400 traces, 11 of 14 groups populated (RETREAT/CHASE need `others`, ROCKET_PREDICTION needs an observed splash impact before the kill); `find()` by distance / heading / duration / stance / weapon / airborne.
+- **SpatialValidity**: NavigationTruth + MapSpatialIndex asked together for LOCAL_FRAME.
+- **Golden headless suite**: 9 real cases green (jump pad, rocket kill, rail, run/turn, jump, death, observation gap, teleport, weapon change); zero game processes.
+- **Ownership**: `docs/reference/pantheon_ownership.md`.

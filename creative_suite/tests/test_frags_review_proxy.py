@@ -240,9 +240,8 @@ def test_capture_lock_requeues(client: TestClient, monkeypatch: pytest.MonkeyPat
     # pid is skipped (same-pid locks are treated as ours), so use pid of the
     # current process's ppid if alive, else fall back to holding via any live pid.
     other = os.getppid()
-    try:
-        os.kill(other, 0)
-    except OSError:
+    from creative_suite.engine.process_liveness import process_alive
+    if not process_alive(other):
         pytest.skip("no live foreign pid available")
     lock.write_text(str(other))
     client.post("/api/frags/1/proxy")

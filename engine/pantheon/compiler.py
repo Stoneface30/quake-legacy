@@ -21,7 +21,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from engine.parser import dm73_write as W
-from engine.pantheon.scenario import Weapon
+from engine.pantheon.scenario import Weapon, _RecordedEvent
 
 if TYPE_CHECKING:                                   # pragma: no cover
     from engine.pantheon.scenario import RoundScenario
@@ -215,7 +215,22 @@ def compile_scenario(scn: "RoundScenario", *,
     # A player's event field fires when its VALUE changes: the same code twice
     # needs the other toggle bit, so each actor alternates 0x100/0x200.
     ev_toggle: dict[str, int] = {}
-    TEMP_SLOT0 = 800
+    # TEMP ENTITIES ARE FRESH ENTITIES. eType is an 8-bit field on the wire,
+    # so EV_EVENT_BITS cannot ride on it (316 arrives as 60); real demos
+    # never carry them there. The engine tells two consecutive identical
+    # temp events apart because each is a NEW entity number. Every temp
+    # emission here takes the next slot from a rotating pool, so a slot is
+    # never reused on the following tick -- the parser and cgame both see a
+    # new entity, and a rocket hit 25 ms after another is not swallowed.
+    TEMP_POOL0, TEMP_POOL = 800, 96
+    temp_counter = [0]
+
+    def next_temp_slot() -> int:
+        slot = TEMP_POOL0 + (temp_counter[0] % TEMP_POOL)
+        temp_counter[0] += 1
+        return slot
+    real_to_synth = {a._recorded_client: a.client for a in scn.actors.values()
+                     if getattr(a, "_recorded_client", None) is not None}
 
     obit_slot = 512
     MISSILE_SLOT0 = 700
@@ -261,27 +276,43 @@ def compile_scenario(scn: "RoundScenario", *,
                     st[W.ES_WEAPON] = k.weapon_num
             evs = rec_player_ev.get(now, {}).get(a.name)
             if evs:
-                e = evs[-1]                    # one event field per tick
+                e = evs[0]                     # one event field per tick...
                 ev_toggle[a.name] = 0x200 if ev_toggle.get(a.name) == 0x100 else 0x100
                 st[W.ES_EVENT] = e.code | ev_toggle[a.name]
                 if e.parm is not None:
                     st[W.ES_EVENTPARM] = e.parm
+                # ...and the rest of the same tick go out the engine's own
+                # way for a second event on one body: an external temp
+                # entity carrying the body's clientNum (G_TempEntity path).
+                # A jump and a fire on one snapshot both happened; dropping
+                # one made the round trip report it MISSING.
+                for extra in evs[1:]:
+                    rec_temp_ev.setdefault(now, []).append(_RecordedEvent(
+                        extra.t, extra.actor, extra.code, "TEMP", extra.weapon,
+                        extra.parm, k.origin, None))
             ents[a.client] = st
 
-        for i, e in enumerate(rec_temp_ev.get(now, [])):
-            slot = TEMP_SLOT0 + i
-            toggles[slot] = toggles.get(slot, 0) ^ 0x100
+        for e in rec_temp_ev.get(now, []):
+            slot = next_temp_slot()
             pos = e.position or (0.5, 0.5, 0.5)
-            st = {W.ES_ETYPE: W.ET_EVENTS + e.code + (0x300 & toggles[slot]),
+            st = {W.ES_ETYPE: W.ET_EVENTS + e.code,
                   W.ES_POS_X: pos[0] or 0.5, W.ES_POS_Y: pos[1] or 0.5,
                   W.ES_POS_Z: pos[2] or 0.5}
             if e.parm is not None:
                 st[W.ES_EVENTPARM] = e.parm
             if e.weapon is not None:
                 st[W.ES_WEAPON] = e.weapon
+            # otherEntityNum is a REAL entity number; the body it names has
+            # a different slot in the synthetic demo. Map it through the cast
+            # (Actor._recorded_client); a real client nobody performs stays
+            # what it was, which cgame reads as an absent entity.
             if e.other_entity is not None:
-                st[W.ES_OTHER_ENT] = e.other_entity
+                st[W.ES_OTHER_ENT] = real_to_synth.get(e.other_entity, e.other_entity)
             st[W.ES_CLIENTNUM] = scn.actors[e.actor].client
+            if e.code == W.EV_OBITUARY:
+                # obituary: otherEntityNum = victim, otherEntityNum2 = killer,
+                # eventParm = MOD -- the shape obituary_entity() writes
+                st[W.ES_OTHER_ENT2] = scn.actors[e.actor].client
             ents[slot] = st
 
         # recorded missiles: each observed sample becomes the missile entity's
@@ -298,24 +329,21 @@ def compile_scenario(scn: "RoundScenario", *,
                 W.ES_CLIENTNUM: scn.actors[pk.actor].client,
             }
 
-        for i, e in enumerate(rails.get(now, [])):
-            slot = RAIL_SLOT0 + i
-            toggles[slot] = toggles.get(slot, 0) ^ 0x100
+        for e in rails.get(now, []):
+            slot = next_temp_slot()
             end = tuple(p if p else 0.5 for p in e.position)
-            ents[slot] = W.railtrail_entity(scn.actors[e.actor].client, end,
-                                            toggle=toggles[slot])
+            ents[slot] = W.railtrail_entity(scn.actors[e.actor].client, end)
 
         for e in kills.get(now, []):
             victim = scn.actors[e.target]
             killer = scn.actors[e.actor]
-            toggles[obit_slot] = toggles.get(obit_slot, 0) ^ 0x100
+            obit_slot = next_temp_slot()
             pos = e.position or victim._at(t).origin
             # an event at exact zero has no position once encoded, so nudge
             pos = tuple(p if p else 0.5 for p in pos)
             ents[obit_slot] = W.obituary_entity(
                 killer.client, victim.client,
-                MOD_BY_WEAPON.get(e.weapon.value if e.weapon else 5, 7),
-                pos, toggle=toggles[obit_slot])
+                MOD_BY_WEAPON.get(e.weapon.value if e.weapon else 5, 7), pos)
 
         cam = scn.camera_at(t)                     # the POV may move
         ps = {

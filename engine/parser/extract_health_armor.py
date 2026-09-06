@@ -26,7 +26,19 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 RECOG_DB = REPO_ROOT / "creative_suite" / "database" / "frag_recognition.db"
 FRAGS_DB = REPO_ROOT / "creative_suite" / "database" / "frags_rebuilt.db"
 
-EXTRACTOR_VERSION = 1
+# Bumped to 2 when --all widened the candidate set.
+#
+# The resume is keyed by DEMO, not by frag: a demo present in
+# health_extracted is skipped entirely. That is correct while the candidate
+# set is fixed, and wrong the moment it widens -- the 1,251 demos from the
+# narrow run were skipped by the --all pass, so only their high-scoring frags
+# ever got a value. Measured: narrow-run demos sit at 17.1% health coverage
+# while demos the widened pass actually processed reach 45.3%.
+#
+# A version bump is the honest way to say "the question changed", and it
+# re-opens exactly those demos without discarding the values already stored
+# (candidate_map still skips any frag that has health).
+EXTRACTOR_VERSION = 2
 PRE_WINDOW_MS = 10_000
 MIN_SCORE = 10.0
 
@@ -173,5 +185,9 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--limit", type=int)
     ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--all", action="store_true",
+                    help="every frag, not just clutches and high scores")
     args = ap.parse_args()
+    ALL_FRAGS = args.all
+    globals()["ALL_FRAGS"] = ALL_FRAGS
     print(json.dumps(run(args.limit, args.workers), indent=1))

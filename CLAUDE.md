@@ -332,6 +332,26 @@ Everything above the bottom row runs without launching a game.
 - **WHAT** BSP, MD3, QL shaders, lightmaps, animation interpolation, effects, particles, marks, PVS, native cgame rendering come from Wolfcam for free. Headless *engine* now; headless *renderer* is a separate project (Route 1 offscreen GL adapter, Route 2 Blender) and blocks nothing.
 - **WHY** Replacing the rasterizer buys no truth. The boundary is what fixes the iteration loop, not the renderer.
 
+### Rule HL-5: Character is not performance
+- **WHAT** A `PerformanceTrace` says how a body moved, aimed and fought; it carries a demo hash and a client slot, never a name. A `roster.PresenterProfile` (model, skin, voice, gesture vocabulary) says WHO performs it. `headless.compile_performance(trace, cast=...)` joins them at compile time and nowhere earlier. Anarki can perform a trace recorded from anyone.
+- **WHERE** `engine/pantheon/headless.py::CastMember` · `engine/pantheon/roster.py::PresenterProfile` · `performance_library.py` references are `PERF:<category>:<hash>:<client>:<t_ms>`.
+- **WHY** Reusable performances are the library; identities are not, and the public repo never carries one.
+
+### Rule HL-6: Observation gaps stay gaps
+- **WHAT** Where the source demo carried no sample of a player (the recorder lost sight, the entity left the snapshot), the trace has no sample, the synthetic holds the last known state, and `compare()` reports the span as `UNOBSERVED`. Nothing interpolates across a multi-second absence and calls it source truth. An event the transform contradicts (a jump pad without a launch, a teleport without a discontinuity) is `rejected` with a reason, never a node.
+- **WHERE** `engine/pantheon/compare.py` (`GAP_MS`, `unobserved_spans_ms`) · `engine/pantheon/action_graph.py` (`rejected`, transform validation) · `performance_index.py::_launched`.
+- **WHY** The false jump-pad attribution on the POV client (flat on the ground at z=600 through the whole "jump") showed an event alone can lie; only the transform can confirm it.
+
+### Rule HL-7: Events and sound are game state, emitted by the compiler
+- **WHAT** Every recorded `EV_*` is replayed with its own code and carrier: player-carried events (fire, jump pad, pain, death, weapon change) on the actor's entity with alternating toggle bits; temp-entity events (impacts, rail trails, obituaries, teleports) as their own `ET_EVENTS` entity with position, parm, weapon and `otherEntityNum` mapped to the synthetic cast. Attribution of a temp event to a player is by what the event IS (his missile in that slot on the previous tick; the entity naming him; him as the killer; for teleports, the out/in pair AND his own discontinuity), never by a reused entity slot. The synthetic `.dm_73` therefore parses back to the same event tracks as the source (`event:* = MATCHED`). `FrameTruth.SemanticEvent.sound` names the sound intent (`weapon.fire.ROCKET`, `world.jump_pad`, `impact.ROCKET`, `player.pain`, ...); a backend decides the sample and the mix. Never patch an explosion or a sound into a renderer to cover a missing event.
+- **WHERE** `performance.py::extract_performance` (temp-event attribution) · `scenario.py::_RecordedEvent` / `Actor.perform` · `compiler.py` (`rec_player_ev`, `rec_temp_ev`) · `frame_truth.py::SOUND_INTENT`.
+- **WHY** REAL_ACTION_TRACE_PROOF_01 sat at `events = INTENTIONAL_DIFFERENCE` until the compiler emitted them; now every event track on the real jump-pad rocket is MATCHED, headless, in 168 ms.
+
+### Rule HL-8: One RenderPermit, and a running game always wins (user requirement, 2026-09-05)
+- **WHAT** `engine/pantheon/render_permit.py` is the ONE authority. The ONE setting is `PANTHEON_RENDER=off|auto|on` (default `auto`): `off` never renders; `auto` and `on` render only when no protected game is running; a running game ALWAYS defers, whatever the setting says. There is no force variable, persistent or inherited. Every game-process launch (capture_demo, director_preview, director_session, _preview_job, engine supervisor, shot.render, cvar_probe, playback_probe) imports that module and asks `check()`/`require()` immediately before spawning. A refused queue job stays `QUEUED` with `RENDER DEFERRED`, never FAILED; a READY proxy keeps playing. The process scan is psutil or a toolhelp snapshot, never `tasklist`. `SW_SHOWMINNOACTIVE` on the capture window is defence in depth, not the mechanism.
+- **WHERE** `engine/pantheon/render_permit.py` · `creative_suite/engine/capture_guard.py` (process list, window flags) · `creative_suite/tests/test_render_permit.py` (every launch site must ask; a second module or a retired switch name fails the suite) · `creative_suite/tests/conftest.py` (no test can create a game process) · `docs/reference/pantheon_ownership.md`.
+- **WHY** A review origin coming up reclaimed queued proxy jobs and launched Wolfcam over the game the user was playing; two sessions then wrote two permits with two switch sets (`PANTHEON_RENDER_ALLOWED/FORCE` vs `PANTHEON_RENDER`). One contract, one module, and no configuration that means "film over my match".
+
 ## HARD RULES — Demo Parser & Highlight Criteria
 
 ### Rule P3-A: Own Highlight Criteria Before Demo Extraction

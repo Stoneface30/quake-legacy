@@ -91,6 +91,10 @@ FRAG = "FRAG"
 TELEFRAG = "TELEFRAG"
 DEATH = "DEATH"
 USER_FRAG = "USER_FRAG"
+# Action worth watching that ends in no kill. Its OWN namespace: an ACTION is
+# never a frag, never merges into the kill queue, and never inflates a frag
+# count. `ACTION:<action_id>`, resolved from `action_moments_v1`.
+ACTION = "ACTION"
 CLAN_FRAG = "CLAN_FRAG"
 ALL_KILL = "ALL_KILL"
 TELEPORT = "TELEPORT"
@@ -103,7 +107,7 @@ MOVEMENT_KIND = {HIGH_SPEED: "HIGH_SPEED_MOVEMENT", JUMPPAD: "JUMPPAD_ACTION"}
 DODGE = "DODGE"
 LG_TRACKING = "LG_TRACKING"
 PROJECTILE = "PROJECTILE"
-ITEM_TYPES = (USER_FRAG, FRAG, TELEFRAG, DEATH, CLAN_FRAG, ALL_KILL,
+ITEM_TYPES = (USER_FRAG, FRAG, TELEFRAG, DEATH, CLAN_FRAG, ALL_KILL, ACTION,
               TELEPORT, HIGH_SPEED, JUMPPAD, DODGE, LG_TRACKING, PROJECTILE)
 
 # Families served by the CANONICAL OCCURRENCE layer rather than by raw
@@ -212,8 +216,21 @@ RECORDER_OWN_ARCHIVE = "RECORDER_OWN_ARCHIVE"
 PTN_FRAGS = "PTN_FRAGS"
 USER_AND_PTN = "USER_AND_PTN"
 ALL_PLAYERS = "ALL_PLAYERS"
+# Telefrags are excluded from every normal queue because they demonstrate no
+# aim -- the map decided them. They are NOT deleted, because teleporters are
+# part of what Quake looks like and the documentary wants real teleportation.
+# This corpus is the only way to reach them, it is opt-in, and it never
+# leaks into the main queue.
+TELEFRAG_DOC = "TELEFRAG_DOC"
+
+# The no-kill corpus. HIGH confidence only by default: a pain event proves
+# damage, not whose, and at the median the actor fired 18% of the shots in
+# the window. Showing every AMBIGUOUS burst would be showing the reviewer
+# other people's fights.
+NO_KILL_ACTIONS = "NO_KILL_ACTIONS"
+
 CORPORA = (USER_FRAGS, RECORDER_OWN_ARCHIVE, PTN_FRAGS, USER_AND_PTN,
-           ALL_PLAYERS)
+           ALL_PLAYERS, TELEFRAG_DOC, NO_KILL_ACTIONS)
 
 # The old names, kept so nothing that referenced them breaks silently. They
 # are deliberately not in CORPORA: "MY_FRAGS" was the misnomer.
@@ -295,6 +312,8 @@ CORPUS_ITEM_TYPE = {
     PTN_FRAGS: CLAN_FRAG,
     USER_AND_PTN: ALL_KILL,    # narrowed to user + roster in the SQL
     ALL_PLAYERS: ALL_KILL,
+    TELEFRAG_DOC: ALL_KILL,      # same family, opposite junk rule
+    NO_KILL_ACTIONS: ACTION,
 }
 
 # What the user is actually looking at, in words, so a denominator is never
@@ -305,6 +324,8 @@ CORPUS_LABEL = {
     PTN_FRAGS: "pTn CONFIRMED-MEMBER FRAGS",
     USER_AND_PTN: "USER + pTn (unique occurrences)",
     ALL_PLAYERS: "ALL CANONICAL PLAYER KILLS",
+    TELEFRAG_DOC: "TELEFRAGS (documentary only)",
+    NO_KILL_ACTIONS: "ACTION WITH NO KILL",
 }
 
 DEFAULT_CORPUS = USER_FRAGS
@@ -392,6 +413,15 @@ def corpus_status(corpus: str) -> dict[str, Any]:
             out["blocked_by"] = ("no confirmed user identity has any "
                                  "attributed kill")
         return out
+    if corpus == TELEFRAG_DOC:
+        total = count_items(ALL_KILL, corpus=TELEFRAG_DOC)
+        return {"corpus": corpus, "label": CORPUS_LABEL[corpus],
+                "item_type": ALL_KILL, "available": total > 0,
+                "total": total, "scored": False,
+                "note": ("telefrags, which every other queue excludes "
+                         "because the map decided them and they demonstrate "
+                         "no aim. Kept reachable because teleporters are "
+                         "part of what Quake looks like")}
     if corpus in (PTN_FRAGS, USER_AND_PTN, ALL_PLAYERS):
         it = CORPUS_ITEM_TYPE[corpus]
         total = count_items(it, corpus=corpus)
@@ -506,6 +536,68 @@ def trait_vocabulary(limit: int = 40) -> list[dict[str, Any]]:
     return [{"trait": k, "count": v} for k, v in cnt.most_common(limit)]
 
 
+# ── named situations ────────────────────────────────────────────────────────
+#
+# Combinations a reviewer actually asks for out loud. "The gauntlet jump pad
+# is really funny" is not a weapon filter and not a trait filter -- it is a
+# weapon AND a movement run near it in time, and without a name for it the
+# only way to find the next one is to scroll 201,876 rows.
+#
+# Deliberately a SHORT list of measured combinations rather than a query
+# builder. Each one is here because someone asked for it, and the count next
+# to it is real.
+
+# A jump pad reads as connected to the kill within this window. Measured
+# rather than assumed: at -6s/+2s there are 98 gauntlet pad frags across the
+# archive and 31 of the user's own, which is a set worth browsing. Widening
+# it sweeps in pads from the previous fight.
+_PAD_BEFORE_MS, _PAD_AFTER_MS = 6000, 2000
+
+# Ranged on start_ms, NOT peak_ms. `ix_mm_hash(content_hash, start_ms)` is
+# the only index that can serve this; filtering on peak_ms turned the whole
+# thing into a scan of 40,342 movement rows for each of 201,876 candidates
+# and the query never returned. start_ms is also the truer question: the pad
+# is hit before the frag, not at the same instant.
+_JUMPPAD_NEAR = (
+    "EXISTS (SELECT 1 FROM movement_moments_v1 mm WHERE "
+    "mm.content_hash = k.content_hash AND "
+    f"mm.start_ms BETWEEN o.server_time_ms - {_PAD_BEFORE_MS} "
+    f"AND o.server_time_ms + {_PAD_AFTER_MS} "
+    "AND mm.kind = 'JUMPPAD_ACTION')")
+
+SITUATIONS: dict[str, tuple[str, str, list[Any]]] = {
+    "GAUNTLET_JUMPPAD": (
+        "gauntlet frag off a jump pad",
+        f"o.mod_name LIKE '%GAUNT%' AND {_JUMPPAD_NEAR}", []),
+    "GAUNTLET": ("gauntlet frag", "o.mod_name LIKE '%GAUNT%'", []),
+    "JUMPPAD_FRAG": ("frag off a jump pad", _JUMPPAD_NEAR, []),
+    "AIRBORNE_VICTIM": (
+        "the victim was in the air",
+        "EXISTS (SELECT 1 FROM recognized_frags rf WHERE "
+        "rf.content_hash = k.content_hash AND "
+        "rf.server_time_ms = o.server_time_ms AND rf.classes LIKE ?)",
+        ['%"AIR_%']),
+    "MULTI_POV": ("more than one camera filmed it", "o.n_observations > 1", []),
+}
+
+
+def _situation_sql(name: str) -> tuple[str, list[Any]]:
+    key = str(name).strip().upper()
+    if key not in SITUATIONS:
+        raise ValueError(f"unknown situation {key!r}; known: "
+                         f"{', '.join(sorted(SITUATIONS))}")
+    _label, frag, params = SITUATIONS[key]
+    return frag, list(params)
+
+
+def situations() -> list[dict[str, Any]]:
+    """The named situations and what each one currently matches."""
+    out = []
+    for key, (label, _f, _p) in SITUATIONS.items():
+        out.append({"situation": key, "label": label})
+    return out
+
+
 def _filter_sql(filters: dict[str, Any] | None) -> tuple[str, list[Any]]:
     """Turn a validated filter dict into SQL. Unknown keys are refused."""
     if not filters:
@@ -533,6 +625,11 @@ def _filter_sql(filters: dict[str, Any] | None) -> tuple[str, list[Any]]:
             if raw is not True:
                 params.append(f'%"{raw}"%')
             continue
+        if key == "situation":
+            frag, ps = _situation_sql(str(raw))
+            where.append(frag)
+            params.extend(ps)
+            continue
         if key == "min_round_kills":
             # Read from the precomputed round sizes. The correlated count it
             # replaces ran once per candidate row and made the filter
@@ -549,6 +646,84 @@ def _filter_sql(filters: dict[str, Any] | None) -> tuple[str, list[Any]]:
         where.append(frag)
         params.append(cast(str(raw)))
     return (" AND " + " AND ".join(where)) if where else "", params
+
+
+# ── what never belongs in a review queue ────────────────────────────────────
+#
+# Reported from a real phone session: "the first clip that loaded is a warmup
+# clip", and "other people telefrag or useless things are out of the picture
+# too". These are not judgements about quality -- they are moments that
+# cannot be judged at all, and each one costs forty seconds of wolfcam to
+# film before the reviewer can even skip it.
+
+MOD_TELEFRAG = 18
+
+# WARMUP IS ROUND 0 -- BUT ONLY WHERE ROUNDS EXIST.
+#
+# Round 0 means two completely different things, and the difference is the
+# demo rather than the kill. In a Clan Arena demo the round counter starts at
+# 1 when the match goes live, so a kill still sitting on round 0 happened
+# during pre-match warmup. In a demo with no round system at all, EVERY kill
+# is round 0 and none of them is warmup.
+#
+# The distinguishing fact is whether that demo ever reached round 1, which
+# `round_kills_v1` already answers on an indexed lookup.
+#
+# THE ROUND COUNTDOWN IS NOT WARMUP AND IS KEPT. The server announces the
+# next round about seven seconds before it begins, so a kill during that
+# countdown already carries its round number and survives this rule.
+# Measured: 675 warmup kills excluded, and 955 round-countdown kills that a
+# naive "before the round start time" rule would have eaten are kept.
+_WARMUP_SQL = ("NOT (o.round = 0 AND EXISTS (SELECT 1 FROM round_kills_v1 rk "
+               "WHERE rk.content_hash = k.content_hash AND rk.round >= 1))")
+
+
+def junk_sql(corpus: str | None = None) -> tuple[str, list[Any]]:
+    """QUEUE POLICY. Not event truth, and never a redefinition of one.
+
+    EDITORIAL POLICY IS NOT EVENT IDENTITY. A telefrag is still a kill: it
+    has an obituary, a killer, a victim and a means of death, and it belongs
+    in the user's canonical frag total whatever any queue decides to show. A
+    warmup kill is still a kill that happened. What these rules decide is
+    what is worth a reviewer's time -- a different question, answered in a
+    different place.
+
+    That distinction was got wrong once. Applying this inside `count_items`
+    silently moved the project's authoritative statistic from 33,316
+    confirmed user frags to 33,102, as though 214 kills had stopped
+    existing. They had not; they had stopped being offered. `count_items`
+    now takes `queue_policy` and `canonical_count` answers without it.
+    """
+    # The documentary corpus asks for exactly what every other queue
+    # refuses. Warmup and deletions still apply -- a warmup telefrag is no
+    # more watchable than any other warmup kill.
+    mod_rule = (f"o.mod = {MOD_TELEFRAG}" if corpus == TELEFRAG_DOC
+                else f"o.mod <> {MOD_TELEFRAG}")
+    sql = f" AND {mod_rule} AND {_WARMUP_SQL}"
+    gone = dismissed_occurrence_ids()
+    if gone:
+        # Inlined as integers rather than bound parameters because the queue
+        # runs against the RECOGNITION database and deletions live in the
+        # EDITORIAL one -- the two are deliberately never joined, and this
+        # module never writes to the former. Every id is coerced to int at
+        # the boundary, so nothing user-typed reaches the statement.
+        sql += (" AND o.occurrence_id NOT IN ("
+                + ",".join(str(int(i)) for i in gone) + ")")
+    return sql, []
+
+
+# The user reviews their own frags first, keeps their clanmates', and leaves
+# everyone else's for last -- rather than choosing a corpus up front and
+# finding out later that it excluded something they wanted.
+ACTOR_USER, ACTOR_PTN, ACTOR_OTHER = 0, 1, 2
+
+
+def actor_priority_sql() -> tuple[str, list[Any]]:
+    users, up = _in(user_norms())
+    clan, cp = _in(roster_norms() - user_norms())
+    return (f"CASE WHEN o.killer_name_norm IN {users} THEN {ACTOR_USER} "
+            f"WHEN o.killer_name_norm IN {clan} THEN {ACTOR_PTN} "
+            f"ELSE {ACTOR_OTHER} END", up + cp)
 
 
 def _kill_where(item_type: str, corpus: str | None = None
@@ -804,6 +979,22 @@ CREATE TABLE IF NOT EXISTS human_review_log (
     note           TEXT,
     at             TEXT NOT NULL
 );
+-- Moments the user has thrown out of their own queue. A DELETION, not a
+-- verdict: it says "never show me this again", which is a different
+-- statement from T5_PASS_FILLER ("I looked, and it is filler"). Keeping
+-- them apart matters because T1-T5 is creative truth that feeds the film,
+-- and this is housekeeping that must not.
+--
+-- Nothing is destroyed. The occurrence, its observations and its media stay
+-- exactly where they are; only this queue stops offering it, and `restore`
+-- puts it back.
+CREATE TABLE IF NOT EXISTS dismissed_occurrences (
+    occurrence_id  INTEGER PRIMARY KEY,
+    item_id        TEXT NOT NULL,
+    reason         TEXT NOT NULL DEFAULT '',
+    provenance     TEXT NOT NULL DEFAULT 'HUMAN_USER',
+    dismissed_at   TEXT NOT NULL
+);
 """
 
 # Indexes run AFTER the column migration below: an index on a column an old
@@ -958,20 +1149,37 @@ def _kill_rows(order: str, limit: int, offset: int, unreviewed_only: bool,
                filters: dict[str, Any] | None = None) -> list[sqlite3.Row]:
     where, params = _kill_where(item_type, corpus)
     fw, fp = _filter_sql(filters)
-    where, params = where + fw, params + fp
+    jw, jp = junk_sql(corpus)
+    where, params = where + fw + jw, params + fp + jp
     select = _DEATH_SELECT if item_type == DEATH else _KILL_SELECT
     direction = "ASC" if order == ORDER_WORST_FIRST else "DESC"
+    # MINE FIRST, CLANMATES NEXT, EVERYONE ELSE LAST.
+    #
+    # Asked for directly: "default to my frag keep other people frag for last
+    # (ptn member frags are kept!)". Ordering rather than filtering is the
+    # point -- nothing is hidden, and a queue that runs out of the user's own
+    # frags simply continues into the clan's instead of ending.
+    #
+    # Only where the family can contain more than one actor. USER_FRAG and
+    # CLAN_FRAG are already single-actor by their WHERE clause, and adding a
+    # constant sort key there would only cost an index.
+    actor_order = ""
+    if item_type == ALL_KILL:
+        aw, ap = actor_priority_sql()
+        actor_order = f"{aw}, "
+        params = ap + params
     # Unscored rows sort after scored ones in both directions rather than
     # being treated as a score of zero. A missing score is not a low score.
     sql = (f"{select} WHERE {where} "
-           f"ORDER BY (r.highlight_score IS NULL), r.highlight_score {direction}, "
+           f"ORDER BY {actor_order}(r.highlight_score IS NULL), "
+           f"r.highlight_score {direction}, "
            "o.occurrence_id ASC LIMIT ? OFFSET ?")
     with _rec() as c:
         rows = c.execute(sql, (*params, limit, offset)).fetchall()
     if not unreviewed_only:
         return rows
-    got = reviews([f"{item_type}:{r['id']}" for r in rows])
-    return [r for r in rows if f"{item_type}:{r['id']}" not in got]
+    judged = occurrence_reviews([r["id"] for r in rows])
+    return [r for r in rows if r["id"] not in judged]
 
 
 def _kill_item(r: sqlite3.Row, item_type: str, rank: int, total: int,
@@ -998,6 +1206,30 @@ def _kill_item(r: sqlite3.Row, item_type: str, rank: int, total: int,
         scored=score is not None,
         human_role=(rv.get("human_role") or None) or None,
         note=rv.get("note") or "")
+
+
+def occurrence_reviews(occurrence_ids: Sequence[int]) -> dict[int, dict[str, Any]]:
+    """Verdicts for occurrences, whichever kill family they were judged under.
+
+    ONE KILL HAPPENED ONCE. The same canonical occurrence is addressed as
+    `USER_FRAG:495` in the user's own queue and `ALL_KILL:495` in the
+    combined one, so a lookup keyed on the current family alone would show a
+    moment the user already judged as untouched -- and ask them to judge it
+    again, in a queue that had simply been widened.
+    """
+    ids = [int(i) for i in occurrence_ids]
+    if not ids:
+        return {}
+    keys = [f"{fam}:{i}" for i in ids for fam in KILL_BACKED]
+    got = reviews(keys)
+    out: dict[int, dict[str, Any]] = {}
+    for i in ids:
+        for fam in KILL_BACKED:          # first match wins, families ordered
+            rv = got.get(f"{fam}:{i}")
+            if rv:
+                out[i] = rv
+                break
+    return out
 
 
 def queue(order: str = ORDER_WORST_FIRST, limit: int = 50, offset: int = 0,
@@ -1045,13 +1277,33 @@ def queue(order: str = ORDER_WORST_FIRST, limit: int = 50, offset: int = 0,
         return [_teleport_item(r, offset + i + 1, total,
                                got.get(f"{TELEPORT}:{r['id']}") or {})
                 for i, r in enumerate(rows)]
+    if item_type == ACTION:
+        if not _action_table_exists():
+            return []
+        total = count_items(ACTION, corpus=corpus)
+        where, params = _action_where(corpus)
+        direction = "ASC" if order == ORDER_WORST_FIRST else "DESC"
+        with _rec() as c:
+            rows = c.execute(
+                f"{_ACTION_SELECT} WHERE {where} ORDER BY a.observed_pain "
+                f"{direction}, a.action_key ASC LIMIT ? OFFSET ?",
+                (*params, limit, offset)).fetchall()
+        ids = [f"{ACTION}:{r['key']}" for r in rows]
+        got = reviews(ids)
+        if unreviewed_only:
+            rows = [r for r in rows if f"{ACTION}:{r['key']}" not in got]
+        return [_action_item(r, offset + i + 1, total,
+                             got.get(f"{ACTION}:{r['key']}") or {})
+                for i, r in enumerate(rows)]
     if item_type in KILL_BACKED:
         if not _kill_table_exists():
             return []
         total = count_items(item_type, corpus=corpus, filters=filters)
         rows = _kill_rows(order, limit, offset, unreviewed_only, item_type,
                           corpus, filters)
-        got = reviews([f"{item_type}:{r['id']}" for r in rows])
+        by_occ = occurrence_reviews([r["id"] for r in rows])
+        got = {f"{item_type}:{r['id']}": by_occ[r["id"]]
+               for r in rows if r["id"] in by_occ}
         return [_kill_item(r, item_type, offset + i + 1, total,
                            got.get(f"{item_type}:{r['id']}") or {})
                 for i, r in enumerate(rows)]
@@ -1079,18 +1331,39 @@ def queue(order: str = ORDER_WORST_FIRST, limit: int = 50, offset: int = 0,
     return out
 
 
+def canonical_count(item_type: str = USER_FRAG, corpus: str | None = None
+                    ) -> int:
+    """How many events of this family EXIST. No editorial policy applied.
+
+    This is the number that belongs in a project statistic, a corpus report
+    or a paper. `count_items` answers the different question of how many the
+    queue is currently offering.
+    """
+    return count_items(item_type, corpus=corpus, queue_policy=False)
+
+
 def count_items(item_type: str = FRAG, corpus: str | None = None,
-                filters: dict[str, Any] | None = None) -> int:
+                filters: dict[str, Any] | None = None,
+                queue_policy: bool = True) -> int:
+    if item_type == ACTION:
+        if not _action_table_exists():
+            return 0
+        where, params = _action_where(corpus)
+        with _rec() as c:
+            return int(c.execute(
+                f"SELECT COUNT(*) FROM action_moments_v1 a WHERE {where}",
+                params).fetchone()[0])
     if item_type in KILL_BACKED:
         if not _kill_table_exists():
             return 0
         where, params = _kill_where(item_type, corpus)
         fw, fp = _filter_sql(filters)
+        jw, jp = junk_sql(corpus) if queue_policy else ("", [])
         with _rec() as c:
             return int(c.execute(
                 "SELECT COUNT(*) FROM kill_occurrences_v1 o JOIN "
                 "kill_events_v1 k ON k.kill_event_id = o.best_observation_id "
-                f"WHERE {where}{fw}", params + fp).fetchone()[0])
+                f"WHERE {where}{fw}{jw}", params + fp + jp).fetchone()[0])
     if item_type in MOVEMENT_BACKED:
         if not _movement_table_exists():
             return 0
@@ -1118,6 +1391,17 @@ def count_items(item_type: str = FRAG, corpus: str | None = None,
 
 def item(item_id: str) -> ReviewItem | None:
     kind, _, sid = item_id.partition(":")
+    if kind == ACTION:
+        # `sid` is the stable action key ("ACT:<hex>"), never an integer.
+        if not _action_table_exists():
+            return None
+        with _rec() as c:
+            r = c.execute(f"{_ACTION_SELECT} WHERE a.action_key = ?",
+                          (sid,)).fetchone()
+        if not r:
+            return None
+        return _action_item(r, 0, count_items(ACTION, corpus=NO_KILL_ACTIONS),
+                            reviews([item_id]).get(item_id) or {})
     if kind in MOVEMENT_BACKED:
         if not _movement_table_exists():
             return None
@@ -1179,21 +1463,39 @@ def progress(item_type: str = FRAG, corpus: str | None = None) -> dict[str, Any]
     # combined corpus is narrowed by the roster in SQL. Counting without the
     # corpus would report all-player progress against a smaller queue.
     total = count_items(item_type, corpus=corpus)
+    # One kill judged once. The same occurrence carries a different item_id
+    # in each kill family, so counting by the CURRENT family would report a
+    # widened queue as unreviewed and quietly reset the user's progress.
+    families = list(KILL_BACKED) if item_type in KILL_BACKED else [item_type]
     with conn() as c:
         qs = ",".join("?" * len(HUMAN_PROVENANCE))
+        fs = ",".join("?" * len(families))
         counts = {r["human_role"]: r["n"] for r in c.execute(
-            "SELECT human_role, COUNT(*) n FROM human_reviews "
-            f"WHERE item_type=? AND human_role<>'' AND provenance IN ({qs}) "
-            "GROUP BY 1", (item_type, *HUMAN_PROVENANCE))}
+            "SELECT human_role, COUNT(DISTINCT source_id) n FROM "
+            f"human_reviews WHERE item_type IN ({fs}) AND human_role<>'' "
+            f"AND provenance IN ({qs}) GROUP BY 1",
+            (*families, *HUMAN_PROVENANCE))}
         other = {r["provenance"]: r["n"] for r in c.execute(
-            "SELECT provenance, COUNT(*) n FROM human_reviews "
-            f"WHERE item_type=? AND provenance NOT IN ({qs}) GROUP BY 1",
-            (item_type, *HUMAN_PROVENANCE))}
+            "SELECT provenance, COUNT(DISTINCT source_id) n FROM "
+            f"human_reviews WHERE item_type IN ({fs}) "
+            f"AND provenance NOT IN ({qs}) GROUP BY 1",
+            (*families, *HUMAN_PROVENANCE))}
     reviewed = sum(counts.values())
-    return {"item_type": item_type, "total": total, "reviewed": reviewed,
-            "unreviewed": total - reviewed,
-            "roles": {r: counts.get(r, 0) for r in ROLES},
-            "non_human_rows": other, "labels": ROLE_LABEL}
+    out = {"item_type": item_type, "total": total, "reviewed": reviewed,
+           "unreviewed": total - reviewed,
+           "roles": {r: counts.get(r, 0) for r in ROLES},
+           "non_human_rows": other, "labels": ROLE_LABEL}
+    if item_type in KILL_BACKED:
+        # The two numbers, side by side and named, so nobody has to guess
+        # which one a report is quoting.
+        canonical = canonical_count(item_type, corpus=corpus)
+        out["canonical_total"] = canonical
+        out["queue_excluded"] = canonical - total
+        out["denominator_note"] = (
+            "`total` is what the QUEUE offers; `canonical_total` is how many "
+            "of these events exist. Warmup kills and telefrags are excluded "
+            "from the queue and remain canonical kills")
+    return out
 
 
 def pool(role: str, item_type: str | None = None, weapon: str | None = None,
@@ -1259,3 +1561,236 @@ def import_legacy() -> dict[str, Any]:
                r["notes"] or "")
         moved += 1
     return {"imported": moved, "skipped": skipped}
+
+
+# ── deletions ───────────────────────────────────────────────────────────────
+
+def dismiss(item_id: str, reason: str = "",
+            provenance: str = HUMAN_USER) -> dict[str, Any]:
+    """Throw one moment out of the review queue. Reversible, destroys nothing.
+
+    This is NOT a verdict. T5_PASS_FILLER means "I watched it and it is
+    filler" and is creative truth the film may read; a deletion means "stop
+    offering me this" and the film must never see it. Storing them in one
+    place would quietly turn housekeeping into direction.
+    """
+    it = item(item_id)
+    if it is None:
+        raise ValueError(f"no such item: {item_id}")
+    if provenance not in PROVENANCES:
+        raise ValueError(f"unknown provenance {provenance!r}")
+    with conn() as c:
+        c.execute(
+            "INSERT INTO dismissed_occurrences(occurrence_id, item_id, "
+            "reason, provenance, dismissed_at) VALUES(?,?,?,?,datetime('now')) "
+            "ON CONFLICT(occurrence_id) DO UPDATE SET reason=excluded.reason, "
+            "dismissed_at=excluded.dismissed_at",
+            (int(it.source_id), item_id, reason or "", provenance))
+    return {"item_id": item_id, "occurrence_id": int(it.source_id),
+            "dismissed": True, "reason": reason or ""}
+
+
+def restore(item_id: str) -> dict[str, Any] | None:
+    """Undo a deletion. The moment returns to the queue where it was."""
+    it = item(item_id)
+    if it is None:
+        return None
+    with conn() as c:
+        cur = c.execute("DELETE FROM dismissed_occurrences WHERE "
+                        "occurrence_id = ?", (int(it.source_id),))
+    return ({"item_id": item_id, "restored": True}
+            if cur.rowcount else None)
+
+
+def dismissed_occurrence_ids() -> list[int]:
+    """Every deleted occurrence id, for the queue's exclusion clause."""
+    try:
+        with conn() as c:
+            return [int(r[0]) for r in c.execute(
+                "SELECT occurrence_id FROM dismissed_occurrences")]
+    except sqlite3.Error:
+        # A queue that cannot read the deletion list should still serve the
+        # queue. Showing a moment the user deleted is a far smaller failure
+        # than showing nothing at all.
+        return []
+
+
+def dismissed(limit: int = 500) -> list[dict[str, Any]]:
+    with conn() as c:
+        return [dict(r) for r in c.execute(
+            "SELECT * FROM dismissed_occurrences ORDER BY dismissed_at DESC "
+            "LIMIT ?", (limit,))]
+
+
+# ── protection before a deletion ────────────────────────────────────────────
+
+# A means of death this rare is a category, not a statistic. Below this the
+# archive may hold only a handful, and losing the good one to a tired thumb
+# costs something no recapture can restore.
+RARE_MOD_BELOW = 400
+
+
+def dismiss_risk(item_id: str) -> dict[str, Any]:
+    """Reasons this particular moment should not be deleted without a look.
+
+    DELETION DOES NOT DESTROY ANYTHING -- the occurrence, its observations
+    and its media all stay. What it destroys is VISIBILITY: a dismissed clip
+    is invisible to the film pipeline, and nobody goes looking through the
+    deleted list for the only teleporter shot in the archive.
+
+    So this warns rather than refuses. The reviewer is the authority; they
+    just should not find out afterwards.
+    """
+    it = item(item_id)
+    if it is None:
+        raise ValueError(f"no such item: {item_id}")
+    reasons: list[str] = []
+    oid = int(it.source_id)
+
+    from creative_suite.engine import review_tags as rt
+    tags = rt.tags_for(oid)
+    if rt.GOLDEN in tags:
+        reasons.append("you marked this GOLDEN -- a documentary anchor")
+    if rt.KEEP_CONTEXT in tags:
+        reasons.append("you marked KEEP_CONTEXT: the sequence around it "
+                       "matters, not the kill")
+    other = [t for t in tags if t not in (rt.GOLDEN, rt.KEEP_CONTEXT)]
+    if other:
+        reasons.append("already tagged " + ", ".join(other))
+
+    if it.item_type in KILL_BACKED:
+        with _rec() as c:
+            row = c.execute(
+                "SELECT mod, mod_name, n_observations FROM "
+                "kill_occurrences_v1 WHERE occurrence_id = ?", (oid,)
+            ).fetchone()
+            if row is not None:
+                n = c.execute(
+                    "SELECT COUNT(*) FROM kill_occurrences_v1 WHERE mod = ?",
+                    (row["mod"],)).fetchone()[0]
+                if n < RARE_MOD_BELOW:
+                    reasons.append(
+                        f"{row['mod_name']} is rare -- only {n} in the whole "
+                        f"archive")
+                if (row["n_observations"] or 1) > 1:
+                    # Deleting the occurrence hides every camera on it,
+                    # including the one nobody has looked at yet.
+                    reasons.append(
+                        f"{row['n_observations']} camera angles exist for "
+                        f"this moment; deleting hides all of them")
+    return {"item_id": item_id, "occurrence_id": oid,
+            "safe": not reasons, "reasons": reasons}
+
+
+# ── ACTION: worth watching, and nobody died ─────────────────────────────────
+#
+# A SEPARATE NAMESPACE ON PURPOSE. `ACTION:41` and `USER_FRAG:41` are
+# different moments, and the id encodes which. An action never enters a frag
+# queue, never counts toward a frag denominator, and carries its own
+# progress. "Actions are not fake frags."
+
+_ACTION_SELECT = """
+SELECT a.action_key AS key, a.content_hash, a.server_time_ms, a.round, a.map,
+       a.observed_pain, a.distinct_victims, a.actor_shots, a.other_shots,
+       a.missile_hits, a.missile_misses, a.recorder_activity_share,
+       a.activity_label, a.classes, a.user_kill_in_window,
+       a.any_obituary_in_window, a.linked_occurrence_id, a.window_ms
+FROM action_moments_v1 a
+"""
+
+# The window a reviewer watches. The burst is the three seconds AFTER the
+# first pain event, so the clip has to start before it to show the setup.
+ACTION_PRE_MS, ACTION_POST_MS = 4000, 4000
+
+
+def _action_table_exists() -> bool:
+    with _rec() as c:
+        return bool(c.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND "
+            "name='action_moments_v1'").fetchone())
+
+
+def _action_where(corpus: str | None) -> tuple[str, list[Any]]:
+    """Which actions the QUEUE offers. Editorial policy, not event truth.
+
+    `RECORDER_DOMINANT` means the recorder fired most of the shots observed
+    in the window. That is ACTIVITY, not causation -- it does not prove they
+    caused any particular pain event -- so it is used to decide what is worth
+    a reviewer's time, and never presented as attribution.
+    """
+    users, up = _in(user_norms())
+    where = ("a.activity_label = 'RECORDER_DOMINANT' "
+             "AND a.user_kill_in_window = 0 "
+             "AND EXISTS (SELECT 1 FROM kill_events_v1 k WHERE "
+             "k.content_hash = a.content_hash AND k.is_recorder_killer = 1 "
+             f"AND k.killer_name_norm IN {users}) "
+             # Warmup is filtered from the QUEUE, exactly as for frags. The
+             # action itself remains in the table as game truth.
+             "AND NOT (a.round = 0 AND EXISTS (SELECT 1 FROM round_kills_v1 "
+             "rk WHERE rk.content_hash = a.content_hash AND rk.round >= 1))")
+    return where, up
+
+
+def _action_why(r: sqlite3.Row) -> str:
+    import json as _json
+    try:
+        cls = [c for c in _json.loads(r["classes"] or "[]")
+               if not c.startswith("NO_")]
+    except Exception:                                          # noqa: BLE001
+        cls = []
+    bits = [f"{r['observed_pain']} pain seen on {r['distinct_victims']}",
+            f"{r['actor_shots']} of your shots"]
+    if cls:
+        bits.append(", ".join(cls[:2]))
+    return " · ".join(bits)
+
+
+# An action has no occurrence id, and pretending otherwise is what let
+# `ACTION:41` be served the truth of kill 41. The sentinel says so out loud;
+# anything that treats it as an occurrence gets an obviously invalid one
+# rather than a plausible wrong answer.
+NOT_AN_OCCURRENCE = -1
+
+
+def _action_item(r: sqlite3.Row, rank: int, total: int,
+                 rv: dict[str, Any]) -> ReviewItem:
+    return ReviewItem(
+        item_id=f"{ACTION}:{r['key']}", item_type=ACTION,
+        source_id=NOT_AN_OCCURRENCE, content_hash=r["content_hash"] or "",
+        demo_name="", server_time_ms=int(r["server_time_ms"]),
+        # An action has no highlight score and never had one. -1.0 is the
+        # sentinel for "never scored", not a low score.
+        machine_score=-1.0, machine_rank=rank, total_items=total,
+        weapon="", map_name=r["map"] or "", round_no=r["round"],
+        why=_action_why(r), actor_name=None, is_actor_pov=True,
+        scored=False,
+        window_start_ms=int(r["server_time_ms"]) - ACTION_PRE_MS,
+        window_end_ms=int(r["server_time_ms"]) + ACTION_POST_MS,
+        human_role=(rv.get("human_role") or None) or None,
+        note=rv.get("note") or "")
+
+
+def action_detail(action_key: str) -> dict[str, Any] | None:
+    """Everything measured about one action, named for what was OBSERVED."""
+    key = str(action_key)
+    if key.startswith(f"{ACTION}:"):
+        key = key.split(":", 1)[1]
+    with _rec() as c:
+        r = c.execute("SELECT * FROM action_moments_v1 WHERE action_key = ?",
+                      (key,)).fetchone()
+    if r is None:
+        return None
+    import json as _json
+    d = dict(r)
+    d["classes"] = _json.loads(d.get("classes") or "[]")
+    d.pop("content_hash", None)          # private provenance
+    d["what_this_is_not"] = (
+        "recorder_activity_share is the share of shots the RECORDER fired in "
+        "this window. It is activity, NOT proof that they caused any "
+        "particular pain event. Observed pain is a LOWER BOUND on hits -- the "
+        "server throttles it -- and Quake Live demos carry no damage figure "
+        "for another player. `user_kill_in_window` means no obituary named "
+        "the recorder as killer here; `any_obituary_in_window` is the wider "
+        "and much stronger claim that nothing died at all, as observed by "
+        "THIS demo")
+    return d

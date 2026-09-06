@@ -29,13 +29,12 @@ from engine.pantheon.performance import (PerformanceTrace, _parse_with_anims,
                                          extract_performance)
 from engine.pantheon.scenario import RoundScenario, Team
 
-INDEX_DB = Path("G:/QUAKE_LEGACY/creative_suite/database/performance_index.db")
 DEMO_HASH = "4db16c445bcaafce"
 SHOOTER, VICTIM = 5, 1
 PAD_MS = 1198725
 PRE_MS, POST_MS = 1500, 2800
 T0 = 0.6                        # synthetic seconds before the window opens
-OUT = Path(".tmp/synthetic")
+OUT = Path("G:/QUAKE_LEGACY/creative_suite/generated/pantheon/proofs")
 SCENE_ID = "REAL_ACTION_TRACE_PROOF_01"
 
 TOL = {"position_u": 1.0, "yaw_deg": 0.5, "pitch_deg": 0.5,
@@ -43,9 +42,12 @@ TOL = {"position_u": 1.0, "yaw_deg": 0.5, "pitch_deg": 0.5,
 
 
 def source_path() -> Path:
-    con = sqlite3.connect(f"file:{INDEX_DB.as_posix()}?mode=ro", uri=True)
-    (p,) = con.execute("select path from demos where demo_hash=?",
-                       (DEMO_HASH,)).fetchone()
+    """From the corpus catalogue, by content hash prefix: the proof does not
+    depend on any index being built."""
+    from engine.pantheon import store as S
+    con = sqlite3.connect(f"file:{S.FRAGS_DB.as_posix()}?mode=ro", uri=True)
+    (p,) = con.execute("select path from demos where content_hash like ? limit 1",
+                       (DEMO_HASH + "%",)).fetchone()
     con.close()
     return Path(p)
 
@@ -224,8 +226,23 @@ def differential(shooter: PerformanceTrace, victim: PerformanceTrace,
 
 
 def main() -> int:
-    demo, shooter, victim, scn, a, v, synth, out, ob = build()
-    diff = differential(shooter, victim, synth, a.client, v.client, ob)
+    """The proof through the promoted headless loop (engine.pantheon.headless):
+    shooter, victim and every observed context actor, compared trace against
+    trace by compare(). build()/differential() above remain the original
+    instrument and still run under `--legacy`."""
+    import sys
+    if "--legacy" in sys.argv:
+        demo, shooter, victim, scn, a, v, synth, out, ob = build()
+        diff = differential(shooter, victim, synth, a.client, v.client, ob)
+        print(json.dumps(diff, indent=1, default=str)[:4000])
+        return 0
+    from engine.pantheon import headless as H
+    demo = source_path()
+    lo, hi = PAD_MS - PRE_MS, PAD_MS + POST_MS
+    res = H.run(demo, {"SHOOTER": (SHOOTER, lo, hi), "VICTIM": (VICTIM, lo, hi)},
+                cast={"SHOOTER": ("sarge", "default"), "VICTIM": ("visor", "default")},
+                context=True, out_dir=OUT, label=SCENE_ID)
+    shooter = res.traces["SHOOTER"]
     report = {
         "scene_id": SCENE_ID, "demo_hash": DEMO_HASH, "map": shooter.map,
         "server_time_range_ms": [shooter.start_ms, shooter.end_ms],
@@ -233,32 +250,27 @@ def main() -> int:
         "jump_pad_ms": PAD_MS,
         "speed": shooter.speed_profile(),
         "anim_sequence": shooter.anim_sequence(),
-        "rocket_fires_ms_rel_pad": [e.t - PAD_MS for e in shooter.events
-                                    if e.kind == "fire_weapon" and e.weapon == 5],
-        "obituary": [(o["server_time_ms"] - PAD_MS, o.get("weapon_name"),
-                      o.get("victim_client")) for o in ob],
+        "event_chain": [(e.t - PAD_MS, e.kind, e.code, e.carrier) for e in shooter.events],
         "max_yaw_rate": max(abs(x.yaw_rate) for x in shooter.aim),
         "projectile_samples": len(shooter.projectiles),
+        "context_actors": {n: len(t.transform) for n, t in res.traces.items()
+                           if n.startswith("CTX")},
         "retarget": "EXACT_WORLD",
-        "context_actors": getattr(scn, "context_actors", {}),
-        "synthetic_demo": str(synth),
-        "differential": diff,
+        "synthetic_demo": str(res.compiled.path),
+        "timings_ms": res.timings_ms,
+        "semantic_fidelity": res.semantic_fidelity,
+        "diff": {k: v.as_dict() for k, v in res.diffs.items()},
     }
+    OUT.mkdir(parents=True, exist_ok=True)
     (OUT / f"{SCENE_ID}.report.json").write_text(json.dumps(report, indent=1))
-    print(f"real   : {shooter.map} client {SHOOTER} -> {VICTIM}, "
-          f"{shooter.duration_ms()}ms, {len(shooter.transform)} samples, "
-          f"airborne {shooter.speed_profile()['airborne_ms']}ms, "
-          f"rocket at {report['rocket_fires_ms_rel_pad']} ms after pad, "
-          f"kill at {report['obituary']}")
-    print(f"synth  : {synth} ({synth.stat().st_size:,} bytes)  packet_errors="
-          f"{diff['packet_errors']}")
-    for k in ("shooter", "victim", "projectiles"):
-        print(f"  {k:12s} {diff[k]}")
-    ev = diff["events"]
-    print(f"  events       {ev['verdict']}: real={len(ev['real'])} "
-          f"missing={ev['missing_from_synthetic']}")
-    print(f"  context      {report['context_actors']}")
-    return 0
+    print(f"real   : {shooter.map} client {SHOOTER} -> {VICTIM}, {shooter.duration_ms()}ms, "
+          f"{len(shooter.transform)} samples, {len(shooter.events)} events, "
+          f"context {report['context_actors']}")
+    print(f"synth  : {res.compiled.path}  timings_ms={res.timings_ms}")
+    for name, d in res.diffs.items():
+        print(f"  {name:8s} {d.semantic_fidelity}: {d.summary()}")
+    print(f"VERDICT {res.semantic_fidelity}")
+    return 0 if res.semantic_fidelity == "PASS" else 1
 
 
 if __name__ == "__main__":                     # pragma: no cover - CLI

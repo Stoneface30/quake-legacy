@@ -90,6 +90,106 @@ class ExportRefused(Exception):
     """A batch that would be too large, or a request with no usable source."""
 
 
+# ── the blindness contract, enforced ────────────────────────────────────────
+# Every route by which the engine can put a player's handle on screen. The
+# public profile must hold each of these at 0, and that is CHECKED before a
+# batch runs rather than trusted.
+#
+# A MISSING KEY IS A FAILURE, not a pass. `profile.get(k)` returns None for a
+# cvar nobody pinned, and None is not 0 — so deleting a line from
+# TR4SH_PUBLIC_EXPORT refuses the export instead of quietly reopening the
+# route it was holding shut.
+IDENTITY_CVARS_MUST_BE_ZERO = (
+    # the two that were measured burning names into shipped frames
+    "cg_drawFragMessageTime",     # "You fragged %v"
+    "cg_obituaryTime",            # "%k %i %v" -- killer AND victim
+    # centre-screen and world-space name draws
+    "cg_drawCenterPrint",
+    "cg_drawCrosshairNames",
+    "cg_drawCrosshairTeammateHealth",
+    "cg_drawPlayerNames",
+    "cg_drawFriend",
+    # spectator / follow chrome, which names whoever is being followed
+    "cg_drawTeamOverlay",
+    "cg_drawAttacker",
+    "cg_drawFollowing",
+    "wolfcam_drawFollowing",
+    "cg_drawSpecMessages",
+    "cg_drawSelf",
+    # chat and console print handles verbatim
+    "cg_chatTime",
+    "cg_chatLines",
+    "con_notifytime",
+    "con_notifylines",
+    # the scoreboard IS a list of names, and it shows itself on death and at
+    # round end -- both of which fall inside a +/-5s public window
+    "cg_scoreBoardWhenDead",
+    "cg_roundScoreBoard",
+    "cg_scoreBoardAtIntermission",
+    "cg_scoreBoardWarmup",
+    "cg_drawScores",
+)
+
+# Token strings are not disabled by blanking them -- wolfcam falls back to a
+# built-in default when a token cvar is empty, so "" is not safety. What makes
+# a token harmless is that its DISPLAY GATE is shut. These are TIME cvars:
+# there is no cg_drawFragMessage or cg_obituary boolean to switch off, which is
+# the trap that let this ship. So the invariant is stated as a pair -- if the
+# token can expand to a name, the gate that draws it must be 0.
+#
+# %v victim, %k killer, %a attacker, %s / %n generic name substitutions.
+TOKEN_GATES = {
+    "cg_drawFragMessageTokens": "cg_drawFragMessageTime",
+    "cg_obituaryTokens": "cg_obituaryTime",
+}
+NAME_SUBSTITUTIONS = ("%v", "%k", "%a", "%s", "%n")
+
+# Kept as the old name so anything importing it still works.
+NAME_BEARING_CVARS = IDENTITY_CVARS_MUST_BE_ZERO
+
+
+def assert_capture_profile_is_nameless() -> str:
+    """Refuse to export unless the public profile draws no names. Returns its id.
+
+    This is the authoritative ship gate, and it is deliberately a check on the
+    CONFIGURATION rather than on the pixels. The bug it exists to stop was a
+    silent default -- capture_demo() called without a profile argument, quietly
+    filming with the batch profile that draws "You fragged <victim>" -- and the
+    class of regression that would reopen it is somebody changing a value in
+    master_profile. Both are visible here, deterministically, before a single
+    frame is captured.
+
+    A pixel check is NOT used for this and must not be: see
+    creative_suite/engine/burned_name_guard.py for the measurement showing a
+    blown-out barred window scoring higher than the text it is meant to catch.
+    """
+    from creative_suite.engine import master_profile as mp
+    # Resolved through the intent, not the constant, so the gate can never
+    # check one profile while the capture films with another.
+    name = mp.profile_for_intent(mp.PUBLIC_INTENT)
+    profile = mp.PROFILES[name]
+
+    faults: dict[str, Any] = {}
+    for k in IDENTITY_CVARS_MUST_BE_ZERO:
+        v = profile.get(k)
+        if v not in (0, "0"):
+            faults[k] = "MISSING (unpinned)" if v is None else v
+    for token_cvar, gate_cvar in TOKEN_GATES.items():
+        token = str(profile.get(token_cvar) or "")
+        if any(sub in token for sub in NAME_SUBSTITUTIONS):
+            gate = profile.get(gate_cvar)
+            if gate not in (0, "0"):
+                faults[token_cvar] = (
+                    f"{token!r} expands to a player name and {gate_cvar}={gate}")
+    if faults:
+        raise ExportRefused(
+            f"{name} would burn player names into the picture: {faults}. "
+            "Public clips carry identity as a manifest field, never as pixels "
+            "-- a field can be withheld after a vote, a pixel cannot be "
+            "un-shown.")
+    return mp.profile_id(name)
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -248,7 +348,8 @@ def _stats_block(cand: ExportCandidate) -> dict[str, Any]:
 def manifest_row(cand: ExportCandidate, clip_rel: str, clip_hash: str,
                  event_offset_ms: int, duration_ms: int | None,
                  note: str | None = None,
-                 public_eligible: bool = ELIGIBLE_DEFAULT) -> dict[str, Any]:
+                 public_eligible: bool = ELIGIBLE_DEFAULT,
+                 capture_profile_id: str | None = None) -> dict[str, Any]:
     """The portable record. Everything THE_PANTHEON needs, nothing local.
 
     `source_demo_ref` is the demo's content hash: enough for this repository
@@ -283,6 +384,12 @@ def manifest_row(cand: ExportCandidate, clip_rel: str, clip_hash: str,
         # the event truth came from. Always a capture made now, from a raw
         # demo -- never a V1 render.
         "media_provenance": "RAW_DEMO_CAPTURE",
+        # WHICH CAMERA SETTINGS drew these pixels. Recorded because
+        # "overlays_added: []" only ever described what this module drew on
+        # top, and the thing that actually put a name on screen was the
+        # engine, one layer below. An importer can check this id; so can a
+        # later audit of clips already exported.
+        "capture_profile_id": capture_profile_id,
         # Disclosure is THE_PANTHEON's to make, but the safe answer travels
         # with the clip so an unconfigured importer cannot publish by default.
         "public_eligible": bool(public_eligible),
@@ -292,7 +399,7 @@ def manifest_row(cand: ExportCandidate, clip_rel: str, clip_hash: str,
 
 
 def _capture(cand: ExportCandidate, start_ms: int, end_ms: int,
-             dest: Path) -> None:
+             dest: Path) -> str | None:
     """Produce the clip. Same reliable capture route the review proxy uses.
 
     Deliberately plain: no PANTHEON camera, no world effects, no
@@ -308,7 +415,10 @@ def _capture(cand: ExportCandidate, start_ms: int, end_ms: int,
              "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
              "-movflags", "+faststart", "-c:a", "aac", "-b:a", "160k",
              str(dest)], check=True, capture_output=True, timeout=300)
-        return
+        # No engine ran, so no profile filmed this. Naming one here would put
+        # a provenance claim on a test fixture, which is the same class of
+        # untrue-but-plausible metadata this field exists to end.
+        return None
 
     # WolfcamQL is one-at-a-time, and the review proxy worker drives it too.
     # Without the shared marker the two would launch the engine concurrently
@@ -323,13 +433,13 @@ def _capture(cand: ExportCandidate, start_ms: int, end_ms: int,
         time.sleep(LOCK_POLL_S)
         waited += LOCK_POLL_S
     try:
-        _capture_locked(cand, start_ms, end_ms, dest)
+        return _capture_locked(cand, start_ms, end_ms, dest)
     finally:
         rp._release_lock()
 
 
 def _capture_locked(cand: ExportCandidate, start_ms: int, end_ms: int,
-                    dest: Path) -> None:
+                    dest: Path) -> str:
     from creative_suite.engine import wolfcam_capture as wc
     wc.ensure_install()
     demo_path = REPO_ROOT / "demos" / cand.demo_name
@@ -341,8 +451,17 @@ def _capture_locked(cand: ExportCandidate, start_ms: int, end_ms: int,
     mprov.assert_demo_source(demo_path, "public export source")
     safe = wc.stage_demo(demo_path)
     clip_name = f"px_{cand.external_source_id[3:19]}"
+    # The capture profile is the disclosure boundary, so it is named here
+    # explicitly. Omitting it does not mean "no profile" -- it means
+    # PROFILE_NAME, the batch profile, which deliberately burns
+    # "You fragged <victim>" into the picture. That default is how the
+    # no-names promise in this module's docstring was broken for every clip
+    # captured before this argument existed.
+    from creative_suite.engine import master_profile as _mp
+    profile = _mp.profile_for_intent(_mp.PUBLIC_INTENT)
     res = wc.capture_demo(safe, [{"clip_name": clip_name,
-                                  "start_ms": start_ms, "end_ms": end_ms}])
+                                  "start_ms": start_ms, "end_ms": end_ms}],
+                          profile=profile)
     if not res["ok"]:
         raise ExportRefused(res.get("error") or "wolfcam capture failed")
     avi = Path(res["avis"][clip_name])
@@ -358,6 +477,7 @@ def _capture_locked(cand: ExportCandidate, start_ms: int, end_ms: int,
                 avi.unlink()          # the AVI is scratch, the MP4 ships
         except OSError:
             pass
+    return _mp.profile_id(profile)
 
 
 def export(cands: list[ExportCandidate], root: Path = EXPORT_ROOT,
@@ -375,43 +495,69 @@ def export(cands: list[ExportCandidate], root: Path = EXPORT_ROOT,
             "export is a deliberate act, not a corpus dump")
     if not cands:
         raise ExportRefused("nothing to export")
+    # Before anything is captured: prove the profile that will film these
+    # clips draws no player names. Once per batch, not once per clip -- it is
+    # a property of the configuration, and it either holds or nothing ships.
+    assert_capture_profile_is_nameless()
     clips = root / CLIP_DIR_NAME
     clips.mkdir(parents=True, exist_ok=True)
     manifest = root / MANIFEST_NAME
-    existing = set()
-    if manifest.exists() and not overwrite:
+    # A subset recapture replaces only its own rows. The old manifest and
+    # old clip stay intact until the replacement has been fully validated.
+    import shutil
+    import tempfile
+
+    rows_by_id = {}
+    if manifest.exists():
         for line in manifest.read_text(encoding="utf-8").splitlines():
             if line.strip():
-                existing.add(json.loads(line)["external_source_id"])
-    elif overwrite and manifest.exists():
-        manifest.unlink()
+                old_row = json.loads(line)
+                rows_by_id[old_row["external_source_id"]] = old_row
 
     written, skipped, failures = [], [], []
+    seen = set()
     t0 = time.monotonic()
     for cand in cands:
-        if cand.external_source_id in existing:
-            skipped.append(cand.external_source_id)
+        sid = cand.external_source_id
+        if sid in seen or (sid in rows_by_id and not overwrite):
+            skipped.append(sid)
             continue
+        seen.add(sid)
         start_ms = max(0, cand.event_time_ms - PUBLIC_PRE_MS)
         end_ms = cand.event_time_ms + PUBLIC_POST_MS
-        # If the demo does not reach five seconds before the event, the clip
-        # is shorter and the manifest says exactly where the event landed
-        # rather than claiming a centred 5000.
         offset = cand.event_time_ms - start_ms
-        rel = f"{CLIP_DIR_NAME}/{cand.external_source_id}.mp4"
-        dest = clips / f"{cand.external_source_id}.mp4"
+        rel = f"{CLIP_DIR_NAME}/{sid}.mp4"
+        dest = clips / f"{sid}.mp4"
         try:
-            _capture(cand, start_ms, end_ms, dest)
-            row = manifest_row(cand, rel, file_hash(dest), offset,
-                               probe_duration_ms(dest), note, public_eligible)
-            with manifest.open("a", encoding="utf-8") as fh:
-                fh.write(json.dumps(row) + "\n")
-            written.append(row)
+            with tempfile.TemporaryDirectory(prefix=".export-", dir=root) as work:
+                stage = Path(work) / dest.name
+                filmed_with = _capture(cand, start_ms, end_ms, stage)
+                row = manifest_row(cand, rel, file_hash(stage), offset,
+                                   probe_duration_ms(stage), note, public_eligible,
+                                   capture_profile_id=filmed_with)
+                updated = {**rows_by_id, sid: row}
+                staged_manifest = Path(work) / MANIFEST_NAME
+                staged_manifest.write_text(
+                    "".join(json.dumps(r) + "\n" for r in updated.values()),
+                    encoding="utf-8")
+                backup = Path(work) / "previous.mp4"
+                had_previous = dest.exists()
+                if had_previous:
+                    shutil.copy2(dest, backup)
+                stage.replace(dest)
+                try:
+                    staged_manifest.replace(manifest)
+                except Exception:
+                    if had_previous:
+                        backup.replace(dest)
+                    else:
+                        dest.unlink(missing_ok=True)
+                    raise
+                rows_by_id = updated
+                written.append(row)
         except Exception as exc:                               # noqa: BLE001
-            failures.append({"external_source_id": cand.external_source_id,
+            failures.append({"external_source_id": sid,
                              "error": f"{type(exc).__name__}: {exc}"})
-            if dest.exists():
-                dest.unlink()
     return {"root": str(root), "manifest": str(manifest),
             "written": len(written), "skipped": len(skipped),
             "failed": len(failures), "failures": failures,
@@ -449,7 +595,12 @@ def refresh_manifest(root: Path = EXPORT_ROOT,
         rows.append(manifest_row(
             cand, r["clip_path"], r["content_hash"], r["event_offset_ms"],
             r["duration_ms"], r.get("source_note"),
-            bool(r.get("public_eligible", ELIGIBLE_DEFAULT))))
+            bool(r.get("public_eligible", ELIGIBLE_DEFAULT)),
+            # carried, not recomputed: this records which profile filmed the
+            # media that is on disk, and refresh does not recapture. A row
+            # from before the field existed stays null rather than being
+            # backfilled with today's answer.
+            capture_profile_id=r.get("capture_profile_id")))
     manifest.write_text("".join(json.dumps(x) + chr(10) for x in rows),
                         encoding="utf-8")
     return {"refreshed": len(rows), "dropped": dropped}
