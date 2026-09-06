@@ -169,6 +169,21 @@ class ShotSpec:
                 "provenance": self.provenance}
 
 
+def analysis_graphic_commands(freeze_ms: int, resume_ms: int,
+                              rgb=(255, 204, 64)) -> list[tuple[int, str]]:
+    """Timed cvar sets that colour the analysis rail, and only it."""
+    from engine.pantheon.color_format import format_for
+    on = [(freeze_ms, f"set {k} {format_for(k, rgb)}")
+          for k in ("cg_teamRailColor1", "cg_teamRailColor2",
+                    "cg_enemyRailColor1", "cg_enemyRailColor2")]
+    off = [(resume_ms, f'set {k} ""')
+           for k in ("cg_teamRailColor1", "cg_teamRailColor2",
+                     "cg_enemyRailColor1", "cg_enemyRailColor2")]
+    return on + off
+
+
+
+
 MAX_CONSOLE_LINES = 32   # qcommon/common.c -- Com_ParseCommandLine silently
                          # STOPS parsing once this many `+` groups exist, so an
                          # over-long launch line drops the trailing `+demo` and

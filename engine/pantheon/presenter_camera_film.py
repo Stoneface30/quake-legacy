@@ -17,9 +17,9 @@ from pathlib import Path
 
 from engine.pantheon.backends import BackendUse, render
 from engine.pantheon.dialogue_mix import build_dialogue_stem, mux
-from engine.pantheon.instruction import analysis_graphic_commands
 from engine.pantheon.presenter_performance_proof import build
-from engine.pantheon.shot import PassKind, ShotSpec, SourceKind, VisualProfile
+from engine.pantheon.shot import (PassKind, ShotSpec, SourceKind, VisualProfile,
+                                  analysis_graphic_commands)
 
 SCENE_ID = "PRESENTER_CAMERA_DIALOGUE_PROOF_02"
 SHOT_START = 0.8

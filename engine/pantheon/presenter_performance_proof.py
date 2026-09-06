@@ -29,9 +29,9 @@ from pathlib import Path
 
 from engine.pantheon.frame_truth import FrameTruth
 from engine.pantheon.instruction import (AnalysisBreak, Graphic, InstructionScene,
-                                         Line, Mode, analysis_graphic_commands,
-                                         camera_plan_to_presenter, place_entrance,
-                                         validate_placement, validate_placement_shared)
+                                         Line, Mode, camera_plan_to_presenter,
+                                         place_entrance, validate_placement,
+                                         validate_placement_shared)
 from engine.pantheon.navigation import NavigationTruth
 from engine.pantheon.roster import CAST
 from engine.pantheon.scenario import RoundScenario, Team, Weapon
@@ -41,6 +41,8 @@ MAP = "overkill"
 NAV_CACHE = Path(f".tmp/nav_{MAP}.json")
 TEMPLATE = "RUN_IN_STOP_TURN_01"
 OUT = Path(".tmp/synthetic")
+# the installed map archive the BSP tracer reads (read-only, ENG-4)
+MAP_PAK = Path(r"C:\Program Files (x86)\Steam\steamapps\common\Quake Liveaseq3\pak00.pk3")
 
 HIST_DURATION = 7.0
 FREEZE_T = 4.0
@@ -193,7 +195,7 @@ def build(*, camera: bool = False, line: bool = False, scene_id: str = SCENE_ID)
                       "cue_start_edit_s": scene.cues[0].start_t if scene.cues else None}
                      if line else None),
         "analysis_graphic": {"rgb": list(__import__("engine.pantheon.instruction", fromlist=["x"]).ANALYSIS_GRAPHIC_RGB),
-                             "window": "freeze only, both rail-colour halves, timed cvars"},
+                             "window": "freeze only"},
         "scene_id": scene_id,
     })
     (OUT / f"{scene_id}.report.json").write_text(json.dumps(report, indent=1))
