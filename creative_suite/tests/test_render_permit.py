@@ -324,3 +324,38 @@ def test_disk_policy_never_spawns(monkeypatch, tmp_path):
     from engine.pantheon import disk_policy as dp
     monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: (_ for _ in ()).throw(AssertionError("spawned")))
     assert dp.free_bytes(tmp_path) >= 0
+
+
+# ── the reviewer branch's vocabulary, against the same one permit ───────────
+
+def test_a_batch_is_held_to_more_headroom_than_one_clip(monkeypatch, tmp_path):
+    """The reviewer branch says check(batch=True); this branch says
+    expected_output_bytes. Both must work, and batch must be the stricter of
+    the two -- a whole run that fills the drive leaves broken media AND no
+    space to record that it broke."""
+    from engine.pantheon import disk_policy
+    from engine.pantheon import render_permit as rp
+
+    monkeypatch.setattr(rp, "mode", lambda: rp.MODE_AUTO)
+    monkeypatch.setattr("creative_suite.engine.capture_guard.game_is_running",
+                        lambda: False)
+    # room for one clip, nowhere near room for a build
+    one_job = disk_policy.RENDER_EXPECTED_DEFAULT + disk_policy.RENDER_MARGIN
+    monkeypatch.setattr(disk_policy, "free_bytes", lambda path: one_job * 3)
+
+    assert rp.check(purpose="one clip", output_dir=tmp_path).permit is rp.Permit.GRANTED
+    assert rp.check(purpose="a whole run", output_dir=tmp_path,
+                    batch=True).permit is rp.Permit.DEFERRED
+
+
+def test_a_tiny_write_is_not_held_to_render_headroom(monkeypatch, tmp_path):
+    """A verdict is a few bytes. Holding it to the space a capture needs is
+    how a reviewer stops being able to record an opinion on a full disk."""
+    from engine.pantheon import disk_policy
+
+    monkeypatch.setattr(disk_policy, "free_bytes",
+                        lambda path: disk_policy.REVIEW_DB_WRITE_SAFE * 2)
+    assert disk_policy.REVIEW_DB_WRITE_SAFE * 2 < (
+        disk_policy.RENDER_EXPECTED_DEFAULT + disk_policy.RENDER_MARGIN)
+    assert disk_policy.review_db_write_safe(tmp_path).ok
+    assert not disk_policy.render_job_safe(tmp_path).ok

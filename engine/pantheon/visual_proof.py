@@ -106,6 +106,15 @@ class VisualProof:
                 "recorded_at": self.recorded_at, "judged_at": self.judged_at}
 
 
+# Names this project used for the same fact before the handoff settled on one.
+# Kept so an older caller resolves rather than reading UNTESTED.
+ALIASES = {"GREEN_KEEL_REVIEW": "REVIEW_GREEN_KEEL"}
+
+
+def canonical(capability: str) -> str:
+    return ALIASES.get(capability, capability)
+
+
 def db_path() -> Path:
     return S.store_root() / REGISTRY_DB
 
@@ -163,7 +172,8 @@ def for_capability(capability: str) -> list[VisualProof]:
     con = _open()
     try:
         rows = con.execute("select * from proofs where capability=? "
-                           "order by recorded_at desc", (capability,)).fetchall()
+                           "order by recorded_at desc",
+                           (canonical(capability),)).fetchall()
     finally:
         con.close()
     return [_row(r) for r in rows]
@@ -256,19 +266,38 @@ VR = "docs/visual-record"
 
 SEED: tuple[VisualProof, ...] = (
     VisualProof(
-        capability="GREEN_KEEL_REVIEW",
-        proof_id="GREEN_KEEL_REVIEW/2026-09-06/offscreen-review",
-        semantic_expectation="In the REVIEW profile the enemy is a Keel in "
-                             "PANTHEON green, unmistakable at a glance; the "
+        # The name the handoff brief uses. GREEN_KEEL_REVIEW was the id an
+        # earlier sprint gave the same fact; ALIASES below keeps a lookup of
+        # the old name working rather than pretending it never existed.
+        capability="REVIEW_GREEN_KEEL",
+        proof_id="REVIEW_GREEN_KEEL/2026-09-06/offscreen-review",
+        semantic_expectation="ENEMY = KEEL / BRIGHT / GREEN, unmistakable at a "
+                             "glance. TEAM = preserved. SELF = preserved. The "
                              "teammate and the recorder keep the look the demo "
                              "authored.",
         artifact_refs=(f"{VR}/2026-09-06/green_keel/A_authentic.png",
                        f"{VR}/2026-09-06/green_keel/B_review.png",
-                       f"{VR}/2026-09-06/green_keel/green_keel_proof.json"),
-        automated_results={"strong_green_pixels_review": 49509,
-                           "strong_green_pixels_authentic": 2,
-                           "verdict": "GREEN_ENEMY_PROVEN",
-                           "measured_at_units": 81},
+                       f"{VR}/2026-09-06/green_keel/green_keel_proof.json",
+                       f"{VR}/2026-09-06/green_keel/rebuild_proof.py"),
+        automated_results={
+            "strong_green_pixels_review": 49509,
+            "strong_green_pixels_authentic": 2,
+            "mean_rgb_of_green": [85, 230, 125],
+            "verdict": "GREEN_ENEMY_PROVEN",
+            "measured_at_units": 81,
+            "moment": {"demo_hash": "e4bd2a36495928d0", "client": 2,
+                       "victim": 1, "server_time_ms": 579825},
+            "controlled": ("same demo, same serverTime, same camera; the ONLY "
+                           "variable is the VisualProfile"),
+            "offscreen": {"visible_windows": [], "stole_focus": False},
+            # Hashes so the proof survives the files moving or being edited.
+            # A changed hash means the artefact is no longer the one that was
+            # judged, which is a reason to look again rather than to trust it.
+            "artifact_sha256_16": {
+                "A_authentic.png": "499ed9a2179ff9be",
+                "B_review.png": "652afb5a611d9423",
+                "green_keel_proof.json": "ccb857277d043e98",
+                "rebuild_proof.py": "785e482fe8a57e9f"}},
         status=Status.VISUALLY_PROVEN,
         human_verdict="YES", human_note="accepted in the sprint-7 brief: "
                                         "'green Keel review enemy proven in pixels'",

@@ -400,7 +400,20 @@ class Doctor:
         from engine.pantheon import visual_proof as VP
         rep = VP.report()
         if not rep["capabilities"]:
-            return SKIP, "nothing banked yet; run --seed", rep
+            # A fresh checkout has no registry database -- it lives outside the
+            # repo. The SEED tuple in visual_proof.py is the committed
+            # authority, so rebuild from it rather than reporting a gap that
+            # is really just a missing local file.
+            VP.seed()
+            rep = VP.report()
+            if not rep["capabilities"]:
+                return SKIP, "nothing banked and the seed produced nothing", rep
+        # The one proof the handoff turns on. If it is not banked, say so here
+        # rather than letting a caller discover it at render time.
+        keel = VP.status("REVIEW_GREEN_KEEL", backend="PANTHEON_QUAKE_OFFSCREEN",
+                         profile="REVIEW", engine_version="wolfcamql-11.3")
+        if keel is not VP.Status.VISUALLY_PROVEN:
+            return FAIL, f"REVIEW_GREEN_KEEL is {keel.value}, not banked", rep
         waiting = rep["awaiting_human"]
         return OK, (f"{rep['capabilities']} capabilities judged; "
                     f"{rep['by_status'].get('VISUALLY_PROVEN', 0)} proven, "

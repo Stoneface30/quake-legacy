@@ -94,11 +94,17 @@ def legacy_override_present() -> bool:
 
 
 def check(*, purpose: str = "render", output_dir=None,
-          expected_output_bytes: int | None = None) -> Decision:
+          expected_output_bytes: int | None = None,
+          batch: bool = False) -> Decision:
     """May `purpose` open a renderer window right now?
 
     Callers pass their own name so the reason string reads as an answer to
     the question that was actually asked.
+
+    `batch=True` is the reviewer branch's spelling for "this is a whole run,
+    not one clip". It is kept because their call sites use it, and it means
+    the same thing here: hold the request to the LARGE_BUILD threshold rather
+    than to one job's expected output. One permit, both vocabularies.
     """
     if mode() == MODE_OFF:
         return Decision(Permit.DENIED,
@@ -120,7 +126,9 @@ def check(*, purpose: str = "render", output_dir=None,
     if output_dir is None:
         from creative_suite.engine import wolfcam_capture
         output_dir = wolfcam_capture.STAGING
-    disk = disk_policy.render_job_safe(output_dir, expected_output_bytes=expected_output_bytes)
+    disk = (disk_policy.large_build_safe(output_dir) if batch
+            else disk_policy.render_job_safe(
+                output_dir, expected_output_bytes=expected_output_bytes))
     if not disk.ok:
         return Decision(Permit.DEFERRED, f"{purpose} deferred: {disk.reason}")
 
