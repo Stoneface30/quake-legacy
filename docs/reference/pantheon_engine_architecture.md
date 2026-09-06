@@ -108,6 +108,18 @@ for everything derived; no drive letter appears in engine code, and
 | `performance_templates.db` | real segments, admitted only if physically continuous. |
 | `map_geography.db` | regions, layers, routes, jump-pad arcs, teleport links AND the 64u spatial cells, adjacency and encounters. One geography store. |
 
+**Measured 2026-09-06** (`F:\QUAKE_LEGACY_STORE`): the compact index holds
+4,292 of 4,292 distinct demos with 0 errors, 4,543,086 actions across 59
+maps, 3.32 GB, 786 bytes per action. The v1 index it replaces is 87.64 GB
+for 2,097,455 actions on 3,928 demos (44,864 bytes per action) and is marked
+`OBSOLETE_REPLACED`; the equivalence evidence is
+`F:\QUAKE_LEGACY_STORE\index_equivalence.json` — coverage COMPLETE,
+identity IDENTICAL on 60 sampled demos, traces IDENTICAL on 7 rebuilt from
+locators. Geography covers 18 maps: 220 regions, 63 layers, 3,214 routes,
+659 jump-pad arcs, 15 teleport links, 29,783 walked cells, 472,305 adjacency
+pairs, 108,656 encounter pairs. 40 further maps have too few demos to learn
+a structure from and are reported, not silently dropped.
+
 **Index actions; do not duplicate performance.** The first index carried a
 45 KB trace per action, reached 94 GB and filled a drive. A trace is
 reconstructed from its locator through the same extractor that produced it;
