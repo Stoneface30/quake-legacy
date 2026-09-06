@@ -69,7 +69,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from creative_suite.engine import render_permit
+from engine.pantheon import render_permit
 from pathlib import Path
 from typing import Any
 
@@ -1642,11 +1642,8 @@ def _in_flight_is_orphaned(existing: dict[str, Any]) -> bool:
         except (OSError, ValueError):
             pid = 0
         if pid and pid != os.getpid():
-            try:
-                os.kill(pid, 0)
-                return False              # a live process holds the lock
-            except OSError:
-                return True               # lock held by a dead PID
+            from creative_suite.engine.process_liveness import process_alive
+            return not process_alive(pid)
         if pid == os.getpid():
             return False
     try:
@@ -1808,12 +1805,12 @@ def _worker_loop() -> None:
                 _generate(job)
             finally:
                 review_proxy._release_lock()
-        except render_permit.RenderDenied as rd:
-            # denied by default, or a protected game is running: the job is
-            # DEFERRED, not failed, and is offered again later
+        except render_permit.RenderNotPermitted as rd:
+            # off, or a protected game is running: the job is DEFERRED, not
+            # failed, and is offered again later
             _set_state(job["preview_key"], STATE_QUEUED,
-                       error=f"RENDER DEFERRED: {rd.permit.reason}")
-            time.sleep(review_proxy._DEFER_RETRY_S)
+                       error=f"RENDER DEFERRED: {rd.decision.reason}")
+            time.sleep(review_proxy._PERMIT_WAIT_S)
             _queue.put(job)
         except Exception as exc:      # the worker must never die
             _set_state(job["preview_key"], STATE_FAILED, error=str(exc)[:500])
@@ -2011,10 +2008,22 @@ def _real_capture(job: dict[str, Any], plan: PreviewPlan, tmp_mp4: Path,
         timeout = (wolfcam_capture.LAUNCH_OVERHEAD_S
                    + raw_s * wolfcam_capture.CAPTURE_SLOWDOWN
                    + plan.window_start_ms / 1000.0 / 12.0)
-        render_permit.require(f"director_preview:{key}")
+        # ASK THE ONE AUTHORITY. A preview is user-triggered, so unlike the
+        # review queue it has nothing to defer INTO -- it fails fast and
+        # says why, rather than opening a window over a live game.
+        # It DOES have a queue to defer into (this worker), so a refusal is
+        # RenderNotPermitted, which _worker_loop turns into QUEUED + RENDER
+        # DEFERRED rather than a failed preview.
+        decision = render_permit.check(purpose=f"director preview {key}")
+        if not decision.may_render:
+            raise render_permit.RenderNotPermitted(decision)
+        # And when it does run: minimized, not activated.
+        from creative_suite.engine.capture_guard import (
+            quiet_startup_info)
         proc = subprocess.Popen(
             wolfcam_capture.wolfcam_cmd(safe, staging), cwd=staging,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            startupinfo=quiet_startup_info())
         try:
             proc.wait(timeout=timeout)
         except subprocess.TimeoutExpired:

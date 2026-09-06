@@ -667,7 +667,7 @@ def queue_proxy(frag_id: int) -> dict[str, Any]:
     frag = _load_frag_with_master(frag_id)
     window = _frag_window(frag)
     res = review_proxy.request_proxy(
-        frag_id, frag["demo_name"], window["start_ms"], window["end_ms"]
+        frag_id, frag["demo_name"], window["start_ms"], window["end_ms"], retry=True
     )
     if res.get("state") == "FAILED" and "key" not in res:
         # not persistable (e.g. demo unknown) — surface the error directly

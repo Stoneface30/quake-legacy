@@ -1,0 +1,873 @@
+{
+ "demo_hash": "4db16c445bcaafce",
+ "client": 5,
+ "map": "campgrounds",
+ "start_ms": 1197225,
+ "end_ms": 1201525,
+ "sentence": "JUMP_PAD -> AIRBORNE -> FIRE -> PROJECTILE",
+ "categories": [
+  "COMBAT_STRAFE",
+  "HIGH_SPEED",
+  "JUMP_PAD",
+  "JUMP_PAD_KILL",
+  "JUMP_PAD_ROCKET",
+  "ROCKET_AIR_ACTION",
+  "TURN_AND_FIRE"
+ ],
+ "nodes": [
+  {
+   "id": "run_1",
+   "kind": "RUN",
+   "t_start": 1197225,
+   "t_end": 1197375,
+   "evidence": [
+    {
+     "kind": "STATE_TRANSITION",
+     "t": 1197225,
+     "ref": "transform:speed>run",
+     "detail": {
+      "samples": 7
+     }
+    }
+   ],
+   "attrs": {
+    "max_speed": 350.3,
+    "mean_speed": 340.4
+   },
+   "duration_ms": 150
+  },
+  {
+   "id": "airborne_2",
+   "kind": "AIRBORNE",
+   "t_start": 1197400,
+   "t_end": 1198175,
+   "evidence": [
+    {
+     "kind": "STATE_TRANSITION",
+     "t": 1197400,
+     "ref": "transform:airborne",
+     "detail": {
+      "samples": 32
+     }
+    }
+   ],
+   "attrs": {
+    "apex_z": 282.0,
+    "apex_t": 1197400
+   },
+   "duration_ms": 775
+  },
+  {
+   "id": "land_3",
+   "kind": "LAND",
+   "t_start": 1198200,
+   "t_end": 1198200,
+   "evidence": [
+    {
+     "kind": "STATE_TRANSITION",
+     "t": 1198200,
+     "ref": "transform:airborne->grounded",
+     "detail": {
+      "z": 24.0
+     }
+    }
+   ],
+   "attrs": {
+    "position": [
+     -641.0,
+     -446.0,
+     24.0
+    ]
+   },
+   "duration_ms": 0
+  },
+  {
+   "id": "run_4",
+   "kind": "RUN",
+   "t_start": 1198200,
+   "t_end": 1198650,
+   "evidence": [
+    {
+     "kind": "STATE_TRANSITION",
+     "t": 1198200,
+     "ref": "transform:speed>run",
+     "detail": {
+      "samples": 18
+     }
+    }
+   ],
+   "attrs": {
+    "max_speed": 439.5,
+    "mean_speed": 265.1
+   },
+   "duration_ms": 450
+  },
+  {
+   "id": "airborne_5",
+   "kind": "AIRBORNE",
+   "t_start": 1198675,
+   "t_end": 1200700,
+   "evidence": [
+    {
+     "kind": "STATE_TRANSITION",
+     "t": 1198675,
+     "ref": "transform:airborne",
+     "detail": {
+      "samples": 82
+     }
+    }
+   ],
+   "attrs": {
+    "apex_z": 707.0,
+    "apex_t": 1200050
+   },
+   "duration_ms": 2025
+  },
+  {
+   "id": "land_6",
+   "kind": "LAND",
+   "t_start": 1200725,
+   "t_end": 1200725,
+   "evidence": [
+    {
+     "kind": "STATE_TRANSITION",
+     "t": 1200725,
+     "ref": "transform:airborne->grounded",
+     "detail": {
+      "z": 538.0
+     }
+    }
+   ],
+   "attrs": {
+    "position": [
+     -629.0,
+     -864.0,
+     538.0
+    ]
+   },
+   "duration_ms": 0
+  },
+  {
+   "id": "run_7",
+   "kind": "RUN",
+   "t_start": 1200725,
+   "t_end": 1201525,
+   "evidence": [
+    {
+     "kind": "STATE_TRANSITION",
+     "t": 1200725,
+     "ref": "transform:speed>run",
+     "detail": {
+      "samples": 33
+     }
+    }
+   ],
+   "attrs": {
+    "max_speed": 375.1,
+    "mean_speed": 314.7
+   },
+   "duration_ms": 800
+  },
+  {
+   "id": "accelerate_8",
+   "kind": "ACCELERATE",
+   "t_start": 1198250,
+   "t_end": 1198550,
+   "evidence": [
+    {
+     "kind": "STATE_TRANSITION",
+     "t": 1198250,
+     "ref": "transform:speed_gain",
+     "detail": {
+      "from": 95.0,
+      "to": 344.4
+     }
+    }
+   ],
+   "attrs": {},
+   "duration_ms": 300
+  },
+  {
+   "id": "flick_9",
+   "kind": "FLICK",
+   "t_start": 1198175,
+   "t_end": 1198275,
+   "evidence": [
+    {
+     "kind": "STATE_TRANSITION",
+     "t": 1198175,
+     "ref": "aim:yaw_rate_peak",
+     "detail": {
+      "peak_dps": 600.0
+     }
+    }
+   ],
+   "attrs": {
+    "degrees": 49.0,
+    "peak_dps": 600.0,
+    "pitch_delta": 9.0
+   },
+   "duration_ms": 100
+  },
+  {
+   "id": "flick_10",
+   "kind": "FLICK",
+   "t_start": 1200575,
+   "t_end": 1200675,
+   "evidence": [
+    {
+     "kind": "STATE_TRANSITION",
+     "t": 1200575,
+     "ref": "aim:yaw_rate_peak",
+     "detail": {
+      "peak_dps": 440.0
+     }
+    }
+   ],
+   "attrs": {
+    "degrees": 38.0,
+    "peak_dps": 440.0,
+    "pitch_delta": -12.0
+   },
+   "duration_ms": 100
+  },
+  {
+   "id": "flick_11",
+   "kind": "FLICK",
+   "t_start": 1200725,
+   "t_end": 1200925,
+   "evidence": [
+    {
+     "kind": "STATE_TRANSITION",
+     "t": 1200725,
+     "ref": "aim:yaw_rate_peak",
+     "detail": {
+      "peak_dps": 840.0
+     }
+    }
+   ],
+   "attrs": {
+    "degrees": 103.0,
+    "peak_dps": 840.0,
+    "pitch_delta": -6.0
+   },
+   "duration_ms": 200
+  },
+  {
+   "id": "turn_12",
+   "kind": "TURN",
+   "t_start": 1197225,
+   "t_end": 1197825,
+   "evidence": [
+    {
+     "kind": "STATE_TRANSITION",
+     "t": 1197225,
+     "ref": "aim:heading_change",
+     "detail": {
+      "from": -162.0,
+      "to": -108.0
+     }
+    }
+   ],
+   "attrs": {
+    "degrees": 54.0
+   },
+   "duration_ms": 600
+  },
+  {
+   "id": "jump_pad_13",
+   "kind": "JUMP_PAD",
+   "t_start": 1198725,
+   "t_end": 1198725,
+   "evidence": [
+    {
+     "kind": "OBSERVED_EVENT",
+     "t": 1198725,
+     "ref": "event:jump_pad",
+     "detail": {}
+    },
+    {
+     "kind": "STATE_TRANSITION",
+     "t": 1198725,
+     "ref": "transform:launch",
+     "detail": {
+      "vel_z": 1011.0
+     }
+    }
+   ],
+   "attrs": {
+    "position": [
+     -547.0,
+     -515.0,
+     35.0
+    ],
+    "launch_vz": 1011.0
+   },
+   "duration_ms": 0
+  },
+  {
+   "id": "fire_14",
+   "kind": "FIRE",
+   "t_start": 1198600,
+   "t_end": 1198600,
+   "evidence": [
+    {
+     "kind": "OBSERVED_EVENT",
+     "t": 1198600,
+     "ref": "event:fire_weapon",
+     "detail": {
+      "weapon": 5
+     }
+    }
+   ],
+   "attrs": {
+    "weapon": "ROCKET",
+    "weapon_num": 5,
+    "position": [
+     -581.0,
+     -481.0,
+     null
+    ],
+    "airborne": false
+   },
+   "duration_ms": 0
+  },
+  {
+   "id": "fire_15",
+   "kind": "FIRE",
+   "t_start": 1199400,
+   "t_end": 1199400,
+   "evidence": [
+    {
+     "kind": "OBSERVED_EVENT",
+     "t": 1199400,
+     "ref": "event:fire_weapon",
+     "detail": {
+      "weapon": 5
+     }
+    }
+   ],
+   "attrs": {
+    "weapon": "ROCKET",
+    "weapon_num": 5,
+    "position": [
+     -564.0,
+     -616.0,
+     538.0
+    ],
+    "airborne": true
+   },
+   "duration_ms": 0
+  },
+  {
+   "id": "fire_16",
+   "kind": "FIRE",
+   "t_start": 1200925,
+   "t_end": 1200925,
+   "evidence": [
+    {
+     "kind": "OBSERVED_EVENT",
+     "t": 1200925,
+     "ref": "event:fire_weapon",
+     "detail": {
+      "weapon": 5
+     }
+    }
+   ],
+   "attrs": {
+    "weapon": "ROCKET",
+    "weapon_num": 5,
+    "position": [
+     -679.0,
+     -846.0,
+     null
+    ],
+    "airborne": false
+   },
+   "duration_ms": 0
+  },
+  {
+   "id": "impact_17",
+   "kind": "IMPACT",
+   "t_start": 1197775,
+   "t_end": 1197775,
+   "evidence": [
+    {
+     "kind": "OBSERVED_EVENT",
+     "t": 1197775,
+     "ref": "event:missile_miss",
+     "detail": {
+      "weapon": 4
+     }
+    }
+   ],
+   "attrs": {
+    "hit_player": false,
+    "weapon": "GRENADE",
+    "position": [
+     67.0,
+     -1162.0,
+     257.0
+    ]
+   },
+   "duration_ms": 0
+  },
+  {
+   "id": "projectile_18",
+   "kind": "PROJECTILE",
+   "t_start": 1197775,
+   "t_end": 1197950,
+   "evidence": [
+    {
+     "kind": "OBSERVED_EVENT",
+     "t": 1197775,
+     "ref": "missile:entity",
+     "detail": {
+      "entity": 200,
+      "samples": 8
+     }
+    }
+   ],
+   "attrs": {
+    "weapon": "GRENADE",
+    "weapon_num": 4,
+    "spawn": [
+     82.02011108398438,
+     -1107.63623046875,
+     257.135009765625
+    ],
+    "spawn_velocity": [
+     86.5755386352539,
+     -76.7576904296875,
+     85.37869262695312
+    ],
+    "speed": 143.8,
+    "lifetime_ms": 175,
+    "bounces": [],
+    "path": [
+     [
+      82.02011108398438,
+      -1107.63623046875,
+      257.135009765625
+     ],
+     [
+      82.02011108398438,
+      -1107.63623046875,
+      257.135009765625
+     ],
+     [
+      82.02011108398438,
+      -1107.63623046875,
+      257.135009765625
+     ],
+     [
+      101.45889282226562,
+      -1124.87060546875,
+      257.135009765625
+     ],
+     [
+      101.45889282226562,
+      -1124.87060546875,
+      257.135009765625
+     ],
+     [
+      101.45889282226562,
+      -1124.87060546875,
+      257.135009765625
+     ],
+     [
+      101.45889282226562,
+      -1124.87060546875,
+      257.135009765625
+     ],
+     [
+      101.45889282226562,
+      -1124.87060546875,
+      257.135009765625
+     ]
+    ]
+   },
+   "duration_ms": 175
+  },
+  {
+   "id": "projectile_19",
+   "kind": "PROJECTILE",
+   "t_start": 1198600,
+   "t_end": 1198700,
+   "evidence": [
+    {
+     "kind": "OBSERVED_EVENT",
+     "t": 1198600,
+     "ref": "missile:entity",
+     "detail": {
+      "entity": 202,
+      "samples": 5
+     }
+    }
+   ],
+   "attrs": {
+    "weapon": "ROCKET",
+    "weapon_num": 5,
+    "spawn": [
+     -581.0,
+     -476.0,
+     47.0
+    ],
+    "spawn_velocity": [
+     -44.0,
+     870.0,
+     -489.0
+    ],
+    "speed": 999.0,
+    "lifetime_ms": 100,
+    "bounces": [],
+    "path": [
+     [
+      -581.0,
+      -476.0,
+      47.0
+     ],
+     [
+      -581.0,
+      -476.0,
+      47.0
+     ],
+     [
+      -584.0,
+      -392.0,
+      1.0
+     ],
+     [
+      -584.0,
+      -392.0,
+      1.0
+     ],
+     [
+      -584.0,
+      -392.0,
+      1.0
+     ]
+    ]
+   },
+   "duration_ms": 100
+  },
+  {
+   "id": "projectile_20",
+   "kind": "PROJECTILE",
+   "t_start": 1199400,
+   "t_end": 1200125,
+   "evidence": [
+    {
+     "kind": "OBSERVED_EVENT",
+     "t": 1199400,
+     "ref": "missile:entity",
+     "detail": {
+      "entity": 211,
+      "samples": 6
+     }
+    }
+   ],
+   "attrs": {
+    "weapon": "ROCKET",
+    "weapon_num": 5,
+    "spawn": [
+     -563.0,
+     -612.0,
+     560.0
+    ],
+    "spawn_velocity": [
+     77.0,
+     706.0,
+     -703.0
+    ],
+    "speed": 999.3,
+    "lifetime_ms": 725,
+    "bounces": [],
+    "path": [
+     [
+      -563.0,
+      -612.0,
+      560.0
+     ],
+     [
+      -563.0,
+      -612.0,
+      560.0
+     ],
+     [
+      -563.0,
+      -612.0,
+      560.0
+     ],
+     [
+      -507.0,
+      -105.0,
+      57.0
+     ],
+     [
+      -507.0,
+      -105.0,
+      57.0
+     ],
+     [
+      -507.0,
+      -105.0,
+      57.0
+     ]
+    ]
+   },
+   "duration_ms": 725
+  },
+  {
+   "id": "projectile_21",
+   "kind": "PROJECTILE",
+   "t_start": 1200925,
+   "t_end": 1201150,
+   "evidence": [
+    {
+     "kind": "OBSERVED_EVENT",
+     "t": 1200925,
+     "ref": "missile:entity",
+     "detail": {
+      "entity": 199,
+      "samples": 6
+     }
+    }
+   ],
+   "attrs": {
+    "weapon": "ROCKET",
+    "weapon_num": 5,
+    "spawn": [
+     -670.0,
+     -848.0,
+     562.0
+    ],
+    "spawn_velocity": [
+     946.0,
+     215.0,
+     -239.0
+    ],
+    "speed": 999.1,
+    "lifetime_ms": 225,
+    "bounces": [],
+    "path": [
+     [
+      -670.0,
+      -848.0,
+      562.0
+     ],
+     [
+      -670.0,
+      -848.0,
+      562.0
+     ],
+     [
+      -670.0,
+      -848.0,
+      562.0
+     ],
+     [
+      -472.0,
+      -803.0,
+      513.0
+     ],
+     [
+      -472.0,
+      -803.0,
+      513.0
+     ],
+     [
+      -472.0,
+      -803.0,
+      513.0
+     ]
+    ]
+   },
+   "duration_ms": 225
+  },
+  {
+   "id": "kill_22",
+   "kind": "KILL",
+   "t_start": 1200075,
+   "t_end": 1200075,
+   "evidence": [
+    {
+     "kind": "OBSERVED_EVENT",
+     "t": 1200075,
+     "ref": "event:obituary",
+     "detail": {
+      "mod": 6,
+      "victim": 1
+     }
+    }
+   ],
+   "attrs": {
+    "victim": 1,
+    "mod": 6,
+    "position": [
+     -502.0,
+     -119.0,
+     24.0
+    ]
+   },
+   "duration_ms": 0
+  }
+ ],
+ "edges": [
+  {
+   "src": "airborne_2",
+   "dst": "land_3",
+   "relation": "lands_as",
+   "basis": "STATE_TRANSITION",
+   "detail": {}
+  },
+  {
+   "src": "airborne_5",
+   "dst": "land_6",
+   "relation": "lands_as",
+   "basis": "STATE_TRANSITION",
+   "detail": {}
+  },
+  {
+   "src": "jump_pad_13",
+   "dst": "airborne_5",
+   "relation": "launches",
+   "basis": "STATE_TRANSITION",
+   "detail": {
+    "airborne_ms": 2025
+   }
+  },
+  {
+   "src": "airborne_5",
+   "dst": "fire_15",
+   "relation": "fires",
+   "basis": "STATE_TRANSITION",
+   "detail": {
+    "airborne": true
+   }
+  },
+  {
+   "src": "flick_11",
+   "dst": "fire_16",
+   "relation": "fires",
+   "basis": "DERIVED",
+   "detail": {
+    "flick_to_fire_ms": 0
+   }
+  },
+  {
+   "src": "fire_14",
+   "dst": "projectile_19",
+   "relation": "spawns",
+   "basis": "DERIVED",
+   "detail": {
+    "fire_to_spawn_ms": 0
+   }
+  },
+  {
+   "src": "fire_15",
+   "dst": "projectile_20",
+   "relation": "spawns",
+   "basis": "DERIVED",
+   "detail": {
+    "fire_to_spawn_ms": 0
+   }
+  },
+  {
+   "src": "fire_16",
+   "dst": "projectile_21",
+   "relation": "spawns",
+   "basis": "DERIVED",
+   "detail": {
+    "fire_to_spawn_ms": 0
+   }
+  },
+  {
+   "src": "fire_15",
+   "dst": "kill_22",
+   "relation": "causes",
+   "basis": "DERIVED",
+   "detail": {
+    "fire_to_kill_ms": 675
+   }
+  },
+  {
+   "src": "impact_17",
+   "dst": "projectile_18",
+   "relation": "then",
+   "basis": "STATE_TRANSITION",
+   "detail": {}
+  },
+  {
+   "src": "projectile_18",
+   "dst": "flick_9",
+   "relation": "then",
+   "basis": "STATE_TRANSITION",
+   "detail": {}
+  },
+  {
+   "src": "land_3",
+   "dst": "run_4",
+   "relation": "then",
+   "basis": "STATE_TRANSITION",
+   "detail": {}
+  },
+  {
+   "src": "accelerate_8",
+   "dst": "fire_14",
+   "relation": "then",
+   "basis": "STATE_TRANSITION",
+   "detail": {}
+  },
+  {
+   "src": "fire_14",
+   "dst": "projectile_19",
+   "relation": "then",
+   "basis": "STATE_TRANSITION",
+   "detail": {}
+  },
+  {
+   "src": "jump_pad_13",
+   "dst": "fire_15",
+   "relation": "then",
+   "basis": "STATE_TRANSITION",
+   "detail": {}
+  },
+  {
+   "src": "fire_15",
+   "dst": "projectile_20",
+   "relation": "then",
+   "basis": "STATE_TRANSITION",
+   "detail": {}
+  },
+  {
+   "src": "kill_22",
+   "dst": "flick_10",
+   "relation": "then",
+   "basis": "STATE_TRANSITION",
+   "detail": {}
+  },
+  {
+   "src": "flick_10",
+   "dst": "land_6",
+   "relation": "then",
+   "basis": "STATE_TRANSITION",
+   "detail": {}
+  },
+  {
+   "src": "land_6",
+   "dst": "flick_11",
+   "relation": "then",
+   "basis": "STATE_TRANSITION",
+   "detail": {}
+  },
+  {
+   "src": "fire_16",
+   "dst": "projectile_21",
+   "relation": "then",
+   "basis": "STATE_TRANSITION",
+   "detail": {}
+  }
+ ],
+ "rejected": []
+}

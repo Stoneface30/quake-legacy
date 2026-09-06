@@ -84,7 +84,7 @@ def probe(demo: Path, *, staging: Path | None = None, timeout: int = 240
     wc.write_engine_file(gamedir / "cgamepostinit.cfg", "exec capture.cfg\n")
 
     cmd = wc.wolfcam_cmd(safe, staging)
-    from creative_suite.engine import render_permit
+    from engine.pantheon import render_permit
     render_permit.require("runtime_capability_proof:cvar_probe")
     env = dict(os.environ, SDL_VIDEODRIVER="windib")
     t0 = time.time()

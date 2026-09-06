@@ -9,7 +9,7 @@ import asyncio
 import uuid
 from datetime import datetime
 
-from creative_suite.engine import render_permit
+from engine.pantheon import render_permit
 from typing import Any, Awaitable, Callable
 
 
@@ -77,12 +77,12 @@ class JobQueue:
             try:
                 await job(emit)
                 self._jobs[jid]["status"] = "done"
-            except render_permit.RenderDenied as rd:
+            except render_permit.RenderNotPermitted as rd:
                 # rendering denied by default or deferred behind a running
                 # game: the job is DEFERRED, never failed
                 self._jobs[jid]["events"].append({
                     "phase": "deferred", "pct": 100,
-                    "msg": f"RENDER DEFERRED: {rd.permit.reason}",
+                    "msg": f"RENDER DEFERRED: {rd.decision.reason}",
                     "ts": datetime.utcnow().isoformat(),
                 })
                 self._jobs[jid]["status"] = "deferred"

@@ -305,6 +305,102 @@ _DIRECTOR_SESSION = {
 # cg_draw2D must be ON or the whole 2D layer is suppressed and the readout
 # with it -- which is why the clean-POV profile cannot simply have the
 # speedometer added to it.
+# ── the review capture profile ──────────────────────────────────────────────
+# Review is not production. This view exists so a person can JUDGE a moment:
+# see the enemy, read the aim, tell a wall from a floor. It is a normalized
+# instrument view and is never the historical master presentation, which is
+# why it carries its own profile id and its own cache identity.
+#
+# TWO DEFECTS THE FIRST REAL REVIEW EXPOSED, both traced to this file.
+#
+# ENEMIES WERE INVISIBLE-ISH. The gameplay profile sets cg_enemyModel to ""
+# (line ~201), deliberately, to de-game the cinematic view. Wolfcam's own
+# defaults are already what review wants -- cg_enemyModel "keel/bright" with
+# cg_enemyHeadColor / TorsoColor / LegsColor at 0x2a8000, a green -- so the
+# fix is to stop clearing them, not to invent a scheme.
+# cg_disallowEnemyModelForTeammates defaults to 1, so teammates keep their
+# own presentation and SELF / TEAMMATE / ENEMY stay distinguishable.
+#
+# THE PICTURE WAS BLOWN OUT. r_mapOverBrightBits defaults to 2, which
+# multiplies the lightmap by four, and the profile additionally forced
+# r_ignorehwgamma 1 while setting no gamma of its own. Together they push
+# floors and walls to white and destroy the texture detail needed to judge
+# distance, aim and composition. Both are CVAR_LATCH, so they are read at
+# startup and belong on the command line, not in a live cfg.
+_REVIEW_V2 = {
+    # Enemy readability.
+    "cg_enemyModel": "keel/bright",
+    "cg_enemyHeadModel": "keel/bright",
+    "cg_enemyHeadColor": "0x2a8000",
+    "cg_enemyTorsoColor": "0x2a8000",
+    "cg_enemyLegsColor": "0x2a8000",
+    "cg_forceModel": 1,
+    "cg_disallowEnemyModelForTeammates": 1,
+    # Clan Arena is a team game, and cg_players.c forces red/blue TEAM SKINS
+    # over the enemy model whenever cg_useDefaultTeamSkins is on
+    # (cg_players.c:402 and :483). That is why the enemy stayed orange after
+    # cg_enemyModel started applying: the model changed, the skin did not.
+    # The enemy COLOUR block at cg_players.c:6097 is additionally gated on
+    # cg_useCustomRedBlueModels != 2.
+    "cg_useDefaultTeamSkins": 0,
+    "cg_useCustomRedBlueModels": 0,
+    # CAPTURE DETERMINISM. Wolfcam archives CVAR_ARCHIVE values into its own
+    # config, so anything ever set in an interactive session survives into
+    # the next launch -- a 242ups speedometer appeared in a review capture
+    # that no review cvar had asked for. A review clip must look the same
+    # whoever last used the engine, so every HUD element the review view does
+    # not want is set explicitly rather than left to whatever was archived.
+    # Movement metrics belong in the dossier, not burned into the footage.
+    "cg_drawSpeed": 0,
+    "cg_drawSpeedometer": 0,
+    "cg_drawFPS": 0,
+    "cg_lagometer": 0,
+    "cg_drawAmmoWarning": 0,
+    "cg_drawAttacker": 0,
+    "cg_drawRewards": 0,
+    "cg_drawKeys": 0,
+    "cg_drawPickupItems": 0,
+    # Exposure lives in REVIEW_LAUNCH_SETS below, NOT here. Every cvar that
+    # controls it is CVAR_LATCH: the renderer reads it once at startup, so a
+    # value written into a cfg is read, stored, and has no effect on the
+    # picture. Setting r_mapOverBrightBits here would have looked like a fix
+    # and changed nothing.
+    # r_gamma is set in REVIEW_LAUNCH_SETS with the rest of the exposure.
+}
+
+# Command-line sets for a REVIEW capture. The exposure cvars are CVAR_LATCH
+# and belong here.
+#
+# r_ignorehwgamma is 1 for the gameplay master -- it bakes gamma into the
+# textures at load, which is deterministic for a render farm but is half of
+# why the review picture is blown out. Review turns it back to the engine
+# default of 0.
+#
+# r_mapOverBrightBits defaults to 2, a x4 lightmap multiply. 1 halves that
+# rather than removing it; 0 crushes the shadowed areas the other way, which
+# is the opposite failure and just as bad for judging a dark corner.
+REVIEW_LAUNCH_SETS = {
+    **LAUNCH_SETS,
+    "r_ignorehwgamma": 0,
+    "r_mapOverBrightBits": 1,
+    "r_mapOverBrightBitsValue": 1.0,
+    # Measured on one real frame against three alternatives, with the LG beam
+    # and impact bloom masked OUT -- a whole-frame clipping number is the
+    # wrong instrument, because effects are SUPPOSED to burn.
+    #
+    #   variant                 env mean   blown%   crushed%   contrast
+    #   overbright 1 (was)          79.7     8.54       9.22       85.0
+    #   overbright 0                21.8     6.03      85.79       65.8   <-- unusable
+    #   overbright 0, gamma .9      20.4     5.33      86.18       63.8   <-- unusable
+    #   THIS: gamma/intensity .85   65.8     6.36      16.90       76.2
+    #
+    # r_mapOverBrightBits 0 is the obvious next move and it is wrong: it
+    # crushes 86% of the environment to near-black. Darkening through gamma
+    # and intensity instead keeps the shadows readable.
+    "r_intensity": 0.85,
+    "r_gamma": 0.85,
+}
+
 _SPEED_REVIEW = {
     **_GAMEPLAY_MASTER_V2,
     "cg_draw2D": 1,
@@ -320,7 +416,69 @@ _SPEED_REVIEW = {
     "cg_drawSpeedometerAlignment": "center",
 }
 
+# ── the public-export capture profile ───────────────────────────────────────
+# THE ONLY PROFILE THAT MAY FILM SOMETHING A STRANGER WILL SEE.
+#
+# public_clip_export.py promises, in its own docstring, that no name is burned
+# in and that "identity travels as data, not as pixels" -- a field can be
+# withheld after a vote, a pixel cannot be un-shown. That promise was made by
+# the export module and then broken by this one: the export called
+# wolfcam_capture.capture_demo() without a profile argument, so it captured
+# with PROFILE_NAME (TR4SH_GAMEPLAY_MASTER_V2, id 091901df0daf), and that
+# profile deliberately draws cg_drawFragMessageTokens "You fragged %v".
+# Measured on the review proxies captured with that same id: the victim's
+# handle, centred, around y 210-265 of a 1920x1080 frame, for two seconds
+# after every kill.
+#
+# The gameplay master is NOT changed. "You fragged <name>" is a deliberate
+# old-school fragmovie beat in the user's own film, where the names are the
+# point. It is only wrong when the audience is strangers and the clip is a
+# blind vote. Two audiences, two profiles -- the same reasoning that already
+# gives review its own profile.
+#
+# EVERY NAME-BEARING CVAR IS RE-PINNED HERE, including ones the base profiles
+# already set to 0. This profile's guarantee must be readable in one place and
+# must not depend on three dicts up the inheritance chain keeping their
+# current values -- a future edit to _CLEAN_POV or _GAMEPLAY_MASTER_V2 must
+# not be able to quietly re-open a disclosure path.
+#
+# The two that were actually leaking are gated by TIME cvars, not booleans
+# (the same trap noted at _CLEAN_POV): setting cg_drawFragMessage 0 or
+# cg_obituary 0 would do nothing, because neither cvar exists.
+_PUBLIC_EXPORT = {
+    **_GAMEPLAY_MASTER_V2,
+    # -- the two that were measured burning names into shipped frames --
+    "cg_drawFragMessageTime": 0,     # was 2000: "You fragged %v", %v = victim
+    "cg_obituaryTime": 0,            # was 2500: "%k %i %v", killer AND victim
+    # -- re-pinned: every other channel that can put a handle on screen --
+    "cg_drawCenterPrint": 0,
+    "cg_drawCrosshairNames": 0,
+    "cg_drawCrosshairTeammateHealth": 0,
+    "cg_drawPlayerNames": 0,
+    "cg_drawFriend": 0,
+    "cg_drawTeamOverlay": 0,
+    "cg_drawAttacker": 0,
+    "cg_drawFollowing": 0,
+    "wolfcam_drawFollowing": 0,
+    "cg_drawSpecMessages": 0,
+    "cg_drawSelf": 0,
+    # chat and console carry names verbatim
+    "cg_chatTime": 0,
+    "cg_chatLines": 0,
+    "con_notifytime": 0,
+    "con_notifylines": 0,
+    # the scoreboard is a list of names, and it pops itself on death and at
+    # round end -- both of which fall inside a +/-5s public window
+    "cg_scoreBoardWhenDead": 0,
+    "cg_roundScoreBoard": 0,
+    "cg_scoreBoardAtIntermission": 0,
+    "cg_scoreBoardWarmup": 0,
+    "cg_drawScores": 0,
+}
+
 PROFILES = {
+    "TR4SH_PUBLIC_EXPORT": {**_QUALITY, **_PUBLIC_EXPORT},
+    "TR4SH_REVIEW_V2": {**_QUALITY, **_GAMEPLAY_MASTER_V2, **_REVIEW_V2},
     "TR4SH_SPEED_REVIEW": {**_QUALITY, **_SPEED_REVIEW},
     "TR4SH_GAMEPLAY_MASTER_V2": {**_QUALITY, **_GAMEPLAY_MASTER_V2},
     "TR4SH_GAMEPLAY_MASTER": {**_QUALITY, **_GAMEPLAY_MASTER},   # historical
@@ -332,6 +490,8 @@ PROFILES = {
 }
 
 _CFG_FILES = {
+    "TR4SH_PUBLIC_EXPORT": "wolfcam_tr4sh_public_export.cfg",
+    "TR4SH_REVIEW_V2": "wolfcam_tr4sh_review_v2.cfg",
     "TR4SH_SPEED_REVIEW": "wolfcam_tr4sh_speed_review.cfg",
     "TR4SH_GAMEPLAY_MASTER_V2": "wolfcam_tr4sh_master_capture.cfg",
     "TR4SH_GAMEPLAY_MASTER": "wolfcam_tr4sh_gameplay_v1_historical.cfg",
@@ -347,6 +507,61 @@ DIRECTOR_PROFILE_NAME = "TR4SH_DIRECTOR_SESSION"
 # Used for movement moments so the user sees the engine's own UPS
 # beside our derived figure.
 SPEED_PROFILE_NAME = "TR4SH_SPEED_REVIEW"
+# The profile every review proxy is captured with. Changing it changes
+# profile_id, which is part of the proxy cache key -- so old over-bright
+# clips can never be served as current review clips. Regeneration is on
+# demand; nothing is mass recaptured.
+REVIEW_PROFILE_NAME = "TR4SH_REVIEW_V2"
+# The profile every clip that leaves this repository is captured with. It is
+# separate from the batch profile on purpose: the batch profile films the
+# user's own movie, where "You fragged <name>" is a deliberate beat, and this
+# one films for strangers, where a name in the picture is a disclosure that
+# cannot be taken back. public_clip_export.py must pass this and nothing else.
+PUBLIC_EXPORT_PROFILE_NAME = "TR4SH_PUBLIC_EXPORT"
+
+
+# ── capture intents ─────────────────────────────────────────────────────────
+# WHAT A CAPTURE IS FOR, which is the only question a caller should have to
+# answer. Everything below the intent -- which cvars, which token gates, which
+# profile hash -- is this module's problem, and asking a caller to remember
+# cg_drawFragMessageTokens is how a name reached a public clip in the first
+# place.
+#
+# PUBLIC_BLIND is the load-bearing one: it is the ONLY intent whose output may
+# be shown to someone outside this repository, and it is the only one that
+# carries a no-identity guarantee. Every other intent films for the director or
+# for the user's own movie, where names on screen are correct and wanted.
+#
+# Adding an intent means adding a profile, not loosening one. If a new caller
+# needs public output with different framing, give it its own profile that also
+# satisfies public_clip_export.assert_capture_profile_is_nameless.
+CAPTURE_INTENT = {
+    "PUBLIC_BLIND":      PUBLIC_EXPORT_PROFILE_NAME,   # strangers, blind vote
+    "GAMEPLAY_MASTER":   PROFILE_NAME,                 # the user's own film
+    "DIRECTOR_REVIEW":   REVIEW_PROFILE_NAME,          # judging a moment
+    "MOVEMENT_REVIEW":   SPEED_PROFILE_NAME,           # engine UPS readout
+    "DIRECTOR_SESSION":  DIRECTOR_PROFILE_NAME,        # live freecam
+    "ARCHIVE_ANALYSIS":  "TR4SH_ANALYSIS_HEADLESS",    # measurement, not beauty
+}
+
+# The one intent that may leave this repository. Named separately so a reader
+# does not have to infer it from a comment.
+PUBLIC_INTENT = "PUBLIC_BLIND"
+
+
+def profile_for_intent(intent: str) -> str:
+    """Resolve a capture intent to its frozen profile name.
+
+    Raises rather than defaulting. A typo must not silently fall back to the
+    batch profile -- that fallback is the exact defect this indirection exists
+    to prevent (see docs/reference/public-export-name-disclosure.md).
+    """
+    try:
+        return CAPTURE_INTENT[intent]
+    except KeyError:
+        raise KeyError(
+            f"unknown capture intent {intent!r}; "
+            f"known: {sorted(CAPTURE_INTENT)}") from None
 
 
 def cfg_text(profile: str = PROFILE_NAME) -> str:
@@ -357,8 +572,20 @@ def cfg_text(profile: str = PROFILE_NAME) -> str:
     return "\n".join(lines) + "\n"
 
 
+def launch_sets_for(profile: str = PROFILE_NAME) -> dict:
+    """The command line a profile is captured with.
+
+    Latched renderer cvars only take effect from here, so the review profile
+    has its own set -- and profile_id must include it or two visually
+    different captures would share a cache key and the old washed-out clips
+    would keep being served.
+    """
+    return REVIEW_LAUNCH_SETS if profile == REVIEW_PROFILE_NAME else LAUNCH_SETS
+
+
 def profile_id(profile: str = PROFILE_NAME) -> str:
-    payload = cfg_text(profile) + json.dumps(LAUNCH_SETS, sort_keys=True)
+    payload = cfg_text(profile) + json.dumps(launch_sets_for(profile),
+                                             sort_keys=True)
     return hashlib.sha256(payload.encode()).hexdigest()[:12]
 
 

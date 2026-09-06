@@ -11,7 +11,7 @@ import os
 import time
 from pathlib import Path
 
-from creative_suite.engine import render_permit
+from engine.pantheon import render_permit
 from typing import Awaitable, Callable
 
 EmitFn = Callable[[str, int, str], Awaitable[None]]

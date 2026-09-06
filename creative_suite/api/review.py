@@ -117,6 +117,49 @@ def get_item(item_id: str):
     return it.to_dict()
 
 
+@router.get("/location/{item_id}")
+def get_location(item_id: str):
+    """Where this moment happened, and how the killer got there.
+
+    Learned from recorded positions across the whole archive -- no map file
+    is read and no renderer is involved. Absent geography is reported as
+    absent: `available: false` beats a confident guess.
+    """
+    it = rc.item(item_id)
+    if it is None:
+        raise HTTPException(404, f"no such item: {item_id}")
+    if it.item_type not in ("USER_FRAG", "FRAG"):
+        return {"item_id": item_id, "available": False,
+                "reason": "not a kill"}
+    try:
+        from engine.pantheon import map_context as mc
+        ctx = mc.context_for_kill(int(it.source_id))
+    except Exception as e:                                     # noqa: BLE001
+        return {"item_id": item_id, "available": False,
+                "reason": f"{type(e).__name__}"}
+    if ctx is None:
+        return {"item_id": item_id, "available": False,
+                "reason": "no learned geography for this position"}
+    return {"item_id": item_id, "available": True, **ctx}
+
+
+@router.get("/map_regions/{map_name}")
+def get_map_regions(map_name: str):
+    """The learned regions of one map, for inspection."""
+    from engine.pantheon import map_geography as mg
+    idx = mg.load_index(map_name)
+    if idx is None:
+        raise HTTPException(404, f"no geography for {map_name}")
+    from engine.pantheon import map_context as mc
+    return {"map": map_name,
+            "layers": [{"layer": la.layer, "z_lo": la.z_lo, "z_hi": la.z_hi,
+                        "samples": la.samples,
+                        "word": mc.layer_word(idx, la.layer)}
+                       for la in idx.layers],
+            "regions": [r.to_dict() for r in sorted(
+                idx.regions.values(), key=lambda r: r.region_id)]}
+
+
 @router.post("/verdict")
 def post_verdict(v: Verdict):
     it = rc.item(v.item_id)
@@ -133,6 +176,175 @@ def post_verdict(v: Verdict):
 @router.post("/note")
 def post_note(n: Note):
     return rc.annotate(n.item_id, n.note)
+
+
+class Dismissal(BaseModel):
+    item_id: str
+    reason: str = ""
+
+
+@router.post("/dismiss")
+def post_dismiss(d: Dismissal):
+    """Throw one moment out of the queue. Not a verdict, and not destructive.
+
+    Asked for from the phone alongside "remove all warmup countdown clips":
+    the automatic exclusions cannot know about every useless moment, so the
+    reviewer needs to be able to say so themselves.
+    """
+    try:
+        return rc.dismiss(d.item_id, d.reason)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+
+@router.post("/restore")
+def post_restore(d: Dismissal):
+    out = rc.restore(d.item_id)
+    if out is None:
+        raise HTTPException(404, f"not deleted: {d.item_id}")
+    return out
+
+
+@router.get("/dismissed")
+def get_dismissed(limit: int = Query(100, le=500)):
+    return {"items": rc.dismissed(limit)}
+
+
+# ── tags: what a moment is FOR, kept apart from how good it is ──────────────
+
+class TagWrite(BaseModel):
+    item_id: str
+    tag: str
+    on: bool = True
+
+
+@router.get("/tags/vocabulary")
+def get_tag_vocabulary():
+    """The frozen vocabulary, grouped for the eye only.
+
+    Frozen so that judgements made in review one thousand still mean what
+    they meant in review one. Adding a tag later is safe; changing what one
+    MEANS is not, which is why the list is served rather than typed.
+    """
+    from creative_suite.engine import review_tags as rt
+    return {"version": rt.TAG_VERSION,
+            "groups": [{"name": n, "tags": list(t)} for n, t in rt.GROUPS],
+            "structural": {"golden": rt.GOLDEN,
+                           "keep_context": rt.KEEP_CONTEXT},
+            "counts": rt.counts()}
+
+
+@router.post("/tag")
+def post_tag(t: TagWrite):
+    from creative_suite.engine import review_tags as rt
+    it = rc.item(t.item_id)
+    if it is None:
+        raise HTTPException(404, f"no such item: {t.item_id}")
+    try:
+        return rt.set_tag(int(it.source_id), t.tag, t.on, item_id=t.item_id)
+    except rt.UnknownTag as e:
+        raise HTTPException(400, str(e))
+
+
+@router.get("/tags/{item_id}")
+def get_tags(item_id: str):
+    from creative_suite.engine import review_tags as rt
+    it = rc.item(item_id)
+    if it is None:
+        raise HTTPException(404, f"no such item: {item_id}")
+    return {"item_id": item_id, "occurrence_id": int(it.source_id),
+            "tags": rt.tags_for(int(it.source_id))}
+
+
+@router.get("/povs/{item_id}")
+def get_povs(item_id: str):
+    """Every camera that filmed this moment.
+
+    A brilliant event from a useless POV and an ordinary event from a perfect
+    POV are completely different assets, so this is reported next to the
+    verdict and never folded into it.
+    """
+    from creative_suite.engine import pov_cluster as pv
+    it = rc.item(item_id)
+    if it is None:
+        raise HTTPException(404, f"no such item: {item_id}")
+    if it.item_type not in rc.KILL_BACKED:
+        return {"item_id": item_id, "available": False, "n_povs": 0,
+                "povs": []}
+    return {"item_id": item_id, **pv.povs_for(int(it.source_id))}
+
+
+@router.get("/dismiss_risk/{item_id}")
+def get_dismiss_risk(item_id: str):
+    try:
+        return rc.dismiss_risk(item_id)
+    except ValueError as e:
+        raise HTTPException(404, str(e))
+
+
+# ── unfilmed moments go to the workshop ─────────────────────────────────────
+
+class Reconstruction(BaseModel):
+    item_id: str
+    reason: str = "UNSPECIFIED"
+    note: str = ""
+
+
+@router.post("/reconstruct")
+def post_reconstruct(r: Reconstruction):
+    """"We cannot see this one -- rebuild it."
+
+    Not a verdict (T1-T5 judges a clip; this says there is no clip) and not
+    a deletion (that hides a moment; this promotes one). The obituary is a
+    server fact whether or not any camera saw it.
+    """
+    from creative_suite.engine import reconstruction_queue as rq
+    it = rc.item(r.item_id)
+    if it is None:
+        raise HTTPException(404, f"no such item: {r.item_id}")
+    try:
+        return rq.request(int(it.source_id), r.item_id, r.reason, r.note)
+    except rq.UnknownReason as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/reconstruct/withdraw")
+def post_reconstruct_withdraw(r: Reconstruction):
+    from creative_suite.engine import reconstruction_queue as rq
+    it = rc.item(r.item_id)
+    if it is None:
+        raise HTTPException(404, f"no such item: {r.item_id}")
+    if not rq.withdraw(int(it.source_id)):
+        raise HTTPException(404, "not queued for reconstruction")
+    return {"item_id": r.item_id, "withdrawn": True}
+
+
+@router.get("/reconstruct/queue")
+def get_reconstruct_queue(limit: int = Query(200, le=1000)):
+    """What the workshop should build next. Human requests only."""
+    from creative_suite.engine import reconstruction_queue as rq
+    return {"items": rq.pending(limit), **rq.status()}
+
+
+@router.get("/reconstruct/{item_id}")
+def get_reconstruct(item_id: str):
+    from creative_suite.engine import reconstruction_queue as rq
+    it = rc.item(item_id)
+    if it is None:
+        raise HTTPException(404, f"no such item: {item_id}")
+    return {"item_id": item_id,
+            "request": rq.get(int(it.source_id))}
+
+
+@router.get("/situations")
+def get_situations():
+    """Named combinations a reviewer asks for out loud.
+
+    "The gauntlet jump pad is really funny" is not a weapon filter and not a
+    trait filter; without a name for it the only way to find the next one is
+    to scroll two hundred thousand rows.
+    """
+    return {"situations": rc.situations()}
 
 
 @router.post("/undo")
@@ -160,12 +372,12 @@ def get_notes(q: str, limit: int = Query(100, le=500)):
 
 # ── media ───────────────────────────────────────────────────────────────────
 
-def _proxy_for(it: rc.ReviewItem) -> dict[str, Any]:
+def _proxy_for(it: rc.ReviewItem, *, retry: bool = False) -> dict[str, Any]:
     """Ask the existing proxy cache for this item's clip window."""
     try:
         return review_proxy.request_proxy(
             frag_id=it.source_id, demo_name=it.demo_name,
-            start_ms=it.start_ms, end_ms=it.end_ms)
+            start_ms=it.start_ms, end_ms=it.end_ms, **({"retry": True} if retry else {}))
     except TypeError:
         # older signature: (frag) -- fall back to state only
         return review_proxy.get_state(it.source_id)
@@ -273,6 +485,32 @@ def get_media(item_id: str, v: str | None = None):
                 "hint": "clip is rendering; verdicts do not wait for it"})
 
 
+
+# ── render permission is a separate question from serving the reviewer ──────
+
+def _permit_view() -> dict[str, Any]:
+    """What the page needs to say WHY nothing is being filmed right now.
+
+    The reviewer runs while the user games; that is the point. It just has
+    no right to open a renderer window, and a job waiting on the permit is
+    DEFERRED, not broken.
+    """
+    from engine.pantheon import render_permit
+    return render_permit.status()
+
+
+def _deferred(st: dict[str, Any]) -> bool:
+    """Is this job waiting on permission rather than on work?"""
+    if st.get("state") not in ("QUEUED", "PENDING", "MISSING"):
+        return False
+    return not _permit_view()["permit"] == "GRANTED"
+
+
+@router.get("/render_permit")
+def render_permit_state():
+    return _permit_view()
+
+
 @router.get("/media_state/{item_id}")
 def get_media_state(item_id: str):
     it = rc.item(item_id)
@@ -280,10 +518,18 @@ def get_media_state(item_id: str):
         raise HTTPException(404, f"no such item: {item_id}")
     st = _proxy_for(it)
     return {"item_id": item_id, "state": st.get("state", "PENDING"),
-            "deferred": str(st.get("error") or "").startswith("RENDER DEFERRED"),
             "error": st.get("error"),
+            "render_deferred": _deferred(st), "permit": _permit_view(),
             "ready": bool(st.get("state") == "READY" and st.get("mp4_path")
                           and Path(str(st.get("mp4_path"))).exists())}
+
+
+@router.post("/media_retry/{item_id}")
+def retry_media(item_id: str):
+    it = rc.item(item_id)
+    if it is None:
+        raise HTTPException(404, "no such item")
+    return _proxy_for(it, retry=True)
 
 
 @router.get("/ui", response_class=HTMLResponse)
@@ -358,6 +604,31 @@ class UsageUpdate(BaseModel):
     detail: str = ""
 
 
+
+def _round_source(it) -> tuple[str, str, str]:
+    """(content_hash, demo_name, why) for the recording that speaks for this
+    item's round.
+
+    Reading the round from the ITEM's own demo was the unfinished half of
+    the lineage work: a moment whose best observation is a hand-cut fragment
+    got its round bounded, described and rendered from that fragment, which
+    holds neither edge of it. The occurrence never moves -- this picks a
+    camera, not a moment.
+    """
+    try:
+        from engine.parser import demo_lineage as dl
+        src = dl.canonical_source_for(int(it.source_id))
+        if src is not None and src.changed:
+            nm = dl.demo_name_of(src.content_hash)
+            if nm:                       # no name, no file to capture from
+                return src.content_hash, nm, src.reason
+        if src is not None:
+            return it.content_hash, it.demo_name, src.reason
+    except Exception:                                          # noqa: BLE001
+        pass                             # an improvement, never a dependency
+    return it.content_hash, it.demo_name, "UNCHANGED"
+
+
 @router.get("/round/{item_id}")
 def get_round(item_id: str):
     from creative_suite.engine import round_story as rs
@@ -367,7 +638,8 @@ def get_round(item_id: str):
     if it.round_no is None:
         return {"item_id": item_id, "available": False,
                 "reason": "this moment has no round attributed"}
-    ctx = rs.round_context(it.content_hash, it.round_no)
+    content_hash, _demo_name, source_reason = _round_source(it)
+    ctx = rs.round_context(content_hash, it.round_no)
     if ctx is None:
         return {"item_id": item_id, "available": False,
                 "reason": "no observed events in that round"}
@@ -376,7 +648,15 @@ def get_round(item_id: str):
     d.pop("content_hash", None)          # private provenance, never to the UI
     return {"item_id": item_id, "available": True,
             "round": d, "media_start_ms": start, "media_end_ms": end,
-            "media_duration_s": round((end - start) / 1000.0, 1)}
+            "media_duration_s": round((end - start) / 1000.0, 1),
+            # FAIL CLOSED. A round whose length is not credible must not be
+            # offered as "WATCH FULL ROUND": pressing that button replaced a
+            # working clip with a black frame and the words "still rendering
+            # -- try again", which is what the user actually saw.
+            "full_round_available": bool(ctx.duration_credible),
+            "duration_provenance": ctx.duration_provenance,
+            "duration_note": ctx.duration_note,
+            "source_preference": source_reason}
 
 
 @router.get("/usage/{occurrence_id}")
@@ -400,29 +680,72 @@ def usage_summary():
     return pu.summary()
 
 
+def _round_proxy(item_id: str, *, retry: bool = False):
+    """The full-round capture window, and the job that fills it."""
+    from creative_suite.engine import round_story as rs
+    it = rc.item(item_id)
+    if it is None or it.round_no is None:
+        raise HTTPException(404, f"no round for {item_id}")
+    content_hash, demo_name, _why = _round_source(it)
+    ctx = rs.round_context(content_hash, it.round_no)
+    if ctx is None:
+        raise HTTPException(404, "no observed events in that round")
+    if not ctx.duration_credible:
+        # A round whose length is not observable has no full-round window to
+        # render. Refusing is the honest answer; the alternative was a
+        # zero-length clip advertised as the whole round.
+        raise HTTPException(
+            409, {"reason": "the length of this round is not observable",
+                  "provenance": ctx.duration_provenance,
+                  "note": ctx.duration_note})
+    start, end = rs.round_window(ctx)
+    try:
+        return it, review_proxy.request_proxy(
+            frag_id=it.source_id, demo_name=demo_name, start_ms=start,
+            end_ms=end, **({"retry": True} if retry else {}))
+    except HTTPException:
+        raise
+    except Exception as e:                                     # noqa: BLE001
+        raise HTTPException(503, f"{type(e).__name__}: {e}")
+
+
+@router.get("/media_state/round/{item_id}")
+def get_round_media_state(item_id: str):
+    """Poll the full round WITHOUT touching the video element.
+
+    The page used to set `video.src` straight to the round media and find out
+    from a failed `play()` -- which blanked a perfectly good clip. State is a
+    question; playing is an answer.
+    """
+    _it, st = _round_proxy(item_id)
+    path = st.get("mp4_path")
+    return {"item_id": item_id, "job_id": st.get("key"),
+            "state": st.get("state", "PENDING"), "error": st.get("error"),
+            "render_deferred": _deferred(st), "permit": _permit_view(),
+            "ready": bool(st.get("state") == "READY" and path
+                          and Path(path).exists())}
+
+
+@router.post("/media_retry/round/{item_id}")
+def retry_round_media(item_id: str):
+    _it, st = _round_proxy(item_id, retry=True)
+    return st
+
+
 @router.get("/media/round/{item_id}")
-def get_round_media(item_id: str):
+def get_round_media(item_id: str, v: str | None = None):
     """The whole round, rendered on demand only.
 
     Never pre-rendered: full-round media is minutes of wolfcam per round and
     the user asks for it on a small fraction of moments.
     """
-    from creative_suite.engine import round_story as rs
-    it = rc.item(item_id)
-    if it is None or it.round_no is None:
-        raise HTTPException(404, f"no round for {item_id}")
-    ctx = rs.round_context(it.content_hash, it.round_no)
-    if ctx is None:
-        raise HTTPException(404, "no observed events in that round")
-    start, end = rs.round_window(ctx)
-    try:
-        st = review_proxy.request_proxy(frag_id=it.source_id,
-                                        demo_name=it.demo_name,
-                                        start_ms=start, end_ms=end)
-    except Exception as e:                                     # noqa: BLE001
-        raise HTTPException(503, f"{type(e).__name__}: {e}")
+    _it, st = _round_proxy(item_id)
     path = st.get("mp4_path")
     if st.get("state") == "READY" and path and Path(path).exists():
+        if v == "mobile":
+            small = _mobile_variant(Path(path))
+            if small is not None:
+                return FileResponse(small, media_type="video/mp4")
         return FileResponse(path, media_type="video/mp4")
     raise HTTPException(
         status_code=425,
@@ -593,3 +916,113 @@ def post_round_annotation(a: RoundAnnotation):
     if it is None or it.round_no is None:
         raise HTTPException(404, f"no round for {a.item_id}")
     return ca.set_round_annotation(it.content_hash, it.round_no, a.annotation)
+
+
+# ── director dossier and scene ──────────────────────────────────────────────
+
+@router.get("/dossier/{item_id}")
+def get_dossier(item_id: str):
+    """Everything truthfully known about one moment.
+
+    Partial truth is fine; false certainty is not. Absent fields are absent,
+    never zero.
+    """
+    from creative_suite.engine import dossier
+    d = dossier.build(item_id)
+    if d is None:
+        raise HTTPException(404, f"no such item: {item_id}")
+    return d
+
+
+@router.get("/scene/{item_id}")
+def get_scene(item_id: str):
+    from creative_suite.engine import scene as sc
+    s = sc.scene_for_item(item_id)
+    if s is None:
+        return {"item_id": item_id, "available": False,
+                "reason": "no round, or no events in it"}
+    return {"item_id": item_id, "available": True, **s.to_dict()}
+
+
+def _scene_proxy(item_id: str, *, retry: bool = False) -> dict[str, Any]:
+    """One media asset for the whole scene.
+
+    Deliberately ONE capture rather than four: F1..F4 plus a full round would
+    be five wolfcam runs of the same thirty seconds. The rail seeks inside
+    this single asset.
+    """
+    from creative_suite.engine import scene as sc
+    it = rc.item(item_id)
+    s = sc.scene_for_item(item_id)
+    if it is None or s is None:
+        raise HTTPException(404, f"no scene for {item_id}")
+    try:
+        st = review_proxy.request_proxy(frag_id=it.source_id,
+                                        demo_name=it.demo_name,
+                                        start_ms=s.media_start_ms,
+                                        end_ms=s.media_end_ms,
+                                        **({"retry": True} if retry else {}))
+    except Exception as e:                                     # noqa: BLE001
+        raise HTTPException(503, f"{type(e).__name__}: {e}")
+    return st
+
+
+@router.get("/media_state/scene/{item_id}")
+def get_scene_media_state(item_id: str):
+    st = _scene_proxy(item_id)
+    path = st.get("mp4_path")
+    return {"item_id": item_id, "job_id": st.get("key"),
+            "state": st.get("state", "PENDING"), "error": st.get("error"),
+            "ready": bool(st.get("state") == "READY" and path and Path(path).exists())}
+
+
+@router.post("/media_retry/scene/{item_id}")
+def retry_scene_media(item_id: str):
+    return _scene_proxy(item_id, retry=True)
+
+
+@router.get("/media/scene/{item_id}")
+def get_scene_media(item_id: str, v: str | None = None):
+    st = _scene_proxy(item_id)
+    path = st.get("mp4_path")
+    if st.get("state") == "READY" and path and Path(path).exists():
+        from creative_suite.engine import media_provenance as mprov
+        if v == "mobile":
+            small = _mobile_variant(Path(path))
+            if small is not None:
+                return FileResponse(small, media_type="video/mp4",
+                                    headers={"X-Media-Provenance":
+                                             mprov.V2_REVIEW_DELIVERY_DERIVATIVE})
+        return FileResponse(path, media_type="video/mp4",
+                            headers={"X-Media-Provenance":
+                                     mprov.RAW_DEMO_CAPTURE})
+    raise HTTPException(status_code=503 if st.get("state") in ("ERROR", "FAILED") else 425,
+                        detail={"state": st.get("state", "PENDING"),
+                                "error": st.get("error"),
+                                "hint": "scene media is rendering"})
+
+
+class SceneEventNote(BaseModel):
+    event_id: str
+    annotation: str
+
+
+@router.get("/scene_note/{event_id}")
+def get_scene_event_note(event_id: str):
+    from creative_suite.engine import creative_annotation as ca
+    return ca.get_event_annotation(event_id) or {"event_id": event_id,
+                                                 "annotation": ""}
+
+
+@router.post("/scene_note")
+def post_scene_event_note(n: SceneEventNote):
+    """A directing note on a NON-FRAG event.
+
+    A movement run or a jump pad can carry "music builds here" without
+    becoming a reviewable frag and without demanding a T1-T5 verdict.
+    """
+    from creative_suite.engine import creative_annotation as ca
+    # Storage lives in creative_annotation so `scene.build_scene` -- which is
+    # what production reads -- can load the same rows. When this router owned
+    # the table, a note was reachable only through the page that wrote it.
+    return ca.set_event_annotation(n.event_id, n.annotation, ca.HUMAN_USER)

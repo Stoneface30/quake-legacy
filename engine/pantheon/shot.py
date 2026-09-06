@@ -253,7 +253,7 @@ def render(spec: ShotSpec, out_dir: Path, *, base_ms: int = 1000) -> Path:
     # driver makes the first attempt succeed, so the shot is filmed at the
     # resolution it asked for instead of a quarter of it.
     env = dict(os.environ, SDL_VIDEODRIVER="windib")
-    from creative_suite.engine import render_permit
+    from engine.pantheon import render_permit
     render_permit.require(f"reference_render:{spec.shot_id}")
     proc = subprocess.Popen(cmd, cwd=wc.STAGING, env=env,
                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

@@ -161,7 +161,7 @@ def probe(demo: Path, *, seconds: float = 8.0, timeout: float = 180.0,
         "+demo", safe,
     ]
     t0 = time.time()
-    from creative_suite.engine import render_permit
+    from engine.pantheon import render_permit
     render_permit.require("playback_probe")
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT)

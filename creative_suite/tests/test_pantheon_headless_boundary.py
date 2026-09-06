@@ -36,6 +36,8 @@ HEADLESS = {
     "performance_library",  # anonymous PERF: references over the index
     "headless_bench",   # loop timings, no render
     "performance_templates",  # reusable real motion, chosen by measured facts
+    "map_geography",    # height layers, watershed regions, route graph (review authority, adopted)
+    "map_context",      # place / approach words for a moment, over map_geography
     "frame_truth",      # FrameTruth
     "scenario",         # RoundScenario authoring
     "compiler",         # intent -> .dm_73 grammar
@@ -49,6 +51,7 @@ HEADLESS = {
 # Modules that are allowed to touch a backend or spawn a process, and why.
 BACKEND_ALLOWED = {
     "backends",         # the interface itself
+    "render_permit",    # the one gate every launch asks; reads the process list
     "shot",             # WOLFCAM_REFERENCE implementation
     "cvar_probe",       # RUNTIME_CAPABILITY_PROOF
     "measure",          # pixel measurement of a delivered AVI (ffmpeg)

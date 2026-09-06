@@ -174,17 +174,64 @@ No name, no rank, no score, no director tag, no PANTHEON overlay of any kind
 is drawn onto a public clip. **A voting clip that tells you whose play it is
 has already voted for you.**
 
-The native in-game HUD is whatever the engine drew at the time and is left
-alone. That is footage, not editorialising.
+The native in-game HUD is footage, not editorialising, and the world layer is
+left alone — **but the HUD's identity layer is not.** That distinction was
+learned the hard way: this document previously said the HUD was simply left
+alone, the export captured with the batch profile, and
+`cg_drawFragMessageTokens "You fragged %v"` put opponent handles into six of
+the first twelve clips. See `public-export-name-disclosure.md`.
 
-## The clip itself
+## The clip itself — capture intent `PUBLIC_BLIND`
 
-Plain capture on the reliable review route: the master profile, FPV, no
-PANTHEON camera, no world effects, no choreography, no speed ramps.
-H.264 CRF 20, `+faststart`, AAC audio.
+**Ask for the intent, not the cvars.**
+
+```python
+from creative_suite.engine import master_profile as mp
+profile = mp.profile_for_intent(mp.PUBLIC_INTENT)   # "PUBLIC_BLIND"
+```
+
+`PUBLIC_BLIND` resolves to `TR4SH_PUBLIC_EXPORT` (`b9977ff93228`) — the only
+capture intent whose output may be shown to someone outside this repository,
+and the only one carrying a no-identity guarantee. Every other intent
+(`GAMEPLAY_MASTER`, `DIRECTOR_REVIEW`, `MOVEMENT_REVIEW`, `DIRECTOR_SESSION`,
+`ARCHIVE_ANALYSIS`) films for the director or for the user's own movie, where
+names on screen are correct and wanted. `profile_for_intent` raises on an
+unknown intent rather than defaulting — a silent fallback to the batch profile
+is precisely the defect it exists to prevent.
+
+Framing is otherwise plain: FPV, no PANTHEON camera, no world effects, no
+choreography, no speed ramps. H.264 CRF 20, `+faststart`, AAC audio, 1920x1080.
 
 The purpose is **judge the play**. Anything this export added to the frame
 would be judged instead.
+
+### What `PUBLIC_BLIND` guarantees
+
+Every route by which the engine can draw a handle is held at 0 and *checked
+before a batch captures a single frame*, by
+`public_clip_export.assert_capture_profile_is_nameless()`:
+
+- frag message (`cg_drawFragMessageTime`) and killfeed (`cg_obituaryTime`) —
+  both are TIME gates; there is no `cg_drawFragMessage` boolean to switch off
+- centre print, crosshair names, player names, friend markers
+- follow/spectator chrome, attacker, team overlay
+- chat and console notify
+- the scoreboard, which shows itself on death and at round end — inside a
+  ±5 s window
+
+Two invariants, not one. A **missing** pin fails closed (`None` is not `0`), so
+deleting a line refuses the export instead of quietly reopening a route. And
+each name token is checked against its gate: blanking a token is not safety,
+because wolfcam falls back to a built-in default.
+
+The gate is a **configuration** check by design. A pixel detector was built,
+measured and rejected for this job — a blown-out barred window scores higher
+than real text. It survives as a diagnostic only
+(`creative_suite/engine/burned_name_guard.py`).
+
+Every manifest row records `capture_profile_id` so a clip's provenance is
+answerable later. `overlays_added: []` only ever described what the export drew
+on top; the engine draws one layer below it.
 
 ## Choosing what crosses
 

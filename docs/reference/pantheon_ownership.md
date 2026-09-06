@@ -9,7 +9,7 @@ One engine. Four owners. Nothing is implemented twice.
 | **HEADLESS ENGINE** | demo parsing, canonical semantics, `PerformanceTrace` and event authority, retarget, compile, compare, `FrameTruth`, `RoundScenario`, `ActionGraph`, `NavigationTruth`, `MapSpatialIndex`, the performance index and library | `engine/parser/`, `engine/pantheon/{performance,performance_index,performance_library,performance_templates,retarget,compare,headless,action_graph,map_spatial_index,navigation,motion_reference,frame_truth,scenario,compiler,instruction,roster,presenter}.py` | the parser, the databases. **Never** a backend, a cvar, a capture cfg, an AVI, a process. |
 | **PROLOGUE** | story, choreography, casting, dialogue, voice, `ShotSpec` assembly, proofs that need pixels | `engine/pantheon/{shot,presenter_film,voice,dialogue_mix,ab_scene,cast_proof,presenter_proof,instruction_proof,proofs,proof0_color,proof_b_identity,proof_c_rails,ca_explainer,color_format,cvar_probe,measure}.py`, `creative_suite/prologue/` | the headless engine (consumes it, never forks it), the render backends. |
 | **REVIEW** | human curation, discovery UI, verdicts, queues, proxies | `creative_suite/api/`, `creative_suite/frontend/`, `creative_suite/engine/review_*.py`, mining scripts under `engine/parser/` | the headless engine for semantics; the render backends only through `RenderPermit`. |
-| **RENDER BACKENDS** | visual output and nothing else: Wolfcam reference/beauty, a future Blender or offscreen renderer | `engine/pantheon/backends.py`, `creative_suite/engine/{wolfcam_capture,director_preview,director_session,supervisor}.py`, `creative_suite/api/_preview_job.py`, `engine/parser/playback_probe.py` | anything; but every launch passes `creative_suite/engine/render_permit.require()` first. |
+| **RENDER BACKENDS** | visual output and nothing else: Wolfcam reference/beauty, a future Blender or offscreen renderer | `engine/pantheon/backends.py`, `creative_suite/engine/{wolfcam_capture,director_preview,director_session,supervisor}.py`, `creative_suite/api/_preview_job.py`, `engine/parser/playback_probe.py` | anything; but every launch asks `engine/pantheon/render_permit` first. |
 
 ## Enforcement
 
@@ -19,7 +19,7 @@ One engine. Four owners. Nothing is implemented twice.
 
 ## Render permission (user requirement, 2026-09-05)
 
-`PANTHEON_RENDER_ALLOWED=1` is the one operator setting. Without it every launch site raises `RenderDenied`; queues keep the job `QUEUED` with `RENDER DEFERRED: ...` and offer it again later; a READY proxy keeps playing. With it, a launch still defers while a protected game (`quakelive*.exe`, plus `PANTHEON_PROTECTED_GAMES`) is running; `PANTHEON_RENDER_FORCE=1` is the separate explicit override. The process scan is a toolhelp snapshot, not `tasklist`: the gate must not itself open a console window.
+One module, `engine/pantheon/render_permit.py`; one setting, `PANTHEON_RENDER=off|auto|on` (default `auto`). `off` never renders. `auto` and `on` render only when no protected game is running; a running game always defers. No force variable exists. Queues keep a refused job `QUEUED` with `RENDER DEFERRED`; user-triggered previews defer through their own worker too. The process scan is psutil or a toolhelp snapshot, never `tasklist`. The capture window is shown minimized and not activated as defence in depth.
 
 ## What the prologue consumes
 

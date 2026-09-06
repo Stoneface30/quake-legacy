@@ -12,7 +12,7 @@
 [![License: GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-e8b923?style=flat-square)](LICENSE)
 [![Status](https://img.shields.io/badge/status-active%20development-2a9d2a?style=flat-square)]()
 [![Stack](https://img.shields.io/badge/stack-FastAPI%20%7C%20WebCodecs%20%7C%20FFmpeg%20%7C%20OTIO-2a5acc?style=flat-square)]()
-[![Tests](https://img.shields.io/badge/tests-561%20passing-2a9d2a?style=flat-square)]()
+[Verification status](docs/reference/project-review-2026-09-05.md)
 
 </div>
 
@@ -28,32 +28,30 @@ Quake Legacy turns 10+ years of `.dm_73` Quake Live demos into finished fragmovi
 
 ## Current Status
 
+Current evidence and remaining limits are tracked in the [2026-09-05 project review](docs/reference/project-review-2026-09-05.md).
+
 | Domain | Status |
 |---|---|
-| Plan 1 — Foundation Restructure | **COMPLETE** |
-| Plan 2 — Studio UI (cockpit, store, panels) | **COMPLETE** |
-| Plan 3 — Engine Assimilation (OTIO, dm73 scaffold, FORGE stubs) | **COMPLETE** |
-| Cockpit v2 closeout + wiring pass | **COMPLETE** (PR #15 merged 2026-04-22) |
-| Test suite | **561 passing, 4 skipped** |
-| Part 4 render pipeline | **READY** (CRF 15, beat sync, 3-track music) |
-| Parts 5–12 clip libraries | **ASSEMBLED** (77–85 clips per part, T1/T2/T3) |
-| Demo extraction UI (Scout/LAB) | **STUBS** — wired, not live |
-| dm_73 C++17 parser | **SCAFFOLD DONE** — FT-1 |
+| V1 archive | Frozen manifest present; records 68 episodes. Do not overwrite. |
+| Reviewer | Mobile lifecycle repairs tested with synthetic media; live phone acceptance still required. |
+| Demo parsing | Python parser and derived-event pipeline present; older C++ scaffold claims are historical. |
+| Engine capture | Wolfcam integration present; legacy Cinema Tier A capture still needs source/config wiring. |
+| Production contracts | ActionTruth / Scene provenance layer present; shared multi-backend ShotSpec / FrameTruth remains proposed. |
+| Verification | See dated review for completed tests and repository-wide type-check debt. |
 
 ---
 
 ## Quick Start
 
-> Python 3.11+ · Windows / Linux / macOS
+> Python 3.11+. Capture tooling is configured for Windows; other platforms require tool-path adaptation.
 
 ```bash
 git clone https://github.com/Stoneface30/quake-legacy.git
 cd quake-legacy
-pip install -r requirements.txt
+pip install -e ".[dev]"
 
 # Run the Creative Suite (FastAPI, port 8765)
-cd creative_suite
-uvicorn app:create_app --factory --host 0.0.0.0 --port 8765 --reload
+python -m uvicorn creative_suite.app:create_app --factory --host 0.0.0.0 --port 8765 --reload
 ```
 
 Browser URLs once running:

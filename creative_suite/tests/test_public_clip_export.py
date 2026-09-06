@@ -15,6 +15,48 @@ from pathlib import Path
 
 import pytest
 
+
+def test_duplicate_candidates_are_exported_once(kill_db, mock_capture, tmp_path):
+    cand = px.candidates_from_kill_events(limit=1, db=kill_db)[0]
+    result = px.export([cand, cand], root=tmp_path / "export")
+    assert result["written"] == 1
+    assert result["skipped"] == 1
+
+
+def test_failed_overwrite_preserves_manifest_and_clip(
+        kill_db, mock_capture, tmp_path, monkeypatch):
+    candidates = px.candidates_from_kill_events(limit=2, db=kill_db)
+    root = tmp_path / "export"
+    px.export(candidates, root=root)
+    manifest = root / px.MANIFEST_NAME
+    before = manifest.read_bytes()
+    clip = root / px.CLIP_DIR_NAME / (candidates[0].external_source_id + ".mp4")
+    original = clip.read_bytes()
+
+    def failed_capture(cand, start, end, dest):
+        dest.write_bytes(b"incomplete replacement")
+        raise RuntimeError("synthetic capture failure")
+
+    monkeypatch.setattr(px, "_capture", failed_capture)
+    result = px.export(candidates[:1], root=root, overwrite=True)
+    assert result["failed"] == 1
+    assert manifest.read_bytes() == before
+    assert clip.read_bytes() == original
+
+
+def test_subset_overwrite_preserves_unrelated_manifest_rows(
+        kill_db, mock_capture, tmp_path):
+    candidates = px.candidates_from_kill_events(limit=2, db=kill_db)
+    root = tmp_path / "export"
+    px.export(candidates, root=root)
+    result = px.export(candidates[:1], root=root, overwrite=True, note="updated")
+    rows = [json.loads(line) for line in
+            (root / px.MANIFEST_NAME).read_text().splitlines()]
+    assert result["written"] == 1
+    assert len(rows) == 2
+    assert {row["external_source_id"] for row in rows} == {
+        cand.external_source_id for cand in candidates}
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from creative_suite.engine import public_clip_export as px   # noqa: E402
 from creative_suite.engine import review_corpus as rc        # noqa: E402

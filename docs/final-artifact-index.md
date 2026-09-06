@@ -1,5 +1,7 @@
 # QUAKE LEGACY — final artifact index
 
+> Current review: [2026-09-05 status and verification](reference/project-review-2026-09-05.md). Entries below are dated historical evidence, not live readiness.
+
 Single entry point for project state as of **2026-08-30**.
 
 Two assets exist that did not before: a complete V1 video archive, and a
