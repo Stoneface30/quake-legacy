@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Iterable
 
 from engine.parser import demo_parse as dp
+from engine.parser import protocol as _P
 from engine.parser.demo_parse import DM73Parser
 
 FRAGS_DB = Path("G:/QUAKE_LEGACY/creative_suite/database/frags_rebuilt.db")
@@ -46,7 +47,7 @@ PS_ORIGIN = (1, 2, 9)
 PS_VELOCITY = (4, 5, 10)
 PS_YAW, PS_PITCH, PS_GROUND, PS_CLIENT, PS_WEAPON = 6, 7, 20, 40, 41
 ANIM_TOGGLE = 128
-ENTITYNUM_NONE = 1023
+ENTITYNUM_NONE = _P.ENTITYNUM_NONE
 WP_ROCKET, WP_RAIL = 5, 7
 # MOD_ROCKET / MOD_ROCKET_SPLASH, from the parser's own table rather than a
 # restated bg_public.h. A first version wrote {3, 4}, which the parser reads

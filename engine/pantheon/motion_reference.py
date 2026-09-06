@@ -34,6 +34,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from engine.parser import demo_parse as dp
+from engine.parser import protocol as _P
 from engine.parser.demo_parse import DM73Parser
 
 FRAGS_DB = Path("G:/QUAKE_LEGACY/creative_suite/database/frags_rebuilt.db")
@@ -88,7 +89,7 @@ def derive(tracks: dict[int, list[dict]]) -> dict:
     yaw_still, yaw_moving = [], []
     start_lag, stop_lag, gesture_ms, dt_ms = [], [], [], []
     for samples in tracks.values():
-        s = [x for x in samples if x["ground"] != 1023]      # on the ground
+        s = [x for x in samples if x["ground"] != _P.ENTITYNUM_NONE]   # on the ground
         if len(s) < 20:
             continue
         for a, b in zip(s, s[1:]):
