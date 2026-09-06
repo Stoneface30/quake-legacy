@@ -1999,8 +1999,14 @@ def _real_capture(job: dict[str, Any], plan: PreviewPlan, tmp_mp4: Path,
         timeout = (wolfcam_capture.LAUNCH_OVERHEAD_S
                    + raw_s * wolfcam_capture.CAPTURE_SLOWDOWN
                    + plan.window_start_ms / 1000.0 / 12.0)
-        # Minimized, not activated -- never take the foreground from
-        # a game that is running. See capture_guard.
+        # ASK THE ONE AUTHORITY. A preview is user-triggered, so unlike the
+        # review queue it has nothing to defer INTO -- it fails fast and
+        # says why, rather than opening a window over a live game.
+        from engine.pantheon import render_permit
+        decision = render_permit.check(purpose="director preview")
+        if not decision.may_render:
+            raise PreviewBuildError(decision.reason)
+        # And when it does run: minimized, not activated.
         from creative_suite.engine.capture_guard import (
             quiet_startup_info)
         proc = subprocess.Popen(

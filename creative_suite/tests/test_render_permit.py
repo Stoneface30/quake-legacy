@@ -105,6 +105,15 @@ def test_the_old_review_local_switch_no_longer_overrides_anything(
                     "capture_guard still reads the retired switch"
 
 
+def test_every_launch_path_asks_the_permit():
+    """One gate, and all of them go through it. A launch path that does not
+    ask becomes the next thing that alt tabs somebody."""
+    for rel in ("creative_suite/engine/review_proxy.py",
+                "creative_suite/engine/director_preview.py"):
+        src = (REPO_ROOT / rel).read_text(encoding="utf-8")
+        assert "render_permit" in src, f"{rel} launches without asking"
+
+
 def test_nothing_else_invents_its_own_render_switch():
     """Grep is the point: a new allow-flag anywhere in the capture paths
     would silently become a second authority."""
