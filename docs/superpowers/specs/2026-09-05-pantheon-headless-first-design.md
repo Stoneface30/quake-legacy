@@ -204,4 +204,4 @@ Rules HL-5 (character != performance), HL-6 (gaps stay gaps), HL-7 (events and s
 - **Performance templates** (`performance_templates.py`): `TPL:<group>:<hash>:<client>:<start_ms>`, 12,969 real segments from 2,400 traces, 11 of 14 groups populated (RETREAT/CHASE need `others`, ROCKET_PREDICTION needs an observed splash impact before the kill); `find()` by distance / heading / duration / stance / weapon / airborne.
 - **SpatialValidity**: NavigationTruth + MapSpatialIndex asked together for LOCAL_FRAME.
 - **Golden headless suite**: 9 real cases green (jump pad, rocket kill, rail, run/turn, jump, death, observation gap, teleport, weapon change); zero game processes.
-- **Ownership**: `docs/reference/pantheon_ownership.md`.
+- **Ownership + architecture**: `docs/reference/pantheon_engine_architecture.md` (the one architecture document; `pantheon_ownership.md` was folded into it 2026-09-06).
