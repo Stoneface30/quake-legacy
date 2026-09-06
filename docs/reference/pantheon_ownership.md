@@ -6,7 +6,7 @@ One engine. Four owners. Nothing is implemented twice.
 
 | Owner | Owns | Lives in | May import |
 |---|---|---|---|
-| **HEADLESS ENGINE** | demo parsing, canonical semantics, `PerformanceTrace` and event authority, retarget, compile, compare, `FrameTruth`, `RoundScenario`, `ActionGraph`, `NavigationTruth`, `MapSpatialIndex`, the performance index and library | `engine/parser/`, `engine/pantheon/{performance,performance_index,performance_library,performance_templates,retarget,compare,headless,action_graph,map_spatial_index,navigation,motion_reference,frame_truth,scenario,compiler,instruction,roster,presenter}.py` | the parser, the databases. **Never** a backend, a cvar, a capture cfg, an AVI, a process. |
+| **HEADLESS ENGINE** | demo parsing, canonical semantics, `PerformanceTrace` and event authority, retarget, compile, compare, `FrameTruth`, `RoundScenario`, `ActionGraph`, `NavigationTruth`, the map geography (`map_geography` regions/layers/routes + `map_spatial_index` cells, behind `geography.py`), the performance index, library and templates | `engine/parser/`, `engine/pantheon/{performance,performance_index,performance_library,performance_templates,retarget,compare,headless,action_graph,map_spatial_index,navigation,motion_reference,frame_truth,scenario,compiler,instruction,roster,presenter}.py` | the parser, the databases. **Never** a backend, a cvar, a capture cfg, an AVI, a process. |
 | **PROLOGUE** | story, choreography, casting, dialogue, voice, `ShotSpec` assembly, proofs that need pixels | `engine/pantheon/{shot,presenter_film,voice,dialogue_mix,ab_scene,cast_proof,presenter_proof,instruction_proof,proofs,proof0_color,proof_b_identity,proof_c_rails,ca_explainer,color_format,cvar_probe,measure}.py`, `creative_suite/prologue/` | the headless engine (consumes it, never forks it), the render backends. |
 | **REVIEW** | human curation, discovery UI, verdicts, queues, proxies | `creative_suite/api/`, `creative_suite/frontend/`, `creative_suite/engine/review_*.py`, mining scripts under `engine/parser/` | the headless engine for semantics; the render backends only through `RenderPermit`. |
 | **RENDER BACKENDS** | visual output and nothing else: Wolfcam reference/beauty, a future Blender or offscreen renderer | `engine/pantheon/backends.py`, `creative_suite/engine/{wolfcam_capture,director_preview,director_session,supervisor}.py`, `creative_suite/api/_preview_job.py`, `engine/parser/playback_probe.py` | anything; but every launch asks `engine/pantheon/render_permit` first. |
@@ -31,3 +31,11 @@ compiled = H.compile_performance({"HERO": trace}, cast={"HERO": PresenterProfile
 report   = H.compare(trace, H.reextract(compiled)["HERO"], retarget=compiled.retarget)
 # only then: backends.render("WOLFCAM_REFERENCE", shot=..., use=BackendUse.REFERENCE_RENDER)
 ```
+
+## Geography (one authority, 2026-09-06)
+
+`engine/pantheon/geography.py` is the only API: `region_for_position`, `location_for_event`, `approach_for_occurrence`, `route_between`, `is_walked`, `GeographyValidity` (LOCAL_FRAME). Underneath: `map_geography.py` (from the review session: height layers first, watershed regions inside a layer, deterministic `REGION_NN` ids, route graph of observed moves, jump-pad arcs, teleport links from `TELEPORT_PLAYER_CONFIRMED` only) and `map_spatial_index.py` (from the headless session: 64-unit walked cells, adjacency, landings, combat density, floors). The reviewer consumes through `map_context` / `geography`; it computes no geography of its own. Derived geography lives in the store (`PANTHEON_PERFORMANCE_STORE/map_geography.db`, `map_spatial/`).
+
+## Storage (2026-09-06)
+
+`PANTHEON_PERFORMANCE_STORE` (default `creative_suite/database`) holds everything PANTHEON derives: `performance_index_v2.db` (lightweight action rows, ~820 bytes each, no trace copies), `performance_traces.db` (content-addressed zlib cache for traces worth keeping), `performance_templates.db`, `map_geography.db`, `map_spatial/`. The 94 GB first-generation `performance_index.db` is evidence and is not read.
