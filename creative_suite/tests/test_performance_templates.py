@@ -37,3 +37,43 @@ def test_find_ranks_by_closeness_to_the_request(tmp_path):
     assert got[0].distance_u == 260.0                         # nearest the middle first
     assert PT.find("RUN_IN", ending_stance="RUN", db=db) == []
     assert PT.counts(db) == {"RUN_IN": 4}
+
+
+def _run_stop_turn(discontinuity: bool = False, airborne_end: bool = False):
+    """A continuous grounded run that decelerates to a stop and turns 90."""
+    from engine.pantheon.performance import (AimSample, AnimSample, PerformanceTrace,
+                                             TransformSample, WeaponSample)
+    tr = PerformanceTrace("f", "campgrounds", "CA", 3, 1000, 1000 + 25 * 59)
+    x, speed = 0.0, 320.0
+    for i in range(60):
+        t = 1000 + 25 * i
+        if i >= 30:
+            speed = max(0.0, speed - 40.0)
+        x += speed * 0.025
+        if discontinuity and i == 20:
+            x += 1294.0
+        air = airborne_end and i >= 55
+        tr.transform.append(TransformSample(t, (x, 0.0, 24.0), (speed, 0.0, 0.0), speed,
+                                            air, 1023 if air else 1022))
+        yaw = 0.0 if i < 40 else min(90.0, (i - 40) * 12.0)
+        tr.aim.append(AimSample(t, yaw, 0.0, 0.0, 0.0))
+        tr.animation.append(AnimSample(t, 15 if speed > 50 else 22, 11, False, False))
+    tr.weapon.append(WeaponSample(1000, 5))
+    return tr
+
+
+def test_run_in_stop_turn_requires_physical_continuity():
+    good = PT.derive(_run_stop_turn())
+    assert any(t.grp == "RUN_IN_STOP_TURN" for t in good), [t.grp for t in good]
+    assert all(t.ending_stance != "AIRBORNE" for t in good if t.grp == "RUN_IN_STOP_TURN")
+    bad = PT.derive(_run_stop_turn(discontinuity=True))
+    assert not any(t.grp in ("RUN_IN", "RUN_STOP", "RUN_IN_STOP_TURN") for t in bad), \
+        [t.grp for t in bad]
+    tr = _run_stop_turn()
+    assert PT.admissible(tr, tr.start_ms, tr.end_ms, "RUN_IN_STOP_TURN") is None
+    assert "discontinuity" in PT.admissible(_run_stop_turn(discontinuity=True), 1000, 1000 + 25 * 59,
+                                            "RUN_IN")
+    assert PT.admissible(_run_stop_turn(airborne_end=True), 1000, 1000 + 25 * 59,
+                         "RUN_IN_STOP_TURN") == "ends airborne"
+    # a jump-pad flight is not a grounded run
+    assert PT.admissible(jumppad_rocket_trace(), 500_000, 500_000 + 25 * 59, "RUN_IN") is not None

@@ -260,6 +260,47 @@ def index_demo(path: str) -> dict:
         if te["code"] == 40 and te["client"] in clients:          # EV_PLAYER_TELEPORT_OUT
             anchors.append(("TELEPORT", te["client"], te["t"], {"weapon": None}))
 
+    # PER-CLIENT VIEWS. extract_performance filters the whole demo by client
+    # for every window; with ~800 anchors and ~50k entity rows per demo that
+    # rescan was the entire cost of the first full build (55 s per demo).
+    # The same rows, partitioned once, give the same trace at a fraction of
+    # the work. Events and temp events stay whole: the extractor decides
+    # whose they are.
+    ents_by: dict[int, list] = {}
+    for row in out["entities"]:
+        if row["client_num"] is not None:
+            ents_by.setdefault(row["client_num"], []).append(row)
+    anims_by: dict[int, list] = {}
+    for a in anims:
+        anims_by.setdefault(a["client"], []).append(a)
+    missiles_by: dict[int, list] = {}
+    for m in out["missiles"]:
+        missiles_by.setdefault(m.get("other"), []).append(m)
+    view_cache: dict[int, tuple] = {}
+
+    def view(c: int) -> tuple:
+        if c not in view_cache:
+            o = dict(out)
+            o["entities"] = ents_by.get(c, [])
+            o["missiles"] = missiles_by.get(c, [])
+            view_cache[c] = (o, anims_by.get(c, []))
+        return view_cache[c]
+
+    ev_times = [e["server_time_ms"] for e in out["events"]]
+    import bisect
+
+    def outcome_fast(c: int, t: int) -> tuple:
+        i = bisect.bisect_right(ev_times, t)
+        j = bisect.bisect_right(ev_times, t + 2500)
+        best = None
+        for e in out["events"][i:j]:
+            if e["type"] == "obituary" and e.get("killer_client") == c:
+                return ("KILL", e["server_time_ms"] - t, e.get("victim_client"))
+            cc = e.get("client_num") if e.get("client_num") is not None else rec
+            if e["type"] == "missile_hit" and cc == c and best is None:
+                best = ("HIT", e["server_time_ms"] - t, None)
+        return best or ("NONE", None, None)
+
     rows, seen = [], set()
     for kind, c, t, e in sorted(anchors, key=lambda a: (a[2], a[0])):
         key = (c, kind, t // 250)
@@ -268,7 +309,7 @@ def index_demo(path: str) -> dict:
         seen.add(key)
         lo, hi = t - PRE_MS, t + POST_MS
         try:
-            tr = extract_performance(p, lo, hi, c, parsed=parsed)
+            tr = extract_performance(p, lo, hi, c, parsed=view(c))
         except Exception:
             continue
         if len(tr.transform) < 10:
@@ -278,7 +319,7 @@ def index_demo(path: str) -> dict:
             continue                                # the event lied
         if kind == "TELEPORT" and not tr.of_kind("teleport_out"):
             continue                                # not this client's transit
-        outcome, o_ms, victim = _outcome(out, c, rec, t)
+        outcome, o_ms, victim = outcome_fast(c, t)
         if kind == "KILL":
             outcome, o_ms, victim = "KILL", 0, e.get("victim_client")
         rows.append({
@@ -351,6 +392,10 @@ def already_done(con: sqlite3.Connection) -> set[str]:
 
 
 def run(*, workers: int = 6, limit: int | None = None, maps: Sequence[str] = ()) -> dict:
+    from engine.pantheon import disk_policy
+    disk = disk_policy.large_build_safe(S.store_root(), required_bytes=disk_policy.LARGE_BUILD_SAFE // 4)
+    if not disk.ok:
+        raise RuntimeError(f"index build refused: {disk.reason}")
     con = _open()
     done = already_done(con)
     todo, missing = [], []

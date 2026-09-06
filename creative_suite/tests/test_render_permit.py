@@ -299,3 +299,27 @@ def test_capture_demo_asks_before_any_process(monkeypatch, tmp_path):
     with pytest.raises(rp.RenderNotPermitted):
         wc.capture_demo("x.dm_73", [{"clip_name": "c", "start_ms": 0, "end_ms": 1000}],
                         staging=tmp_path)
+
+
+# ── disk policy: three thresholds, not one ─────────────────────────────────
+
+def test_a_full_disk_defers_a_render_but_not_a_review_write(monkeypatch, tmp_path):
+    from engine.pantheon import disk_policy as dp
+    _quiet(monkeypatch, False)
+    monkeypatch.setattr(dp, "free_bytes", lambda p: 300 * dp.MB)
+    d = rp.check(purpose="proxy capture", output_dir=tmp_path)
+    assert d.permit is rp.Permit.DEFERRED and "disk unsafe" in d.reason
+    assert dp.review_db_write_safe(tmp_path).ok            # a verdict still fits
+    assert not dp.large_build_safe(tmp_path).ok
+    monkeypatch.setattr(dp, "free_bytes", lambda p: 10 * dp.GB)
+    assert rp.check(purpose="proxy capture", output_dir=tmp_path).may_render
+    # the job's own expected size counts
+    assert not rp.check(purpose="beauty pass", output_dir=tmp_path,
+                        expected_output_bytes=9 * dp.GB).may_render
+
+
+def test_disk_policy_never_spawns(monkeypatch, tmp_path):
+    import subprocess
+    from engine.pantheon import disk_policy as dp
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: (_ for _ in ()).throw(AssertionError("spawned")))
+    assert dp.free_bytes(tmp_path) >= 0

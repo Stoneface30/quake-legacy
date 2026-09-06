@@ -28,6 +28,7 @@ HEADLESS = {
     "performance",      # PerformanceTrace extraction
     "performance_index",  # corpus-wide discovery index (lightweight rows, no trace copies)
     "store",            # where derived performance data lives (configurable root)
+    "disk_policy",      # three write thresholds; shutil only
     "real_action_proof",  # extract -> compile -> compare, headless
     "headless",         # the loop: extract / compile / reextract / compare / run
     "retarget",         # EXACT_WORLD / LOCAL_FRAME rigid transform + map validity

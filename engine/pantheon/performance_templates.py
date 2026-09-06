@@ -118,8 +118,73 @@ def _facts(tr: PerformanceTrace, t0: int, t1: int) -> dict:
             "max_speed": round(max(s.speed for s in tf), 1)}
 
 
+# ── admission: a template is a physically continuous real segment ─────────
+# The prologue caught RUN_IN_STOP_TURN templates that ended airborne, or that
+# hid a 525 ms / 1294 u jump (a PVS gap or a teleport) inside the "run". A
+# segment is admitted only when its own transform says it is one continuous
+# observed motion, and each group adds what its name promises.
+
+MAX_SAMPLE_GAP_MS = 50          # two snapshots; wider is an observation gap
+MAX_STEP_U = 120.0              # a body moves < 120 u in 25 ms (max ~900 u/s+)
+RUN_MIN_SPEED = 200.0           # a "run" reached at least this
+LEGS_RUNNING = {15, 16}         # LEGS_RUN, LEGS_BACK
+LEGS_GROUNDED = {15, 16, 22, 19}  # RUN, BACK, IDLE, LAND
+
+
+def admissible(tr: PerformanceTrace, t0: int, t1: int, grp: str) -> str | None:
+    """None when the segment may be a template; otherwise the reason it may
+    not, in the words a reviewer needs."""
+    tf = [s for s in tr.transform if t0 <= s.t <= t1]
+    if len(tf) < 4:
+        return "too few samples"
+    for a, b in zip(tf, tf[1:]):
+        if b.t - a.t > MAX_SAMPLE_GAP_MS:
+            return f"observation gap {b.t - a.t} ms at {a.t}"
+        if math.dist(a.origin, b.origin) > MAX_STEP_U:
+            return f"discontinuity {math.dist(a.origin, b.origin):.0f} u at {a.t} (teleport/PVS)"
+    legs = [a for a in tr.animation if t0 <= a.t <= t1]
+    grounded_groups = ("RUN_IN", "RUN_STOP", "RUN_IN_STOP_TURN", "TURN_90", "TURN_180",
+                       "COMBAT_STRAFE", "RETREAT", "CHASE")
+    if grp in grounded_groups:
+        if tf[-1].airborne:
+            return "ends airborne"
+        grounded = sum(1 for s in tf if not s.airborne) / len(tf)
+        if grounded < 0.95:
+            return f"only {grounded:.0%} grounded"
+        if any(a.legs not in LEGS_GROUNDED for a in legs):
+            return "legs state not coherent with a grounded run"
+    if grp in ("RUN_IN", "RUN_STOP", "RUN_IN_STOP_TURN"):
+        if max(s.speed for s in tf) < RUN_MIN_SPEED:
+            return "never reached run speed"
+        if not any(a.legs in LEGS_RUNNING for a in legs):
+            return "legs never in a running state"
+    if grp in ("RUN_STOP", "RUN_IN_STOP_TURN"):
+        # an actual deceleration to a stop, and the stop is held to the end
+        peak_i = max(range(len(tf)), key=lambda i: tf[i].speed)
+        tail = tf[peak_i:]
+        if tail[-1].speed > STOP_SPEED or len(tail) < 3:
+            return "no stop"
+        if any(s.speed > STOP_SPEED for s in tf[-3:]):
+            return "stop not held"
+    if grp == "RUN_IN_STOP_TURN":
+        aim = [a for a in tr.aim if t0 <= a.t <= t1]
+        stop_t = next((s.t for s in tf if s.speed <= STOP_SPEED and s.t > tf[0].t), None)
+        if stop_t is None:
+            return "no stop before the turn"
+        after = [a for a in aim if a.t >= stop_t - 200]
+        if len(after) < 2 or abs((after[-1].yaw - after[0].yaw + 180) % 360 - 180) < 30:
+            return "no turn around the stop"
+    if grp in ("JUMP", "JUMP_PAD", "JUMP_PAD_ROCKET", "LAND"):
+        if not any(s.airborne for s in tf):
+            return "never airborne"
+    if grp in ("JUMP_PAD", "JUMP_PAD_ROCKET", "LAND") and tf[-1].airborne and grp != "JUMP_PAD_ROCKET":
+        return "ends airborne"
+    return None
+
+
 def derive(tr: PerformanceTrace) -> list[PerformanceTemplate]:
-    """Every template one trace supports, read off its ActionGraph."""
+    """Every template one trace supports, read off its ActionGraph and
+    admitted only if the segment is physically continuous for its group."""
     g = AG.build(tr)
     cats = AG.categories(g)
     out: list[PerformanceTemplate] = []
@@ -127,6 +192,9 @@ def derive(tr: PerformanceTrace) -> list[PerformanceTemplate]:
     def add(grp: str, t0: int, t1: int, **extra):
         f = _facts(tr, t0, t1)
         if not f or f["duration_ms"] < 100:
+            return
+        why = admissible(tr, t0, t1, grp)
+        if why is not None:
             return
         f.update(extra)
         out.append(PerformanceTemplate(
@@ -142,8 +210,10 @@ def derive(tr: PerformanceTrace) -> list[PerformanceTemplate]:
         after = [s for s in tf if run.t_end < s.t <= run.t_end + STOP_HOLD_MS]
         if after and all(s.speed <= STOP_SPEED and not s.airborne for s in after):
             add("RUN_STOP", run.t_start, after[-1].t)
+            # the turn may begin as the run is still braking; what matters
+            # is that it ends after the stop and starts within reach of it
             turn = [n for n in g.of_kind("TURN") + g.of_kind("FLICK")
-                    if 0 <= n.t_start - run.t_end <= 800]
+                    if n.t_end > run.t_end and -400 <= n.t_start - run.t_end <= 800]
             if turn:
                 add("RUN_IN_STOP_TURN", run.t_start, turn[0].t_end,
                     turn_deg=turn[0].attrs.get("degrees"))
@@ -161,6 +231,10 @@ def derive(tr: PerformanceTrace) -> list[PerformanceTemplate]:
     for n in g.of_kind("JUMP_PAD"):
         air = g.successors(n.id, "launches")
         end = air[0].t_end if air else n.t_start + 1000
+        # the segment runs to the LANDING when it was observed: a pad
+        # template that stops mid-air is not a jump
+        land = next((s.t for s in tf if s.t > end and not s.airborne), None)
+        end = land if land is not None else end
         add("JUMP_PAD", max(tr.start_ms, n.t_start - 300), end, launch_vz=n.attrs.get("launch_vz"))
         if "JUMP_PAD_ROCKET" in cats:
             fires = [f for f in g.of_kind("FIRE") if n.t_start <= f.t_start <= end

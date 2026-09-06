@@ -35,7 +35,8 @@ RESOLUTION ORDER, most specific first:
 
     1. PANTHEON_RENDER=off|on|auto   the user's explicit decision
     2. a game is running             DEFERRED, always, whatever else says
-    3. otherwise                     GRANTED
+    3. the disk cannot hold the job  DEFERRED (disk_policy.RENDER_JOB_SAFE)
+    4. otherwise                     GRANTED
 
 `on` still yields to a running game. There is no value that says "film over
 the top of my match", because there is no situation in which that is what
@@ -92,7 +93,8 @@ def legacy_override_present() -> bool:
     return os.getenv(LEGACY_ENV) == "1"
 
 
-def check(*, purpose: str = "render") -> Decision:
+def check(*, purpose: str = "render", output_dir=None,
+          expected_output_bytes: int | None = None) -> Decision:
     """May `purpose` open a renderer window right now?
 
     Callers pass their own name so the reason string reads as an answer to
@@ -110,17 +112,29 @@ def check(*, purpose: str = "render") -> Decision:
         return Decision(Permit.DEFERRED,
                         f"{purpose} deferred: a game is running")
 
+    # A drive with no room for this job's output is DEFERRED too, with the
+    # job's own size in the reason. Three thresholds exist (disk_policy):
+    # this one is RENDER_JOB_SAFE, expected output plus a margin -- a review
+    # verdict is not held to it, and an index build is held to more.
+    from engine.pantheon import disk_policy
+    if output_dir is None:
+        from creative_suite.engine import wolfcam_capture
+        output_dir = wolfcam_capture.STAGING
+    disk = disk_policy.render_job_safe(output_dir, expected_output_bytes=expected_output_bytes)
+    if not disk.ok:
+        return Decision(Permit.DEFERRED, f"{purpose} deferred: {disk.reason}")
+
     return Decision(Permit.GRANTED, f"{purpose} granted: nothing to disturb")
 
 
-def require(purpose: str = "render") -> Decision:
+def require(purpose: str = "render", **kw) -> Decision:
     """`check`, but raises on anything other than GRANTED.
 
     For the launch paths that have no queue to fall back on. A path that CAN
     defer should call `check` and defer -- a raised exception there would
     turn a postponed clip into a failed one.
     """
-    d = check(purpose=purpose)
+    d = check(purpose=purpose, **kw)
     if not d.may_render:
         raise RenderNotPermitted(d)
     return d
