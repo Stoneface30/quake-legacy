@@ -176,10 +176,24 @@ def test_serving_the_reviewer_starts_no_capture(monkeypatch):
                         lambda *a, **k: seen.append((a, k)))
     rpx._queue.put(job)
     rpx._queue.put(None)                  # stop after one pass
-    rpx._worker_loop()
+    try:
+        rpx._worker_loop()
 
-    assert captured == [], "a capture ran while a game was on screen"
-    assert any(a[1] == "QUEUED" for a, _k in seen), "job was not left queued"
+        assert captured == [], "a capture ran while a game was on screen"
+        assert any(a[1] == "QUEUED" for a, _k in seen),             "job was not left queued"
+    finally:
+        # DRAIN. Deferring REQUEUES the job, which is the whole point -- and
+        # `_queue` is module state shared with every other test in the
+        # suite. Leaving k1 on it made six proxy tests fail later in the run
+        # while passing in isolation, which is exactly how long that kind of
+        # leak takes to explain.
+        while True:
+            try:
+                rpx._queue.get_nowait()
+                rpx._queue.task_done()
+            except Exception:                                  # noqa: BLE001
+                break
+        rpx._queued_keys.discard("k1")
 
 
 # ── a full disk is not permission either ────────────────────────────────────
