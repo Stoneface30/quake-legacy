@@ -246,9 +246,14 @@ def test_golden_map_local_frame(tmp_path):
     round-tripped headless. The target is a real jump-pad launch region."""
     from engine.pantheon import geography as G
     from engine.pantheon.retarget import Retarget, validate_retarget
-    pick = _pick("a.kind='JUMP_PAD' and a.is_pov=1 and a.samples>=100 and a.airborne_ms>=800")
+    learned = G.maps_available()
+    if not learned:
+        pytest.skip("no learned geography in the store")
+    maps_sql = ",".join(f"'{m}'" for m in learned)
+    pick = _pick(f"a.kind='JUMP_PAD' and a.is_pov=1 and a.samples>=100 and a.airborne_ms>=800 "
+                 f"and a.map in ({maps_sql})")
     if pick is None:
-        pytest.skip("no jump pad in the index")
+        pytest.skip("no jump pad on a map with learned geography")
     demo, client, lo, hi, t = pick
     tr = H.extract_performance(demo, client, lo, hi, parsed=_parsed(demo))
     geo = G.MapGeography.for_map(tr.map)
