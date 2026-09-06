@@ -184,6 +184,7 @@ LAUNCH_SITES = {
     "creative_suite/api/_preview_job.py",
     "creative_suite/engine/supervisor.py",
     "engine/pantheon/shot.py",
+    "engine/pantheon/offscreen.py",
     "engine/pantheon/cvar_probe.py",
     "engine/parser/playback_probe.py",
 }

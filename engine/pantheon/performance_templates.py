@@ -255,6 +255,13 @@ def derive(tr: PerformanceTrace) -> list[PerformanceTemplate]:
 
 # ── the library ────────────────────────────────────────────────────────────
 
+def _TC():
+    """The cache's declared vocabulary of reasons. Imported lazily: the cache
+    policy is a layer above this one."""
+    from engine.pantheon import trace_cache
+    return trace_cache
+
+
 def _open(path: Path | None = None) -> sqlite3.Connection:
     path = path or S.template_db()
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -290,7 +297,7 @@ def build(*, limit: int = 3000, map_name: str | None = None,
             if tpls:
                 # a trace that yielded templates is worth keeping: one
                 # compressed copy, however many templates point at it
-                PI.cache_trace(tr, reason="template")
+                PI.cache_trace(tr, reason=_TC().Reason.TEMPLATE.value)
             for t in tpls:
                 con.execute("""insert or replace into templates values
                     (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
@@ -376,7 +383,7 @@ def load(tpl: PerformanceTemplate | str, db: Path | None = None) -> PerformanceT
     src.close()
     if row is None:
         raise KeyError(f"{tpl.id}: source window no longer in the index")
-    return _segment(PI.trace_for(row[0], cache=True, reason="template"), tpl.start_ms, tpl.end_ms)
+    return _segment(PI.trace_for(row[0], cache=True, reason=_TC().Reason.TEMPLATE.value), tpl.start_ms, tpl.end_ms)
 
 
 def counts(db: Path | None = None) -> dict:

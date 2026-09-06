@@ -31,6 +31,7 @@ the GPU and disk contention, so a protected game running still defers.
 """
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import os
 import subprocess
@@ -156,6 +157,53 @@ class OffscreenProcess:
         k = _k32()
         k.CloseHandle.argtypes = [wintypes.HANDLE]
         k.CloseHandle(self.handle)
+
+
+INTERACTIVE: str | None = None
+"""The operator's own desktop -- where WOLFCAM_REFERENCE has always run.
+Passing it to run_engine gives the A leg of a backend A/B: the same staging,
+the same cfg, the same command line, the same watcher, differing from
+PANTHEON_QUAKE_OFFSCREEN in the ONE variable under test."""
+
+
+@dataclass
+class _VisibleProcess:
+    """subprocess.Popen wearing OffscreenProcess's interface, so the two legs
+    of a comparison are not two different pieces of code."""
+    proc: subprocess.Popen
+
+    @property
+    def pid(self) -> int:
+        return self.proc.pid
+
+    def wait(self, timeout: float) -> int | None:
+        try:
+            return self.proc.wait(timeout)
+        except subprocess.TimeoutExpired:
+            return None
+
+    def terminate(self) -> None:
+        self.proc.terminate()                       # CS-4: never orphan a GUI proc
+        try:
+            self.proc.wait(timeout=3)
+        except subprocess.TimeoutExpired:
+            self.proc.kill()
+            self.proc.wait()
+
+    def close(self) -> None:
+        return None
+
+
+def spawn_visible(argv: Sequence[str], *, cwd: Path | str | None = None,
+                  env: dict[str, str] | None = None) -> _VisibleProcess:
+    """Start the client on the interactive desktop, minimised and not
+    activated. This is the OLD behaviour, kept as the reference leg -- it is
+    what the review path did before the hidden desktop existed."""
+    from creative_suite.engine.capture_guard import quiet_startup_info
+    return _VisibleProcess(subprocess.Popen(
+        list(argv), cwd=str(cwd) if cwd else None, env=env,
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        startupinfo=quiet_startup_info()))
 
 
 def spawn_on_desktop(argv: Sequence[str], *, cwd: Path | str | None = None,
@@ -345,9 +393,14 @@ class OffscreenRun:
 
 def run_engine(argv: Sequence[str], *, cwd: Path, timeout: float,
                purpose: str = "offscreen render", log: Path | None = None,
-               poll: float = 1.0, env: dict[str, str] | None = None) -> OffscreenRun:
-    """Run the Quake client on the hidden desktop and report what the
-    operator's screen did while it ran.
+               poll: float = 1.0, env: dict[str, str] | None = None,
+               desktop: str | None = DESKTOP_NAME) -> OffscreenRun:
+    """Run the Quake client and report what the operator's screen did while
+    it ran.
+
+    `desktop` names the desktop object to host it on; INTERACTIVE (None) runs
+    it on the operator's own, which is what the reference backend has always
+    done and is kept so an A/B can change ONE thing.
 
     Asks the render permit first: offscreen removes the stolen foreground,
     not the GPU and disk contention a running game cares about.
@@ -363,8 +416,9 @@ def run_engine(argv: Sequence[str], *, cwd: Path, timeout: float,
     rc: int | None = None
     detail = ""
     try:
-        with HiddenDesktop() as _d:
-            proc = spawn_on_desktop(argv, cwd=cwd, env=env)
+        with (HiddenDesktop(desktop) if desktop else contextlib.nullcontext()):
+            proc = (spawn_on_desktop(argv, cwd=cwd, env=env, desktop=desktop)
+                    if desktop else spawn_visible(argv, cwd=cwd, env=env))
             pid = proc.pid
             try:
                 deadline = t0 + timeout
@@ -427,7 +481,8 @@ def probe_gl(staging: Path, *, timeout: float = 120.0) -> dict:
 
 def capture(safe_demo: str, windows: list[dict], *, staging: Path,
             profile_cvars: dict | None = None, timeout: float | None = None,
-            purpose: str = "offscreen capture") -> dict:
+            purpose: str = "offscreen capture", profile: str | None = None,
+            desktop: str | None = DESKTOP_NAME) -> dict:
     """One offscreen capture, through the project's own staging and cfg.
 
     Deliberately reuses `wolfcam_capture`'s cfg writer and command builder
@@ -443,7 +498,11 @@ def capture(safe_demo: str, windows: list[dict], *, staging: Path,
         for old in videos.glob(f"{w['clip_name']}*.avi"):
             old.unlink()
 
-    cfg = wc.write_capture_cfg(windows, staging, None)
+    # WHICH MASTER LOOK. `None` is not "no profile" -- it is the BATCH master,
+    # the one that once burned "You fragged <name>" into a public clip. A
+    # caller filming for review must name the review master, so the choice is
+    # a parameter rather than a default nobody reads.
+    cfg = wc.write_capture_cfg(windows, staging, profile)
     if profile_cvars:
         head, *rest = cfg.splitlines()
         look = [f"set {k} {v}" for k, v in profile_cvars.items()]
@@ -455,13 +514,19 @@ def capture(safe_demo: str, windows: list[dict], *, staging: Path,
         seek = max(int(w["start_ms"]) for w in windows) / 1000.0
         timeout = wc.LAUNCH_OVERHEAD_S + span * wc.CAPTURE_SLOWDOWN + seek / 12.0
 
-    argv = wc.wolfcam_cmd(safe_demo, staging)
+    # The profile also decides the LATCHED launch cvars (the review exposure
+    # among them), which only apply from the command line -- so it has to be
+    # named here as well as in the cfg.
+    argv = wc.wolfcam_cmd(safe_demo, staging, profile=profile)
     console = staging / "wolfcam-ql" / "qconsole.log"
     run = run_engine(argv, cwd=staging, timeout=timeout, purpose=purpose,
-                     log=console, env=ENGINE_ENV())
+                     log=console, env=ENGINE_ENV(), desktop=desktop)
     made = {w["clip_name"]: sorted(videos.glob(f"{w['clip_name']}*.avi"))
             for w in windows}
     avis = {k: str(v[0]) for k, v in made.items() if v}
-    return {"ok": bool(avis) and not run.visible_windows and not run.stole_focus,
+    # The interactive leg is EXPECTED to put a window on the screen -- that is
+    # the behaviour being replaced. Only the hidden leg is judged on it.
+    quiet = desktop is None or (not run.visible_windows and not run.stole_focus)
+    return {"ok": bool(avis) and quiet, "desktop": desktop or "interactive",
             "avis": avis, "missing": [k for k, v in made.items() if not v],
             **{k: v for k, v in run.as_dict().items() if k != "log_tail"}}

@@ -38,6 +38,7 @@ HEADLESS = {
     "performance_library",  # anonymous PERF: references over the index
     "headless_bench",   # loop timings, no render
     "performance_templates",  # reusable real motion, chosen by measured facts
+    "trace_cache",      # which rebuilt traces earn a stored copy, and why
     "map_geography",    # height layers, watershed regions, route graph (review authority, adopted)
     "map_context",      # place / approach words for a moment, over map_geography
     "geography",        # the one API over map_geography + map_spatial_index
@@ -63,6 +64,7 @@ BACKEND_ALLOWED = {
     "dialogue_mix",     # ffmpeg audio mux, not a game backend
     "presenter_film",   # films a presenter proof
     "ab_scene",         # A/B capture harness
+    "conformance",      # the 10-case backend A/B: it films both legs
     "cast_proof", "presenter_proof", "instruction_proof", "proofs",
     "proof0_color", "proof_b_identity", "proof_c_rails",
     "ca_explainer",     # end-to-end explainer, may render

@@ -107,7 +107,7 @@ for everything derived; no drive letter appears in engine code, and
 | File | Holds |
 |---|---|
 | `performance_index_v2.db` | discovery rows: identity, window, kind, outcome, summary movement/aim/projectile features, event chain, grounded path as packed 64u cells, provenance, `trace_locator`. ~800 bytes per action. |
-| `performance_traces.db` | content-addressed zlib cache, for traces worth keeping (templates, golden cases, chosen performances). One copy per distinct trace. |
+| `performance_traces.db` | content-addressed zlib cache, for traces worth keeping. One copy per distinct trace, one of four declared reasons, a byte budget and eviction that cannot touch a deliberate copy. |
 | `performance_templates.db` | real segments, admitted only if physically continuous. |
 | `map_geography.db` | regions, layers, routes, jump-pad arcs, teleport links AND the 64u spatial cells, adjacency and encounters. One geography store. |
 
@@ -127,6 +127,24 @@ a structure from and are reported, not silently dropped.
 45 KB trace per action, reached 94 GB and filled a drive. A trace is
 reconstructed from its locator through the same extractor that produced it;
 `doctor` proves that per kind on every run.
+
+**What the trace cache keeps.** `engine/pantheon/trace_cache.py` answers the
+question that produced the 94 GB, which is not "can we cache a trace" but
+"which ones". Four declared reasons and no others: TEMPLATE (the template
+library points at it), GOLDEN (a proof depends on it not changing), SELECTED
+(a human or a director chose it), FREQUENT (rebuilt often enough that
+rebuilding is the waste). The first three are deliberate and eviction never
+touches them; FREQUENT is earned by use and lost the same way, so the cache
+is bounded without a proof's fixture ever vanishing to make room. Use is
+counted where a trace is fetched, so "frequent" means frequently REBUILT.
+
+Wired today: TEMPLATE, from the template library, and FREQUENT, from
+`trace_cache.trace()`. GOLDEN and SELECTED are fed by `warm()` with an
+explicit set; no caller feeds them yet. Measured on this machine: 10,710
+traces, 74.5 MB of a 512 MB budget, all TEMPLATE. The vocabulary closing
+caught 10,710 rows labelled `template` in free text, written before there was
+a list of reasons; `--normalise` brought them in and `doctor` fails on any
+reason nobody declared.
 
 ## Spatial authority
 
@@ -188,6 +206,91 @@ only when the foreground belongs to the render process -- an operator
 switching app mid-capture is not a failure. The render permit still applies:
 offscreen removes the stolen screen, not GPU and disk contention.
 
+## Backend A/B conformance
+
+Before the offscreen backend became the default, it was compared against the
+one that has been trusted: `engine/pantheon/conformance.py` films ten
+representative moments twice, through the same staging, the same capture cfg,
+the same command line and the same watcher, differing in exactly one
+variable -- the desktop the process lives on. The moments come from the
+headless performance index and carry a demo hash, a client slot and a
+serverTime; no name, nickname or identifier enters a case.
+
+RAIL · LG · ROCKET · GRENADE · JUMP_PAD · TELEPORT · MULTI_PLAYER_ROUND ·
+LOW_LIGHT_MAP · PROJECTILE_IMPACT · DEATH.
+
+**What is measured, and why not pixels.** Two runs of the client are not
+reproducible to the pixel. The stills say why: both legs hold the same
+instant -- same beam, same bodies, same explosion -- with the camera a
+fraction of a frame apart in yaw, so every edge in a 1920x1080 frame lands a
+pixel over. The first run of this suite duly reported a fifth of the pixels
+differing between the two legs, and the SAME fifth between two runs of one
+leg. A per-pixel test therefore cannot tell a backend apart from a rerun.
+
+What a reviewer would notice is measured instead, on an area-averaged
+thumbnail after the frames are matched to the same instant: colour
+distribution (a 32-bin per-channel histogram intersection), exposure, the
+share of the frame carrying the review profile's forced green, and the length
+of the clip. Each is read as the MEDIAN across sampled frames -- the worst of
+six samples is the noisiest statistic available, and one control run scored
+0.09 on its worst frame and 0.007 on its median.
+
+**Three offscreen captures, not one.** With a single control the noise floor
+is one number drawn from a noisy quantity, and the verdict moved between runs
+of this suite: two cases came out EQUIVALENT on one run and DIFFERENT on the
+next, on readings around 0.01 where the control also sat. So B is filmed three
+times: three A-against-B readings, three B-against-B readings, and the
+question becomes one a reader can check -- is A further from a B than the Bs
+are from each other? A reading inside that spread passes; one inside a fixed
+tolerance a reviewer would accept passes and says so; anything else is a
+difference. A case whose CONTROL exceeds the tolerance is INCONCLUSIVE, not
+DIFFERENT: the backend disagreeing with itself is not the desktop's fault.
+
+The suite can fail: `creative_suite/tests/test_backend_conformance.py` drives
+a washed-out backend, an enemy that lost its green, a short clip and a wild
+control through the verdict and requires DIFFERENT for each.
+
+**State of the evidence, 2026-09-06.** Three full runs were filmed under the
+earlier single-control method; the last is
+`docs/reference/2026-09-06-backend-ab-conformance.json` (7 of 10 EQUIVALENT)
+and its A/B stills are under
+`docs/visual-record/2026-09-06/backend_ab/`. Those runs are what showed the
+single-control method to be unstable, which is why the method changed; the
+three-capture method has been filmed on one case so far. The suite is not a
+thing to run repeatedly for reassurance -- film it once and look at the
+frames:
+
+```
+python -m engine.pantheon.conformance                  # all ten
+python -m engine.pantheon.conformance --only RAIL LG   # a couple
+```
+
+## The review path films offscreen
+
+`creative_suite/engine/review_proxy.py` -- the provider behind every clip in
+the /frags control room -- now films through `PANTHEON_QUAKE_OFFSCREEN`. The
+UI is unchanged: the same states, the same cache keys, the same windows. The
+backend is deliberately NOT part of the cache key, so every proxy already
+READY stays READY and stays served.
+
+Three columns record what made each file: `backend`, `engine_version` (the
+review profile id) and `source_demo`. A row that predates the migration reads
+NULL, which is the truth -- it was filmed by the visible window.
+
+There is no silent fallback. Where a hidden desktop cannot be created at all,
+the job FAILS and says so; opening a window instead is how a rule stops being
+true without anyone noticing. `CS_PROXY_WINDOW=1` asks for the old visible
+capture explicitly, for an operator who wants to watch one.
+
+Two corrections came out of this. The offscreen capture was passing no master
+profile name, which does not mean "no profile" -- it means the BATCH master,
+the one that once burned an opponent's name into a public clip; the review
+path now names the review master in the cfg AND on the launch line, where the
+latched exposure cvars are applied. And `review_proxy` resolved ffmpeg
+relative to the code rather than the project, so every proxy in a git
+worktree failed on a missing binary; the tools resolve the way the databases
+already do.
+
 ## Capabilities and visual profiles
 
 A caller asks for a capability or a named profile, never a cvar.
@@ -209,8 +312,9 @@ python -m engine.pantheon.doctor --json   # machine-readable
 ```
 
 PARSER · EXTRACT · ACTION_GRAPH · RETARGET · COMPILE · PARSE_BACK · COMPARE ·
-FRAME_TRUTH · INDEX · RECONSTRUCT · GEOGRAPHY · TEMPLATES · PROTOCOL ·
-CAPABILITIES · VISUAL_PROFILE · OFFSCREEN · RENDER_PERMIT · NO_RENDERER.
+FRAME_TRUTH · INDEX · RECONSTRUCT · GEOGRAPHY · TEMPLATES · TRACE_CACHE ·
+PROTOCOL · CAPABILITIES · VISUAL_PROFILE · OFFSCREEN · RENDER_PERMIT ·
+NO_RENDERER.
 
-18 checks, all green on this machine. The OFFSCREEN check probes the desktop
+19 checks, all green on this machine. The OFFSCREEN check probes the desktop
 mechanism with a harmless GUI process; the doctor never launches the game.

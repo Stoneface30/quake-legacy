@@ -27,6 +27,7 @@ reason; only a check that ran and gave the wrong answer is FAIL.
     RECONSTRUCT     a trace rebuilt from an index locator, per kind
     GEOGRAPHY       regions, layers, routes, cells
     TEMPLATES       a template found by its measured facts
+    TRACE_CACHE     what is kept, why, and whether it is inside its budget
     RENDER_PERMIT   the one contract, and its answer here
     NO_RENDERER     nothing spawned a process during any of the above
 """
@@ -113,6 +114,7 @@ class Doctor:
             self.run("RECONSTRUCT", self._reconstruct)
             self.run("GEOGRAPHY", self._geography)
             self.run("TEMPLATES", self._templates)
+            self.run("TRACE_CACHE", self._trace_cache)
             self.run("PROTOCOL", self._protocol)
             self.run("CAPABILITIES", self._capabilities)
             self.run("VISUAL_PROFILE", self._visual_profile)
@@ -326,6 +328,26 @@ class Doctor:
         t = found[0]
         return OK, (f"{sum(counts.values())} templates in {len(counts)} groups; "
                     f"{grp} -> {t.id} ({t.duration_ms} ms, {t.distance_u:.0f} u)"), counts
+
+    def _trace_cache(self):
+        """The index stores rows, not traces. A cache that kept everything is
+        what the 94 GB index was, so the check is that what is kept was
+        CHOSEN, and that it fits."""
+        from engine.pantheon import trace_cache as TC
+        rep = TC.report()
+        if not rep["traces"]:
+            return SKIP, "nothing cached yet (traces are rebuilt on demand)", rep
+        unknown = set(rep["by_reason"]) - {r.value for r in TC.Reason}
+        if unknown:
+            return FAIL, (f"traces kept for reasons nobody declared: "
+                          f"{sorted(unknown)}; python -m engine.pantheon."
+                          f"trace_cache --normalise"), rep
+        if rep["bytes"] > rep["budget_bytes"]:
+            return FAIL, (f"{rep['bytes'] / 1e6:.0f} MB over the "
+                          f"{rep['budget_bytes'] / 1e6:.0f} MB budget; run evict()"), rep
+        share = ", ".join(f"{k} {v['traces']}" for k, v in sorted(rep["by_reason"].items()))
+        return OK, (f"{rep['traces']} traces, {rep['bytes'] / 1e6:.1f} MB of "
+                    f"{rep['budget_bytes'] / 1e6:.0f} MB ({share})"), rep
 
     def _protocol(self):
         from engine.parser import protocol as P

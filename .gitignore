@@ -107,6 +107,8 @@ storage/
 
 # Generated pk3 style packs — large binary files, regenerable, not for public repo
 creative_suite/generated/packs/
+creative_suite/generated/pantheon/
+creative_suite/generated/preview/
 
 # 2026-04-19 video tooling upgrade — downloaded binaries stay local, never committed
 tools/ffmpeg-7/
