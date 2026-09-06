@@ -237,3 +237,66 @@ def test_the_public_profile_cannot_show_a_name():
     p = D.get("PUBLIC_EXPORT_V1")
     assert p.hud == "NONE"
     assert any("name" in n for n in p.notes)
+
+
+# -- the first recipe, and what filming it taught ---------------------------
+
+def test_the_reveal_needs_the_body_on_screen_not_only_hidden():
+    """The first render of this recipe showed an empty frame: the plan had
+    chosen the longest OCCLUDED span, and through all of it the body sat 56 to
+    64 degrees off the centre of view. Occluded and on-screen are two
+    questions."""
+    from engine.pantheon import choreography as CH
+    rows = [
+        {"t": 1000, "state": CH.Visibility.OCCLUDED_OFF_SCREEN.value},
+        {"t": 1025, "state": CH.Visibility.OCCLUDED_OFF_SCREEN.value},
+        {"t": 1050, "state": CH.Visibility.OCCLUDED_OFF_SCREEN.value},
+        {"t": 2000, "state": CH.Visibility.OCCLUDED_IN_FRAME.value},
+        {"t": 2400, "state": CH.Visibility.OCCLUDED_IN_FRAME.value},
+    ]
+    spans = CH.occluded_spans(rows, min_ms=250)
+    assert len(spans) == 1
+    assert spans[0]["start_ms"] == 2000, "an off-screen span was offered as a reveal"
+
+
+def test_the_frustum_test_agrees_with_the_measured_failure():
+    """The numbers from the render that failed: 62 degrees off yaw is out."""
+    from engine.pantheon import choreography as CH
+    eye = (0.0, 0.0, 26.0)
+    ahead = (1000.0, 0.0, 26.0)
+    inside, yaw, _pitch = CH._in_frame(eye, 0.0, 0.0, ahead)
+    assert inside and abs(yaw) < 1
+    beside = (0.0, 1000.0, 26.0)          # 90 degrees to the left
+    outside, yaw2, _ = CH._in_frame(eye, 0.0, 0.0, beside)
+    assert not outside and abs(yaw2) > 45
+
+
+def test_the_overlay_alpha_is_the_engines_scale_not_a_fraction():
+    """Written as 0.55 it drew nothing at all. The engine registers these with
+    a default of 30, and the proof that put the capability in the registry
+    used 190."""
+    from engine.pantheon import visual_profile as VP
+    c = VP.profile("REVIEW_XRAY").resolve()
+    for name in ("cg_whAlpha", "cg_whEnemyAlpha"):
+        assert isinstance(c[name], int) and c[name] > 1, \
+            f"{name}={c[name]!r} reads as transparent"
+
+
+def test_the_overlay_colour_uses_its_own_familys_syntax():
+    """The rail family takes packed hex; this one does not. Writing the wrong
+    form is a silent no-op."""
+    from engine.pantheon import color_format as CF
+    from engine.pantheon import visual_profile as VP
+    c = VP.profile("REVIEW_XRAY").resolve()
+    assert c["cg_whColor"] == CF.format_for("cg_whColor", VP.PANTHEON_GREEN)
+    assert "0x" not in str(c["cg_whColor"])
+
+
+def test_a_plan_carries_the_beat_it_cannot_film():
+    """The freeze the grammar wants has no proven capability, so it is
+    deferred in writing rather than dropped."""
+    from engine.pantheon import choreography as CH
+    plan = CH.ChoreographyPlan("XRAY_ACTOR", "PERF:X", CH.TimeMap(0, 1000),
+                               CH.CameraPlan("RECORDED_POV", 1))
+    plan.deferred.append("FREEZE: capability only SOURCE_REGISTERED")
+    assert plan.deferred and plan.deliverable

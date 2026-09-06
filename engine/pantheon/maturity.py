@@ -17,6 +17,7 @@ from enum import Enum
 
 class Maturity(str, Enum):
     PRODUCTION_READY = "PRODUCTION_READY"
+    OPERATIONAL_FINAL_VALIDATION = "OPERATIONAL_FINAL_VALIDATION"
     PARTIAL = "PARTIAL"
     CONCEPT = "CONCEPT"
     BLOCKED = "BLOCKED"
@@ -98,9 +99,12 @@ def assess() -> list[Subsystem]:
     usable = sum(1 for c in CAP.BACKENDS["PANTHEON_QUAKE_OFFSCREEN"].values()
                  if c.usable)
     out.append(Subsystem(
-        "RENDER", Maturity.PRODUCTION_READY,
+        "RENDER", Maturity.OPERATIONAL_FINAL_VALIDATION,
         f"the offscreen backend films 1920x1080 with no window, no stolen "
-        f"focus and a free pointer; {usable} usable capabilities"))
+        f"focus and a free pointer; {usable} usable capabilities",
+        gap="the pointer fix is not yet confirmed by the operator, and no "
+            "recipe has completed the whole pipeline; both are required "
+            "before this is PRODUCTION_READY"))
 
     vp = VP.report()
     out.append(Subsystem(

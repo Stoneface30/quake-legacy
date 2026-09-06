@@ -66,7 +66,14 @@ class VisualProfile:
     hud: Hud = Hud.AUTHENTIC
     xray_enemy: bool = False
     xray_colour: tuple[int, int, int] = PANTHEON_GREEN
-    xray_alpha: float = 0.55
+    # THE OVERLAY ALPHA IS 0-255, NOT A FRACTION.
+    #
+    # The engine registers cg_whAlpha and cg_whEnemyAlpha with a default of
+    # 30, and the 2026-09-05 proof that put this capability in the registry
+    # used 190. This profile wrote 0.55, meaning "55 per cent" -- which the
+    # engine read as an alpha of zero, so the overlay drew nothing at all and
+    # the first end-to-end recipe came back with an empty frame twice.
+    xray_alpha: int = 190
     extra: dict[str, Any] = field(default_factory=dict)
 
     # -- what this profile needs a backend to be able to do -------------
@@ -138,9 +145,18 @@ class VisualProfile:
 
         c["cg_wh"] = 1 if self.xray_enemy else 0
         if self.xray_enemy:
-            hexc = "0x%02x%02x%02x" % self.xray_colour
-            c.update({"cg_whEnemyColor": f'"{hexc}"', "cg_whEnemyAlpha": self.xray_alpha,
-                      "cg_whColor": f'"{hexc}"', "cg_whAlpha": self.xray_alpha})
+            # THE X-RAY FAMILY DOES NOT TAKE THE RAIL FAMILY'S SYNTAX. The
+            # rail colours are read as a packed integer and accept 0xRRGGBB;
+            # the wh colours go through SC_ParseColorFromStr, which rejects
+            # anything that is not digits and spaces. Writing hex here is a
+            # SILENT no-op -- the overlay draws in whatever colour was already
+            # set -- which is precisely what color_format exists to stop, and
+            # what this profile was doing until 2026-09-06.
+            from engine.pantheon import color_format as CF
+            for name in ("cg_whEnemyColor", "cg_whColor"):
+                c[name] = CF.format_for(name, self.xray_colour)
+            c.update({"cg_whEnemyAlpha": self.xray_alpha,
+                      "cg_whAlpha": self.xray_alpha})
         c.update(self.extra)
         return c
 

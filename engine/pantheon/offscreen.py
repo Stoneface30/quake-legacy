@@ -562,9 +562,21 @@ def probe_gl(staging: Path, *, timeout: float = 120.0) -> dict:
             "renderer_line": renderer, **run.as_dict()}
 
 
+# A CUE IS FILM WORDS; A PROFILE IS BACKEND VALUES. The translation lives
+# here, in the backend layer, like every other cvar in this file. A
+# ChoreographyPlan says XRAY_ON; what that costs in engine settings is not the
+# plan's business, and the plan is forbidden from knowing.
+CUE_PROFILE = {
+    "XRAY_ON": "REVIEW_XRAY",
+    "XRAY_OFF": "REVIEW",
+    "NORMAL_ACTION": "REVIEW",
+}
+
+
 def capture(safe_demo: str, windows: list[dict], *, staging: Path,
             profile_cvars: dict | None = None, timeout: float | None = None,
             purpose: str = "offscreen capture", profile: str | None = None,
+            cues: list[dict] | None = None,
             desktop: str | None = DESKTOP_NAME) -> dict:
     """One offscreen capture, through the project's own staging and cfg.
 
@@ -586,11 +598,29 @@ def capture(safe_demo: str, windows: list[dict], *, staging: Path,
     # caller filming for review must name the review master, so the choice is
     # a parameter rather than a default nobody reads.
     cfg = wc.write_capture_cfg(windows, staging, profile)
-    if profile_cvars:
+    timed: list[str] = []
+    if cues:
+        # Only what CHANGES is scheduled. Re-applying a whole profile at each
+        # cue would re-send the enemy model mid-shot, and any cvar the engine
+        # never registered would be re-sent as a silent no-op every time.
+        from engine.pantheon import visual_profile as VP
+        current = dict(profile_cvars or {})
+        for cue in sorted(cues, key=lambda c: int(c["at_ms"])):
+            name = CUE_PROFILE.get(cue["semantic"])
+            if name is None:
+                continue
+            wanted = VP.profile(name).resolve()
+            for k, v in wanted.items():
+                if current.get(k) != v:
+                    timed.append(f"at {int(cue['at_ms'])} set {k} {v}")
+            current.update(wanted)
+    if profile_cvars or timed:
         head, *rest = cfg.splitlines()
-        look = [f"set {k} {v}" for k, v in profile_cvars.items()]
+        look = [f"set {k} {v}" for k, v in (profile_cvars or {}).items()]
+        seek, *later = rest
         wc.write_engine_file(staging / "wolfcam-ql" / "capture.cfg",
-                             "".join(f"{ln}\n" for ln in [head, *look, *rest]))
+                             "".join(f"{ln}\n" for ln in
+                                     [head, *look, seek, *timed, *later]))
 
     if timeout is None:
         span = sum((int(w["end_ms"]) - int(w["start_ms"])) / 1000.0 for w in windows)
