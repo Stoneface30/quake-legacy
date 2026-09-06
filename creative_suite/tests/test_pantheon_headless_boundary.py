@@ -39,6 +39,7 @@ HEADLESS = {
     "performance_templates",  # reusable real motion, chosen by measured facts
     "map_geography",    # height layers, watershed regions, route graph (review authority, adopted)
     "map_context",      # place / approach words for a moment, over map_geography
+    "geography",        # the one API over map_geography + map_spatial_index
     "frame_truth",      # FrameTruth
     "scenario",         # RoundScenario authoring
     "compiler",         # intent -> .dm_73 grammar

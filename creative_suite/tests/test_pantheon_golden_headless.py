@@ -39,7 +39,7 @@ def _parsed(demo: Path):
     return _PARSED[key]
 
 
-def _pick(where: str, order: str = "id") -> tuple[Path, int, int, int, int] | None:
+def _pick(where: str, order: str = "a.demo_hash, a.t_ms") -> tuple[Path, int, int, int, int] | None:
     """(demo, client, start, end, t) for the first index row matching."""
     con = sqlite3.connect(f"file:{INDEX_DB.as_posix()}?mode=ro", uri=True, timeout=30)
     row = con.execute(
@@ -238,3 +238,39 @@ def test_golden_weapon_change(tmp_path):
     assert [w.weapon for w in back["PERF"].weapon] == [w.weapon for w in tr.weapon]
     g = AG.build(tr)
     assert g.of_kind("WEAPON_SWITCH")
+
+
+def test_golden_map_local_frame(tmp_path):
+    """MAP_LOCAL_FRAME: a real jump-pad rocket retargeted onto another
+    learned region of its own map, validated by the shared geography, then
+    round-tripped headless. The target is a real jump-pad launch region."""
+    from engine.pantheon import geography as G
+    from engine.pantheon.retarget import Retarget, validate_retarget
+    pick = _pick("a.kind='JUMP_PAD' and a.is_pov=1 and a.samples>=100 and a.airborne_ms>=800")
+    if pick is None:
+        pytest.skip("no jump pad in the index")
+    demo, client, lo, hi, t = pick
+    tr = H.extract_performance(demo, client, lo, hi, parsed=_parsed(demo))
+    geo = G.MapGeography.for_map(tr.map)
+    if geo.index is None:
+        pytest.skip(f"no learned geography for {tr.map}")
+    origin = tr.transform[0].origin
+    home = geo.region_for_position(origin)
+    assert home is not None, "the real launch point sits in no learned region"
+    # another launch region of the same map, from the learned jump-pad arcs
+    arcs = [a for a in geo.jump_pad_arcs() if a["launch_region"] != home]
+    if not arcs:
+        pytest.skip("only one jump-pad launch region learned on this map")
+    target_region = geo.index.regions[arcs[0]["launch_region"]]
+    to = target_region.centre
+    rt = Retarget.local_frame(tr, to=to, yaw=tr.aim[0].yaw)
+    v = validate_retarget(tr, rt, G.GeographyValidity(tr.map), min_fraction=0.5)
+    assert v.grounded_samples > 0
+    # the retargeted anchor is inside the target region by construction
+    assert geo.region_for_position(rt.place(origin)) == target_region.region_id
+    compiled = H.compile_performance(tr, retarget=rt)
+    compiled.save(tmp_path / "local_frame.dm_73")
+    back = H.reextract(compiled)
+    d = H.compare(tr, back["PERF"], retarget=compiled.retarget, intentional=compiled.intentional)
+    _assert_faithful(d, "position", "velocity", "yaw", "airborne", "event:jump_pad")
+    assert d.retarget["mode"] == "local_frame"

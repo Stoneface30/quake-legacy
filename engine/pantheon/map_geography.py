@@ -44,9 +44,13 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Iterator
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-RECOG_DB = REPO_ROOT / "creative_suite" / "database" / "frag_recognition.db"
-GEO_DB = REPO_ROOT / "creative_suite" / "database" / "map_geography.db"
+from engine.pantheon import store as S
+
+REPO_ROOT = S.PROJECT_ROOT
+RECOG_DB = S.RECOG_DB
+# Derived data lives under the configurable store (PANTHEON_PERFORMANCE_STORE),
+# beside the compact performance index; the source event store stays put.
+GEO_DB = S.store_root() / "map_geography.db"
 
 GEOGRAPHY_VERSION = "map-geography-v1.0.0"
 
