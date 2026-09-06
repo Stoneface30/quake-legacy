@@ -144,6 +144,13 @@ class ShotSpec:
     # `follow 5`, `cg_thirdPerson 1`. Commands, not cvars -- they have no
     # place on the launch line and no cvar equivalent.
     pre_commands: tuple = ()
+    # (edit_ms_from_shot_start, "command") pairs run by the engine's own `at`
+    # scheduler. This is how an analysis graphic gets its own colour: the
+    # rail-colour family is switched to ANALYSIS_GRAPHIC for exactly the
+    # freeze window and restored after, so no historical rail before or
+    # after the freeze ever wears it, and the graphic never inherits a
+    # historical team/enemy colour.
+    timed_commands: tuple = ()
 
     def unsupported_passes(self) -> list[str]:
         return [p.value for p in self.passes
@@ -227,9 +234,11 @@ def render(spec: ShotSpec, out_dir: Path, *, base_ms: int = 1000) -> Path:
     # demo and before the first `at` fires
     seek, *timed = rest
     pre = [str(c) for c in spec.pre_commands]
+    start_ms = base_ms + int(spec.start_s * 1000)
+    extra_at = [f"at {start_ms + int(ms)} {cmd}" for ms, cmd in spec.timed_commands]
     wc.write_engine_file(wc.STAGING / "wolfcam-ql" / "capture.cfg",
                          "".join(f"{ln}\n" for ln in
-                                 [head, *look, seek, *pre, *timed]))
+                                 [head, *look, seek, *pre, *extra_at, *timed]))
 
     videos = wc.STAGING / "wolfcam-ql" / "videos"
     videos.mkdir(parents=True, exist_ok=True)

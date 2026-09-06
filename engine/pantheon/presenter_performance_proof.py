@@ -29,8 +29,9 @@ from pathlib import Path
 
 from engine.pantheon.frame_truth import FrameTruth
 from engine.pantheon.instruction import (AnalysisBreak, Graphic, InstructionScene,
-                                         Mode, place_entrance, validate_placement,
-                                         validate_placement_shared)
+                                         Line, Mode, analysis_graphic_commands,
+                                         camera_plan_to_presenter, place_entrance,
+                                         validate_placement, validate_placement_shared)
 from engine.pantheon.navigation import NavigationTruth
 from engine.pantheon.roster import CAST
 from engine.pantheon.scenario import RoundScenario, Team, Weapon
@@ -71,15 +72,19 @@ def load_template(name: str):
     return tr
 
 
-def build():
+LINE_TEXT = "Watch this."
+LINE_WAV = Path(".tmp/voice/tts/crash_watch_this.wav")   # SYNTHETIC (Kokoro af_heart)
+
+
+def build(*, camera: bool = False, line: bool = False, scene_id: str = SCENE_ID):
     nav = NavigationTruth.for_map(MAP, cache=NAV_CACHE)
     leg = nav.high_route().thinned()
-    shooter_at, target_at, camera = _stage(leg)
+    shooter_at, target_at, cam_pos = _stage(leg)
     mid = tuple((a + b) / 2 for a, b in zip(shooter_at, target_at))
 
     # ── the historical scene: Keel rails Crash's stand-in (Visor) ──────
     scn = RoundScenario.clan_arena(map_name=MAP, hostname="PANTHEON PRESENTER PERF")
-    scn.observer(camera, yaw=_yaw(camera, mid), team=Team.BLUE, name="POV")
+    scn.observer(cam_pos, yaw=_yaw(cam_pos, mid), team=Team.BLUE, name="POV")
     keel = scn.actor("KEEL", Team.RED).appearance("keel", "bright")
     visor = scn.actor("VISOR", Team.BLUE).appearance("visor", "default")
     keel.spawn(shooter_at, yaw=_yaw(shooter_at, target_at), t=0.0, weapon=Weapon.RAIL)
@@ -100,7 +105,7 @@ def build():
     top = nav.high_route().floor_z
     pool = sorted({tuple(round(c, 1) for c in pt) for r in nav.routes
                    if r.floor_z >= top - FLOOR_BAND for pt in r.points})
-    cands = [p for p in pool if 150 < math.dist(p, camera) < 340
+    cands = [p for p in pool if 150 < math.dist(p, cam_pos) < 340
              and math.dist(p, mid) > 120]
     # The mark is chosen by the SHARED verdict (retarget.validate_retarget
     # over MapSpatialIndex + NavigationTruth at 48u): every candidate at
@@ -108,8 +113,8 @@ def build():
     # passes is the mark. The prologue's same-floor check is kept as a
     # second opinion in the report only.
     tried, placement, validity, stand, best_frac = 0, None, None, None, -1.0
-    for cand in sorted(cands, key=lambda p: abs(math.dist(p, camera) - 230)):
-        pl = place_entrance(template, stop_at=cand, face=camera)
+    for cand in sorted(cands, key=lambda p: abs(math.dist(p, cam_pos) - 230)):
+        pl = place_entrance(template, stop_at=cand, face=cam_pos)
         pre = validate_placement(template, pl, nav)
         tried += 1
         if pre["verdict"] != "VALID":
@@ -125,22 +130,45 @@ def build():
         raise RuntimeError(f"{MAP}: no mark at conversational distance passes placement")
     validity["marks_tried"] = tried
 
+    # ── the camera comes to her (PROOF_02) ─────────────────────────────
+    # Freeze at edit 4.0s; she enters at +0.15s, stops at +0.15+1.35s. The
+    # camera holds through the run so the movement reads, then starts
+    # ~200ms after the recorded stop and reaches conversational framing
+    # before her turn finishes; it holds there for gesture, line, graphic.
+    plan = None
+    hold_s = HOLD_S
+    if camera:
+        stop_ms = int((0.15 + placement["stop_rel_s"]) * 1000)
+        hold_s = 12.0
+        plan = camera_plan_to_presenter(
+            start_pos=cam_pos, start_yaw=_yaw(cam_pos, mid), start_pitch=0.0,
+            subject=stand, subject_face_yaw=_yaw(stand, cam_pos), map_name=MAP,
+            begin_ms=stop_ms + 200, duration_ms=1800,
+            hold_until_ms=int(hold_s * 1000) - 100,
+            pk3_path=r"C:\Program Files (x86)\Steam\steamapps\common\Quake Live\baseq3\pak00.pk3")
+    spoken = Line(LINE_TEXT, LINE_WAV, "SYNTHETIC_TTS", "GUIDE") if line else None
+
     scene = InstructionScene(scn, duration=HIST_DURATION)
     scene.add_break(AnalysisBreak(
-        at_t=FREEZE_T, hold_s=HOLD_S, mode=Mode.PRESENTER, profile=PRESENTER,
-        enter_from=placement["start_world"], walk_to=stand, face=camera,
-        entrance=template, gesture=True,
+        at_t=FREEZE_T, hold_s=hold_s, mode=Mode.PRESENTER, profile=PRESENTER,
+        enter_from=placement["start_world"], walk_to=stand,
+        face=(plan["end"] if plan else cam_pos),
+        entrance=template, gesture=True, line=spoken,
         graphic=Graphic.SHOOTER_TO_TARGET, graphic_from="KEEL", graphic_to="VISOR",
-        walk_s=placement["stop_rel_s"]))
+        walk_s=placement["stop_rel_s"],
+        camera_plan=(plan["keyframes"] if plan else ())))
     built, report = scene.build()
     restoration = scene.verify_restoration(built)
 
     OUT.mkdir(parents=True, exist_ok=True)
-    demo = built.compile(duration=scene.edit_duration).save(OUT / f"{SCENE_ID}.dm_73")
+    demo = built.compile(duration=scene.edit_duration).save(OUT / f"{scene_id}.dm_73")
     FrameTruth.from_scenario(scn, duration=HIST_DURATION).save(
-        OUT / f"{SCENE_ID}.historical.frametruth.json")
+        OUT / f"{scene_id}.historical.frametruth.json")
     FrameTruth.from_scenario(built, duration=scene.edit_duration).save(
-        OUT / f"{SCENE_ID}.composite.frametruth.json")
+        OUT / f"{scene_id}.composite.frametruth.json")
+    (OUT / f"{scene_id}.dialogue.json").write_text(json.dumps(
+        {"duration_s": scene.edit_duration, "cues": [c.as_dict() for c in scene.cues]},
+        indent=1), encoding="utf-8")
 
     pres = built.actors[f"{PRESENTER.role}~PRESENTER"]
     e0 = report["breaks"][0]["edit_freeze_start_s"]
@@ -157,9 +185,18 @@ def build():
         "placement_validity": validity,
         "motion_quality": motion,
         "restoration": restoration,
-        "camera": {"origin": list(camera), "moves": False},
+        "camera": ({k: (list(v) if isinstance(v, tuple) else v)
+                    for k, v in plan.items() if k != "keyframes"}
+                   | {"keyframes": len(plan["keyframes"])} if plan
+                   else {"origin": list(cam_pos), "moves": False}),
+        "dialogue": ({"text": LINE_TEXT, "audio": str(LINE_WAV), "source_kind": "SYNTHETIC_TTS",
+                      "cue_start_edit_s": scene.cues[0].start_t if scene.cues else None}
+                     if line else None),
+        "analysis_graphic": {"rgb": list(__import__("engine.pantheon.instruction", fromlist=["x"]).ANALYSIS_GRAPHIC_RGB),
+                             "window": "freeze only, both rail-colour halves, timed cvars"},
+        "scene_id": scene_id,
     })
-    (OUT / f"{SCENE_ID}.report.json").write_text(json.dumps(report, indent=1))
+    (OUT / f"{scene_id}.report.json").write_text(json.dumps(report, indent=1))
     return demo, scene, built, report
 
 
@@ -224,8 +261,12 @@ def _yaw(a, b) -> float:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--camera", action="store_true")
+    ap.add_argument("--line", action="store_true")
     args = ap.parse_args()
-    demo, scene, built, rep = build()
+    demo, scene, built, rep = build(camera=args.camera, line=args.line,
+                                    scene_id=("PRESENTER_CAMERA_DIALOGUE_PROOF_02"
+                                              if args.camera else SCENE_ID))
     b = rep["breaks"][0]
     print(f"demo       : {demo} ({demo.stat().st_size:,} bytes)")
     print(f"template   : {rep['template']} from {rep['template_source']}")
@@ -238,6 +279,12 @@ def main() -> int:
     print(f"motion     : {rep['motion_quality']}")
     print(f"freeze     : t={b['historical_t_s']}s -> edit {b['edit_freeze_start_s']}..{b['edit_freeze_end_s']}s")
     print(f"restoration: all_restored={rep['restoration']['all_restored']}")
+    if rep.get("camera", {}).get("keyframes"):
+        c = rep["camera"]
+        print(f"camera     : {c['status']} {c['keyframes']} dense kfs @{c['hz']}Hz, begins +{c['begin_ms']}ms "
+              f"for {c['duration_ms']}ms, min clearance {c['min_clearance_u']}u, {c['collision']}")
+    if rep.get("dialogue"):
+        print(f"dialogue   : {rep['dialogue']}")
     return 0
 
 

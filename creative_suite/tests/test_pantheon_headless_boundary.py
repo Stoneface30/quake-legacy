@@ -61,6 +61,7 @@ BACKEND_ALLOWED = {
     "voice",            # TTS / ffmpeg audio, not a game backend
     "dialogue_mix",     # ffmpeg audio mux, not a game backend
     "presenter_film",   # films a presenter proof
+    "presenter_camera_film",  # films PRESENTER_CAMERA_DIALOGUE_PROOF_02
     "ab_scene",         # A/B capture harness
     "cast_proof", "presenter_proof", "instruction_proof", "proofs",
     "proof0_color", "proof_b_identity", "proof_c_rails",

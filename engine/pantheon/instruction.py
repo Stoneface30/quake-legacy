@@ -731,6 +731,25 @@ def _replace_t(k: _Keyframe, t: float) -> _Keyframe:
 # appearance the demo authored. The explanatory copy is instantly separable
 # from the fight without repainting the fight.
 
+# The analysis graphic's own colour. It is applied to BOTH halves of the
+# rail-colour family for the freeze window only (timed cvars), so the line
+# has one colour regardless of which historical shooter's client draws it.
+ANALYSIS_GRAPHIC_RGB = (255, 204, 64)      # Pantheon gold
+
+
+def analysis_graphic_commands(freeze_ms: int, resume_ms: int,
+                              rgb=ANALYSIS_GRAPHIC_RGB) -> list[tuple[int, str]]:
+    """Timed cvar sets that colour the analysis rail, and only it."""
+    from engine.pantheon.color_format import format_for
+    on = [(freeze_ms, f"set {k} {format_for(k, rgb)}")
+          for k in ("cg_teamRailColor1", "cg_teamRailColor2",
+                    "cg_enemyRailColor1", "cg_enemyRailColor2")]
+    off = [(resume_ms, f'set {k} ""')
+           for k in ("cg_teamRailColor1", "cg_teamRailColor2",
+                     "cg_enemyRailColor1", "cg_enemyRailColor2")]
+    return on + off
+
+
 PANTHEON_GREEN = (60, 235, 90)     # readable against grey arena stone,
                                    # and not the nuclear 0x00ff00 of the test
 
