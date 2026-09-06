@@ -53,7 +53,7 @@ import time
 import zlib
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Sequence
 
 from engine.pantheon import store as S
 
@@ -208,20 +208,6 @@ def summarize(tr: PerformanceTrace, t_ms: int) -> dict:
 
 
 # ── one demo ───────────────────────────────────────────────────────────────
-
-def _outcome(out: dict, client: int, rec: int | None, t: int) -> tuple:
-    best = None
-    for e in out["events"]:
-        dt = e["server_time_ms"] - t
-        if not 0 < dt <= 2500:
-            continue
-        if e["type"] == "obituary" and e.get("killer_client") == client:
-            return ("KILL", dt, e.get("victim_client"))
-        c = e.get("client_num") if e.get("client_num") is not None else rec
-        if e["type"] == "missile_hit" and c == client and best is None:
-            best = ("HIT", dt, None)
-    return best or ("NONE", None, None)
-
 
 def index_demo(path: str) -> dict:
     """Parse one demo once; return lightweight rows (runs in a worker)."""
