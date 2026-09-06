@@ -149,8 +149,11 @@ def get_location(item_id: str):
         return {"item_id": item_id, "available": False,
                 "reason": "not a kill"}
     try:
-        from engine.pantheon import map_authority as ma
-        ctx = ma.location_of(int(it.source_id))
+        # ONE DOOR. geography is the shared API over the review region
+        # model and the headless occupancy index; the reviewer does not
+        # keep a façade of its own beside it.
+        from engine.pantheon import geography as geo
+        ctx = geo.approach_for_occurrence(int(it.source_id))
     except Exception as e:                                     # noqa: BLE001
         return {"item_id": item_id, "available": False,
                 "reason": f"{type(e).__name__}"}
@@ -163,8 +166,8 @@ def get_location(item_id: str):
 @router.get("/map_regions/{map_name}")
 def get_map_regions(map_name: str):
     """The learned regions of one map, for inspection."""
-    from engine.pantheon import map_authority as ma
-    out = ma.regions_of(map_name)
+    from engine.pantheon import geography as geo
+    out = geo.map_summary(map_name)
     if out is None:
         raise HTTPException(404, f"no geography for {map_name}")
     return out

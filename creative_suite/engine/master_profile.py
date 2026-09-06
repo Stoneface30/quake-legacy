@@ -40,7 +40,11 @@ from pathlib import Path
 
 from creative_suite.engine.wolfcam_capture import write_engine_file
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: under a worktree these differ, and opening a
+# database beneath the wrong one silently CREATES an empty file
+# rather than failing. See engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 
 WOLFCAM_VERSION = "wolfcamql-11.3+laa"
 RESOLUTION = (1920, 1080)

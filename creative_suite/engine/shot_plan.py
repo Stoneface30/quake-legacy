@@ -21,7 +21,11 @@ from pathlib import Path
 
 from creative_suite.engine.timeline import Timeline, fov_curve, timescale_curve
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: under a worktree these differ, and opening a
+# database beneath the wrong one silently CREATES an empty file
+# rather than failing. See engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 DEFAULT_DB = REPO_ROOT / "creative_suite" / "database" / "cinematic.db"
 
 _SCHEMA = """

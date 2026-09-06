@@ -32,7 +32,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 # Running this file directly puts engine/parser on sys.path, not the repo
 # root, so `creative_suite.engine` would not import. That failure used to be
 # swallowed and the teleport table came out empty.
-_REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: under a worktree these differ, and opening a database
+# beneath the wrong one silently CREATES an empty file rather than failing.
+# See engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+_REPO_ROOT = _data_root()
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 

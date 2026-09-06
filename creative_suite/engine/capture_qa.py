@@ -11,7 +11,10 @@ import json
 import subprocess
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# ffprobe lives with the project, not with the checkout. See
+# engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 FFMPEG = REPO_ROOT / "creative_suite" / "tools" / "ffmpeg" / "ffmpeg.exe"
 FFPROBE = REPO_ROOT / "creative_suite" / "tools" / "ffmpeg" / "ffprobe.exe"
 

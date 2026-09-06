@@ -83,7 +83,11 @@ from creative_suite.engine.scene_recipe import (DemoRef, EventAnchor,
                                                 EvidenceRef, MusicPlacement,
                                                 SceneRecipeV2, TimeSegment)
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: under a worktree these differ, and opening a
+# database beneath the wrong one silently CREATES an empty file
+# rather than failing. See engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 
 # Bump when anything in THIS module changes the resulting pixels. It is part
 # of preview_key, so a bump invalidates every cached artifact by construction
