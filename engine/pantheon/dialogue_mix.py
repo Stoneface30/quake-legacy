@@ -35,7 +35,7 @@ def build_dialogue_stem(dialogue_json: Path, dest: Path, *, shot_start_s: float,
         ins += ["-i", str(Path(c["audio_path"]).resolve())]
         chains.append(
             f"[{i}:a]aresample={SR},"
-            f"{prof.ffmpeg_chain(pan=c['pan'], distance=c['distance'])},"
+            f"{prof.ffmpeg_chain(pan=c.get('pan', 0.0), distance=c.get('distance', 0.0))},"
             f"adelay={delay_ms}|{delay_ms}[d{i}]")
         labels.append(f"[d{i}]")
     graph = (";".join(chains) + ";" + "".join(labels)
