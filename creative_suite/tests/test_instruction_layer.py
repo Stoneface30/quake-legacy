@@ -352,3 +352,26 @@ def test_sightlines_check_eye_chest_and_feet():
             return b[2] < 10.0                            # feet hidden, eye visible
     assert not __import__("engine.pantheon.instruction", fromlist=["x"]).sightlines_clear(
         Low(), (100.0, 0.0, 40.0), ((0.0, 0.0, 0.0),))
+
+
+def test_a_camera_plan_cuts_back_to_the_exact_pov_when_history_resumes():
+    """02B's second render: the plan ended at its last keyframe and the camera
+    then DRIFTED back to the historical POV over the resumed history. The
+    plan must hold its last pose to the end of the freeze and cut back on
+    the frame history resumes on."""
+    scn = RoundScenario.clan_arena(map_name="overkill", hostname="T")
+    scn.observer(CAM, yaw=90.0, team=Team.BLUE)
+    k = scn.actor("KEEL", Team.BLUE).appearance("keel", "bright")
+    k.spawn(A, yaw=0.0, t=0.0, weapon=Weapon.RAIL); k.stand(until=6.8)
+    s = InstructionScene(scn, duration=7.0)
+    plan = [{"t_ms": 0, "pos": CAM, "angles": (0.0, 90.0, 0.0), "fov": 90},
+            {"t_ms": 1500, "pos": (600.0, 600.0, 200.0), "angles": (30.0, 200.0, 0.0), "fov": 90},
+            {"t_ms": 3000, "pos": (600.0, 600.0, 200.0), "angles": (30.0, 200.0, 0.0), "fov": 90}]
+    s.add_break(AnalysisBreak(at_t=4.0, hold_s=5.0, presenter="KEEL",
+                              walk_to=(250.0, 300.0, 0.0), face=CAM, camera_plan=plan))
+    built, _ = s.build()
+    before, after = built.camera_at(4.0), built.camera_at(9.0)
+    assert before.origin == after.origin and before.yaw == after.yaw
+    held = built.camera_at(8.5)                     # long after the plan's last key
+    assert tuple(round(v) for v in held.origin) == (600, 600, 200)
+    assert built.camera_at(8.9).origin == held.origin   # no drift before the cut

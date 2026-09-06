@@ -403,6 +403,19 @@ class InstructionScene:
                                   Weapon.ROCKET, 200, 100, True)
                     k.pitch = float(kf["angles"][0])
                     out.append(k)
+                # history resumes on the frame it left from: hold the plan's
+                # last pose to the end of the freeze, then CUT back to the
+                # historical POV (02B's second render drifted back over 3s)
+                here = src.camera_at(b.at_t)
+                t_end = e0 + b.hold_s
+                last = out[-1]
+                hold = _replace_t(last, round(t_end - 0.025, 3))   # one 40Hz tick
+                hold.pitch = last.pitch
+                out.append(hold)
+                back = _Keyframe(round(t_end, 3), here.origin, here.yaw, Stance.IDLE,
+                                 Weapon.ROCKET, 200, 100, True)
+                back.pitch = getattr(here, "pitch", 0.0) or 0.0
+                out.append(back)
                 continue
             if not b.orbit:
                 continue
@@ -708,6 +721,7 @@ def camera_plan_to_presenter(*, start_pos: Vec3, start_yaw: float, start_pitch: 
 FOV_X = 110.0                # cg_fov, from the runtime inventory
 FRAME_W, FRAME_H = 1920, 1080
 BODY_H, BODY_W = 56.0, 24.0  # a standing player's silhouette, world units
+BODY_Z0 = -24.0              # an entity origin sits 24u above the feet (playerMins.z)
 
 
 def project(cam: Vec3, yaw: float, pitch: float, p: Vec3) -> tuple[float, float] | None:
@@ -721,8 +735,11 @@ def project(cam: Vec3, yaw: float, pitch: float, p: Vec3) -> tuple[float, float]
     uz = dz * math.cos(b) + f * math.sin(b)      # up after pitch (pitch>0 looks down)
     if fz <= 8.0:
         return None
-    half = math.tan(math.radians(FOV_X / 2))
-    half_y = half * (FRAME_H / FRAME_W)
+    # cg_fov is the horizontal FOV of a 4:3 frame; the engine keeps that
+    # vertical FOV on 16:9 and widens horizontally (02B measured: the
+    # 16:9-horizontal reading predicted bodies 1.33x too tall).
+    half_y = math.tan(math.radians(FOV_X / 2)) * (3.0 / 4.0)
+    half = half_y * (FRAME_W / FRAME_H)
     return (FRAME_W / 2 - (r / fz) / half * (FRAME_W / 2),
             FRAME_H / 2 - (uz / fz) / half_y * (FRAME_H / 2))
 
@@ -730,7 +747,7 @@ def project(cam: Vec3, yaw: float, pitch: float, p: Vec3) -> tuple[float, float]
 def bbox(cam: Vec3, yaw: float, pitch: float, origin: Vec3) -> dict | None:
     """Screen box of a standing body at `origin`, from its feet and head."""
     pts = []
-    for dz in (0.0, BODY_H):
+    for dz in (BODY_Z0, BODY_Z0 + BODY_H):
         for dx in (-BODY_W / 2, BODY_W / 2):
             for dy in (-BODY_W / 2, BODY_W / 2):
                 q = project(cam, yaw, pitch, (origin[0] + dx, origin[1] + dy, origin[2] + dz))
@@ -757,6 +774,32 @@ def _overlap(a: dict, b: dict) -> float:
 
 SUBJECT_EYE_Z = 26.0   # DEFAULT_VIEWHEIGHT; mirrors camera_paths.SUBJECT_EYE_Z
 PRESENTER_MIN_RATIO = 0.7   # her on-screen height vs the largest fighter
+
+
+EDGE_CLEAR_U = 96.0   # near-plane depth the frame's edges must be free of geometry
+
+
+def frame_edges_clear(tracer, cam: Vec3, yaw: float, pitch: float,
+                      depth: float = EDGE_CLEAR_U) -> bool:
+    """True when rays toward the left/right/top/bottom of the frame (at 85%
+    of the half-FOV) run `depth` units without hitting the BSP. 02B's
+    second render had a pillar filling the left third of the settle: every
+    subject was visible, but the frame edge was inside the geometry."""
+    half_y = math.tan(math.radians(FOV_X / 2)) * (3.0 / 4.0)
+    half_x = half_y * (FRAME_W / FRAME_H)
+    for rx, ry in ((-0.85, 0.0), (0.85, 0.0), (0.0, -0.85), (0.0, 0.85), (0.0, 0.0)):
+        # camera-space direction (forward, right, up) -> world
+        r, u, f = rx * half_x, ry * half_y, 1.0
+        b = math.radians(pitch)
+        fw = f * math.cos(b) + u * math.sin(b)
+        up = u * math.cos(b) - f * math.sin(b)
+        a = math.radians(yaw)
+        d = (fw * math.cos(a) - r * math.sin(a), fw * math.sin(a) + r * math.cos(a), up)
+        n = math.sqrt(d[0] ** 2 + d[1] ** 2 + d[2] ** 2)
+        end = (cam[0] + d[0] / n * depth, cam[1] + d[1] / n * depth, cam[2] + d[2] / n * depth)
+        if tracer.line_blocked(cam, end):
+            return False
+    return True
 
 
 def sightlines_clear(tracer, cam: Vec3, subjects) -> bool:
@@ -810,8 +853,8 @@ def compose_three(*, presenter: Vec3, shooter: Vec3, target: Vec3, map_name: str
     mid = tuple((a + b) / 2 for a, b in zip(shooter, target))
     best, tried = None, 0
     path_mid: dict = {}
-    why = {"solid": 0, "path": 0, "occluded": 0, "behind": 0, "frame": 0, "size": 0,
-           "overlap": 0, "line": 0}
+    why = {"solid": 0, "path": 0, "occluded": 0, "cramped": 0, "behind": 0, "frame": 0,
+           "size": 0, "overlap": 0, "line": 0}
     steps = 4
     ds = [distance[0] + (distance[1] - distance[0]) * i / (steps - 1) for i in range(steps)]
     heights = (height,) if isinstance(height, (int, float)) else tuple(height)
@@ -844,6 +887,9 @@ def compose_three(*, presenter: Vec3, shooter: Vec3, target: Vec3, map_name: str
                 look = tuple(eye(presenter)[i] * bias + eye(mid)[i] * (1 - bias) for i in range(3))
                 ang = cp.look_at_angles(cam, look)           # (pitch, yaw, roll)
                 pitch, yaw = ang[0], ang[1]
+                if tracer is not None and not frame_edges_clear(tracer, cam, yaw, pitch):
+                    why["cramped"] += 1
+                    continue
                 bp, bs, bt = (bbox(cam, yaw, pitch, o) for o in (presenter, shooter, target))
                 if not (bp and bs and bt):
                     why["behind"] += 1
@@ -883,7 +929,8 @@ def compose_three(*, presenter: Vec3, shooter: Vec3, target: Vec3, map_name: str
     best["rejections"] = why
 
     best["collision"] = ("real BSP: settle in open space, start->mid->settle unblocked, "
-                         "eye/chest/feet of all three subjects visible from the settle"
+                         "eye/chest/feet of all three subjects visible from the settle, "
+                         f"frame edges clear for {EDGE_CLEAR_U:.0f}u"
                          if tracer else f"UNCHECKED: {tracer_note or 'no tracer'}")
     return best
 
