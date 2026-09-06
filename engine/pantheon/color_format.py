@@ -56,11 +56,20 @@ SYNTAX = {
     "cg_teamlegscolor": ColorSyntax.PACKED_INT,
     "cg_teamtorsocolor": ColorSyntax.PACKED_INT,
     "cg_teamheadcolor": ColorSyntax.PACKED_INT,
-    # Proven in an earlier sprint on cg_wh frames: this family is the OTHER
-    # syntax, and hex is rejected outright with "invalid color string".
-    "cg_whcolor": ColorSyntax.DECIMAL_TRIPLE,
-    "cg_whenemycolor": ColorSyntax.DECIMAL_TRIPLE,
-    "cg_whteamcolor": ColorSyntax.DECIMAL_TRIPLE,
+    # CORRECTED 2026-09-06, from the drawing code and a filmed frame that
+    # agree. cg_players.c calls SC_ByteVec3ColorFromCvar for the overlay, and
+    # SC_RedFromCvar reads `cvar->integer` -- so this family is a PACKED
+    # INTEGER like the rail family, and the shipped defaults are hex
+    # (cg_whColor 0xffffff, cg_whEnemyColor 0xaf1f00).
+    #
+    # The old entry said DECIMAL_TRIPLE and cost a render: "60 235 90" goes
+    # through atoi as 60 = 0x00003C, and the silhouettes came out dark blue,
+    # which is exactly what the frame showed. A triple here is not rejected --
+    # it is quietly read as its first number, the same failure PROOF 0 found
+    # on the rail family.
+    "cg_whcolor": ColorSyntax.PACKED_INT,
+    "cg_whenemycolor": ColorSyntax.PACKED_INT,
+    "cg_whteamcolor": ColorSyntax.PACKED_INT,
 }
 
 # Names whose syntax is inferred from a shipped default rather than measured.

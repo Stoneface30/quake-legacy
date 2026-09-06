@@ -36,22 +36,18 @@ def test_every_execution_proven_cvar_was_listed_by_the_running_client():
 
 
 @pytest.mark.skipif(not CAP.RUNTIME_CVARLIST.exists(), reason="no 11.3 cvarlist capture")
-def test_force_team_model_is_unknown_and_says_what_would_settle_it():
-    """It is named in the ecosystem, absent from the canonical 12.7 source,
-    and the 11.3 probe never asked a wildcard that could match it. Absence
-    from the binary strings proves nothing: cg_enemyModel is missing there
-    too and the runtime proves it exists."""
+def test_force_team_model_is_settled_as_absent():
+    """It WAS unknown because the family probe never asked a wildcard that
+    could match it. The 2026-09-06 census asked for everything, and the name
+    is in no inventory at all: not the runtime, not the 12.7 source scan, not
+    the binary strings. Absent, not merely unproven."""
     cap = CAP.get("FORCE_TEAM_MODEL_SWITCH")
     assert cap.evidence is CAP.Evidence.UNKNOWN and not cap.usable
     assert cap.cvars == ("cg_forceTeamModel",)
-    assert "cg_force*" in cap.probe
-    fams = CAP.probed_families()
-    assert not any(f.lower().startswith("cg_force") and f.endswith("*") for f in fams), \
-        "a cg_force* wildcard WAS probed; re-derive this capability from it"
+    assert "ABSENT" in cap.how and "census" in cap.how
+    assert "cg_team*" in cap.note, "it should say what to use instead"
     with pytest.raises(CAP.CapabilityUnavailable):
         CAP.require("FORCE_TEAM_MODEL_SWITCH")
-
-
 def test_enemy_and_teammate_are_separate_mechanisms():
     """The whole review requirement rests on this: forcing the enemy must not
     touch a teammate. They are different cvar families, and cg_forceModel --
@@ -66,15 +62,17 @@ def test_enemy_and_teammate_are_separate_mechanisms():
 
 
 def test_a_capability_with_no_route_is_unknown_not_false():
-    for name in ("DEPTH_CAPTURE", "ACTOR_ID_PASS", "PLAYER_MASK", "NORMAL_PASS",
-                 "MOTION_PASS", "HIDDEN_OFFSCREEN_CONTEXT"):
+    for name in ("ACTOR_ID_PASS", "PLAYER_MASK", "NORMAL_PASS", "MOTION_PASS"):
         cap = CAP.get(name)
         assert cap.evidence is CAP.Evidence.UNKNOWN
         assert cap.probe, f"{name} does not say what would settle it"
+    # The depth SWITCHES are registered in 11.3, so this one is no longer
+    # unknown -- it is partial, and still below the usable bar, because a
+    # registered cvar is not a produced file.
+    depth = CAP.get("DEPTH_CAPTURE")
+    assert depth.evidence is CAP.Evidence.SOURCE_REGISTERED
     assert not CAP.supports("DEPTH_CAPTURE")
     assert CAP.supports("BEAUTY_PASS")
-
-
 def test_minimised_is_not_the_offscreen_capability():
     cap = CAP.get("HIDDEN_OFFSCREEN_CONTEXT")
     assert "SW_SHOWMINNOACTIVE" in cap.note and "NOT this capability" in cap.note
@@ -155,6 +153,8 @@ def test_only_the_backend_layer_spells_cvars():
     allowed = {
         "engine/pantheon/visual_profile.py",     # the one translator
         "engine/pantheon/capabilities.py",       # names them as backend detail
+        "engine/pantheon/engine_inventory.py",   # the raw-to-semantic mapping
+        "engine/pantheon/engine_census.py",      # asks the engine for its own
         "engine/pantheon/shot.py",               # the WOLFCAM_REFERENCE backend
         "engine/pantheon/offscreen.py",          # the PANTHEON_QUAKE_OFFSCREEN backend
         "engine/pantheon/cvar_probe.py",         # RUNTIME_CAPABILITY_PROOF

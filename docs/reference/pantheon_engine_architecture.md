@@ -215,6 +215,72 @@ only when the foreground belongs to the render process -- an operator
 switching app mid-capture is not a failure. The render permit still applies:
 offscreen removes the stolen screen, not GPU and disk contention.
 
+## The engine inventory
+
+Every command and cvar this project could touch, graded by evidence, from four
+inventories kept apart because they are four different programs.
+
+| Source | What it is | Items |
+|---|---|---|
+| RUNTIME_11_3 | `cvarlist` and `cmdlist` with no filter, asked of the running client in one offscreen session | 1,444 cvars, 307 commands |
+| SOURCE_12_7 | a static scan of the wolfcamql source tree, which is a LATER build than the one on disk | 1,718 cvars, 428 commands |
+| BINARY_11_3 | strings inside the executable we actually run | 477 names |
+| Q3MME | a different engine's vocabulary | 120 cvars, 32 commands |
+
+Grades: RUNTIME_REGISTERED, RUNTIME_ACCEPTED_UNSET, TARGET_BINARY_RECOGNIZED,
+SOURCE_REGISTERED, DOCUMENTED_ONLY, UNSUPPORTED_TARGET, UNKNOWN. Only
+RUNTIME_REGISTERED may be used in production, because 11.3 runtime outranks
+12.7 source.
+
+**Measured 2026-09-06:** 2,345 items graded, of which 1,729 are live in 11.3,
+447 exist only in the 12.7 source, 129 belong to q3mme, 22 are silent no-ops
+the runtime accepted and never registered, and 3 are named only in this
+project's own tables. 102 items map to 34 semantic capabilities. **Zero are
+unclassified**, and `doctor` fails if that ever changes, so a command
+appearing in a future census cannot pass unnoticed.
+
+### What the census settled
+
+- **`cg_forceTeamModel` does not exist.** Not in the runtime, not in the 12.7
+  source scan, not in the binary strings. It was UNKNOWN because the earlier
+  family probe never asked a wildcard that could match it. Forcing teammates
+  is the `cg_team*` family, which is registered; there is no separate switch.
+- **The recorder's own appearance cannot be forced.** There is no `cg_own*`
+  or `cg_self*` cvar of any kind. REVIEW leaving self authentic is an engine
+  property, not a preference.
+- **The actor-id pass has no route.** `mme_saveStencil` is present but
+  USER_CREATED, so setting it does nothing at all. That is a reason to build
+  the Blender backend, not a switch to try again.
+- **The depth switches are real and the pass is unproven.** `mme_saveDepth`,
+  `mme_depthFocus` and `mme_depthRange` are registered; whether a depth file
+  is written and collected has never been checked, so DEPTH_CAPTURE is
+  partial and below the usable bar.
+- **Piping capture to an encoder is not available.** `cl_aviPipeCommand` and
+  `cl_aviPipeExtension` are USER_CREATED. Capture is the built-in MJPEG AVI
+  writer and the transcode happens afterwards in ffmpeg, where it already did.
+- **`capture` and `dof` are not 11.3 commands.** `capture` is q3mme's alone;
+  `dof` is in the 12.7 wolfcam source too, so the later build imported it and
+  the one on disk did not get it.
+- **Time has more routes than we thought.** `cl_freezeDemo` and
+  `cl_freezeDemoPauseVideoRecording` are registered, so holding the whole demo
+  is possible and is a different thing from `entityfreeze`, which holds one
+  body while the rest runs. The seek family is round-aware: `seeknextround`
+  and `seekprevround` exist alongside `seekservertime`.
+
+### The overlay colour, resolved from code
+
+The X-ray silhouettes filmed blue while the profile asked for PANTHEON green.
+`cg_players.c` colours the overlay with `SC_ByteVec3ColorFromCvar`, which
+reads `cvar->integer` -- so the family is a PACKED INTEGER, exactly like the
+rail family, and `"60 235 90"` went through `atoi` as 60 = `0x00003C`, a dark
+blue. That is precisely what the frame showed. `color_format` said
+DECIMAL_TRIPLE and is corrected, with the drawing code cited.
+
+The same reading gives the population rules: mode 1 draws everyone the client
+has, mode 2 only enemies, mode 3 only non-enemies; enemies take
+`cg_whEnemyColor` and **everyone else**, teammates and self alike, takes
+`cg_whColor`.
+
 ## The layer contract
 
 One authority per layer. A layer may read the one below it and must not know

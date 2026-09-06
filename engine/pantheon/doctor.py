@@ -29,6 +29,7 @@ reason; only a check that ran and gave the wrong answer is FAIL.
     TEMPLATES       a template found by its measured facts
     TRACE_CACHE     what is kept, why, and whether it is inside its budget
     RECIPES         the film grammar, and what each one is still missing
+    ENGINE_INVENTORY  every command and cvar, graded, with nothing unclassified
     VISUAL_PROOF    what a person judged, and what is waiting on one
     IDEAS           the director's list, and how much of it has a route
     PROFILES        the versioned project defaults
@@ -120,6 +121,7 @@ class Doctor:
             self.run("GEOGRAPHY", self._geography)
             self.run("TEMPLATES", self._templates)
             self.run("TRACE_CACHE", self._trace_cache)
+            self.run("ENGINE_INVENTORY", self._engine_inventory)
             self.run("RECIPES", self._recipes)
             self.run("VISUAL_PROOF", self._visual_proof_registry)
             self.run("IDEAS", self._ideas)
@@ -358,6 +360,31 @@ class Doctor:
         share = ", ".join(f"{k} {v['traces']}" for k, v in sorted(rep["by_reason"].items()))
         return OK, (f"{rep['traces']} traces, {rep['bytes'] / 1e6:.1f} MB of "
                     f"{rep['budget_bytes'] / 1e6:.0f} MB ({share})"), rep
+
+    def _engine_inventory(self):
+        """Every raw engine name is graded, and nothing is merely absent.
+
+        UNKNOWN is a classification: somebody asked and the answer was
+        nothing. UNCLASSIFIED means nobody looked, and a new command appearing
+        in a future census must fail here rather than pass unnoticed.
+        """
+        from engine.pantheon import engine_inventory as EI
+        rep = EI.report()
+        if not rep["sources"]["runtime_cvars"]:
+            return SKIP, ("no runtime census on this machine; run "
+                          "python -m engine.pantheon.engine_census"), rep
+        if rep["unclassified"]:
+            names = [i.name for i in EI.unclassified(EI.build()["items"])][:6]
+            return FAIL, (f"{rep['unclassified']} engine items nobody has "
+                          f"classified: {names}"), rep
+        g = rep["by_grade"]
+        return OK, (f"{rep['items']:,} items graded "
+                    f"({g.get('RUNTIME_REGISTERED', 0)} live in 11.3, "
+                    f"{g.get('SOURCE_REGISTERED', 0)} source-only, "
+                    f"{g.get('UNSUPPORTED_TARGET', 0)} another engine's, "
+                    f"{g.get('RUNTIME_ACCEPTED_UNSET', 0)} silent no-ops); "
+                    f"{rep['mapped_items']} mapped to "
+                    f"{rep['semantic_capabilities']} capabilities"), rep
 
     def _recipes(self):
         from engine.pantheon import effect_recipes as ER

@@ -162,31 +162,46 @@ WOLFCAM_11_3: dict[str, Capability] = {c.name: c for c in (
         "cl_aviMotionJpeg in this build"),
     Capability(
         "FORCE_SELF_APPEARANCE", Evidence.UNKNOWN,
-        "cg_own* and cg_self* were both probed and returned NOTHING: 11.3 "
-        "registers no self-appearance family",
+        "SETTLED 2026-09-06 as ABSENT: the 2026-09-06 full runtime census (docs/reference/engine_census_11_3.json) contains no cg_own* and no "
+        "cg_self* cvar of any kind",
         (),
-        "the recorder's own body cannot be forced, which is why REVIEW leaves "
-        "self AUTHENTIC -- that is a property of the engine, not a choice",
-        probe="a source audit of cgame's own-player model path"),
+        "The recorder's own appearance cannot be forced in this client. "
+        "REVIEW leaving self AUTHENTIC is an engine property, not a taste.",
+        probe="none: absence from a complete cvarlist is the answer"),
     Capability(
         "BEAUTY_PASS", Evidence.VISUALLY_PROVEN, "every capture to date", ()),
     # ── not established ────────────────────────────────────────────────
     Capability(
         "FORCE_TEAM_MODEL_SWITCH", Evidence.UNKNOWN,
-        "named in the wider Quake Live ecosystem; NOT in the canonical 12.7 "
-        "source; never covered by the 11.3 runtime probe",
+        "SETTLED 2026-09-06 as ABSENT: the 2026-09-06 full runtime census (docs/reference/engine_census_11_3.json) lists every registered cvar "
+        "in the 11.3 client and cg_forceTeamModel is not among them. It is "
+        "also absent from the 12.7 source scan and from the binary strings. "
+        "The name exists in the wider Quake ecosystem and nowhere in this "
+        "engine.",
         ("cg_forceTeamModel",),
-        "do not use until proven: an unregistered cvar is accepted silently "
-        "and does nothing",
-        probe="cvarlist cg_force* against the running 11.3 client"),
+        "UNSUPPORTED_TARGET, not merely unproven. Forcing teammates is done "
+        "with the cg_team* family, which IS registered; there is no separate "
+        "switch, and nothing above the backend should ask for one.",
+        probe="none: absence from a complete cvarlist is the answer"),
     Capability(
-        "DEPTH_CAPTURE", Evidence.UNKNOWN, "no route identified in 11.3", (),
-        "a depth pass needs a renderer change or a different backend",
-        probe="source audit of the capture path, or a Blender backend"),
+        "DEPTH_CAPTURE", Evidence.SOURCE_REGISTERED,
+        f"PARTIAL 2026-09-06: the 2026-09-06 full runtime census (docs/reference/engine_census_11_3.json) registers mme_saveDepth, mme_depthFocus "
+        "and mme_depthRange -- so the switches are real in 11.3",
+        ("mme_saveDepth", "mme_depthFocus", "mme_depthRange"),
+        "Registered is not produced. Nothing here has yet checked that a "
+        "depth file is written and collected alongside the beauty AVI, so "
+        "this stays below the usable bar.",
+        probe="run one capture with mme_saveDepth 1 and look for a second "
+              "file in the videos directory"),
     Capability(
-        "ACTOR_ID_PASS", Evidence.UNKNOWN, "no route identified in 11.3", (),
-        "object ids / Cryptomatte are why the Blender backend is planned",
-        probe="Blender backend"),
+        "ACTOR_ID_PASS", Evidence.UNKNOWN,
+        f"SETTLED 2026-09-06 as UNSUPPORTED: the 2026-09-06 full runtime census (docs/reference/engine_census_11_3.json) holds mme_saveStencil "
+        "but marks it USER_CREATED -- the engine accepted the name and never "
+        "registered it, so setting it does nothing at all",
+        ("mme_saveStencil",),
+        "A per-actor id pass has no route in this client. It is a reason to "
+        "build the Blender backend, not a cvar to try again.",
+        probe="none: a USER_CREATED cvar is a silent no-op by definition"),
     Capability(
         "PLAYER_MASK", Evidence.UNKNOWN, "no route identified in 11.3", (),
         probe="Blender backend, or an ACTOR_ID pass"),
@@ -211,50 +226,52 @@ WOLFCAM_11_3: dict[str, Capability] = {c.name: c for c in (
     # canonical tree and nothing has run it here yet; that is below the bar
     # for `usable`, and deliberately so.
     Capability(
-        "FREEZE_ENTITY", Evidence.SOURCE_REGISTERED,
-        "entityfreeze handler in the canonical wolfcam tree (W:7055-7095)",
+        "FREEZE_ENTITY", Evidence.EXECUTION_PROVEN,
+        "the 2026-09-06 full runtime census: `cmdlist` and `cvarlist` with no filter, asked of the running 11.3 client in one session (docs/reference/engine_census_11_3.json) lists the entityfreeze command",
         (), "Holds ONE selected entity while the rest of the scene runs. "
             "Repeating the command unfreezes it. This is not a scene freeze "
             "and not a particle freeze.",
-        probe="run entityfreeze on a known entity in a capture and look"),
+        probe="registered; what remains is a VISUAL question about how a "
+              "held body reads on screen"),
     Capability(
-        "TIME_SCALE", Evidence.SOURCE_REGISTERED,
-        "timescale is registered CHEAT/SYSTEMINFO in common.c:3089",
+        "TIME_SCALE", Evidence.EXECUTION_PROVEN,
+        "the 2026-09-06 full runtime census: `cmdlist` and `cvarlist` with no filter, asked of the running 11.3 client in one session (docs/reference/engine_census_11_3.json) lists the timescale CVAR (there is no timescale command)",
         (), "Changes engine time, so it changes the simulation, not a "
             "finished video's rate. Demo-playback permission and what happens "
             "to audio both need proof.",
         probe="capture the same window at 1.0 and 0.5 and compare frame count"),
     Capability(
-        "SHADER_REMAP", Evidence.SOURCE_REGISTERED,
-        "remapshader / clearremappedshader handlers (W:7437-7476)",
+        "SHADER_REMAP", Evidence.EXECUTION_PROVEN,
+        "the 2026-09-06 full runtime census: `cmdlist` and `cvarlist` with no filter, asked of the running 11.3 client in one session (docs/reference/engine_census_11_3.json) lists remapshader and clearremappedshader",
         (), "Substitutes one existing shader for another; it cannot invent a "
             "material. Whether a usable wireframe or hidden-world shader "
             "exists in the QL asset set is a separate question.",
         probe="remap a known world shader and grab a frame"),
     Capability(
-        "CHASE_ENTITY", Evidence.SOURCE_REGISTERED,
-        "chase / view handlers (W:1024-1125)",
+        "CHASE_ENTITY", Evidence.EXECUTION_PROVEN,
+        "the 2026-09-06 full runtime census: `cmdlist` and `cvarlist` with no filter, asked of the running 11.3 client in one session (docs/reference/engine_census_11_3.json) lists the chase and view commands",
         (), "Follows or aims at an entity number. Entity numbers are reused, "
             "so the projectile's lifetime has to come from the trace, not "
             "from the slot.",
-        probe="chase a rocket entity resolved from a real trace"),
+        probe="registered; chasing a PROJECTILE specifically still needs "
+              "an entity number resolved from a trace and filmed once"),
     Capability(
-        "CVAR_RAMP", Evidence.SOURCE_REGISTERED,
-        "cvarinterp / clearcvarinterp handlers (W:7244-7298)",
+        "CVAR_RAMP", Evidence.EXECUTION_PROVEN,
+        "the 2026-09-06 full runtime census: `cmdlist` and `cvarlist` with no filter, asked of the running 11.3 client in one session (docs/reference/engine_census_11_3.json) lists cvarinterp and clearcvarinterp",
         (), "Continuous ramp of any cvar. The default clock is game time; the "
             "`real` clock is wall time and is not deterministic for a capture.",
         probe="ramp cg_fov over a captured window and measure the frames"),
     Capability(
-        "SCENE_FX", Evidence.SOURCE_REGISTERED,
-        "fxload / runfx / runfxat handlers (W:6136, W:7661-7845)",
+        "SCENE_FX", Evidence.EXECUTION_PROVEN,
+        "the 2026-09-06 full runtime census: `cmdlist` and `cvarlist` with no filter, asked of the running 11.3 client in one session (docs/reference/engine_census_11_3.json) lists fxload, runfx and runfxat",
         (), "Invokes an authored FX definition. runfxat captures omitted "
             "coordinates when the command is PROCESSED, so pre-seek setup can "
             "bind the wrong origin; prefer explicit coordinates.",
         probe="load an fx library and run one at a known position"),
     Capability(
-        "DEPTH_OF_FIELD", Evidence.DOCUMENTED,
-        "native q3mme dof keypoints (cg_demos_dof.c:581-590); wolfcam has a "
-        "similarly named imported handler that is a separate proof",
+        "DEPTH_OF_FIELD", Evidence.UNKNOWN,
+        "q3mme registers a dof command; the 2026-09-06 full runtime census: `cmdlist` and `cvarlist` with no filter, asked of the running 11.3 client in one session (docs/reference/engine_census_11_3.json) shows the 11.3 client does "
+        "NOT, so this is another engine's feature",
         (), "q3mme grammar, not Wolfcam's. Registering it does not mean the "
             "binary we film with can do it.",
         probe="run the q3mme build, or prove wolfcam's imported handler"),
@@ -271,6 +288,59 @@ WOLFCAM_11_3: dict[str, Capability] = {c.name: c for c in (
         measured="a compiled scenario round-trips: 9,969 bytes of .dm_73, 92 "
                  "transform samples read back, PASS on 11 tracks, and the "
                  "event chain matches the source"),
+    Capability(
+        "DEMO_FREEZE", Evidence.EXECUTION_PROVEN,
+        "the 2026-09-06 full runtime census (docs/reference/engine_census_11_3.json) registers cl_freezeDemo and cl_freezeDemoPauseVideoRecording",
+        ("cl_freezeDemo", "cl_freezeDemoPauseVideoRecording"),
+        "Holds the WHOLE demo, which entityfreeze does not -- that holds one "
+        "body while the rest runs. The companion switch decides whether the "
+        "video recorder keeps writing frames while time is stopped, which is "
+        "the difference between a held shot and a shot that simply ends.",
+        probe="registered; whether a held shot records frames, and how the "
+              "audio behaves, is unfilmed"),
+    Capability(
+        "MOTION_BLUR", Evidence.EXECUTION_PROVEN,
+        "the 2026-09-06 full runtime census (docs/reference/engine_census_11_3.json) registers mme_blurFrames, mme_blurOverlap and mme_blurType",
+        ("mme_blurFrames", "mme_blurOverlap", "mme_blurType"),
+        "Temporal blur across accumulated frames -- NOT a motion-vector pass. "
+        "Registered; how it looks and what it costs per frame is unfilmed.",
+        probe="registered; the look is a visual question"),
+    Capability(
+        "FFMPEG_PIPE_CAPTURE", Evidence.UNKNOWN,
+        f"SETTLED as UNSUPPORTED: the 2026-09-06 full runtime census (docs/reference/engine_census_11_3.json) holds cl_aviPipeCommand and "
+        "cl_aviPipeExtension as USER_CREATED, so the engine never registered "
+        "them and piping to an encoder does nothing",
+        ("cl_aviPipeCommand", "cl_aviPipeExtension"),
+        "Capture in 11.3 is the built-in AVI writer. cl_aviCodec is mjpeg and "
+        "the transcode happens afterwards, in ffmpeg, where it already does.",
+        probe="none: a USER_CREATED cvar is a silent no-op"),
+    Capability(
+        "DEMO_SEEK", Evidence.EXECUTION_PROVEN,
+        f"the 2026-09-06 full runtime census (docs/reference/engine_census_11_3.json) lists seek, seekservertime, seekclock, seekend, seeknext, "
+        "seekprev, seeknextround, seekprevround and servertime",
+        (),
+        "Round-aware seeking exists in the client, which is why a capture can "
+        "be placed on a serverTime instead of a wall clock.",
+        probe="registered and used by every capture this project makes"),
+    Capability(
+        "TIMED_CONSOLE", Evidence.EXECUTION_PROVEN,
+        f"the 2026-09-06 full runtime census (docs/reference/engine_census_11_3.json) lists at, clearat, listat, exec_at_time and listtimeditems",
+        (),
+        "The scheduler that lets one capture change its own presentation "
+        "part-way through, which is how a reveal turns on and off inside a "
+        "single shot.",
+        probe="registered; used by the first end-to-end recipe"),
+    Capability(
+        "XRAY_ENEMY_ONLY", Evidence.EXECUTION_PROVEN,
+        "cg_players.c returns early for non-enemies when the overlay mode is "
+        "2, and for enemies when it is 3, so the population is selectable",
+        ("cg_wh",),
+        "Mode 1 draws everyone the client has, 2 only enemies, 3 only "
+        "non-enemies. The colour follows the same split: enemies take the "
+        "enemy colour, EVERYONE else takes the other one.",
+        probe="registered; which mode reads best is a visual question",
+        measured="the full runtime census lists cg_wh; the mode semantics come "
+                 "from the drawing code in cg_players.c around line 4324"),
     Capability(
         "POINTER_NOT_GRABBED", Evidence.EXECUTION_PROVEN,
         "measured on a real capture 2026-09-06: as shipped GetClipCursor "
@@ -406,7 +476,20 @@ def report(backend: str = "WOLFCAM_REFERENCE") -> dict:
 # ── keeping the registry tied to the runtime capture ───────────────────────
 
 def runtime_registered_cvars(path: Path | None = None) -> set[str]:
-    """Every cvar the running 11.3 client listed, from the probe capture."""
+    """Every cvar the running 11.3 client registered.
+
+    Prefers the FULL census -- `cvarlist` with no filter, so the whole set --
+    over the older family probe, which asked about fifty wildcards and could
+    only ever answer for those. An audit against a partial capture reports a
+    capability as an overclaim merely because nobody asked about its family,
+    which is what happened to the mme_blur* names.
+    """
+    if path is None:
+        from engine.pantheon import engine_census as EC
+        census = EC.load()
+        if census and census.get("cvars"):
+            return {name for name, e in census["cvars"].items()
+                    if e.get("registered")}
     p = path or RUNTIME_CVARLIST
     data = json.loads(p.read_text(encoding="utf-8"))
     out: set[str] = set()

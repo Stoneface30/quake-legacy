@@ -289,7 +289,8 @@ def test_the_overlay_colour_uses_its_own_familys_syntax():
     from engine.pantheon import visual_profile as VP
     c = VP.profile("REVIEW_XRAY").resolve()
     assert c["cg_whColor"] == CF.format_for("cg_whColor", VP.PANTHEON_GREEN)
-    assert "0x" not in str(c["cg_whColor"])
+    assert c["cg_whColor"] == '"0x3ceb5a"'
+    assert " " not in str(c["cg_whColor"]).strip('"'),         "a triple here is read as its first number"
 
 
 def test_a_plan_carries_the_beat_it_cannot_film():

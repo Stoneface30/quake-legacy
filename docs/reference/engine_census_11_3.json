@@ -1,0 +1,10414 @@
+{
+ "captured_at": "2026-09-06 18:35",
+ "command_count": 307,
+ "commands": [
+  "addbot",
+  "addcamerapoint",
+  "addchatline",
+  "adddecal",
+  "addmirrorsurface",
+  "alias",
+  "at",
+  "backtrace",
+  "banClient",
+  "banUser",
+  "banaddr",
+  "bandel",
+  "bind",
+  "bindlist",
+  "cadd",
+  "callteamvote",
+  "callvote",
+  "camtracesave",
+  "cconfigstrings",
+  "ccopy",
+  "cdiv",
+  "centerroll",
+  "centerview",
+  "changeVectors",
+  "changeconfigstring",
+  "changefield",
+  "chase",
+  "cinematic",
+  "clear",
+  "clearallremappedshaders",
+  "clearat",
+  "clearcamerapoints",
+  "clearcvarinterp",
+  "clearfragmessage",
+  "clearfx",
+  "clearjumps",
+  "clearremappedshader",
+  "clearscene",
+  "clientinfo",
+  "clientkick",
+  "clientoverride",
+  "cmd",
+  "cmdlist",
+  "cmul",
+  "commands",
+  "condump",
+  "configstrings",
+  "connect",
+  "createcolorskins",
+  "csub",
+  "cvar_restart",
+  "cvarinterp",
+  "cvarlist",
+  "cvarsearch",
+  "deletecamerapoint",
+  "demo",
+  "demo_scale",
+  "devmap",
+  "devmapnext",
+  "devmapprev",
+  "dir",
+  "disconnect",
+  "drawrawpath",
+  "dumpents",
+  "dumpstats",
+  "dumpuser",
+  "ecam",
+  "echo",
+  "echopopup",
+  "echopopupclear",
+  "echopopupcvar",
+  "editcamerapoint",
+  "entityfilter",
+  "entityfreeze",
+  "eventfilter",
+  "exceptaddr",
+  "exceptdel",
+  "exec",
+  "exec_at_time",
+  "execq",
+  "fastforward",
+  "fdir",
+  "flushbans",
+  "follow",
+  "follownext",
+  "followprev",
+  "fontlist",
+  "fragforward",
+  "freecam",
+  "freecamlookatplayer",
+  "freecamsetpos",
+  "fs_openedList",
+  "fs_referencedList",
+  "fxload",
+  "fxmath",
+  "g_fov",
+  "game_restart",
+  "gfxinfo",
+  "give",
+  "globalservers",
+  "god",
+  "gotoad",
+  "gotoview",
+  "gotoviewpointmark",
+  "heartbeat",
+  "idcamera",
+  "ifeq",
+  "ifeqf",
+  "ifgt",
+  "ifgte",
+  "ifgtef",
+  "ifgtf",
+  "iflt",
+  "iflte",
+  "ifltef",
+  "ifltf",
+  "ifneq",
+  "ifneqf",
+  "imagelist",
+  "in_restart",
+  "kick",
+  "kickall",
+  "kickbots",
+  "kicknum",
+  "kill",
+  "killcountreset",
+  "killserver",
+  "levelshot",
+  "listat",
+  "listbans",
+  "listcvarchanges",
+  "listentities",
+  "listentityfilter",
+  "listentityfreeze",
+  "listeventfilter",
+  "listfxscripts",
+  "listplayermodels",
+  "listremappedshaders",
+  "listtimeditems",
+  "loadcamera",
+  "loaddefered",
+  "loaddeferred",
+  "loadhud",
+  "loadmenu",
+  "loadq3mmecamera",
+  "localents",
+  "localservers",
+  "loop",
+  "map",
+  "map_restart",
+  "meminfo",
+  "memoryremaining",
+  "messagemode",
+  "messagemode2",
+  "messagemode3",
+  "messagemode4",
+  "minimize",
+  "modelist",
+  "modellist",
+  "move",
+  "moveoffset",
+  "music",
+  "net_restart",
+  "nextfield",
+  "nextframe",
+  "nextskin",
+  "noclip",
+  "notarget",
+  "path",
+  "pause",
+  "ping",
+  "play",
+  "playcamera",
+  "players",
+  "playersw",
+  "playpath",
+  "playq3mmecamera",
+  "pov",
+  "prevfield",
+  "prevframe",
+  "prevskin",
+  "print",
+  "printdatadir",
+  "printdirvector",
+  "printentitydistance",
+  "printentitystate",
+  "printjumps",
+  "printlegsinfo",
+  "printnextentitystate",
+  "printplayerstate",
+  "printtime",
+  "printviewparms",
+  "q3mmecamera",
+  "quit",
+  "rcon",
+  "reconnect",
+  "record",
+  "recordpath",
+  "rehashbans",
+  "remaplasttwoshaders",
+  "remapshader",
+  "removeat",
+  "reset",
+  "reseta",
+  "rewind",
+  "runfx",
+  "runfxall",
+  "runfxat",
+  "s_info",
+  "s_list",
+  "s_stop",
+  "saveat",
+  "savecamera",
+  "saveq3mmecamera",
+  "say",
+  "say_team",
+  "scoresDown",
+  "scoresUp",
+  "screenshot",
+  "screenshotJPEG",
+  "screenshotPNG",
+  "sectorlist",
+  "seek",
+  "seekclock",
+  "seekend",
+  "seeknext",
+  "seeknextround",
+  "seekprev",
+  "seekprevround",
+  "seekservertime",
+  "selectcamerapoint",
+  "serverinfo",
+  "serverstatus",
+  "servertime",
+  "set",
+  "seta",
+  "setcolortable",
+  "setenv",
+  "setloopend",
+  "setloopstart",
+  "sets",
+  "setu",
+  "setviewangles",
+  "setviewpointmark",
+  "setviewpos",
+  "shaderlist",
+  "showip",
+  "sizedown",
+  "sizeup",
+  "skinlist",
+  "snd_restart",
+  "spdevmap",
+  "spmap",
+  "stall",
+  "startOrbit",
+  "stats",
+  "status",
+  "stopcamera",
+  "stopdumpents",
+  "stopidcamera",
+  "stopmovement",
+  "stopmusic",
+  "stopplaypath",
+  "stopq3mmecamera",
+  "stoprecord",
+  "stopvideo",
+  "systeminfo",
+  "tcmd",
+  "team",
+  "teamtask",
+  "teamvote",
+  "tell",
+  "tell_attacker",
+  "tell_target",
+  "testgun",
+  "testmenu",
+  "testmodel",
+  "testreplace",
+  "toggle",
+  "toggleconsole",
+  "touchFile",
+  "unalias",
+  "unaliasall",
+  "unbind",
+  "unbindall",
+  "unset",
+  "vibrate",
+  "vid_restart",
+  "video",
+  "view",
+  "viewpos",
+  "viewunlockpitch",
+  "viewunlockyaw",
+  "vminfo",
+  "vmprofile",
+  "voip",
+  "vote",
+  "vstr",
+  "wait",
+  "wcstats",
+  "wcstatsall",
+  "wcstatsresetall",
+  "weapnext",
+  "weapon",
+  "weapprev",
+  "where",
+  "writeconfig"
+ ],
+ "confined_cursor": false,
+ "console_bytes": 96217,
+ "cvar_count": 1444,
+ "cvars": {
+  "activeAction": {
+   "flags": [],
+   "registered": true,
+   "value": "^7"
+  },
+  "arch": {
+   "flags": [],
+   "registered": true,
+   "value": "win_mingw x86^7"
+  },
+  "bot_aasoptimize": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "bot_challenge": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "bot_debug": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "bot_developer": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "bot_enable": {
+   "flags": [],
+   "registered": true,
+   "value": "1^7"
+  },
+  "bot_fastchat": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "bot_forceclustering": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "bot_forcereachability": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "bot_forcewrite": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "bot_grapple": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "bot_groundonly": {
+   "flags": [],
+   "registered": true,
+   "value": "1^7"
+  },
+  "bot_interbreedbots": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "10^7"
+  },
+  "bot_interbreedchar": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "bot_interbreedcycle": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "20^7"
+  },
+  "bot_interbreedwrite": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "bot_maxdebugpolys": {
+   "flags": [],
+   "registered": true,
+   "value": "2^7"
+  },
+  "bot_minplayers": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "bot_nochat": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "bot_pause": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "bot_reachability": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "bot_reloadcharacters": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "bot_report": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "bot_rocketjump": {
+   "flags": [],
+   "registered": true,
+   "value": "1^7"
+  },
+  "bot_saveroutingcache": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "bot_testclusters": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "bot_testichat": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "bot_testrchat": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "bot_testsolid": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "bot_thinktime": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "100^7"
+  },
+  "bot_visualizejumppads": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "capturelimit": {
+   "flags": [],
+   "registered": true,
+   "value": "8^7"
+  },
+  "cg_accWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_accX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "450^7"
+  },
+  "cg_accY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "100^7"
+  },
+  "cg_adShaderOverride": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_allowLargeSprites": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_allowServerOverride": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_allowSpritePassThrough": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_ambientSounds": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_animationsIgnoreTimescale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_animationsRate": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_animspeed": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_armorTiered": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_attackDefendVoiceStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_audioAnnouncer": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_audioAnnouncerDominationPoint": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_audioAnnouncerFlagStatus": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_audioAnnouncerFragLimit": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_audioAnnouncerLastStanding": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_audioAnnouncerLead": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_audioAnnouncerPowerup": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_audioAnnouncerRewards": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_audioAnnouncerRewardsFirst": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_audioAnnouncerRound": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_audioAnnouncerRoundReward": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_audioAnnouncerScore": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_audioAnnouncerTeamVote": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_audioAnnouncerTimeLimit": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_audioAnnouncerVote": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_audioAnnouncerWarmup": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_audioAnnouncerWin": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_autoFontScaling": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_autoFontScalingThreshold": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "9^7"
+  },
+  "cg_autoSwitch": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_battleSuitKillCounter": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_bleedTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "500^7"
+  },
+  "cg_bobpitch": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.002^7"
+  },
+  "cg_bobroll": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.002^7"
+  },
+  "cg_bobup": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.005^7"
+  },
+  "cg_brassTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2500^7"
+  },
+  "cg_buzzerSound": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_cameraAddUsePreviousValues": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_cameraDebugPath": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_cameraDefaultOriginType": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "splineBezier^7"
+  },
+  "cg_cameraOrbit": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_cameraOrbitDelay": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "50^7"
+  },
+  "cg_cameraQue": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_cameraRewindTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_cameraSmoothFactor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.5^7"
+  },
+  "cg_cameraUpdateFreeCam": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_chaseThirdPerson": {
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "0^7"
+  },
+  "cg_chaseUpdateFreeCam": {
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "0^7"
+  },
+  "cg_chatBeep": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_chatBeepMaxTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_chatHistoryLength": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "15^7"
+  },
+  "cg_chatLines": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_chatTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_checkForOfflineDemo": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_clientOverrideIgnoreTeamSettings": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_compMode": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_cpmaSound": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_crosshairAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_crosshairAlphaAdjust": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_crosshairBrightness": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "cg_crosshairColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_crosshairHealth": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_crosshairHitColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xff0000^7"
+  },
+  "cg_crosshairHitStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_crosshairHitTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "200^7"
+  },
+  "cg_crosshairPulse": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_crosshairSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_crosshairX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_crosshairY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_currentSelectedPlayer": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_currentSelectedPlayerName": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_customMirrorSurfaces": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_damagePlum": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "none g mg sg gl rl lg rg pg bfg gh cg ng pl hmg^7"
+  },
+  "cg_damagePlumAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_damagePlumBounce": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "120^7"
+  },
+  "cg_damagePlumColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_damagePlumColorStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_damagePlumFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_damagePlumFontStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_damagePlumGravity": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "250^7"
+  },
+  "cg_damagePlumPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_damagePlumRandomVelocity": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "70^7"
+  },
+  "cg_damagePlumScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "cg_damagePlumTarget": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_damagePlumTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1000^7"
+  },
+  "cg_deadBodyColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0x101010^7"
+  },
+  "cg_deathShowOwnCorpse": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_deathStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_debugAds": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_debugImpactOrigin": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_debugLightningImpactDistance": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_debugServerCommands": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_debuganim": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_debugevents": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_debugposition": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_deferPlayers": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_demoSmoothing": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_demoSmoothingAngles": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_demoSmoothingTeleportCheck": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_demoStepSmoothing": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_disallowEnemyModelForTeammates": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_dominationPointEnemyAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_dominationPointEnemyColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_dominationPointNeutralAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_dominationPointNeutralColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_dominationPointTeamAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_dominationPointTeamColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_donka_rtcw_good_spellers": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_draw2D": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_draw3dIcons": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawAmmoWarning": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawAmmoWarningAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawAmmoWarningAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawAmmoWarningColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_drawAmmoWarningFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "qlfont^7"
+  },
+  "cg_drawAmmoWarningPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawAmmoWarningScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.25^7"
+  },
+  "cg_drawAmmoWarningStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "6^7"
+  },
+  "cg_drawAmmoWarningWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_drawAmmoWarningX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "320^7"
+  },
+  "cg_drawAmmoWarningY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "64^7"
+  },
+  "cg_drawAttacker": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawAttackerAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_drawAttackerAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawAttackerColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_drawAttackerFade": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawAttackerFadeTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "10000^7"
+  },
+  "cg_drawAttackerFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawAttackerImageScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_drawAttackerPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawAttackerScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.25^7"
+  },
+  "cg_drawAttackerStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_drawAttackerTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "10000^7"
+  },
+  "cg_drawAttackerWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_drawAttackerX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "640^7"
+  },
+  "cg_drawAttackerY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawBBox": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawCameraPath": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawCameraPathAngles": {
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "0^7"
+  },
+  "cg_drawCameraPointInfo": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawCameraPointInfoAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawCameraPointInfoAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawCameraPointInfoBackgroundAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawCameraPointInfoBackgroundColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0x000000^7"
+  },
+  "cg_drawCameraPointInfoColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_drawCameraPointInfoFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawCameraPointInfoPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawCameraPointInfoScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.25^7"
+  },
+  "cg_drawCameraPointInfoSelectedColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xff5a5a^7"
+  },
+  "cg_drawCameraPointInfoStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawCameraPointInfoWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawCameraPointInfoX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "60^7"
+  },
+  "cg_drawCameraPointInfoY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "60^7"
+  },
+  "cg_drawCenterPrint": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawCenterPrintAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawCenterPrintAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawCenterPrintColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_drawCenterPrintFade": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawCenterPrintFadeTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "200^7"
+  },
+  "cg_drawCenterPrintFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawCenterPrintPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawCenterPrintScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.35^7"
+  },
+  "cg_drawCenterPrintStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "6^7"
+  },
+  "cg_drawCenterPrintTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3000^7"
+  },
+  "cg_drawCenterPrintWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_drawCenterPrintX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "320^7"
+  },
+  "cg_drawCenterPrintY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawClientItemTimer": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawClientItemTimerAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_drawClientItemTimerAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawClientItemTimerFilter": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "rmygqb^7"
+  },
+  "cg_drawClientItemTimerFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "q3small^7"
+  },
+  "cg_drawClientItemTimerIcon": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawClientItemTimerIconSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "20^7"
+  },
+  "cg_drawClientItemTimerIconXoffset": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "-55^7"
+  },
+  "cg_drawClientItemTimerIconYoffset": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawClientItemTimerPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawClientItemTimerScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.4^7"
+  },
+  "cg_drawClientItemTimerSpacing": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawClientItemTimerStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "6^7"
+  },
+  "cg_drawClientItemTimerTextColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawClientItemTimerWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_drawClientItemTimerX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "635^7"
+  },
+  "cg_drawClientItemTimerY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "150^7"
+  },
+  "cg_drawCrosshair": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "25^7"
+  },
+  "cg_drawCrosshairNames": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawCrosshairNamesAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawCrosshairNamesAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "77^7"
+  },
+  "cg_drawCrosshairNamesColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_drawCrosshairNamesFade": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawCrosshairNamesFadeTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1000^7"
+  },
+  "cg_drawCrosshairNamesFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawCrosshairNamesPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawCrosshairNamesScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.4^7"
+  },
+  "cg_drawCrosshairNamesStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_drawCrosshairNamesTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1000^7"
+  },
+  "cg_drawCrosshairNamesWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_drawCrosshairNamesX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "320^7"
+  },
+  "cg_drawCrosshairNamesY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "190^7"
+  },
+  "cg_drawCrosshairTeammateHealth": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawCrosshairTeammateHealthAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawCrosshairTeammateHealthAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "77^7"
+  },
+  "cg_drawCrosshairTeammateHealthColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawCrosshairTeammateHealthFade": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawCrosshairTeammateHealthFadeTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1000^7"
+  },
+  "cg_drawCrosshairTeammateHealthFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawCrosshairTeammateHealthPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawCrosshairTeammateHealthScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.125^7"
+  },
+  "cg_drawCrosshairTeammateHealthStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_drawCrosshairTeammateHealthTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1000^7"
+  },
+  "cg_drawCrosshairTeammateHealthWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_drawCrosshairTeammateHealthX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "320^7"
+  },
+  "cg_drawCrosshairTeammateHealthY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "200^7"
+  },
+  "cg_drawDeadFriendTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3000^7"
+  },
+  "cg_drawDominationPointStatus": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawDominationPointStatusAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawDominationPointStatusBackgroundColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0x000000^7"
+  },
+  "cg_drawDominationPointStatusEnemyColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawDominationPointStatusFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawDominationPointStatusPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawDominationPointStatusScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "cg_drawDominationPointStatusTeamColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawDominationPointStatusTextAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawDominationPointStatusTextColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_drawDominationPointStatusTextStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_drawDominationPointStatusWideScreen": {
+   "flags": [],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_drawDominationPointStatusX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "258^7"
+  },
+  "cg_drawDominationPointStatusY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "365^7"
+  },
+  "cg_drawEntNumbers": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawEventNumbers": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawFPS": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawFPSAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_drawFPSAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawFPSColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_drawFPSFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "fonts/notosans-regular.ttf^7"
+  },
+  "cg_drawFPSNoText": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawFPSPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawFPSScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.25^7"
+  },
+  "cg_drawFPSStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_drawFPSWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_drawFPSX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "635^7"
+  },
+  "cg_drawFPSY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawFightMessage": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawFlagCarrier": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawFlagCarrierSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "10^7"
+  },
+  "cg_drawFoe": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawFoeMaxWidth": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24.0^7"
+  },
+  "cg_drawFoeMinWidth": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "4.0^7"
+  },
+  "cg_drawFollowing": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawFollowingAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawFollowingAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawFollowingColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_drawFollowingFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "fonts/notosans-regular.ttf^7"
+  },
+  "cg_drawFollowingPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawFollowingScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.4^7"
+  },
+  "cg_drawFollowingStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "6^7"
+  },
+  "cg_drawFollowingWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_drawFollowingX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "320^7"
+  },
+  "cg_drawFollowingY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "50^7"
+  },
+  "cg_drawFragMessageAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawFragMessageAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawFragMessageColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_drawFragMessageFade": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawFragMessageFadeTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "250^7"
+  },
+  "cg_drawFragMessageFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawFragMessageFreezeTeamTokens": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "You froze %v, your teammate^7"
+  },
+  "cg_drawFragMessageFreezeTokens": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "You froze %v^7"
+  },
+  "cg_drawFragMessageIconScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.5^7"
+  },
+  "cg_drawFragMessagePointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawFragMessageScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.22^7"
+  },
+  "cg_drawFragMessageSeparate": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawFragMessageStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "6^7"
+  },
+  "cg_drawFragMessageTeamTokens": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "You fragged %v, your teammate^7"
+  },
+  "cg_drawFragMessageThawTokens": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "You thawed %v^7"
+  },
+  "cg_drawFragMessageTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2000^7"
+  },
+  "cg_drawFragMessageTokens": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "You fragged %v^7"
+  },
+  "cg_drawFragMessageWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_drawFragMessageX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "320^7"
+  },
+  "cg_drawFragMessageY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "110^7"
+  },
+  "cg_drawFriend": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawFriendMaxWidth": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24.0^7"
+  },
+  "cg_drawFriendMinWidth": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "4.0^7"
+  },
+  "cg_drawFriendStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawFullWeaponBar": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawGun": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawHitFlagCarrierTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1500^7"
+  },
+  "cg_drawHitFriendTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1500^7"
+  },
+  "cg_drawIcons": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawInfected": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawItemPickups": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawItemPickupsAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawItemPickupsAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawItemPickupsColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_drawItemPickupsCount": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawItemPickupsFade": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawItemPickupsFadeTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3000^7"
+  },
+  "cg_drawItemPickupsFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "fonts/notosans-regular.ttf^7"
+  },
+  "cg_drawItemPickupsImageScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.5^7"
+  },
+  "cg_drawItemPickupsPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawItemPickupsScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.25^7"
+  },
+  "cg_drawItemPickupsStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawItemPickupsTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3000^7"
+  },
+  "cg_drawItemPickupsWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawItemPickupsX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "8^7"
+  },
+  "cg_drawItemPickupsY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "360^7"
+  },
+  "cg_drawJumpSpeeds": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawJumpSpeedsAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawJumpSpeedsAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawJumpSpeedsColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffff00^7"
+  },
+  "cg_drawJumpSpeedsFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "q3big^7"
+  },
+  "cg_drawJumpSpeedsMax": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "12^7"
+  },
+  "cg_drawJumpSpeedsNoText": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawJumpSpeedsPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawJumpSpeedsScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.25^7"
+  },
+  "cg_drawJumpSpeedsStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawJumpSpeedsTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawJumpSpeedsTimeAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawJumpSpeedsTimeAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawJumpSpeedsTimeColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_drawJumpSpeedsTimeFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "q3big^7"
+  },
+  "cg_drawJumpSpeedsTimeNoText": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawJumpSpeedsTimePointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawJumpSpeedsTimeScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.25^7"
+  },
+  "cg_drawJumpSpeedsTimeStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawJumpSpeedsTimeWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawJumpSpeedsTimeX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "5^7"
+  },
+  "cg_drawJumpSpeedsTimeY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "320^7"
+  },
+  "cg_drawJumpSpeedsWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawJumpSpeedsX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "5^7"
+  },
+  "cg_drawJumpSpeedsY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "300^7"
+  },
+  "cg_drawKeys": {
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "0^7"
+  },
+  "cg_drawOrigin": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawOriginAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawOriginAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawOriginColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_drawOriginFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "q3big^7"
+  },
+  "cg_drawOriginPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawOriginScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.25^7"
+  },
+  "cg_drawOriginStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawOriginWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawOriginX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "5^7"
+  },
+  "cg_drawOriginY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "420^7"
+  },
+  "cg_drawPickupItem": {
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "0^7"
+  },
+  "cg_drawPickupItems": {
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "0^7"
+  },
+  "cg_drawPlayerNames": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawPlayerNamesAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawPlayerNamesColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawPlayerNamesFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawPlayerNamesPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "16^7"
+  },
+  "cg_drawPlayerNamesScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.25^7"
+  },
+  "cg_drawPlayerNamesStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_drawPlayerNamesY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "64^7"
+  },
+  "cg_drawPlayersLeft": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawPowerupAvailable": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawPowerupAvailableAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawPowerupAvailableFadeEnd": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "520.0^7"
+  },
+  "cg_drawPowerupAvailableFadeStart": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "705.0^7"
+  },
+  "cg_drawPowerupAvailableOffset": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "90.0^7"
+  },
+  "cg_drawPowerupAvailableScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "cg_drawPowerupRespawn": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawPowerupRespawnAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawPowerupRespawnOffset": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "90.0^7"
+  },
+  "cg_drawPowerupRespawnScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "cg_drawPowerups": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawProxWarning": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawProxWarningAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawProxWarningAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawProxWarningColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xfe0000^7"
+  },
+  "cg_drawProxWarningFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "fonts/notosans-regular.ttf^7"
+  },
+  "cg_drawProxWarningPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawProxWarningScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.4^7"
+  },
+  "cg_drawProxWarningStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "6^7"
+  },
+  "cg_drawProxWarningWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_drawProxWarningX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "320^7"
+  },
+  "cg_drawProxWarningY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "80^7"
+  },
+  "cg_drawRewards": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawRewardsAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawRewardsAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawRewardsColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_drawRewardsFade": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawRewardsFadeTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "200^7"
+  },
+  "cg_drawRewardsFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawRewardsImageScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.8^7"
+  },
+  "cg_drawRewardsMax": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_drawRewardsPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawRewardsScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.25^7"
+  },
+  "cg_drawRewardsStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_drawRewardsTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2000^7"
+  },
+  "cg_drawRewardsWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_drawRewardsX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "320^7"
+  },
+  "cg_drawRewardsY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "56^7"
+  },
+  "cg_drawScores": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawSelf": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawSelfIconStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawSelfMaxWidth": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24.0^7"
+  },
+  "cg_drawSelfMinWidth": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "4.0^7"
+  },
+  "cg_drawSnapshot": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawSnapshotAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_drawSnapshotAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawSnapshotColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_drawSnapshotFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "q3big^7"
+  },
+  "cg_drawSnapshotPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawSnapshotScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.25^7"
+  },
+  "cg_drawSnapshotStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_drawSnapshotWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_drawSnapshotX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "635^7"
+  },
+  "cg_drawSnapshotY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawSpawns": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawSpawnsInitalZ": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.0^7"
+  },
+  "cg_drawSpawnsInitial": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawSpawnsRespawns": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawSpawnsRespawnsZ": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.0^7"
+  },
+  "cg_drawSpawnsShared": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawSpawnsSharedZ": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.0^7"
+  },
+  "cg_drawSpecMessages": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawSpeed": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawSpeedAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_drawSpeedAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawSpeedChangeColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawSpeedColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_drawSpeedFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "fonts/notosans-regular.ttf^7"
+  },
+  "cg_drawSpeedNoText": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawSpeedPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawSpeedScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.5^7"
+  },
+  "cg_drawSpeedStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_drawSpeedWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_drawSpeedX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "620^7"
+  },
+  "cg_drawSpeedY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "40^7"
+  },
+  "cg_drawSpeedometer": {
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "0^7"
+  },
+  "cg_drawSpeedometerAlignment": {
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "center^7"
+  },
+  "cg_drawSpeedometerScale": {
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "1.0^7"
+  },
+  "cg_drawSpriteSelf": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawSprites": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawStatus": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawTeamBackground": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawTeamOverlay": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawTeamOverlayAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_drawTeamOverlayFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "fonts/notosans-regular.ttf^7"
+  },
+  "cg_drawTeamOverlayLineOffset": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.4^7"
+  },
+  "cg_drawTeamOverlayPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawTeamOverlayScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.2^7"
+  },
+  "cg_drawTeamOverlayWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_drawTeamOverlayX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "640^7"
+  },
+  "cg_drawTeamOverlayY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawTeamVote": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawTeamVoteAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawTeamVoteAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawTeamVoteColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0x00ffff^7"
+  },
+  "cg_drawTeamVoteFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawTeamVotePointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawTeamVoteScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.25^7"
+  },
+  "cg_drawTeamVoteStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_drawTeamVoteWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawTeamVoteX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawTeamVoteY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "300^7"
+  },
+  "cg_drawTieredArmorAvailability": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawTimer": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawViewPointMark": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawVote": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawVoteAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawVoteAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawVoteColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffff00^7"
+  },
+  "cg_drawVoteFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawVotePointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawVoteScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.25^7"
+  },
+  "cg_drawVoteStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_drawVoteWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawVoteX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_drawVoteY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "300^7"
+  },
+  "cg_drawWaitingForPlayers": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawWaitingForPlayersAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawWaitingForPlayersAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawWaitingForPlayersColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_drawWaitingForPlayersFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "fonts/notosans-regular.ttf^7"
+  },
+  "cg_drawWaitingForPlayersPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawWaitingForPlayersScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.4^7"
+  },
+  "cg_drawWaitingForPlayersStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "6^7"
+  },
+  "cg_drawWaitingForPlayersWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_drawWaitingForPlayersX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "320^7"
+  },
+  "cg_drawWaitingForPlayersY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "60^7"
+  },
+  "cg_drawWarmupString": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawWarmupStringAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_drawWarmupStringAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_drawWarmupStringColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_drawWarmupStringFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_drawWarmupStringPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_drawWarmupStringScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.6^7"
+  },
+  "cg_drawWarmupStringStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "6^7"
+  },
+  "cg_drawWarmupStringWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_drawWarmupStringX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "320^7"
+  },
+  "cg_drawWarmupStringY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "60^7"
+  },
+  "cg_dumpEntsUseServerTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_echoPopupScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.3^7"
+  },
+  "cg_echoPopupTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1000^7"
+  },
+  "cg_echoPopupWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_echoPopupX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "30^7"
+  },
+  "cg_echoPopupY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "340^7"
+  },
+  "cg_enableAtCommands": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_enableBreath": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_enableDust": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_enemyFlagColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0x00ff00^7"
+  },
+  "cg_enemyHeadColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0x2a8000^7"
+  },
+  "cg_enemyHeadModel": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "keel/bright^7"
+  },
+  "cg_enemyHeadSkin": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "bright^7"
+  },
+  "cg_enemyLegsColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0x2a8000^7"
+  },
+  "cg_enemyLegsSkin": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "bright^7"
+  },
+  "cg_enemyModel": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "keel/bright^7"
+  },
+  "cg_enemyRailColor1": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_enemyRailColor1Team": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_enemyRailColor2": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_enemyRailColor2Team": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_enemyRailItemColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_enemyRailItemColorTeam": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_enemyRailNudge": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_enemyRailRings": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_enemyTorsoColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0x2a8000^7"
+  },
+  "cg_enemyTorsoSkin": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "bright^7"
+  },
+  "cg_errordecay": {
+   "flags": [],
+   "registered": true,
+   "value": "100^7"
+  },
+  "cg_fadeAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_fadeColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0x000000^7"
+  },
+  "cg_fadeStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_fallKick": {
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "1^7"
+  },
+  "cg_fallbackHeadModel": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "crash^7"
+  },
+  "cg_fallbackModel": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "crash^7"
+  },
+  "cg_firstPersonSwitchSound": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "sound/wc/beep05^7"
+  },
+  "cg_flagStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_flagTakenSound": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_flightTrail": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_footsteps": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_forceBModel1": {
+   "flags": [
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "12^7"
+  },
+  "cg_forceBModel2": {
+   "flags": [
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "11^7"
+  },
+  "cg_forceModel": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_forcePovModel": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_forcePovModelIgnoreFreecamTeamSettings": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_fov": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "110^7"
+  },
+  "cg_fovForceAspectHeight": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_fovForceAspectWidth": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_fovIntermission": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "90^7"
+  },
+  "cg_fovStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_fovy": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_fragIconHeightFixed": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_fragMessageStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_fragTokenAccuracyStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_freecam_crosshair": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_freecam_noclip": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_freecam_pitch": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "cg_freecam_rollValue": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.5^7"
+  },
+  "cg_freecam_sensitivity": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.1^7"
+  },
+  "cg_freecam_speed": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "400^7"
+  },
+  "cg_freecam_unlockPitch": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_freecam_useServerView": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_freecam_useTeamSettings": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_freecam_yaw": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "cg_fxCompiled": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_fxDebugEntities": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_fxLightningGunImpactFps": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "125^7"
+  },
+  "cg_fxScriptMinDistance": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.001^7"
+  },
+  "cg_fxScriptMinEmitter": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.0^7"
+  },
+  "cg_fxScriptMinInterval": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.001^7"
+  },
+  "cg_fxfile": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_fxinterval": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "25^7"
+  },
+  "cg_fxratio": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.002^7"
+  },
+  "cg_gameType": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "4^7"
+  },
+  "cg_gibBounceFactor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.6^7"
+  },
+  "cg_gibColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_gibDirScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "cg_gibFloatingOriginOffset": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "30^7"
+  },
+  "cg_gibFloatingOriginOffsetZ": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_gibFloatingRandomness": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "75^7"
+  },
+  "cg_gibFloatingVelocity": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "125^7"
+  },
+  "cg_gibGravity": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "800^7"
+  },
+  "cg_gibJump": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_gibOriginOffset": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_gibOriginOffsetZ": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_gibRandomness": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "250^7"
+  },
+  "cg_gibRandomnessZ": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_gibSparksColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_gibSparksHighlight": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_gibSparksSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3.5^7"
+  },
+  "cg_gibStepTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "50^7"
+  },
+  "cg_gibTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1000^7"
+  },
+  "cg_gibVelocity": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "600^7"
+  },
+  "cg_gibVelocityRandomness": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "250^7"
+  },
+  "cg_gibs": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "15^7"
+  },
+  "cg_grenadeColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_grenadeColorAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_grenadeEnemyColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0x00ff00^7"
+  },
+  "cg_grenadeEnemyColorAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_grenadeTeamColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffff00^7"
+  },
+  "cg_grenadeTeamColorAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_gunSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "cg_gunSizeThirdPerson": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "cg_gunX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_gunY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_gunZ": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_hasteTrail": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_headShots": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_helpIcon": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_helpIconMaxWidth": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "32.0^7"
+  },
+  "cg_helpIconMinWidth": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "16.0^7"
+  },
+  "cg_helpIconStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_hitBeep": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_hudBlueTeamColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0x3266f4^7"
+  },
+  "cg_hudFiles": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "ui/hud.txt^7"
+  },
+  "cg_hudForceBlueTeamClanTag": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_hudForceRedTeamClanTag": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_hudNoTeamColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xf2db1f^7"
+  },
+  "cg_hudRedTeamColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xf40000^7"
+  },
+  "cg_ignore": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_ignoreClientHeadModel": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_ignoreServerPlaySound": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_impactSparks": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_impactSparksColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_impactSparksHighlight": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_impactSparksLifetime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "250^7"
+  },
+  "cg_impactSparksSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "8^7"
+  },
+  "cg_impactSparksVelocity": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "128^7"
+  },
+  "cg_inheritPowerupShader": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_interpolateMissiles": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_itemFx": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "7^7"
+  },
+  "cg_itemSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "cg_itemSpawnPrint": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_itemTimers": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_itemTimersAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_itemTimersOffset": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "8.0^7"
+  },
+  "cg_itemTimersScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.3^7"
+  },
+  "cg_itemUseMessage": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_itemUseSound": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_itemsWh": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_kickScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_killBeep": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_lagometer": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_lagometerAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_lagometerAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_lagometerAveragePing": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_lagometerFlash": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_lagometerFlashValue": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "80^7"
+  },
+  "cg_lagometerFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "q3big^7"
+  },
+  "cg_lagometerFontAlign": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_lagometerFontAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "cg_lagometerFontColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_lagometerFontPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_lagometerFontScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.25^7"
+  },
+  "cg_lagometerFontStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_lagometerScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "cg_lagometerSnapshotPing": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_lagometerWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_lagometerX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "640^7"
+  },
+  "cg_lagometerY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "336^7"
+  },
+  "cg_levelTimerDefaultTimeLimit": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "60^7"
+  },
+  "cg_levelTimerDirection": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_lightningAngleOriginStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_lightningImpact": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_lightningImpactCap": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "192^7"
+  },
+  "cg_lightningImpactCapMin": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "60^7"
+  },
+  "cg_lightningImpactOthersSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.0^7"
+  },
+  "cg_lightningImpactProject": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_lightningImpactSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "cg_lightningRenderStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_lightningSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "8^7"
+  },
+  "cg_lightningStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_loadDefaultMenus": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_localTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_localTimeStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_lowAmmoWarningBFG": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "5^7"
+  },
+  "cg_lowAmmoWarningChainGun": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "30^7"
+  },
+  "cg_lowAmmoWarningGauntlet": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "5^7"
+  },
+  "cg_lowAmmoWarningGrapplingHook": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "5^7"
+  },
+  "cg_lowAmmoWarningGrenadeLauncher": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "5^7"
+  },
+  "cg_lowAmmoWarningLightningGun": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "30^7"
+  },
+  "cg_lowAmmoWarningMachineGun": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "30^7"
+  },
+  "cg_lowAmmoWarningNailGun": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "30^7"
+  },
+  "cg_lowAmmoWarningPercentile": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.20^7"
+  },
+  "cg_lowAmmoWarningPlasmaGun": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "30^7"
+  },
+  "cg_lowAmmoWarningProximityLauncher": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "30^7"
+  },
+  "cg_lowAmmoWarningRailGun": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "5^7"
+  },
+  "cg_lowAmmoWarningRocketLauncher": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "5^7"
+  },
+  "cg_lowAmmoWarningShotgun": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "5^7"
+  },
+  "cg_lowAmmoWarningSound": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_lowAmmoWarningStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_lowAmmoWeaponBarWarning": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_markFadeTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1000^7"
+  },
+  "cg_markTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "20000^7"
+  },
+  "cg_marks": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_mouseSeekPollInterval": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "50^7"
+  },
+  "cg_mouseSeekScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "cg_mouseSeekUseTimescale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cg_muzzleFlash": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_neutralFlagColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xf6f600^7"
+  },
+  "cg_noItemUseMessage": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_noItemUseSound": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_noProjectileTrail": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_noTaunt": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_noplayeranims": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_nopredict": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_obituaryBlueTeamColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0x3266f4^7"
+  },
+  "cg_obituaryFadeTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "600^7"
+  },
+  "cg_obituaryIconScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.2^7"
+  },
+  "cg_obituaryRedTeamColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xf40000^7"
+  },
+  "cg_obituaryStack": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "cg_obituaryTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2500^7"
+  },
+  "cg_obituaryTokens": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "%k %i %v^7"
+  },
+  "cg_oldRocket": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_ourHeadColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_ourHeadSkin": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_ourLegsColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_ourLegsSkin": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_ourTorsoColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_ourTorsoSkin": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_pathRewindTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_pathSkipNum": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_perKillStatsClearNotFiringExcludeSingleClickWeapons": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_perKillStatsClearNotFiringTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3000^7"
+  },
+  "cg_perKillStatsExcludePostKillSpam": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_plasmaStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_playerLeanScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "cg_playerModelAllowServerOverride": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_playerModelAllowServerScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_playerModelAllowServerScaleDefault": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.1^7"
+  },
+  "cg_playerModelAutoScaleHeight": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "57^7"
+  },
+  "cg_playerModelForceHeadOffset": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_playerModelForceHeadScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_playerModelForceLegsScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_playerModelForceScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_playerModelForceTorsoScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_playerShader": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_powerupLight": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_predictItems": {
+   "flags": [
+    "USERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_printSkillRating": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_printTimeStamps": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_proxMineTick": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_q3mmeCameraSmoothPos": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_qlFontScaling": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_qlhud": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_quadFireSound": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_quadKillCounter": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_quadSoundRate": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1000^7"
+  },
+  "cg_racePlayerShader": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_railFromMuzzle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_railItemColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xd4af37^7"
+  },
+  "cg_railNudge": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_railQL": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_railQLRailRingWhiteValue": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.45^7"
+  },
+  "cg_railRadius": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "4^7"
+  },
+  "cg_railRings": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_railRotation": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_railSpacing": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "5^7"
+  },
+  "cg_railTrailTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "600^7"
+  },
+  "cg_railUseOwnColors": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_rewardAccuracy": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_rewardAssist": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_rewardCapture": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_rewardComboKill": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_rewardDefend": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_rewardExcellent": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_rewardFirstFrag": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_rewardHeadshot": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_rewardHumiliation": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_rewardImpressive": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_rewardMidAir": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_rewardPerfect": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_rewardPerforated": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_rewardQuadGod": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_rewardRampage": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_rewardRevenge": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_rewardsStack": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_rocketAimBot": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_roundScoreBoard": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_scoreBoardAtIntermission": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_scoreBoardForceLineHeight": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "-1^7"
+  },
+  "cg_scoreBoardForceLineHeightDefault": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "9^7"
+  },
+  "cg_scoreBoardForceLineHeightTeam": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "-1^7"
+  },
+  "cg_scoreBoardForceLineHeightTeamDefault": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "8^7"
+  },
+  "cg_scoreBoardOld": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_scoreBoardSpectatorScroll": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_scoreBoardStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_scoreBoardWarmup": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_scoreBoardWhenDead": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_scorePlums": {
+   "flags": [
+    "USERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_screenDamage": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0x700000^7"
+  },
+  "cg_screenDamageAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "120^7"
+  },
+  "cg_screenDamageAlpha_Self": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_screenDamageAlpha_Team": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "200^7"
+  },
+  "cg_screenDamage_Self": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0x000000^7"
+  },
+  "cg_screenDamage_Team": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0x700000^7"
+  },
+  "cg_serverCenterPrint": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_serverCenterPrintToChat": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_serverCenterPrintToConsole": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_serverPrint": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_serverPrintToChat": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_serverPrintToConsole": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_shadows": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_shotgunImpactSparks": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_shotgunMarks": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_shotgunRandomness": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2.0^7"
+  },
+  "cg_shotgunStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_showmiss": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_simpleItems": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_simpleItemsBob": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_simpleItemsHeightOffset": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_simpleItemsScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "cg_smokeRadius_GL": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "32^7"
+  },
+  "cg_smokeRadius_NG": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "16^7"
+  },
+  "cg_smokeRadius_PL": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "32^7"
+  },
+  "cg_smokeRadius_RL": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "8^7"
+  },
+  "cg_smokeRadius_SG": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "32^7"
+  },
+  "cg_smokeRadius_breath": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "16^7"
+  },
+  "cg_smokeRadius_dust": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_smokeRadius_flight": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "8^7"
+  },
+  "cg_smokeRadius_haste": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "8^7"
+  },
+  "cg_smoothClients": {
+   "flags": [
+    "USERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_soundBuffer": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_soundPvs": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_spawnArmorTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "500^7"
+  },
+  "cg_specOffsetQL": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_spectatorListQue": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_spectatorListScore": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_spectatorListSkillRating": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_stats": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_stepSmoothMaxChange": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "32^7"
+  },
+  "cg_stepSmoothTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "100^7"
+  },
+  "cg_stereoSeparation": {
+   "flags": [
+    "ROM",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_swingSpeed": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0.3^7"
+  },
+  "cg_teamChatBeep": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_teamChatBeepMaxTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_teamChatHeight": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_teamChatTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3000^7"
+  },
+  "cg_teamChatsOnly": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_teamFlagColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffffff^7"
+  },
+  "cg_teamHeadColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_teamHeadModel": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_teamHeadSkin": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_teamKillWarning": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_teamLegsColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_teamLegsSkin": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_teamModel": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_teamRailColor1": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffcc40^7"
+  },
+  "cg_teamRailColor1Team": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_teamRailColor2": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xffcc40^7"
+  },
+  "cg_teamRailColor2Team": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_teamRailItemColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_teamRailItemColorTeam": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_teamRailNudge": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_teamRailRings": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_teamTorsoColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_teamTorsoSkin": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_testQlFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_thawGibs": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "10^7"
+  },
+  "cg_thirdPerson": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_thirdPersonAngle": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_thirdPersonRange": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "40^7"
+  },
+  "cg_timescaleFadeEnd": {
+   "flags": [],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_timescaleFadeSpeed": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_tracerChance": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.4^7"
+  },
+  "cg_tracerLength": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "100^7"
+  },
+  "cg_tracerWidth": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_trueLightning": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "cg_useCustomRedBlueModels": {
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "0^7"
+  },
+  "cg_useDefaultTeamSkins": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_useDemoFov": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_useOriginalInterpolation": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_vibrate": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_vibrateForce": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "cg_vibrateMaxDistance": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "800^7"
+  },
+  "cg_vibrateTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "150.0^7"
+  },
+  "cg_viewsize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "100^7"
+  },
+  "cg_warmupTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_waterWarp": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_weaponBFG": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_weaponBar": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_weaponBarFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_weaponBarPointSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "24^7"
+  },
+  "cg_weaponBarWideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_weaponBarX": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_weaponBarY": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_weaponBlueTeamColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0x3266f4^7"
+  },
+  "cg_weaponChainGun": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_weaponDefault": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_weaponGauntlet": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_weaponGrapplingHook": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_weaponGrenadeLauncher": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_weaponHeavyMachineGun": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_weaponLightningGun": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_weaponMachineGun": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_weaponNailGun": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_weaponNone": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_weaponPlasmaGun": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_weaponProximityLauncher": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_weaponRailGun": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_weaponRedTeamColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0xf40000^7"
+  },
+  "cg_weaponRocketLauncher": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_weaponShotgun": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_weather": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_wh": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_whAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "190^7"
+  },
+  "cg_whColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "60 235 90^7"
+  },
+  "cg_whEnemyAlpha": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "190^7"
+  },
+  "cg_whEnemyColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "60 235 90^7"
+  },
+  "cg_whEnemyShader": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_whIncludeDeadBody": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_whIncludeProjectile": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_whShader": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cg_wideScreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "5^7"
+  },
+  "cg_wideScreenScoreBoardHack": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cg_winLossMusic": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_zoomBroken": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_zoomFov": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "60^7"
+  },
+  "cg_zoomIgnoreTimescale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cg_zoomTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "150^7"
+  },
+  "cl_allowDownload": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_anglespeedkey": {
+   "flags": [],
+   "registered": true,
+   "value": "1.5^7"
+  },
+  "cl_anonymous": {
+   "flags": [
+    "USERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_autoRecordDemo": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_aviAllowLargeFiles": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cl_aviCodec": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "mjpeg^7"
+  },
+  "cl_aviExtension": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "avi^7"
+  },
+  "cl_aviFetchMode": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "GL_RGB^7"
+  },
+  "cl_aviFrameRate": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "60^7"
+  },
+  "cl_aviFrameRateDivider": {
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "1^7"
+  },
+  "cl_aviNoAudioHWOutput": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cl_aviPipeCommand": {
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "-threads 0 -c:v ffv1 -level 3 -c:a pcm_s16le -y^7"
+  },
+  "cl_aviPipeExtension": {
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "mkv^7"
+  },
+  "cl_cURLLib": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "libcurl-3.dll^7"
+  },
+  "cl_conXOffset": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_consoleAsChat": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_consoleKeys": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "~ ` 0x7e 0x60^7"
+  },
+  "cl_debugMove": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_demoFile": {
+   "flags": [
+    "ROM"
+   ],
+   "registered": true,
+   "value": "demos/db967c00739.dm_73^7"
+  },
+  "cl_demoFileBaseName": {
+   "flags": [
+    "ROM"
+   ],
+   "registered": true,
+   "value": "db967c00739.dm_73^7"
+  },
+  "cl_demoFileCheckSystem": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "cl_downloadName": {
+   "flags": [],
+   "registered": true,
+   "value": "^7"
+  },
+  "cl_downloadWorkshops": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cl_forceavidemo": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_freelook": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cl_freezeDemo": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_freezeDemoPauseVideoRecording": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_guid": {
+   "flags": [
+    "USERINFO",
+    "ROM"
+   ],
+   "registered": true,
+   "value": "E2403FADB43C93D5955AD78A50A9B3D8^7"
+  },
+  "cl_guidServerUniq": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cl_keepDemoFileInMemory": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cl_lanForcePackets": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cl_maxPing": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "800^7"
+  },
+  "cl_maxRewindBackups": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "12^7"
+  },
+  "cl_maxpackets": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "30^7"
+  },
+  "cl_motd": {
+   "flags": [],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cl_motdString": {
+   "flags": [
+    "ROM"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cl_mouseAccel": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_mouseAccelOffset": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "5^7"
+  },
+  "cl_mouseAccelStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_mumbleScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.0254^7"
+  },
+  "cl_nodelta": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_noprint": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cl_numberPadInput": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_packetdelay": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_packetdup": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cl_paused": {
+   "flags": [
+    "ROM"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_pitchspeed": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "140^7"
+  },
+  "cl_run": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cl_running": {
+   "flags": [
+    "ROM"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cl_serverStatusResendTime": {
+   "flags": [],
+   "registered": true,
+   "value": "750^7"
+  },
+  "cl_showSend": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_showTimeDelta": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_showmouserate": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_shownet": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_timeNudge": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_timedemoLog": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "cl_timeout": {
+   "flags": [],
+   "registered": true,
+   "value": "200^7"
+  },
+  "cl_useMumble": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_useq3gibs": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_voip": {
+   "flags": [
+    "USERINFO",
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cl_voipCaptureMult": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2.0^7"
+  },
+  "cl_voipGainDuringCapture": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.2^7"
+  },
+  "cl_voipSend": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_voipSendTarget": {
+   "flags": [],
+   "registered": true,
+   "value": "all^7"
+  },
+  "cl_voipShowMeter": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "cl_voipUseVAD": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cl_voipVADThreshold": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.25^7"
+  },
+  "cl_yawspeed": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "140^7"
+  },
+  "cm_noAreas": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cm_noCurves": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "cm_playerCurveClip": {
+   "flags": [
+    "ARCHIVE",
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "color1": {
+   "flags": [
+    "USERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "4^7"
+  },
+  "color2": {
+   "flags": [
+    "USERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "5^7"
+  },
+  "com_altivec": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "com_ansiColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "com_autoWriteConfig": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "com_blood": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "com_buildScript": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "com_cameraMode": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "com_dropsim": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "com_errorMessage": {
+   "flags": [],
+   "registered": true,
+   "value": "^7"
+  },
+  "com_execVerbose": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "com_hunkMegs": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "256^7"
+  },
+  "com_idleSleep": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "com_introplayed": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "com_logo": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "com_maxfps": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "125^7"
+  },
+  "com_maxfpsMinimized": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "com_maxfpsUnfocused": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "com_minimized": {
+   "flags": [
+    "ROM"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "com_qlColors": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "com_showtrace": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "com_soundMegs": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "8^7"
+  },
+  "com_speeds": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "com_standalone": {
+   "flags": [
+    "INIT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "com_timescaleSafe": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "com_unfocused": {
+   "flags": [
+    "ROM"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "com_workshopids": {
+   "flags": [
+    "ROM"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "com_zoneMegs": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "96^7"
+  },
+  "con_conspeed": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "con_fracSize": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "con_lineWidth": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "con_notifylines": {
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "0^7"
+  },
+  "con_notifytime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "con_rgb": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "con_scale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "con_transparency": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.04^7"
+  },
+  "debug_camera": {
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "0^7"
+  },
+  "debuggraph": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "dedicated": {
+   "flags": [
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "developer": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "dmflags": {
+   "flags": [
+    "SERVERINFO"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "fixedtime": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "fraglimit": {
+   "flags": [
+    "SERVERINFO"
+   ],
+   "registered": true,
+   "value": "20^7"
+  },
+  "fs_basegame": {
+   "flags": [
+    "INIT"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "fs_basepath": {
+   "flags": [
+    "INIT"
+   ],
+   "registered": true,
+   "value": "G:\\QUAKE_LEGACY\\output\\demo_v2\\_wolfcam_staging^7"
+  },
+  "fs_debug": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "fs_game": {
+   "flags": [
+    "SYSTEMINFO",
+    "INIT"
+   ],
+   "registered": true,
+   "value": "wolfcam-ql^7"
+  },
+  "fs_homepath": {
+   "flags": [
+    "INIT"
+   ],
+   "registered": true,
+   "value": "G:\\QUAKE_LEGACY\\output\\demo_v2\\_wolfcam_staging^7"
+  },
+  "fs_quakelivedir": {
+   "flags": [
+    "INIT"
+   ],
+   "registered": true,
+   "value": "C:\\Program Files (x86)\\Steam\\steamapps\\common\\Quake Live^7"
+  },
+  "fs_searchWorkshops": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "fs_steamcmd": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "g_arenasFile": {
+   "flags": [
+    "ROM",
+    "INIT"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "g_blueTeam": {
+   "flags": [
+    "SERVERINFO",
+    "USERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "Blue Team^7"
+  },
+  "g_botsFile": {
+   "flags": [
+    "ROM",
+    "INIT"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "g_enableBreath": {
+   "flags": [
+    "SERVERINFO"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "g_enableDust": {
+   "flags": [
+    "SERVERINFO"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "g_gametype": {
+   "flags": [
+    "SERVERINFO",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "4^7"
+  },
+  "g_instagib": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "g_obeliskRespawnDelay": {
+   "flags": [
+    "SERVERINFO"
+   ],
+   "registered": true,
+   "value": "10^7"
+  },
+  "g_redTeam": {
+   "flags": [
+    "SERVERINFO",
+    "USERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "Red Team^7"
+  },
+  "g_spAwards": {
+   "flags": [
+    "ROM",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "g_spScores1": {
+   "flags": [
+    "ROM",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "g_spScores2": {
+   "flags": [
+    "ROM",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "g_spScores3": {
+   "flags": [
+    "ROM",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "g_spScores4": {
+   "flags": [
+    "ROM",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "g_spScores5": {
+   "flags": [
+    "ROM",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "g_spSkill": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "g_spVideos": {
+   "flags": [
+    "ROM",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "g_synchronousClients": {
+   "flags": [
+    "SYSTEMINFO"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "g_training": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "graphheight": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "32^7"
+  },
+  "graphscale": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "graphshift": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "handicap": {
+   "flags": [
+    "USERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "100^7"
+  },
+  "headmodel": {
+   "flags": [
+    "USERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "sarge^7"
+  },
+  "in_availableJoysticks": {
+   "flags": [
+    "ROM"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "in_checkForStolenMouseFocus": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "in_joystick": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "in_keyboardDebug": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "in_mouse": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "in_nograb": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "j_forward": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "-0.25^7"
+  },
+  "j_forward_axis": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "j_pitch": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.022^7"
+  },
+  "j_pitch_axis": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "j_side": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.25^7"
+  },
+  "j_side_axis": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "j_up": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "j_up_axis": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "j_yaw": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "-0.022^7"
+  },
+  "j_yaw_axis": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "4^7"
+  },
+  "journal": {
+   "flags": [
+    "INIT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "joy_threshold": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.15^7"
+  },
+  "logfile": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "m_filter": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "m_forward": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.25^7"
+  },
+  "m_pitch": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.022^7"
+  },
+  "m_side": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.25^7"
+  },
+  "m_yaw": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.022^7"
+  },
+  "mapname": {
+   "flags": [
+    "SERVERINFO",
+    "ROM"
+   ],
+   "registered": true,
+   "value": "nomap^7"
+  },
+  "mme_blurFrames": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "mme_blurOverlap": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "mme_blurType": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "gaussian^7"
+  },
+  "mme_depthFocus": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "mme_depthRange": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2000^7"
+  },
+  "mme_dofFrames": {
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "0^7"
+  },
+  "mme_saveDepth": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "mme_saveStencil": {
+   "flags": [
+    "ARCHIVE",
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "0^7"
+  },
+  "model": {
+   "flags": [
+    "USERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "sarge^7"
+  },
+  "name": {
+   "flags": [
+    "USERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "UnnamedPlayer^7"
+  },
+  "net_enabled": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "3^7"
+  },
+  "net_ip": {
+   "flags": [
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0.0.0.0^7"
+  },
+  "net_ip6": {
+   "flags": [
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "::^7"
+  },
+  "net_mcast6addr": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "ff04::696f:7175:616b:6533^7"
+  },
+  "net_mcast6iface": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "net_port": {
+   "flags": [
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "27960^7"
+  },
+  "net_port6": {
+   "flags": [
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "27960^7"
+  },
+  "net_qport": {
+   "flags": [
+    "INIT"
+   ],
+   "registered": true,
+   "value": "12261^7"
+  },
+  "net_socksEnabled": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "net_socksPassword": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "net_socksPort": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1080^7"
+  },
+  "net_socksServer": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "net_socksUsername": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "nextmap": {
+   "flags": [],
+   "registered": true,
+   "value": "^7"
+  },
+  "password": {
+   "flags": [
+    "USERINFO"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "pmove_fixed": {
+   "flags": [
+    "SYSTEMINFO"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "pmove_msec": {
+   "flags": [
+    "SYSTEMINFO"
+   ],
+   "registered": true,
+   "value": "8^7"
+  },
+  "protocol": {
+   "flags": [
+    "SERVERINFO",
+    "INIT"
+   ],
+   "registered": true,
+   "value": "73^7"
+  },
+  "r_BloomBlurFalloff": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.75^7"
+  },
+  "r_BloomBlurRadius": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "5^7"
+  },
+  "r_BloomBlurScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "r_BloomBrightThreshold": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.125^7"
+  },
+  "r_BloomDebug": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_BloomIntensity": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.750^7"
+  },
+  "r_BloomPasses": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_BloomSaturation": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.800^7"
+  },
+  "r_BloomSceneIntensity": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.000^7"
+  },
+  "r_BloomSceneSaturation": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.000^7"
+  },
+  "r_BloomTextureScale": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0.5^7"
+  },
+  "r_allowExtensions": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_allowResize": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_allowSoftwareGL": {
+   "flags": [
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_ambientScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "10^7"
+  },
+  "r_anaglyph2d": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_anaglyphMode": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_availableModes": {
+   "flags": [
+    "ROM"
+   ],
+   "registered": true,
+   "value": "1280x720 1366x768 1600x900 1920x1080 3840x2160 1176x664 1360x768 1280x768 1280x800 1440x900 1680x1050 1600x1024 720x480 640x480 800x600 1024x768 1152x864 1280x960 1440x1080 720x576 1280x1024^7"
+  },
+  "r_centerWindow": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_clear": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_clearColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "r_cloudHeight": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "r_cloudHeightOrig": {
+   "flags": [
+    "ROM"
+   ],
+   "registered": true,
+   "value": "512^7"
+  },
+  "r_colorMipLevels": {
+   "flags": [
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_colorSkinsFuzz": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "20^7"
+  },
+  "r_colorSkinsIntensity": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "r_colorbits": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "32^7"
+  },
+  "r_contrast": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "r_customPixelAspect": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_customheight": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1080^7"
+  },
+  "r_customwidth": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1920^7"
+  },
+  "r_darknessThreshold": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_debugFonts": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_debugMarkSurface": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_debugScaledImages": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_debugSort": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_debugSurface": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_debuglight": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_defaultMSFontFallbacks": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_defaultQlFontFallbacks": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_defaultSystemFontFallbacks": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_defaultUnifontFallbacks": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_depthbits": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_detailtextures": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_directedScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_dlightBacks": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_drawBuffer": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "GL_BACK^7"
+  },
+  "r_drawSkyFloor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_drawSun": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_drawentities": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_drawworld": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_dynamiclight": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_enableBloom": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_enableColorCorrect": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_enablePostProcess": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_ext_compiled_vertex_array": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_ext_compressed_textures": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_ext_max_anisotropy": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "16^7"
+  },
+  "r_ext_multisample": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_ext_multitexture": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_ext_texture_env_add": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_ext_texture_filter_anisotropic": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_facePlaneCull": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_fallbackFont1": {
+   "flags": [],
+   "registered": true,
+   "value": "^7"
+  },
+  "r_fastSkyColor": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "r_fastsky": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_fboAntiAlias": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "4^7"
+  },
+  "r_fboStencil": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_finish": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_flareCoeff": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "150^7"
+  },
+  "r_flareFade": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "7^7"
+  },
+  "r_flareSize": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "40^7"
+  },
+  "r_flares": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_fog": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_forceMap": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "r_forceSky": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "r_fullbright": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_fullscreen": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_gamma": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.85^7"
+  },
+  "r_greyscale": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_greyscaleValue": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "r_ignore": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_ignoreEntityMergable": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "r_ignoreFastPath": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_ignoreGLErrors": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_ignoreNoMarks": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_ignorehwgamma": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_inGameVideo": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_intensity": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_jpegCompressionQuality": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "90^7"
+  },
+  "r_lightmap": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_lightmapColor": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "r_lockpvs": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_lodCurveError": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "10000^7"
+  },
+  "r_lodbias": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "-2^7"
+  },
+  "r_lodscale": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "5^7"
+  },
+  "r_logFile": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_mapGreyScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_mapOverBrightBits": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_mapOverBrightBitsCap": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "255^7"
+  },
+  "r_mapOverBrightBitsValue": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "r_marksOnTriangleMeshes": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_maxpolys": {
+   "flags": [],
+   "registered": true,
+   "value": "600^7"
+  },
+  "r_maxpolyverts": {
+   "flags": [],
+   "registered": true,
+   "value": "3000^7"
+  },
+  "r_measureOverdraw": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_mode": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "-1^7"
+  },
+  "r_nobind": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_noborder": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_nocull": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_nocurves": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_noportals": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_norefresh": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_novis": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_offsetfactor": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "-1^7"
+  },
+  "r_offsetunits": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "-2^7"
+  },
+  "r_overBrightBits": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_overBrightBitsValue": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "r_picmip": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_picmipGreyScale": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_picmipGreyScaleValue": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0.5^7"
+  },
+  "r_pngZlibCompression": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_polygonFill": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_portalBobbing": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_portalOnly": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_primitives": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_printShaders": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_railCoreWidth": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "6^7"
+  },
+  "r_railSegmentLength": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "32^7"
+  },
+  "r_railWidth": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "16^7"
+  },
+  "r_roundImagesDown": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_saveFontData": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_scaleImagesPowerOfTwo": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_sdlDriver": {
+   "flags": [
+    "ROM"
+   ],
+   "registered": true,
+   "value": "windib^7"
+  },
+  "r_showImages": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_showSmp": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_showcluster": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_shownormals": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_showsky": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_showtris": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_simpleMipMaps": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_singleShader": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_singleShaderName": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "r_skipBackEnd": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_smp": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_speeds": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_stencilbits": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "8^7"
+  },
+  "r_stereoEnabled": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_stereoSeparation": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "64^7"
+  },
+  "r_subdivisions": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_swapInterval": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_teleporterFlash": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_textureMode": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "GL_LINEAR_MIPMAP_LINEAR^7"
+  },
+  "r_texturebits": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "32^7"
+  },
+  "r_uiFullScreen": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_useFbo": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "r_verbose": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_vertexLight": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "r_visibleWindowHeight": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "r_visibleWindowWidth": {
+   "flags": [
+    "ARCHIVE",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "r_znear": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "4^7"
+  },
+  "r_zproj": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "64^7"
+  },
+  "rate": {
+   "flags": [
+    "USERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "25000^7"
+  },
+  "rconAddress": {
+   "flags": [],
+   "registered": true,
+   "value": "^7"
+  },
+  "rconPassword": {
+   "flags": [],
+   "registered": true,
+   "value": "^7"
+  },
+  "real_protocol": {
+   "flags": [],
+   "registered": true,
+   "value": "73^7"
+  },
+  "s_announcerVolume": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "s_backend": {
+   "flags": [
+    "ROM"
+   ],
+   "registered": true,
+   "value": "base^7"
+  },
+  "s_debugMissingSounds": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "s_doppler": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "s_forceScale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.0^7"
+  },
+  "s_initsound": {
+   "flags": [],
+   "registered": true,
+   "value": "1^7"
+  },
+  "s_killBeepVolume": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "s_maxSoundInstances": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "96^7"
+  },
+  "s_maxSoundRepeatTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "s_mixPreStep": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.05^7"
+  },
+  "s_mixahead": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.2^7"
+  },
+  "s_musicvolume": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "s_muteWhenMinimized": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "s_muteWhenUnfocused": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "s_muted": {
+   "flags": [
+    "ROM"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "s_qlAttenuate": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "s_sdlBits": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "16^7"
+  },
+  "s_sdlChannels": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2^7"
+  },
+  "s_sdlDevSamps": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "s_sdlMixSamps": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "s_sdlSpeed": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "s_show": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "s_showMiss": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "s_testsound": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "s_useOpenAL": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "s_useTimescale": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "s_volume": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "sensitivity": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "5^7"
+  },
+  "server1": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "server10": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "server11": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "server12": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "server13": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "server14": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "server15": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "server16": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "server2": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "server3": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "server4": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "server5": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "server6": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "server7": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "server8": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "server9": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "sex": {
+   "flags": [
+    "USERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "male^7"
+  },
+  "showdrop": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "showpackets": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "snaps": {
+   "flags": [
+    "USERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "20^7"
+  },
+  "sv_allowDownload": {
+   "flags": [
+    "SERVERINFO"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "sv_banFile": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "serverbans.dat^7"
+  },
+  "sv_broadcastAll": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "sv_cheats": {
+   "flags": [
+    "SYSTEMINFO",
+    "ROM"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "sv_dlURL": {
+   "flags": [
+    "SERVERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "sv_floodProtect": {
+   "flags": [
+    "SERVERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "sv_fps": {
+   "flags": [],
+   "registered": true,
+   "value": "20^7"
+  },
+  "sv_hostname": {
+   "flags": [
+    "SERVERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "noname^7"
+  },
+  "sv_keywords": {
+   "flags": [
+    "SERVERINFO"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "sv_killserver": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "sv_lanForceRate": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "sv_mapChecksum": {
+   "flags": [
+    "ROM"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "sv_master1": {
+   "flags": [],
+   "registered": true,
+   "value": "master.quake3arena.com^7"
+  },
+  "sv_master2": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "sv_master3": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "sv_master4": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "sv_master5": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "sv_maxPing": {
+   "flags": [
+    "SERVERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "sv_maxRate": {
+   "flags": [
+    "SERVERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "sv_maxclients": {
+   "flags": [
+    "SERVERINFO",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "8^7"
+  },
+  "sv_minPing": {
+   "flags": [
+    "SERVERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "sv_minRate": {
+   "flags": [
+    "SERVERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "sv_packetdelay": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "sv_padPackets": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "sv_pakNames": {
+   "flags": [
+    "SYSTEMINFO",
+    "ROM"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "sv_paks": {
+   "flags": [
+    "SYSTEMINFO",
+    "ROM"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "sv_paused": {
+   "flags": [
+    "ROM"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "sv_privateClients": {
+   "flags": [
+    "SERVERINFO"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "sv_privatePassword": {
+   "flags": [],
+   "registered": true,
+   "value": "^7"
+  },
+  "sv_pure": {
+   "flags": [
+    "SYSTEMINFO"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "sv_randomClientSlot": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "sv_reconnectlimit": {
+   "flags": [],
+   "registered": true,
+   "value": "3^7"
+  },
+  "sv_referencedPakNames": {
+   "flags": [
+    "SYSTEMINFO",
+    "ROM"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "sv_referencedPaks": {
+   "flags": [
+    "SYSTEMINFO",
+    "ROM"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "sv_running": {
+   "flags": [
+    "ROM"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "sv_serverid": {
+   "flags": [
+    "SYSTEMINFO",
+    "ROM"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "sv_showloss": {
+   "flags": [],
+   "registered": true,
+   "value": "0^7"
+  },
+  "sv_skillrating": {
+   "flags": [],
+   "registered": true,
+   "value": "313^7"
+  },
+  "sv_strictAuth": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "sv_timeout": {
+   "flags": [],
+   "registered": true,
+   "value": "200^7"
+  },
+  "sv_voip": {
+   "flags": [
+    "SYSTEMINFO",
+    "LATCH"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "sv_zombietime": {
+   "flags": [],
+   "registered": true,
+   "value": "2^7"
+  },
+  "team_headmodel": {
+   "flags": [
+    "USERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "*james^7"
+  },
+  "team_model": {
+   "flags": [
+    "USERINFO",
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "james^7"
+  },
+  "teamoverlay": {
+   "flags": [
+    "USERINFO",
+    "ROM"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "teamtask": {
+   "flags": [
+    "USERINFO"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "timedemo": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "timegraph": {
+   "flags": [
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "timelimit": {
+   "flags": [
+    "SERVERINFO"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "timescale": {
+   "flags": [
+    "SYSTEMINFO",
+    "ARCHIVE",
+    "CHEAT"
+   ],
+   "registered": true,
+   "value": "1.0^7"
+  },
+  "ui_bigFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.4^7"
+  },
+  "ui_browserGameType": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "ui_browserMaster": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "ui_browserShowEmpty": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "ui_browserShowFull": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "ui_browserSortKey": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "4^7"
+  },
+  "ui_cdkeychecked": {
+   "flags": [
+    "ROM"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "ui_ctf_capturelimit": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "8^7"
+  },
+  "ui_ctf_friendly": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "ui_ctf_timelimit": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "30^7"
+  },
+  "ui_doubleClickTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "500^7"
+  },
+  "ui_ffa_fraglimit": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "20^7"
+  },
+  "ui_ffa_timelimit": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "ui_ioq3": {
+   "flags": [
+    "ROM"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "ui_recordSPDemo": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "ui_recordSPDemoName": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "ui_singlePlayerActive": {
+   "flags": [
+    "USERINFO"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "ui_smallFont": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0.25^7"
+  },
+  "ui_spSelection": {
+   "flags": [
+    "ROM"
+   ],
+   "registered": true,
+   "value": "^7"
+  },
+  "ui_team_fraglimit": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "ui_team_friendly": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "ui_team_timelimit": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "20^7"
+  },
+  "ui_tourney_fraglimit": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "ui_tourney_timelimit": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "15^7"
+  },
+  "useFfaDuelSettings": {
+   "flags": [
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "set cg_forceBModel1 13; set cg_forceBModel2 10^7"
+  },
+  "useOtherSettings": {
+   "flags": [
+    "USER_CREATED"
+   ],
+   "registered": false,
+   "value": "set cg_forceBModel1 12;  set cg_forceBModel2 11^7"
+  },
+  "username": {
+   "flags": [],
+   "registered": true,
+   "value": "Stoneface^7"
+  },
+  "version": {
+   "flags": [
+    "SERVERINFO",
+    "ROM"
+   ],
+   "registered": true,
+   "value": "wolfcamql 11.3 win_mingw-x86 Aug 13 2016^7"
+  },
+  "vm_cgame": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "vm_game": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "vm_ui": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "wolfcam_drawFollowing": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "wolfcam_drawFollowingOnlyName": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "wolfcam_firstPersonSwitchSoundStyle": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "1^7"
+  },
+  "wolfcam_fixedViewAngles": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  },
+  "wolfcam_hoverTime": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "2000^7"
+  },
+  "wolfcam_switchMode": {
+   "flags": [
+    "ARCHIVE"
+   ],
+   "registered": true,
+   "value": "0^7"
+  }
+ },
+ "ran": true,
+ "seconds": 8.9,
+ "stole_focus": false,
+ "visible_windows": []
+}

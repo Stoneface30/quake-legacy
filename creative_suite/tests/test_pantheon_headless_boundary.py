@@ -76,6 +76,8 @@ BACKEND_ALLOWED = {
     "presenter_film",   # films a presenter proof
     "ab_scene",         # A/B capture harness
     "first_recipe_proof",  # the one end-to-end run: it films
+    "engine_census",    # asks the running binary what it has; one session
+    "engine_inventory", # the raw inventory and its grades; reads files only
     "conformance",      # the 10-case backend A/B: it films both legs
     "cast_proof", "presenter_proof", "instruction_proof", "proofs",
     "proof0_color", "proof_b_identity", "proof_c_rails",
@@ -102,6 +104,7 @@ NAMES_BACKENDS_AS_DATA = {
     "director_notes",   # likewise, verbatim
     "defaults",         # a profile names the engine cfg it expects
     "maturity",         # it reports per backend, so it names them
+    "engine_inventory", # its subject IS the raw names; it launches nothing
 }
 
 FORBIDDEN_IMPORTS = {
