@@ -1211,7 +1211,7 @@ async function corpora(){
   sel.onchange = () => {
     const [kind, val] = sel.value.split(":");
     if (kind === "corpus"){ corpus = val; itemType = ""; }
-    else { corpus = null; itemType = val; }
+    else { corpus = null; itemType = val; reviewView = "frags"; $("reviewview").value="frags"; }
     progress(); loadQueue(0);
   };
 }
@@ -1666,6 +1666,15 @@ let sceneState = null;
 // Called after the scene is known; never blocks, never blanks.
 async function offerRoundContext(it, scene){
   if (!roundIsWorthWatching(scene)) return;
+  // ALREADY WATCHING THIS ROUND. Every frag in it asks again, and each ask
+  // carries a different item id in the URL -- so re-fetching here reloaded
+  // the identical footage under a new name on every advance. That is the
+  // reload this whole feature exists to remove: seek instead.
+  if (v.dataset.sceneId === scene.scene_id && v.getAttribute("src")){
+    seekToEvent(scene, it.source_id);
+    v.play().catch(() => {});
+    return;
+  }
   const mine = cur, generation = mediaGeneration;
   const note = $("roundctx");
   if (note) note.textContent = "round context preparing…";
@@ -1711,7 +1720,13 @@ function seekToEvent(scene, occurrenceId){
   if (!ev || scene.media_start_ms == null) return false;
   const t = (ev.t_ms - scene.media_start_ms) / 1000;
   if (!isFinite(t) || t < 0) return false;
-  try { v.currentTime = t; } catch(e){ return false; }
+  // A currentTime set before the browser has metadata is SILENTLY DROPPED.
+  // That is how the round could load, the url stay stable, and the playhead
+  // sit at zero anyway -- the keyhole with extra steps. Wait for the
+  // element to be seekable, then jump.
+  const jump = () => { try { v.currentTime = t; } catch(e){} };
+  if (v.readyState >= 1) jump();
+  else v.addEventListener("loadedmetadata", jump, {once: true});
   return true;
 }
 
