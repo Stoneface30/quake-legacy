@@ -89,17 +89,48 @@ def game_is_running() -> bool:
 
 
 def _game_is_running_fallback(names: tuple[str, ...]) -> bool:
+    """Without psutil: a Win32 toolhelp snapshot through ctypes.
+
+    Never `tasklist`, never a shell -- a console window popping up on the
+    user's game is the fault this module exists to prevent, and a guard that
+    causes it would be the joke of the year. Fails towards the user: an
+    unreadable snapshot means "assume a game is running".
+    """
     if sys.platform != "win32":
         return False
     try:
-        out = subprocess.run(
-            ["tasklist", "/FO", "CSV", "/NH"], capture_output=True,
-            text=True, timeout=15,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout
-    except (OSError, subprocess.SubprocessError):
+        import ctypes
+        from ctypes import wintypes
+        TH32CS_SNAPPROCESS = 0x00000002
+
+        class PROCESSENTRY32W(ctypes.Structure):
+            _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD),
+                        ("th32ProcessID", wintypes.DWORD),
+                        ("th32DefaultHeapID", ctypes.POINTER(ctypes.c_ulong)),
+                        ("th32ModuleID", wintypes.DWORD), ("cntThreads", wintypes.DWORD),
+                        ("th32ParentProcessID", wintypes.DWORD),
+                        ("pcPriClassBase", ctypes.c_long), ("dwFlags", wintypes.DWORD),
+                        ("szExeFile", ctypes.c_wchar * 260)]
+
+        k32 = ctypes.windll.kernel32
+        snap = k32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+        if snap == wintypes.HANDLE(-1).value:
+            return True
+        try:
+            e = PROCESSENTRY32W()
+            e.dwSize = ctypes.sizeof(PROCESSENTRY32W)
+            if not k32.Process32FirstW(snap, ctypes.byref(e)):
+                return True
+            while True:
+                if e.szExeFile.lower() in names:
+                    return True
+                if not k32.Process32NextW(snap, ctypes.byref(e)):
+                    break
+        finally:
+            k32.CloseHandle(snap)
+        return False
+    except Exception:                                          # noqa: BLE001
         return True
-    low = out.lower()
-    return any(f'"{n}"' in low for n in names)
 
 
 def quiet_startup_info() -> object | None:

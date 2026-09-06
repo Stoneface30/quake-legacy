@@ -276,6 +276,12 @@ def capture_demo(safe_demo: str, windows: list[dict],
         # top-level window takes the foreground, and doing that to someone
         # mid-round costs them the round. See capture_guard.
         from creative_suite.engine.capture_guard import quiet_startup_info
+        # ASK THE ONE AUTHORITY, even though every queue already did: this
+        # is the process that opens the window, and it must not be reachable
+        # by a caller that forgot. Raises RenderNotPermitted; a queue turns
+        # that into QUEUED + RENDER DEFERRED, never FAILED.
+        from engine.pantheon import render_permit
+        render_permit.require(f"capture_demo:{safe_demo}")
         proc = subprocess.Popen(
             wolfcam_cmd(safe_demo, staging, profile=profile), cwd=staging,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,

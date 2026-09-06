@@ -1,0 +1,543 @@
+"""PANTHEON ANALYSIS MODE — the game stops and one player explains it.
+
+THE DEVICE. Real action runs. At the decisive moment history stops. One
+participant steps out of the frozen scene, walks to the camera, explains what
+is about to happen while the tactical truth is drawn behind them, walks back,
+and history resumes exactly where it stopped.
+
+TWO CLOCKS, AND THE MAP BETWEEN THEM IS NOT NEW. `scene_recipe.TimeMap` and
+`TimeSegment` already model exactly this: contiguous segments at exact rational
+rates, where a `freeze` is defined as zero demo span and positive edit span --
+historical time stationary while wall time advances. That is the forensic
+netcode replay's clock, and reusing it is the point; a second implementation of
+"time stops here" would be a second place for the two to disagree.
+
+    historical time   what happened, in the event's own seconds
+    edit time         what the viewer experiences, in the film's seconds
+
+HOW HISTORY IS PROTECTED. The participant who walks out is NOT the historical
+actor. He is a SEPARATE CLIENT wearing the same model, spawned when the freeze
+begins and gone when it ends. The historical actor holds his exact frozen state
+throughout and is never moved, re-angled, re-armed or re-timed. Restoration is
+therefore not a rewind that has to be got right -- there is nothing to undo.
+`AnalysisBreak.verify_restoration` proves it rather than asserting it.
+
+This is also the honesty rule the brief demands: the real player never walked
+to camera during the historical match, and nothing in the data says he did.
+`Layer.HISTORICAL` and `Layer.ANALYSIS` stay distinct all the way down, and the
+compiled demo carries the analysis actor in his own client slot with his own
+name.
+"""
+from __future__ import annotations
+
+import math
+import sys
+from dataclasses import dataclass, field
+from enum import Enum
+from pathlib import Path
+from typing import Sequence
+
+MAIN = Path("G:/QUAKE_LEGACY")
+if str(MAIN) not in sys.path:
+    sys.path.insert(0, str(MAIN))
+
+from engine.pantheon.scenario import (Actor, Layer, RoundScenario,  # noqa: E402
+                                      Stance, Team, Vec3, Weapon,
+                                      _Keyframe, _heading)
+
+US = 1_000_000
+
+
+def _gesture_ok() -> frozenset:
+    from engine.pantheon.roster import load_inventory
+    return frozenset(m for m, a in load_inventory().items() if a.can_gesture)
+
+
+_GESTURE_OK = _gesture_ok()
+
+
+class Graphic(Enum):
+    """Tactical graphics, each named for the truth it draws."""
+    SHOOTER_TO_TARGET = "SHOOTER_TO_TARGET"
+
+
+@dataclass
+class TacticalFact:
+    """One derived number, with the arithmetic that produced it.
+
+    Distances are never typed in. `value` is computed from FrameTruth
+    positions, and `derivation` records how, so an overlay that shows "438 u"
+    can be checked against the frame it came from.
+    """
+    label: str
+    value: float
+    units: str
+    derivation: str
+    layer: Layer = Layer.ANALYSIS
+
+    def as_dict(self) -> dict:
+        return {"label": self.label, "value": round(self.value, 2),
+                "units": self.units, "derivation": self.derivation,
+                "layer": self.layer.value}
+
+
+class Mode(Enum):
+    """Who does the explaining."""
+    ACTOR_COPY = "ACTOR_COPY"    # a copy of one historical actor steps out
+    PRESENTER = "PRESENTER"      # a cast character walks in from off-scene
+
+
+@dataclass
+class Line:
+    """One spoken line, on the EDIT clock, from an existing audio file.
+
+    `audio` is a real game asset or a synthesised file already on disk; this
+    layer does not synthesise, it schedules. `source_kind` says which.
+    """
+    text: str
+    audio: Path
+    source_kind: str = "SYNTHETIC_TTS"     # or GAME_ASSET
+    voice_profile: str = "GUIDE"
+
+
+@dataclass
+class AnalysisBreak:
+    """A freeze, someone explains, history resumes.
+
+    `at_t` and every other time here is HISTORICAL time. The break inserts
+    `hold_s` of edit time at that instant; nothing historical advances during
+    it. Everything that happens INSIDE the break -- the walk, the camera, the
+    line -- is authored on the edit clock, and that is the only clock it has.
+    """
+    at_t: float
+    hold_s: float
+    walk_to: Vec3                   # where the explainer addresses camera
+    face: Vec3                      # what he turns toward (the camera)
+    mode: Mode = Mode.ACTOR_COPY
+    presenter: str | None = None    # ACTOR_COPY: which historical actor
+    profile: object | None = None   # PRESENTER: a roster.PresenterProfile
+    enter_from: Vec3 | None = None  # PRESENTER: where he walks in from
+    route_out: Sequence[Vec3] = ()  # walked path, start -> walk_to
+    graphic: Graphic | None = None
+    graphic_from: str | None = None
+    graphic_to: str | None = None
+    walk_s: float = 1.6             # each leg of the walk
+    line: Line | None = None
+    gesture: bool = True
+    orbit: Sequence[Vec3] = ()      # camera points, edit time, during the hold
+    orbit_look_at: Vec3 | None = None
+
+    def __post_init__(self) -> None:
+        if self.hold_s < 2 * self.walk_s + 0.4:
+            raise ValueError(
+                f"hold_s={self.hold_s} leaves no time to explain: two "
+                f"{self.walk_s}s walks plus a beat is the floor.")
+        if self.mode is Mode.ACTOR_COPY and not self.presenter:
+            raise ValueError("ACTOR_COPY needs `presenter`: which historical "
+                             "actor steps out")
+        if self.mode is Mode.PRESENTER and (self.profile is None
+                                            or self.enter_from is None):
+            raise ValueError("PRESENTER needs `profile` (who) and "
+                             "`enter_from` (where he walks in from)")
+
+    @property
+    def who(self) -> str:
+        return (self.presenter if self.mode is Mode.ACTOR_COPY
+                else self.profile.role)
+
+
+class InstructionScene:
+    """A scenario plus the analysis breaks cut into it.
+
+    Produces a NEW scenario on the EDIT clock. The source scenario is not
+    mutated -- it stays the historical truth, and can be compiled on its own to
+    show the same event with no analysis layer at all.
+    """
+
+    def __init__(self, historical: RoundScenario, *,
+                 duration: float) -> None:
+        self.historical = historical
+        self.duration = duration
+        self.breaks: list[AnalysisBreak] = []
+        self.facts: list[TacticalFact] = []
+
+    def add_break(self, brk: AnalysisBreak) -> "InstructionScene":
+        if any(abs(b.at_t - brk.at_t) < 0.5 for b in self.breaks):
+            raise ValueError("two analysis breaks at effectively the same "
+                             "instant; the viewer cannot tell them apart")
+        self.breaks.append(brk)
+        self.breaks.sort(key=lambda b: b.at_t)
+        return self
+
+    # -- the clock --------------------------------------------------------
+    def time_map(self):
+        """Historical seconds -> edit seconds, via the forensic TimeMap."""
+        from creative_suite.engine.scene_recipe import TimeMap, TimeSegment
+        segs, h, e = [], 0.0, 0.0
+        for b in self.breaks:
+            if b.at_t > h:
+                span = b.at_t - h
+                segs.append(TimeSegment(
+                    kind="normal", demo_start_us=int(h * US),
+                    demo_end_us=int(b.at_t * US), edit_start_us=int(e * US),
+                    edit_end_us=int((e + span) * US), rate_num=1, rate_den=1))
+                e += span
+            segs.append(TimeSegment(
+                kind="freeze", demo_start_us=int(b.at_t * US),
+                demo_end_us=int(b.at_t * US), edit_start_us=int(e * US),
+                edit_end_us=int((e + b.hold_s) * US), rate_num=0, rate_den=1))
+            e += b.hold_s
+            h = b.at_t
+        if self.duration > h:
+            span = self.duration - h
+            segs.append(TimeSegment(
+                kind="normal", demo_start_us=int(h * US),
+                demo_end_us=int(self.duration * US), edit_start_us=int(e * US),
+                edit_end_us=int((e + span) * US), rate_num=1, rate_den=1))
+            e += span
+        self.edit_duration = e
+        return TimeMap(segs)
+
+    def historical_at_edit(self, edit_t: float) -> float:
+        """Where in history the film is, at edit second `edit_t`."""
+        tm = self.time_map()
+        return tm.edit_to_demo(int(edit_t * US), bias="left") / US
+
+    # -- the compiled result ---------------------------------------------
+    def build(self) -> tuple[RoundScenario, dict]:
+        """A scenario on the edit clock, plus the report the brief asks for."""
+        tm = self.time_map()
+        src = self.historical
+        out = RoundScenario.clan_arena(map_name=src.map_name,
+                                       hostname=src.hostname)
+        cam = src._camera_path[0]
+        out.observer(cam.origin, yaw=cam.yaw, team=src.observer_team,
+                     name=src.observer_name)
+        # The camera is remapped like an actor: held flat across each freeze
+        # unless the break authors an orbit, which is inserted in EDIT time
+        # and returns to the exact historical camera before history resumes.
+        out._camera_path = self._remap_camera(src, tm)
+        self.cues = []
+
+        # 1. every historical actor, with his keys remapped onto edit time and
+        #    a HOLD inserted across each freeze. The hold repeats the state at
+        #    the freeze instant exactly -- same origin, yaw, stance, weapon,
+        #    health -- so the frame before the freeze and the frame after it
+        #    are the same frame.
+        for name, a in src.actors.items():
+            na = out.actor(name, a.team).appearance(a.model, a.skin,
+                                                    c1=a.c1, c2=a.c2)
+            na.layer = Layer.HISTORICAL
+            na._keys = self._remap_keys(a, tm)
+        # events move with their actors
+        out._events = [type(e)(**{**e.__dict__,
+                                  "t": _edit_of(tm, e.t)})
+                       for e in src._events]
+        out._alive = dict(src._alive)
+
+        # 2. one explainer per break, existing ONLY inside its freeze
+        report = {"breaks": [], "edit_duration_s": None}
+        for b in self.breaks:
+            # At a normal->freeze boundary one historical instant has TWO edit
+            # times: the left one is where the freeze opens, the right one is
+            # where it closes and history resumes. Everything inside the break
+            # is authored from the LEFT.
+            e0 = _edit_of(tm, b.at_t, bias="left")
+            if b.mode is Mode.ACTOR_COPY:
+                hist = src.actors[b.presenter]
+                frozen = hist._at(b.at_t)
+                act = out.actor(f"{b.presenter}~ANALYSIS", hist.team)
+                # Same model, ANALYSIS skin: the bright skin is what the
+                # colour family can reach, so this body -- and only this body
+                # -- takes the tint when the shot chooses to apply one.
+                act.appearance(hist.model, ANALYSIS_SKIN, c1=hist.c1, c2=hist.c2)
+                act.layer = Layer.ANALYSIS
+                start, weapon = frozen.origin, frozen.weapon
+                yaw0 = frozen.yaw
+            else:
+                prof = b.profile
+                prof.resolve()                    # the pak must have him
+                frozen = None
+                # Opposite team to the POV, so cg_enemy*Color is the only half
+                # of the colour family that could reach him -- and it is left
+                # alone unless the profile asks for a tint.
+                team = (Team.RED if src.observer_team is Team.BLUE
+                        else Team.BLUE)
+                act = out.actor(f"{prof.role}~PRESENTER", team)
+                act.appearance(prof.model, prof.skin)
+                act.layer = Layer.PRESENTER
+                start, weapon = b.enter_from, Weapon.GAUNTLET
+                yaw0 = _heading(b.enter_from, b.walk_to)
+            # Not in the round. Counting him would make the CA alive counters
+            # say one more player is fighting than actually is, which is a
+            # false statement about the historical event.
+            act.counts_toward_roster = False
+            self._author_walkout(act, b, start, yaw0, weapon, e0)
+            self._draw_graphic(out, b, src, e0)
+            report["breaks"].append(self._report_break(b, src, frozen, e0, act))
+
+        report["edit_duration_s"] = round(self.edit_duration, 3)
+        report["historical_duration_s"] = round(self.duration, 3)
+        report["facts"] = [f.as_dict() for f in self.facts]
+        return out, report
+
+    # -- pieces -----------------------------------------------------------
+    def _remap_keys(self, a: Actor, tm) -> list[_Keyframe]:
+        """The actor's keys on the edit clock, held FLAT across every freeze.
+
+        Remapping only the keys that already exist is not enough, and Proof C
+        proved it: with no key at the freeze instant, the two keys either side
+        of it simply had their interval stretched by the hold, and the yaw
+        snap that lives at the midpoint of that interval landed INSIDE the
+        freeze. Four frozen actors turned their heads. So the state at the
+        instant is sampled and pinned at both edit times of the boundary,
+        which is what a freeze means.
+        """
+        keys = sorted(a._keys, key=lambda k: k.t)
+        out: list[_Keyframe] = []
+        for k in keys:
+            left = _edit_of(tm, k.t, bias="left")
+            right = _edit_of(tm, k.t, bias="right")
+            out.append(_replace_t(k, left))
+            if right != left:
+                out.append(_replace_t(k, right))
+        for b in self.breaks:
+            if any(abs(k.t - b.at_t) < 1e-9 for k in keys):
+                continue                       # already pinned above
+            frozen = a._at(b.at_t)
+            out.append(_replace_t(frozen, _edit_of(tm, b.at_t, "left")))
+            out.append(_replace_t(frozen, _edit_of(tm, b.at_t, "right")))
+        return sorted(out, key=lambda k: k.t)
+
+    def _author_walkout(self, act: Actor, b: AnalysisBreak, start: Vec3,
+                        yaw0: float, weapon: Weapon, e0: float) -> None:
+        """Spawn, walk in, face camera, gesture, speak, walk back, leave.
+
+        Every time here is EDIT time. The line, if any, is scheduled on the
+        same clock as the walk and the camera, so it cannot drift from them.
+        """
+        from engine.pantheon.voice import (DialogueCue, SourceKind, SpatialMode,
+                                           wav_duration)
+        route = list(b.route_out) or [start, b.walk_to]
+        act.spawn(route[0], yaw=yaw0, t=e0, weapon=weapon)
+        # The walk takes as long as the distance takes at run speed. `walk_s`
+        # is no longer an author's guess; it is read back for the exit leg.
+        act.move_to(route, start=e0 + 0.15)
+        arrive = act._last().t
+        walk_s = arrive - (e0 + 0.15)
+        # move_to lays a settle keyframe at t1 + 0.05 carrying the ROUTE
+        # heading; turning on t1 was overwritten a frame later and he
+        # addressed the audience in profile. Turn after the settle.
+        turn = arrive + 0.25
+        act.look_at_point(b.face, t=turn)
+        t = turn + 0.2
+        if b.gesture and act.model in _GESTURE_OK:
+            act.gesture(t=t)
+            t += 0.9
+        if b.line is not None:
+            dur = wav_duration(Path(b.line.audio))
+            self.cues.append(DialogueCue(
+                actor_id=act.name, text=b.line.text, start_t=t,
+                duration_s=dur, audio_path=str(b.line.audio),
+                source_kind=SourceKind[b.line.source_kind],
+                profile=b.line.voice_profile, spatial=SpatialMode.DIEGETIC))
+            t += dur
+        speak_until = e0 + b.hold_s - walk_s - 0.2
+        if t > speak_until:
+            raise ValueError(
+                f"{b.who}: the break holds {b.hold_s}s but walking in, "
+                f"gesturing and the line need {t - e0 + walk_s + 0.2:.1f}s")
+        act.stand(until=speak_until)
+        act.move_to(list(reversed(route)), start=speak_until)
+        # gone before history resumes: the explainer must not be standing in
+        # the frame when the fight starts again
+        act.despawn(t=e0 + b.hold_s - 0.05)
+
+    def _remap_camera(self, src: RoundScenario, tm) -> list[_Keyframe]:
+        """Historical camera on the edit clock, plus any authored orbit."""
+        keys = sorted(src._camera_path, key=lambda k: k.t)
+        out: list[_Keyframe] = []
+        for k in keys:
+            left, right = _edit_of(tm, k.t, "left"), _edit_of(tm, k.t, "right")
+            out.append(_replace_t(k, left))
+            if right != left:
+                out.append(_replace_t(k, right))
+        for b in self.breaks:
+            if not b.orbit:
+                continue
+            e0 = _edit_of(tm, b.at_t, bias="left")
+            here = src.camera_at(b.at_t)
+            look = b.orbit_look_at or b.walk_to
+            # leave the POV, travel the orbit, come back to the SAME POV
+            # before the freeze closes: the frame history resumes on is the
+            # frame it left from.
+            pts = [here.origin, *b.orbit, here.origin]
+            n = len(pts) - 1
+            t_out, t_back = e0 + 0.1, e0 + b.hold_s - 0.1
+            for i, pt in enumerate(pts):
+                t = t_out + (t_back - t_out) * i / n
+                yaw = here.yaw if i in (0, n) else _heading(pt, look)
+                k = _Keyframe(t, pt, yaw, Stance.IDLE, Weapon.ROCKET,
+                              200, 100, True)
+                k.pitch = 0.0
+                out.append(k)
+        return out
+
+    def _draw_graphic(self, out: RoundScenario, b: AnalysisBreak,
+                      src: RoundScenario, e0: float) -> None:
+        """Put the tactical line on screen, drawn by the engine itself.
+
+        A SHOOTER->TARGET line is a rail beam between the two frozen origins.
+        Using the engine's own rail rather than a composited overlay means the
+        line obeys the renderer, sits correctly in depth against the geometry,
+        and is the same primitive the audience has been looking at all film.
+
+        IT IS STILL AN ANALYSIS OBJECT. Nobody fired this shot. It is emitted
+        by the historical shooter's client because that is where the beam has
+        to start, it exists only inside the freeze, and the report records it
+        as a reconstruction. `cg_railTrailTime` is 600ms, so it is re-emitted
+        often enough to look continuous.
+        """
+        if not (b.graphic and b.graphic_from and b.graphic_to):
+            return
+        shooter = out.actors[b.graphic_from]
+        target_at = src.actors[b.graphic_to]._at(b.at_t).origin
+        t = e0 + b.walk_s + 0.35            # after he has turned to camera
+        while t < e0 + b.hold_s - b.walk_s - 0.3:
+            out._events.append(_analysis_rail(t, b.graphic_from, target_at))
+            t += 0.5
+
+    def _report_break(self, b: AnalysisBreak, src: RoundScenario,
+                      frozen, e0: float, act: Actor) -> dict:
+        route = list(b.route_out) or [
+            (frozen.origin if frozen else b.enter_from), b.walk_to]
+        d = {
+            "historical_t_s": b.at_t,
+            "edit_freeze_start_s": round(e0, 3),
+            "edit_freeze_end_s": round(e0 + b.hold_s, 3),
+            "hold_s": b.hold_s,
+            "mode": b.mode.value,
+            "explainer": act.name,
+            "explainer_layer": act.layer.value,
+            "explainer_appearance": {"model": act.model, "skin": act.skin},
+            "line": ({"text": b.line.text, "audio": str(b.line.audio),
+                      "source_kind": b.line.source_kind}
+                     if b.line else None),
+            "camera_orbit_points": len(b.orbit),
+            "walk_route": [[round(c, 2) for c in p] for p in route],
+            "walk_len_units": round(
+                sum(math.dist(route[i], route[i + 1])
+                    for i in range(len(route) - 1)), 1),
+            "faces": [round(c, 2) for c in b.face],
+        }
+        if frozen is not None:
+            d["historical_actor"] = b.presenter
+            d["historical_frozen_state"] = {
+                "origin": [round(c, 2) for c in frozen.origin],
+                "yaw": round(frozen.yaw, 2), "stance": frozen.stance.name,
+                "weapon": frozen.weapon.name, "health": frozen.health,
+                "armor": frozen.armor}
+        if b.graphic and b.graphic_from and b.graphic_to:
+            p = src.actors[b.graphic_from]._at(b.at_t).origin
+            q = src.actors[b.graphic_to]._at(b.at_t).origin
+            fact = TacticalFact(
+                label=f"{b.graphic_from} -> {b.graphic_to}",
+                value=math.dist(p, q), units="units",
+                derivation=(f"||FrameTruth[{b.graphic_from}].origin - "
+                            f"FrameTruth[{b.graphic_to}].origin|| "
+                            f"at historical t={b.at_t:g}s"))
+            self.facts.append(fact)
+            d["graphic"] = {"kind": b.graphic.value, "layer": Layer.ANALYSIS.value,
+                            "rendered_as": "engine EV_RAILTRAIL, re-emitted "
+                                           "every 0.5s inside the freeze",
+                            "reconstruction": True,
+                            "nobody_fired_this": True,
+                            "from": [round(c, 2) for c in p],
+                            "to": [round(c, 2) for c in q],
+                            "fact": fact.as_dict()}
+        return d
+
+    # -- the acceptance test ---------------------------------------------
+    def verify_restoration(self, built: RoundScenario, *,
+                           eps: float = 1e-6) -> dict:
+        """Prove history is byte-identical either side of every freeze.
+
+        Not a claim: for each break, every historical actor is sampled on the
+        edit clock one tick before the freeze opens and one tick after it
+        closes, and every component of the state must match. The analysis actor
+        must also be absent from the roster at both instants.
+        """
+        results = []
+        for b in self.breaks:
+            tm = self.time_map()
+            e0 = _edit_of(tm, b.at_t, bias="left")    # freeze opens
+            e1 = _edit_of(tm, b.at_t, bias="right")   # freeze closes
+            row = {"historical_t_s": b.at_t, "actors": {}, "ok": True}
+            for name, a in built.actors.items():
+                if getattr(a, "layer", Layer.HISTORICAL) is not Layer.HISTORICAL:
+                    continue
+                before, after = a._at(e0), a._at(e1)
+                same = (all(abs(x - y) <= eps
+                            for x, y in zip(before.origin, after.origin))
+                        and abs(before.yaw - after.yaw) <= eps
+                        and before.stance is after.stance
+                        and before.weapon is after.weapon
+                        and before.health == after.health
+                        and before.armor == after.armor
+                        and before.alive == after.alive)
+                row["actors"][name] = {
+                    "identical": same,
+                    "origin_delta": [round(y - x, 6) for x, y
+                                     in zip(before.origin, after.origin)],
+                    "yaw_delta": round(after.yaw - before.yaw, 6),
+                    "weapon": before.weapon.name,
+                    "health": before.health}
+                row["ok"] = row["ok"] and same
+            results.append(row)
+        return {"breaks": results, "all_restored": all(r["ok"] for r in results)}
+
+
+def _analysis_rail(t: float, actor: str, to: Vec3):
+    """A rail event that exists to explain, not because it happened."""
+    from engine.pantheon.scenario import _Event
+    e = _Event(t, "fire", actor, None, Weapon.RAIL, position=to)
+    e.layer = Layer.ANALYSIS          # never counted as a historical shot
+    return e
+
+
+def _edit_of(tm, historical_t: float, bias: str = "left") -> float:
+    return tm.demo_to_edit(int(historical_t * US), bias=bias) / US
+
+
+def _replace_t(k: _Keyframe, t: float) -> _Keyframe:
+    return _Keyframe(t, k.origin, k.yaw, k.stance, k.weapon, k.health,
+                     k.armor, k.alive)
+
+
+# ── the analysis look, decided by PROOF B ───────────────────────────────────
+#
+# PROOF B measured three things that together make an analysis-only appearance
+# possible without touching a single historical actor:
+#
+#   1. cg_team*Color / cg_enemy*Color TINT a player, keyed on his team relation
+#      to the point of view;
+#   2. the tint reaches the `bright` skin family and NOT `sarge/default`, which
+#      measured (153,108,66) identically with the family cleared and set;
+#   3. that is also why Keel came out white in PROOF 01 -- he was a teammate of
+#      the POV and cg_teamLegsColor ships as 0xffffff.
+#
+# So the analysis body is the ONLY actor wearing a `bright` skin. The tint then
+# lands on it and on nothing else, and every historical actor keeps exactly the
+# appearance the demo authored. The explanatory copy is instantly separable
+# from the fight without repainting the fight.
+
+PANTHEON_GREEN = (60, 235, 90)     # readable against grey arena stone,
+                                   # and not the nuclear 0x00ff00 of the test
+
+ANALYSIS_SKIN = "bright"
+
+
+# HOW the tint reaches a renderer -- which cvars, in which format -- is the
+# backend's business: engine.pantheon.color_format.analysis_visual_cvars.
+# This layer states the intent (PANTHEON_GREEN on the analysis body, chosen
+# by team relation to the POV) and nothing lower.

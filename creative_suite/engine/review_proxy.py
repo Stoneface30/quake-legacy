@@ -36,10 +36,12 @@ import subprocess
 import threading
 import time
 from datetime import datetime, timezone
+
 from pathlib import Path
 from typing import Any
 
 from engine.pantheon import render_permit
+from engine.pantheon import store as _store
 from creative_suite.engine.process_liveness import process_alive
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -50,7 +52,11 @@ EDITORIAL_DB_PATH = _DB_DIR / "editorial.db"
 FRAGS_REBUILT_DB_PATH = _DB_DIR / "frags_rebuilt.db"
 PROXY_DIR = REPO_ROOT / "output" / "demo_v2" / "review_proxies"
 LOCK_PATH = REPO_ROOT / "output" / "demo_v2" / "_capture.lock"
-FFMPEG = REPO_ROOT / "creative_suite" / "tools" / "ffmpeg" / "ffmpeg.exe"
+# The tool binaries are gitignored, so they exist once, in the checkout that
+# owns the data -- a git worktree of the code has no tools/ under it. Every
+# proxy in a worktree failed on a missing ffmpeg.exe until this resolved the
+# same way the databases do.
+FFMPEG = (_store.PROJECT_ROOT / "creative_suite" / "tools" / "ffmpeg" / "ffmpeg.exe")
 
 # Window when the frag has no master capture: 4s before, 3s after the kill.
 WINDOW_PRE_MS = 4000
@@ -96,7 +102,13 @@ CREATE TABLE IF NOT EXISTS review_proxies (
     error TEXT,
     mp4_path TEXT,
     created_at TEXT,
-    updated_at TEXT
+    updated_at TEXT,
+    -- WHAT MADE THIS FILE. Added when the offscreen backend arrived. NULL
+    -- means "before the manifest existed", which is exactly the truth for
+    -- proxies filmed by the visible window; they stay READY and stay usable.
+    backend TEXT,
+    engine_version TEXT,
+    source_demo TEXT
 );
 CREATE TABLE IF NOT EXISTS editorial_reviews (
     frag_id INT PRIMARY KEY,
@@ -118,6 +130,11 @@ def editorial_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(EDITORIAL_DB_PATH, timeout=15, check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.executescript(_SCHEMA)
+    have = {r[1] for r in conn.execute("PRAGMA table_info(review_proxies)")}
+    for col in ("backend", "engine_version", "source_demo"):
+        if col not in have:
+            conn.execute(f"ALTER TABLE review_proxies ADD COLUMN {col} TEXT")
+    conn.commit()
     table_sql = conn.execute(
         "SELECT sql FROM sqlite_master WHERE type='table' "
         "AND name='editorial_reviews'"
@@ -338,13 +355,18 @@ def request_proxy(
 
 
 def _set_state(key: str, state: str, error: str | None = None,
-               mp4_path: str | None = None) -> None:
+               mp4_path: str | None = None, manifest: dict | None = None) -> None:
     conn = editorial_conn()
+    m = manifest or {}
     try:
         conn.execute(
             "UPDATE review_proxies SET state=?, error=?, mp4_path=?,"
-            " updated_at=? WHERE key=?",
-            (state, error, mp4_path, _now(), key),
+            " updated_at=?,"
+            " backend=coalesce(?, backend),"
+            " engine_version=coalesce(?, engine_version),"
+            " source_demo=coalesce(?, source_demo) WHERE key=?",
+            (state, error, mp4_path, _now(), m.get("backend"),
+             m.get("engine_version"), m.get("source_demo"), key),
         )
         conn.commit()
     finally:
@@ -400,6 +422,47 @@ def _run_ffmpeg(args: list[str], timeout: int = 600) -> None:
             f"ffmpeg rc={proc.returncode}: {(err or b'')[:400].decode(errors='replace')}")
 
 
+# The reviewer must not open a game window. The proxy therefore films on the
+# hidden desktop, and falls back to the visible window only where the hidden
+# desktop is not available at all (it is a Win32 mechanism). Which one ran is
+# recorded against the cached file rather than assumed.
+BACKEND_OFFSCREEN = "PANTHEON_QUAKE_OFFSCREEN"
+BACKEND_WINDOW = "WOLFCAM_REFERENCE"
+
+
+def _film(safe: str, windows: list[dict], *, profile: str) -> tuple[dict, str]:
+    """One capture for the proxy cache, offscreen where that is possible.
+
+    Returns wolfcam_capture-shaped state so the caller is unchanged: `avis`
+    maps clip name to a Path, and `ok` means every window was filmed.
+    """
+    from creative_suite.engine import wolfcam_capture as wc
+    if os.getenv("CS_PROXY_WINDOW"):        # an operator asking to watch it
+        return wc.capture_demo(safe, windows, profile=profile), BACKEND_WINDOW
+    try:
+        from engine.pantheon import offscreen
+        res = offscreen.capture(safe, windows, staging=wc.STAGING,
+                                profile=profile,
+                                purpose=f"review proxy {windows[0]['clip_name']}")
+    except Exception as exc:                # not Windows, or no desktop object
+        res = None
+        why = str(exc)[:120]
+    else:
+        why = str(res.get("detail") or "")
+        if res.get("avis"):
+            return ({"ok": len(res["avis"]) == len(windows),
+                     "returncode": res.get("returncode"),
+                     "elapsed_s": res.get("seconds"),
+                     "avis": {k: Path(v) for k, v in res["avis"].items()},
+                     "error": None if res.get("avis") else why},
+                    BACKEND_OFFSCREEN)
+    # Nothing came back. Say so plainly rather than quietly opening a window:
+    # a silent fallback is how a rule stops being true without anyone noticing.
+    return ({"ok": False, "returncode": None, "elapsed_s": None, "avis": {},
+             "error": f"offscreen capture produced nothing: {why}"},
+            BACKEND_OFFSCREEN)
+
+
 def _generate(job: dict[str, Any]) -> None:
     """Produce the cached MP4 for one job. Runs on the worker thread with the
     capture lock held."""
@@ -421,7 +484,9 @@ def _generate(job: dict[str, Any]) -> None:
             str(tmp_mp4),
         ], timeout=180)
         tmp_mp4.replace(final_mp4)
-        _set_state(key, "READY", mp4_path=str(final_mp4))
+        _set_state(key, "READY", mp4_path=str(final_mp4),
+                   manifest={"backend": "MOCK", "engine_version": "mockprofile",
+                             "source_demo": job.get("demo_path")})
         return
 
     from creative_suite.engine import wolfcam_capture as wc
@@ -436,11 +501,17 @@ def _generate(job: dict[str, Any]) -> None:
     safe = wc.stage_demo(demo_path)
     clip_name = f"rp_{key[:16]}"
     from creative_suite.engine import master_profile as _mp
-    res = wc.capture_demo(
-        safe, [{"clip_name": clip_name, "start_ms": start_ms, "end_ms": end_ms}],
-        profile=_mp.FAST_REVIEW_PROFILE_NAME)
+    # BOTH HALVES OF THE RECONCILIATION. The backend is the shared PANTHEON
+    # offscreen renderer -- no window, no focus steal, and no quiet fallback
+    # to a visible one. The profile is the reviewer's fast 720p30 variant,
+    # because review media is for judging rather than for the film; it still
+    # carries the REVIEW visual semantics, so the enemy is the same green
+    # Keel the shared proof was banked on.
+    windows = [{"clip_name": clip_name, "start_ms": start_ms, "end_ms": end_ms}]
+    res, backend = _film(safe, windows,
+                         profile=_mp.FAST_REVIEW_PROFILE_NAME)
     if not res["ok"]:
-        raise RuntimeError(res.get("error") or "wolfcam capture failed")
+        raise RuntimeError(res.get("error") or f"{backend} capture failed")
     avi = Path(res["avis"][clip_name])
     try:
         _run_ffmpeg([
@@ -457,7 +528,10 @@ def _generate(job: dict[str, Any]) -> None:
                 avi.unlink()  # AVI is scratch — the MP4 is the deliverable
         except OSError:
             pass
-    _set_state(key, "READY", mp4_path=str(final_mp4))
+    _set_state(key, "READY", mp4_path=str(final_mp4),
+               manifest={"backend": backend,
+                         "engine_version": _mp.profile_id(_mp.REVIEW_PROFILE_NAME),
+                         "source_demo": str(demo_path)})
 
 
 def _worker_loop() -> None:
@@ -498,6 +572,14 @@ def _worker_loop() -> None:
                 _generate(job)
             finally:
                 _release_lock()
+        except render_permit.RenderNotPermitted as rd:
+            # capture_demo asked the authority itself (a game started between
+            # our check and the launch): still not a failure -- QUEUED, and
+            # offered again later
+            _set_state(job["key"], "QUEUED", error=rd.decision.reason)
+            time.sleep(_PERMIT_WAIT_S)
+            _queue.put(job)
+            requeued = True
         except Exception as exc:  # worker must never die
             _set_state(job["key"], "FAILED", error=str(exc)[:500])
         finally:

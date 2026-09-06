@@ -50,6 +50,7 @@ from pathlib import Path
 from typing import Any
 
 from creative_suite.engine import master_profile
+from engine.pantheon import render_permit
 from creative_suite.engine import shot_plan
 from creative_suite.engine import wolfcam_capture as wc
 from creative_suite.engine.camera_paths import _kf
@@ -160,7 +161,9 @@ def launch_session(demo_path: str | Path, seek_ms: int,
         extra_sets = {"logfile": 2}
         cmd = wc.wolfcam_cmd(safe, staging=staging, extra_sets=extra_sets)
         # VISIBLE on purpose: no CREATE_NO_WINDOW, no stdout/stderr capture.
-        # A human needs to see and fly this window.
+        # A human needs to see and fly this window -- and asked for it, which
+        # the permit checks: PANTHEON_RENDER is not off, no protected game up.
+        render_permit.require("director_session")
         proc = subprocess.Popen(cmd, cwd=staging)
 
     session_id = str(uuid.uuid4())

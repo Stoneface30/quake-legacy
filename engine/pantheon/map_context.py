@@ -31,8 +31,10 @@ from typing import Any
 
 from engine.pantheon import map_geography as mg
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-RECOG_DB = REPO_ROOT / "creative_suite" / "database" / "frag_recognition.db"
+from engine.pantheon import store as S
+
+REPO_ROOT = S.PROJECT_ROOT
+RECOG_DB = S.RECOG_DB
 
 # How far back to look for the move that brought the actor here. Six seconds
 # covers a jump-pad arc and a corridor; much more and "approach" becomes
