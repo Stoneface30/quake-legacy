@@ -44,6 +44,14 @@ class ActorTruth:
     alive: bool = True
     legs_anim: int = 0
     torso_anim: int = 0
+    # The TOGGLE BIT is how the server says 'restart this animation'.
+    # The animation NUMBER can stay the same across a restart, so
+    # watching the number alone misses it -- a second rocket fired
+    # from TORSO_ATTACK never replays.
+    legs_toggle: bool = False
+    torso_toggle: bool = False
+    # angles2[YAW]: 0-7 movement direction, offsets legs from view.
+    move_dir: int = 0
     target: str | None = None
 
 
@@ -464,7 +472,10 @@ class FrameTruth:
                     weapon=str(wpn.get("weapon", "UNKNOWN")),
                     alive=not dead,
                     legs_anim=int(anim.get("legs", 0)),
-                    torso_anim=int(anim.get("torso", 0)))
+                    torso_anim=int(anim.get("torso", 0)),
+                    legs_toggle=bool(anim.get("legs_toggle", False)),
+                    torso_toggle=bool(anim.get("torso_toggle", False)),
+                    move_dir=int(anim.get("move_dir") or 0))
 
             events = [SemanticEvent(
                           t=(e["t"] - base_ms) / 1000.0,

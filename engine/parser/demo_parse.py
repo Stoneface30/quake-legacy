@@ -156,6 +156,11 @@ _F_POS_Z   =  5   # pos.trBase[2] — float
 _F_YAW     =  6   # apos.trBase[1] — float
 _F_VEL_Z   =  7   # pos.trDelta[2] — float
 _F_PITCH   =  8   # apos.trBase[0] — float
+# angles2[YAW] on a player is NOT an angle: it is the 0-7 movement
+# direction index cgame uses to offset the legs from the view
+# (CG_PlayerAngles movementOffsets). Without it a strafing player's
+# legs face his aim instead of his travel.
+_F_ANGLES2_YAW = 11
 _F_EVENT   = 10   # event (10 bits)
 _F_ETYPE   = 12   # eType (8 bits)
 _F_EVPARM  = 14   # eventParm (8 bits)
@@ -907,6 +912,7 @@ class DM73Parser:
                     'vel_z':          accumulated.get(_F_VEL_Z),
                     'angle_yaw':      accumulated.get(_F_YAW),
                     'angle_pitch':    accumulated.get(_F_PITCH),
+                    'move_dir':       accumulated.get(_F_ANGLES2_YAW),
                     'weapon':         accumulated.get(_F_WEAPON),
                     'ground_entity':  g,
                     # None = field never sent = standing on world (default 0).

@@ -201,11 +201,16 @@ class RenderActor:
     # model is asset knowledge resolved from it.
     weapon_model: str = ""
     alive: bool = True
-    # How long this actor has been in this animation, in ms. Derived by
-    # watching the animation number change across observed frames -- the
-    # demo told us when it changed, so the renderer never has to guess
-    # where in a cycle a body is.
-    anim_time_ms: int = 0
+    # How long each part has been in ITS animation. Legs and torso run
+    # independent clocks in the original client, so sharing one made a
+    # torso change restart the legs mid-stride.
+    legs_anim_ms: int = 0
+    torso_anim_ms: int = 0
+    # angles2[YAW] 0-7: how far the legs are turned off the view.
+    move_dir: int = 0
+    # The view pitch. The torso takes 0.75 of it and the legs none,
+    # per CG_PlayerAngles; pitching the whole body tips the character.
+    view_pitch: float = 0.0
 
 
 @dataclass
@@ -319,8 +324,8 @@ def from_frame_truth(truth, *, cast: dict[str, Any],
 
     frames: list[RenderFrame] = []
     wanted = None if indices is None else set(indices)
-    # actor_id -> (legs, torso, server_time_ms the pair was first seen)
-    anim_since: dict[str, tuple[int, int, int]] = {}
+    # actor_id -> {'legs': (anim, toggle, started_ms), 'torso': ...}
+    anim_since: dict[str, dict[str, tuple[int, bool, int]]] = {}
 
     for out_index, (i, f, out_t) in enumerate(source):
         if wanted is not None and i not in wanted:
@@ -351,11 +356,13 @@ def from_frame_truth(truth, *, cast: dict[str, Any],
             profile = cast.get(actor_id)
             if profile is None:
                 continue                       # uncast: not the renderer's call
-            prev = anim_since.get(actor_id)
-            if prev is None or prev[0] != a.legs_anim or prev[1] != a.torso_anim:
-                anim_since[actor_id] = (a.legs_anim, a.torso_anim,
-                                        f.server_time_ms)
-            started = anim_since[actor_id][2]
+            clocks = anim_since.setdefault(actor_id, {})
+            for part, num, tog in (("legs", a.legs_anim, a.legs_toggle),
+                                   ("torso", a.torso_anim, a.torso_toggle)):
+                was = clocks.get(part)
+                # A restart is a change of NUMBER **or** of TOGGLE.
+                if was is None or was[0] != num or was[1] != tog:
+                    clocks[part] = (num, tog, f.server_time_ms)
             # The body is evaluated at the same output instant as the camera,
             # or actor and world drift apart by up to one snapshot.
             _ev = _evaluate_actor(truth, actor_id, out_t, intent)
@@ -368,9 +375,11 @@ def from_frame_truth(truth, *, cast: dict[str, Any],
                 angles=(0.0, float(_ayaw), 0.0),   # a body yaws; it does not pitch
                 legs_anim=a.legs_anim, torso_anim=a.torso_anim,
                 weapon=a.weapon, alive=a.alive,
+                move_dir=a.move_dir, view_pitch=float(a.pitch),
                 weapon_model=(weapon_assets(int(a.weapon)).get("hand") or "")
                               if str(a.weapon).lstrip('-').isdigit() else "",
-                anim_time_ms=f.server_time_ms - started))
+                legs_anim_ms=out_t - clocks["legs"][2],
+                torso_anim_ms=out_t - clocks["torso"][2]))
 
         # A missile has a continuous trajectory, so it is evaluated at the
         # OUTPUT time rather than snapped to the source sample -- otherwise it
@@ -431,8 +440,8 @@ def save_shot_script(frames: Sequence[RenderFrame], path: Path,
         player <model> <skin>                     # declared once, in order
         frame <idx> <serverTimeMs> <cx cy cz> <pitch yaw roll> <fov> <out>
         model <md3 path>                          # declared once, in order
-        actor <playerIdx> <x y z> <pitch yaw roll> <legs> <torso> <animMs>
-              <weaponModelIdx|-1>
+        actor <playerIdx> <x y z> <pitch yaw roll> <legs> <torso>
+              <legsMs> <torsoMs> <moveDir> <viewPitch> <weaponModelIdx|-1>
         projectile <modelIdx> <x y z> <pitch yaw roll>
 
     The host treats an unknown keyword as fatal, so this writer and that
@@ -472,12 +481,15 @@ def save_shot_script(frames: Sequence[RenderFrame], path: Path,
             c.origin[0], c.origin[1], c.origin[2],
             c.angles[0], c.angles[1], c.angles[2], c.fov, f.out))
         for a in f.actors:
-            out.append("actor %d %.3f %.3f %.3f %.3f %.3f %.3f %d %d %d %d" % (
-                roster.index((a.model, a.skin)),
-                a.origin[0], a.origin[1], a.origin[2],
-                a.angles[0], a.angles[1], a.angles[2],
-                a.legs_anim, a.torso_anim, a.anim_time_ms,
-                models.index(a.weapon_model) if a.weapon_model else -1))
+            out.append(
+                "actor %d %.3f %.3f %.3f %.3f %.3f %.3f %d %d %d %d %d %.3f %d"
+                % (roster.index((a.model, a.skin)),
+                   a.origin[0], a.origin[1], a.origin[2],
+                   a.angles[0], a.angles[1], a.angles[2],
+                   a.legs_anim, a.torso_anim,
+                   a.legs_anim_ms, a.torso_anim_ms,
+                   a.move_dir, a.view_pitch,
+                   models.index(a.weapon_model) if a.weapon_model else -1))
         for pr in f.projectiles:
             out.append("projectile %d %.3f %.3f %.3f %.3f %.3f %.3f" % (
                 models.index(pr.model),

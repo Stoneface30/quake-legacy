@@ -85,6 +85,9 @@ class AnimSample:
     torso: int
     legs_toggle: bool            # the toggle bit as sent
     torso_toggle: bool
+    # angles2[YAW]: the 0-7 movement direction index. Drives how far the legs
+    # are turned away from the view (CG_PlayerAngles).
+    move_dir: int | None = None
 
 
 @dataclass
@@ -203,7 +206,8 @@ class PerformanceTrace:
         tr.aim = [AimSample(x["t"], x["yaw"], x["pitch"], x["yaw_rate"], x["pitch_rate"])
                   for x in d.get("aim", [])]
         tr.animation = [AnimSample(x["t"], x["legs"], x["torso"], x["legs_toggle"],
-                                   x["torso_toggle"]) for x in d.get("animation", [])]
+                                   x["torso_toggle"], x.get("move_dir"))
+                        for x in d.get("animation", [])]
         tr.weapon = [WeaponSample(x["t"], x["weapon"]) for x in d.get("weapon", [])]
         tr.projectiles = [ProjectileSample(x["t"], x["entity"], x["weapon"],
                                            t3(x["origin"]), t3(x["velocity"]),
@@ -248,7 +252,8 @@ def _parse_with_anims(path: Path):
                 anims.append({"t": t, "client": st.get(dp._F_CLIENT, num),
                               "legs": l & ~ANIM_TOGGLE, "torso": to & ~ANIM_TOGGLE,
                               "legs_toggle": bool(l & ANIM_TOGGLE),
-                              "torso_toggle": bool(to & ANIM_TOGGLE)})
+                              "torso_toggle": bool(to & ANIM_TOGGLE),
+                              "move_dir": st.get(dp._F_ANGLES2_YAW)})
         ps = parser._ps_state
         if ps:
             l = int(ps.get(PS_LEGS_ANIM, 0) or 0); to = int(ps.get(PS_TORSO_ANIM, 0) or 0)
@@ -353,7 +358,8 @@ def extract_performance(demo: Path, start_ms: int, end_ms: int, client: int,
             tr.aim.append(AimSample(t, r["yaw"], r["pitch"], round(yr, 1), round(pr, 1)))
             prev = (t, r["yaw"], r["pitch"])
             tr.animation.append(AnimSample(t, r["legs"], r["torso"],
-                                           r["legs_toggle"], r["torso_toggle"]))
+                                           r["legs_toggle"], r["torso_toggle"],
+                                           r.get("move_dir")))
             if r["weapon"] is not None and (not tr.weapon or tr.weapon[-1].weapon != r["weapon"]):
                 tr.weapon.append(WeaponSample(t, int(r["weapon"])))
     # The parser appends one entity row per DELTA, and a snapshot can carry
@@ -392,7 +398,8 @@ def extract_performance(demo: Path, start_ms: int, end_ms: int, client: int,
         for t in sorted(an_by_t):
             a = an_by_t[t]
             tr.animation.append(AnimSample(a["t"], a["legs"], a["torso"],
-                                           a["legs_toggle"], a["torso_toggle"]))
+                                           a["legs_toggle"], a["torso_toggle"],
+                                           a.get("move_dir")))
 
     for m in out["missiles"]:
         if m.get("other") == client and win(m["server_time_ms"]):

@@ -100,15 +100,33 @@ def test_a_body_yaws_but_does_not_pitch():
     assert a.angles[0] == 0.0 and a.angles[2] == 0.0
 
 
-def test_animation_clock_restarts_only_when_the_animation_changes():
+def test_legs_and_torso_run_independent_animation_clocks():
+    """Sharing one clock made a torso change restart the legs mid-stride."""
     tr = _trace(5, 1000, 25, 6)
-    for s in tr["animation"][3:]:
-        s["legs"] = 19                          # a change partway through
+    for smp in tr["animation"][3:]:
+        smp["torso"] = 7                        # TORSO_ATTACK partway through
     t = FrameTruth.from_traces([tr])
     frames = rf.from_frame_truth(t, cast={"CLIENT_5": _Profile("sarge")})
-    times = [f.actors[0].anim_time_ms for f in frames]
-    assert times[:3] == [0, 25, 50]
-    assert times[3] == 0, "a new animation starts its own clock"
+    legs = [f.actors[0].legs_anim_ms for f in frames]
+    torso = [f.actors[0].torso_anim_ms for f in frames]
+    assert legs == [0, 25, 50, 75, 100, 125], "the legs never restarted"
+    assert torso[:3] == [0, 25, 50]
+    assert torso[3] == 0, "the torso started its own animation"
+
+
+def test_the_toggle_bit_restarts_an_animation_with_the_same_number():
+    """Firing twice from TORSO_ATTACK keeps the number and flips the toggle.
+    Watching the number alone never replays the second shot."""
+    tr = _trace(5, 1000, 25, 6)
+    for smp in tr["animation"]:
+        smp["torso"] = 7
+    for smp in tr["animation"][3:]:
+        smp["torso_toggle"] = True              # same number, restart
+    t = FrameTruth.from_traces([tr])
+    frames = rf.from_frame_truth(t, cast={"CLIENT_5": _Profile("sarge")})
+    torso = [f.actors[0].torso_anim_ms for f in frames]
+    assert torso[:3] == [0, 25, 50]
+    assert torso[3] == 0, "the toggle bit is a restart"
 
 
 def test_shot_script_round_trips_the_values_the_host_will_read(tmp_path):
