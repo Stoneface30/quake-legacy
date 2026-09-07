@@ -20,6 +20,7 @@ masks, ComfyUI may stylise -- none of them decides where a player was.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Sequence
@@ -44,6 +45,34 @@ class ActorTruth:
     legs_anim: int = 0
     torso_anim: int = 0
     target: str | None = None
+
+
+@dataclass
+class ProjectileTruth:
+    """One missile at one instant.
+
+    THE RECORDED FIELD IS NOT A POSITION. `origin` in a ProjectileSample is
+    `pos.trBase` -- the trajectory's base point, which for a Q3 missile is set
+    once at spawn and never changes. Three consecutive snapshots 25 ms apart
+    reporting the identical value at ~1000 u/s is the giveaway. The missile's
+    actual position is `trBase + trDelta * (t - trTime) / 1000`, and `trTime`
+    is not in the demo rows at all.
+
+    So a projectile is renderable only when its launch time can be established
+    from something recorded -- the EV_FIRE_WEAPON that spawned it. Where that
+    is missing the trajectory is UNDERIVABLE and the missile is not drawn,
+    because a straight line through two trBase values is not an observation.
+    """
+    track_id: str
+    entity: int
+    weapon: int
+    owner_client: int | None
+    position: Vec3                  # evaluated, not recorded
+    direction: Vec3                 # unit trDelta
+    speed: float
+    launch_ms: int
+    provenance: str                 # DERIVED | RECORDED
+    method: str
 
 
 @dataclass
@@ -96,6 +125,119 @@ SOUND_INTENT = {
 }
 
 
+
+def _missile_segments(trace: dict) -> list[dict]:
+    """Recover trajectory segments from a trace's projectile samples.
+
+    A run of samples sharing the same trBase/trDelta is ONE trajectory. Its
+    launch time is taken from the EV_FIRE_WEAPON that names the same weapon at
+    the instant the missile first appears -- which is what g_missile.c does:
+    the missile is spawned by the fire, with trTime = the fire's time.
+
+    A segment with no matching fire event is returned with launch_ms None. It
+    is deliberately still returned, so callers can report it as UNDERIVABLE
+    rather than silently seeing fewer missiles than the demo contained.
+    """
+    LAUNCH_TOLERANCE_MS = 50
+    MAX_RESIDUAL_MS = 100        # four snapshots; observed good segments are 30-40
+
+    by_ent: dict[int, list[dict]] = {}
+    for s in trace.get("projectiles", []):
+        by_ent.setdefault(s["entity"], []).append(s)
+
+    fires = [e for e in trace.get("events", [])
+             if e.get("kind") == "fire_weapon" and e.get("weapon") is not None]
+
+    segments: list[dict] = []
+    for entity, samples in by_ent.items():
+        samples.sort(key=lambda s: s["t"])
+        runs: list[list[dict]] = []
+        for s in samples:
+            if runs and (tuple(runs[-1][-1]["origin"]) == tuple(s["origin"])
+                         and tuple(runs[-1][-1]["velocity"]) == tuple(s["velocity"])):
+                runs[-1].append(s)
+            else:
+                runs.append([s])
+
+        head = runs[0][0]
+        launch = None
+        for e in fires:
+            if e["weapon"] == head["weapon"] and abs(e["t"] - head["t"]) <= LAUNCH_TOLERANCE_MS:
+                launch = e["t"]
+                break
+
+        # Every later run is an independent observation of the same flight:
+        # its trBase should equal the first base evaluated forward. That is
+        # the only check available that the derivation is not fiction.
+        residual = None
+        if launch is not None and len(runs) > 1:
+            base, delta = head["origin"], head["velocity"]
+            worst = 0.0
+            for run in runs[1:]:
+                obs = run[0]
+                dt = (obs["t"] - launch) / 1000.0
+                pred = [base[i] + delta[i] * dt for i in range(3)]
+                worst = max(worst, max(abs(pred[i] - obs["origin"][i])
+                                       for i in range(3)))
+            residual = worst
+
+        # THE VALIDITY GATE. A derivation is only honest if it predicts the
+        # observations we did get. Express the disagreement as TIME, not
+        # distance, so it is comparable across weapons: residual / speed. A
+        # genuine segment lands within a snapshot or two of its fire event
+        # (measured: 30-40 ms). One segment in this corpus disagrees by 1.9
+        # SECONDS -- entity slots are reused and a delta-compressed trDelta can
+        # survive from the previous occupant, so the parameters simply do not
+        # describe that flight. Evaluating it anyway put a rocket outside the
+        # map. It is refused rather than drawn.
+        speed = math.sqrt(sum(v * v for v in head["velocity"])) or 1.0
+        residual_ms = None if residual is None else residual / speed * 1000.0
+        valid = launch is not None and (residual_ms is None
+                                        or residual_ms <= MAX_RESIDUAL_MS)
+
+        segments.append({
+            "valid": valid,
+            "residual_ms": residual_ms,
+            "entity": entity,
+            "weapon": head["weapon"],
+            "owner": trace.get("client"),
+            "base": tuple(float(v) for v in head["origin"]),
+            "delta": tuple(float(v) for v in head["velocity"]),
+            "launch_ms": launch,
+            "first_seen_ms": head["t"],
+            "last_seen_ms": samples[-1]["t"],
+            "residual_u": residual,
+        })
+    return segments
+
+
+def _evaluate_missile(seg: dict, t_ms: int) -> ProjectileTruth | None:
+    """TR_LINEAR at one instant, or nothing.
+
+    Outside [launch, last observed] the missile is not drawn. After the last
+    snapshot that saw it we do not know it still exists -- it very likely
+    exploded, but "likely" is not a render input.
+    """
+    launch = seg["launch_ms"]
+    if launch is None or not seg.get("valid"):
+        return None
+    if t_ms < launch or t_ms > seg["last_seen_ms"]:
+        return None
+
+    dt = (t_ms - launch) / 1000.0
+    base, delta = seg["base"], seg["delta"]
+    pos = tuple(base[i] + delta[i] * dt for i in range(3))
+    speed = math.sqrt(sum(d * d for d in delta))
+    unit = tuple(d / speed for d in delta) if speed else (1.0, 0.0, 0.0)
+
+    return ProjectileTruth(
+        track_id="P:%d:%d" % (seg["entity"], launch),
+        entity=seg["entity"], weapon=seg["weapon"],
+        owner_client=seg["owner"], position=pos, direction=unit,
+        speed=speed, launch_ms=launch, provenance="DERIVED",
+        method="TR_LINEAR(trBase,trDelta,trTime=EV_FIRE_WEAPON)")
+
+
 def sound_intent(kind: str, weapon: str | None) -> str | None:
     base = kind.split(":", 1)[1] if kind.startswith("recorded:") else kind
     fmt = SOUND_INTENT.get(base)
@@ -114,6 +256,7 @@ class Frame:
     round_state: RoundStateTruth
     events: list[SemanticEvent] = field(default_factory=list)
     camera: dict[str, Any] | None = None
+    projectiles: list[ProjectileTruth] = field(default_factory=list)
 
 
 class FrameTruth:
@@ -173,7 +316,8 @@ class FrameTruth:
                  "round_state": asdict(f.round_state),
                  "actors": {k: asdict(v) for k, v in f.actors.items()},
                  "events": [asdict(e) for e in f.events],
-                 "camera": f.camera}
+                 "camera": f.camera,
+                 "projectiles": [asdict(pr) for pr in f.projectiles]}
                 for f in self.frames],
         }
 
@@ -213,6 +357,8 @@ class FrameTruth:
             raise ValueError("from_traces: traces disagree on the map: %s" % maps)
 
         # Every distinct serverTime any trace observed, in order.
+        segments = [(tr, seg) for tr in traces for seg in _missile_segments(tr)]
+
         stamps = sorted({s["t"] for tr in traces for s in tr["transform"]})
         if not stamps:
             raise ValueError("from_traces: no transform samples")
@@ -279,10 +425,14 @@ class FrameTruth:
                       for tr in traces for e in tr.get("events", [])
                       if e.get("t") == t_ms]
 
+            missiles = [m for m in (_evaluate_missile(seg, t_ms)
+                                    for _tr, seg in segments) if m]
+
             ft.frames.append(Frame(
                 t=(t_ms - base_ms) / 1000.0,
                 server_time_ms=t_ms,
                 actors=actors,
+                projectiles=missiles,
                 round_state=RoundStateTruth(
                     phase="active", round_number=1,
                     alive_red=sum(1 for a in actors.values() if a.alive),

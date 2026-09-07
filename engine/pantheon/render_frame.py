@@ -30,6 +30,7 @@ rendered as anybody.
 from __future__ import annotations
 
 import json
+import math
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any, Iterable, Sequence
@@ -39,6 +40,40 @@ from engine.pantheon.choreography import VIEW_HEIGHT
 VERSION = "render-frame-v1"
 
 Vec3 = tuple[float, float, float]
+
+
+# WP_* (bg_public.h weapon_t) -> the assets that weapon uses. This is ASSET
+# knowledge, not game truth: the demo says "weapon 5", the pak says what a
+# rocket launcher looks like. Kept in one place so no feature code carries a
+# magic weapon number.
+WEAPON_ASSETS = {
+    4: {"name": "GRENADE", "missile": "models/ammo/grenade1.md3",
+        "hand": "models/weapons2/grenadel/grenadel.md3"},
+    5: {"name": "ROCKET", "missile": "models/ammo/rocket/rocket.md3",
+        "hand": "models/weapons2/rocketl/rocketl.md3"},
+    6: {"name": "LIGHTNING", "missile": None,
+        "hand": "models/weapons2/lightning/lightning.md3"},
+    7: {"name": "RAIL", "missile": None,
+        "hand": "models/weapons2/railgun/railgun.md3"},
+}
+
+
+def weapon_assets(weapon: int) -> dict:
+    return WEAPON_ASSETS.get(weapon, {"name": "WEAPON_%d" % weapon,
+                                      "missile": None, "hand": None})
+
+
+def vector_to_angles(v) -> tuple[float, float, float]:
+    """q_math.c vectoangles. A missile points along its own velocity."""
+    x, y, z = v
+    if x == 0.0 and y == 0.0:
+        return (-90.0 if z > 0 else 90.0, 0.0, 0.0)
+    yaw = math.degrees(math.atan2(y, x))
+    if yaw < 0:
+        yaw += 360.0
+    forward = math.sqrt(x * x + y * y)
+    pitch = math.degrees(math.atan2(z, forward))
+    return (-pitch, yaw, 0.0)
 
 
 @dataclass
@@ -54,12 +89,27 @@ class RenderActor:
     legs_anim: int = 0
     torso_anim: int = 0
     weapon: str = "UNKNOWN"
+    # The third-person weapon hanging off tag_weapon. Recorded state; the
+    # model is asset knowledge resolved from it.
+    weapon_model: str = ""
     alive: bool = True
     # How long this actor has been in this animation, in ms. Derived by
     # watching the animation number change across observed frames -- the
     # demo told us when it changed, so the renderer never has to guess
     # where in a cycle a body is.
     anim_time_ms: int = 0
+
+
+@dataclass
+class RenderProjectile:
+    """One missile, placed. Derived from recorded trajectory parameters."""
+    track_id: str
+    weapon: str
+    model: str
+    origin: Vec3
+    angles: Vec3
+    provenance: str
+    method: str
 
 
 @dataclass
@@ -79,6 +129,7 @@ class RenderFrame:
     frame_index: int
     camera: RenderCamera
     actors: list[RenderActor] = field(default_factory=list)
+    projectiles: list[RenderProjectile] = field(default_factory=list)
     width: int = 1280
     height: int = 720
     out: str = "frame.tga"
@@ -90,6 +141,7 @@ class RenderFrame:
         d = asdict(self)
         d["camera"] = asdict(self.camera)
         d["actors"] = [asdict(a) for a in self.actors]
+        d["projectiles"] = [asdict(p) for p in self.projectiles]
         return d
 
 
@@ -192,11 +244,26 @@ def from_frame_truth(truth, *, cast: dict[str, Any],
                 angles=(0.0, float(a.yaw), 0.0),   # a body yaws; it does not pitch
                 legs_anim=a.legs_anim, torso_anim=a.torso_anim,
                 weapon=a.weapon, alive=a.alive,
+                weapon_model=(weapon_assets(int(a.weapon)).get("hand") or "")
+                              if str(a.weapon).lstrip('-').isdigit() else "",
                 anim_time_ms=f.server_time_ms - started))
+
+        missiles = []
+        for m in getattr(f, "projectiles", []):
+            assets = weapon_assets(m.weapon)
+            if not assets["missile"]:
+                continue          # no model for this weapon: not drawn
+            missiles.append(RenderProjectile(
+                track_id=m.track_id, weapon=assets["name"],
+                model=assets["missile"],
+                origin=tuple(round(v, 3) for v in m.position),
+                angles=vector_to_angles(m.direction),
+                provenance=m.provenance, method=m.method))
 
         frames.append(RenderFrame(
             map=truth.map_name, server_time_ms=f.server_time_ms,
             frame_index=i, camera=cam, actors=actors,
+            projectiles=missiles,
             width=width, height=height, out=out_pattern % out_index,
             provenance=truth.provenance, demo_hash=demo_hash))
 
@@ -229,7 +296,10 @@ def save_shot_script(frames: Sequence[RenderFrame], path: Path) -> Path:
         demo <hash>
         player <model> <skin>                     # declared once, in order
         frame <idx> <serverTimeMs> <cx cy cz> <pitch yaw roll> <fov> <out>
+        model <md3 path>                          # declared once, in order
         actor <playerIdx> <x y z> <pitch yaw roll> <legs> <torso> <animMs>
+              <weaponModelIdx|-1>
+        projectile <modelIdx> <x y z> <pitch yaw roll>
 
     The host treats an unknown keyword as fatal, so this writer and that
     parser cannot drift apart quietly.
@@ -240,10 +310,16 @@ def save_shot_script(frames: Sequence[RenderFrame], path: Path) -> Path:
     # Players are declared once and referenced by index, so identity is stated
     # in exactly one place.
     roster: list[tuple[str, str]] = []
+    models: list[str] = []          # md3 paths referenced by index
     for f in frames:
         for a in f.actors:
             if (a.model, a.skin) not in roster:
                 roster.append((a.model, a.skin))
+            if a.weapon_model and a.weapon_model not in models:
+                models.append(a.weapon_model)
+        for pr in f.projectiles:
+            if pr.model not in models:
+                models.append(pr.model)
 
     first = frames[0]
     out = ["# pantheon shot script v1 -- generated from RenderFrame, do not edit",
@@ -252,6 +328,7 @@ def save_shot_script(frames: Sequence[RenderFrame], path: Path) -> Path:
            "provenance %s" % (first.provenance or "UNKNOWN"),
            "demo %s" % (first.demo_hash or "UNKNOWN")]
     out += ["player %s %s" % (m, sk) for m, sk in roster]
+    out += ["model %s" % m for m in models]
 
     for f in frames:
         c = f.camera
@@ -260,11 +337,17 @@ def save_shot_script(frames: Sequence[RenderFrame], path: Path) -> Path:
             c.origin[0], c.origin[1], c.origin[2],
             c.angles[0], c.angles[1], c.angles[2], c.fov, f.out))
         for a in f.actors:
-            out.append("actor %d %.3f %.3f %.3f %.3f %.3f %.3f %d %d %d" % (
+            out.append("actor %d %.3f %.3f %.3f %.3f %.3f %.3f %d %d %d %d" % (
                 roster.index((a.model, a.skin)),
                 a.origin[0], a.origin[1], a.origin[2],
                 a.angles[0], a.angles[1], a.angles[2],
-                a.legs_anim, a.torso_anim, a.anim_time_ms))
+                a.legs_anim, a.torso_anim, a.anim_time_ms,
+                models.index(a.weapon_model) if a.weapon_model else -1))
+        for pr in f.projectiles:
+            out.append("projectile %d %.3f %.3f %.3f %.3f %.3f %.3f" % (
+                models.index(pr.model),
+                pr.origin[0], pr.origin[1], pr.origin[2],
+                pr.angles[0], pr.angles[1], pr.angles[2]))
 
     path.write_text("\n".join(out) + "\n", encoding="utf-8")
     return path
