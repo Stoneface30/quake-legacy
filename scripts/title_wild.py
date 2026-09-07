@@ -173,13 +173,27 @@ TREATMENTS = [
 ]
 
 
-def make_word(font: str, width: float, models: Path) -> None:
+# geometry variants: what the LETTER is, before any shader touches it
+# MEASURED, not guessed: a bevel of 0.04-0.05 em swallows the letterforms --
+# the counters of P, A and O fill in and PANTHEON becomes a slab. The radius
+# has to stay under ~0.015 em; DEPTH is what makes it an object, and
+# bevel_resolution is what makes the edge roll a highlight.
+GEOMETRY = [
+    ("A flat 18u", ["--bevel", "0.004", "--bevel-res", "0", "--depth", "18"]),
+    ("B round 28u", ["--bevel", "0.008", "--bevel-res", "4", "--depth", "28"]),
+    ("C round 44u", ["--bevel", "0.012", "--bevel-res", "4", "--depth", "44"]),
+    ("D round 28u + 28deg arc", ["--bevel", "0.008", "--bevel-res", "4",
+                                 "--depth", "28", "--arc", "28"]),
+]
+
+
+def make_word(font: str, width: float, models: Path, geom: list | None = None) -> None:
     blender = Path("C:/Program Files/Blender Foundation/Blender 5.2/blender.exe")
     obj = ROOT / ".tmp/wild.obj"
     subprocess.run([str(blender), "--background", "--python",
                     str(ROOT / "assets/pantheon_world/build_text_v1.py"), "--",
                     "--font", f"{font}.ttf", "--max-width", str(width),
-                    "--depth", "26", "--out", str(obj)],
+                    *(geom or ["--depth", "26"]), "--out", str(obj)],
                    check=True, capture_output=True)
     subprocess.run([sys.executable, str(ROOT / "scripts/obj_to_md3.py"), str(obj),
                     "--out", str(models / "models/pantheon/title.md3")],
@@ -245,11 +259,41 @@ def shot(path: Path, t: Treatment, out_tga: str) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def study_geometry(out_dir: Path) -> list:
+    """The same two treatments over four letterforms. The question is not
+    which texture -- it is whether the letter has an edge worth lighting."""
+    cells, record = [], []
+    chosen = [t for t in TREATMENTS if t.name.startswith(("7", "3"))]
+    for t in chosen:
+        t.cam, t.fov, t.roll = (0.0, -430.0, 50.0), 75.0, 0.0
+        for gi, (glabel, gargs) in enumerate(GEOMETRY):
+            models = ROOT / f".tmp/geom_{t.name[0]}_{gi}"
+            make_word(t.font, t.width, models, gargs)
+            pack(t, models)
+            tag = f"g{t.name[0]}{gi}"
+            shot(BIN / "wild.shot", t, f"{tag}.tga")
+            _render(BIN / "wild.shot")
+            png = out_dir / f"{tag}.png"
+            _label(BIN / f"{tag}.tga", png, f"{t.name.split()[1]}  {glabel}")
+            cells.append(png)
+            record.append({"treatment": t.name, "geometry": glabel, "args": gargs})
+            print(f"  {t.name} / {glabel}", flush=True)
+    return cells, record
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--geometry", action="store_true",
+                    help="sweep letterform depth/bevel/arc instead of treatments")
     a = ap.parse_args()
     a.out.mkdir(parents=True, exist_ok=True)
+    if a.geometry:
+        cells, record = study_geometry(a.out)
+        panel = _panel(cells, a.out / "panel_geometry.png", cols=4)
+        (a.out / "geometry.json").write_text(json.dumps(record, indent=1), encoding="utf-8")
+        print("panel:", panel)
+        return 0
     cells, record = [], []
     for i, t in enumerate(TREATMENTS):
         models = ROOT / f".tmp/wild_models_{i}"

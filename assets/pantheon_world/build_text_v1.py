@@ -30,7 +30,8 @@ FONTS = Path("creative_suite/engine/assets/fonts")
 
 
 def build(text: str, font_file: Path, cap_height: float, depth: float,
-          bevel: float, spacing: float, max_width: float = 0.0):
+          bevel: float, spacing: float, max_width: float = 0.0,
+          bevel_res: int = 4, arc: float = 0.0):
     bpy.ops.wm.read_factory_settings(use_empty=True)
     cur = bpy.data.curves.new(type="FONT", name="pantheon_text")
     cur.body = text
@@ -38,8 +39,13 @@ def build(text: str, font_file: Path, cap_height: float, depth: float,
     cur.align_y = "CENTER"
     cur.space_character = spacing
     cur.extrude = 0.5                      # scaled to `depth` below
+    # The bevel is what makes a letter an OBJECT: it is the only edge the
+    # fixed-function renderer can catch a highlight on, because there is no
+    # normal map. `bevel` is a fraction of the em, and bevel_resolution is
+    # what makes that edge a CURVE instead of a chamfer -- 0 is a flat cut,
+    # 4 is round enough to roll a highlight along.
     cur.bevel_depth = bevel
-    cur.bevel_resolution = 2
+    cur.bevel_resolution = bevel_res
     if font_file.exists():
         cur.font = bpy.data.fonts.load(str(font_file.absolute()))
     ob = bpy.data.objects.new("pantheon_text", cur)
@@ -83,6 +89,21 @@ def build(text: str, font_file: Path, cap_height: float, depth: float,
         v.co.y += dy
         v.co.z += dz
 
+    # ARC: bend the word around a vertical axis so the ends come toward the
+    # camera. A flat slab of letters reads as a sign; a curved one reads as
+    # something built. The bend is applied to the mesh, not faked in the
+    # shader, so it is there from every angle.
+    if arc:
+        import math as _m
+        xs = [v.co.x for v in me.vertices]
+        span = (max(xs) - min(xs)) or 1.0
+        theta = _m.radians(arc)
+        radius = span / theta
+        for v in me.vertices:
+            a = (v.co.x / span) * theta
+            v.co.x = radius * _m.sin(a)
+            v.co.y += radius * (_m.cos(a) - 1.0)
+
     # one planar projection across the whole word, from the front
     bm = bmesh.new()
     bm.from_mesh(me)
@@ -106,8 +127,13 @@ def main(argv):
     ap.add_argument("--text", default="PANTHEON")
     ap.add_argument("--font", default="BlackOpsOne-Regular.ttf")
     ap.add_argument("--height", type=float, default=96.0, help="cap height, units")
-    ap.add_argument("--depth", type=float, default=18.0)
-    ap.add_argument("--bevel", type=float, default=0.02)
+    ap.add_argument("--depth", type=float, default=28.0)
+    ap.add_argument("--bevel", type=float, default=0.05,
+                    help="edge radius as a fraction of the em")
+    ap.add_argument("--bevel-res", type=int, default=4,
+                    help="0 = flat chamfer, 4 = rounded")
+    ap.add_argument("--arc", type=float, default=0.0,
+                    help="degrees the word bends toward the camera")
     ap.add_argument("--spacing", type=float, default=1.0)
     ap.add_argument("--max-width", type=float, default=0.0,
                     help="fit the word into this width, units")
@@ -115,7 +141,7 @@ def main(argv):
     a = ap.parse_args(argv)
 
     ob = build(a.text, FONTS / a.font, a.height, a.depth, a.bevel, a.spacing,
-               a.max_width)
+               a.max_width, a.bevel_res, a.arc)
     out = Path(a.out).absolute()
     out.parent.mkdir(parents=True, exist_ok=True)
     mat = bpy.data.materials.new("textures/pantheon/title")

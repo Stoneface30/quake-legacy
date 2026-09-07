@@ -1,0 +1,102 @@
+[
+ {
+  "treatment": "3 VOID GLOW",
+  "geometry": "A flat 18u",
+  "args": [
+   "--bevel",
+   "0.004",
+   "--bevel-res",
+   "0",
+   "--depth",
+   "18"
+  ]
+ },
+ {
+  "treatment": "3 VOID GLOW",
+  "geometry": "B round 28u",
+  "args": [
+   "--bevel",
+   "0.008",
+   "--bevel-res",
+   "4",
+   "--depth",
+   "28"
+  ]
+ },
+ {
+  "treatment": "3 VOID GLOW",
+  "geometry": "C round 44u",
+  "args": [
+   "--bevel",
+   "0.012",
+   "--bevel-res",
+   "4",
+   "--depth",
+   "44"
+  ]
+ },
+ {
+  "treatment": "3 VOID GLOW",
+  "geometry": "D round 28u + 28deg arc",
+  "args": [
+   "--bevel",
+   "0.008",
+   "--bevel-res",
+   "4",
+   "--depth",
+   "28",
+   "--arc",
+   "28"
+  ]
+ },
+ {
+  "treatment": "7 GOLD LEAF",
+  "geometry": "A flat 18u",
+  "args": [
+   "--bevel",
+   "0.004",
+   "--bevel-res",
+   "0",
+   "--depth",
+   "18"
+  ]
+ },
+ {
+  "treatment": "7 GOLD LEAF",
+  "geometry": "B round 28u",
+  "args": [
+   "--bevel",
+   "0.008",
+   "--bevel-res",
+   "4",
+   "--depth",
+   "28"
+  ]
+ },
+ {
+  "treatment": "7 GOLD LEAF",
+  "geometry": "C round 44u",
+  "args": [
+   "--bevel",
+   "0.012",
+   "--bevel-res",
+   "4",
+   "--depth",
+   "44"
+  ]
+ },
+ {
+  "treatment": "7 GOLD LEAF",
+  "geometry": "D round 28u + 28deg arc",
+  "args": [
+   "--bevel",
+   "0.008",
+   "--bevel-res",
+   "4",
+   "--depth",
+   "28",
+   "--arc",
+   "28"
+  ]
+ }
+]
