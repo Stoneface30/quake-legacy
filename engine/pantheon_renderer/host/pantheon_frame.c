@@ -403,7 +403,13 @@ int main(int argc, char **argv)
         Q_strcat(cmdline, sizeof(cmdline),
                  va("+set r_customwidth %d +set r_customheight %d ", cliW, cliH));
     }
+    /* PANTHEON renders 1024x1024 and larger textures on purpose -- the Phase 5
+     * upscale corpus is the whole point of `nopicmip`. Quake's default zone
+     * (24 MB) and hunk are sized for 1999 art and die with
+     * "Z_Malloc: failed on allocation of 16777240 bytes" on the first big
+     * image. These are DEFAULTS: a later +set on the command line still wins. */
     Q_strcat(cmdline, sizeof(cmdline),
+             "+set com_zoneMegs 128 +set com_hunkMegs 512 "
              "+set r_mode -1 +set r_fullscreen 0 +set r_fboAntiAlias 0 ");
 
     Com_Init(cmdline);

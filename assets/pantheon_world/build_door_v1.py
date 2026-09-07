@@ -160,8 +160,12 @@ def main(argv):
     ap.add_argument("--out", default="assets/pantheon_world/generated/"
                                      "pantheon_door_leaf_v1.obj")
     ap.add_argument("--blend", default="")
+    ap.add_argument("--uv-units", type=float, default=UV_UNITS_PER_TILE,
+                    help="Quake units per texture tile (the study sweeps this)")
     a = ap.parse_args(argv)
 
+    global UV_UNITS_PER_TILE
+    UV_UNITS_PER_TILE = a.uv_units
     leaf = build()
     out = Path(a.out).absolute()
     out.parent.mkdir(parents=True, exist_ok=True)

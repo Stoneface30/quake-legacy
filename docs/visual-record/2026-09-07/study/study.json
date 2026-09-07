@@ -1,0 +1,25 @@
+[
+ {
+  "kind": "uv",
+  "texture": "textures/gothic_wall/church_brick3",
+  "cells": [
+   {
+    "cell": 1,
+    "units_per_tile": 32.0
+   },
+   {
+    "cell": 2,
+    "units_per_tile": 64.0
+   },
+   {
+    "cell": 3,
+    "units_per_tile": 128.0
+   },
+   {
+    "cell": 4,
+    "units_per_tile": 256.0
+   }
+  ],
+  "panel": "docs\\visual-record\\2026-09-07\\study\\panel_uv.png"
+ }
+]
