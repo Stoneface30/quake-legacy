@@ -196,6 +196,21 @@ _PS_EVPARM1   = 39   # eventParms[1] (8 bits)
 _MAX_PS_EVENTS = 2
 _PS_GROUND    = 20   # groundEntityNum (10 bits); 1023 = airborne
 _PS_WEAPON    = 41   # weapon slot (5 bits)
+# From the GENERATED schema (engine/parser/netfields_generated.py,
+# playerStateFieldsQ3, which msg.c selects for protocol 73). Not transcribed
+# by hand: a test regenerates the table from the engine source and fails on
+# drift. The previous hand audit skipped the one entry whose bit width is a
+# macro and concluded, wrongly, that protocol 73 used a different table.
+_PS_MOVEDIR    = 15  # movementDir (4 bits): 0-7 octant, own-POV
+_PS_LEGSTIMER  = 11  # legsTimer
+_PS_PM_FLAGS   = 19  # pm_flags
+_PS_VIEWHEIGHT = 28  # viewheight (signed 8) -- NOT always 26
+_PS_DMG_EVENT  = 29  # damageEvent
+_PS_DMG_YAW    = 30  # damageYaw
+_PS_DMG_PITCH  = 31  # damagePitch
+_PS_DMG_COUNT  = 32  # damageCount
+_PS_PM_TYPE    = 34  # pm_type: PM_NORMAL / PM_DEAD / PM_SPECTATOR / ...
+_PS_TORSOTIMER = 37  # torsoTimer
 
 # ---------------------------------------------------------------------------
 # Q3A msg_hData[256] frequency table (from engine/_canonical/src/qcommon/msg.c)

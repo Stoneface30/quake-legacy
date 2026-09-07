@@ -67,6 +67,10 @@ class TransformSample:
     speed: float                 # |velocity| in the horizontal plane
     airborne: bool
     ground_entity: int | None
+    # Own-POV only. 26 standing, 12 ducked, -16 dead. None when this actor was
+    # observed as a third party, because an entity carries no viewheight.
+    viewheight: int | None = None
+    pm_type: int | None = None
 
 
 @dataclass
@@ -268,7 +272,23 @@ def _parse_with_anims(path: Path):
                 "weapon": ps.get(PS_WEAPON),
                 "legs": l & ~ANIM_TOGGLE, "torso": to & ~ANIM_TOGGLE,
                 "legs_toggle": bool(l & ANIM_TOGGLE),
-                "torso_toggle": bool(to & ANIM_TOGGLE)})
+                "torso_toggle": bool(to & ANIM_TOGGLE),
+                # View and movement state, from the generated schema.
+                # HEIGHT IS NOT GROUNDING: the player collision box extends 24
+                # below the origin, so a standing player on a floor at z=0 has
+                # origin z=24. groundEntityNum and pm_type are the authority,
+                # and viewheight is not always 26 (it drops when ducking and
+                # changes on death).
+                "move_dir": ps.get(dp._PS_MOVEDIR),
+                "pm_type": ps.get(dp._PS_PM_TYPE),
+                "pm_flags": ps.get(dp._PS_PM_FLAGS),
+                "viewheight": _signed8(ps.get(dp._PS_VIEWHEIGHT)),
+                "legs_timer": ps.get(dp._PS_LEGSTIMER),
+                "torso_timer": ps.get(dp._PS_TORSOTIMER),
+                "damage_event": ps.get(dp._PS_DMG_EVENT),
+                "damage_yaw": ps.get(dp._PS_DMG_YAW),
+                "damage_pitch": ps.get(dp._PS_DMG_PITCH),
+                "damage_count": ps.get(dp._PS_DMG_COUNT)})
 
     # Temp-entity events (missile hits, misses) carry otherEntityNum -- the
     # thing that was hit -- which the parser's event rows do not keep. They
@@ -314,6 +334,19 @@ def _parse_with_anims(path: Path):
     out["temp_events"] = temp_events
     return out, anims
 
+
+def _signed8(v):
+    """Decode a signed 8-bit netfield.
+
+    The netfield table marks width -8 for signed fields, and the decoder was
+    returning the raw byte. viewheight came back as 240 instead of -16, which
+    is DEAD_VIEWHEIGHT -- so the camera would have been placed 240 units above
+    the corpse instead of 16 below the origin.
+    """
+    if v is None:
+        return None
+    v = int(v)
+    return v - 256 if v > 127 else v
 
 def recorder_client(out: dict) -> int | None:
     """The FIRST POV client slot seen in the playerstate.
@@ -387,7 +420,8 @@ def extract_performance(demo: Path, start_ms: int, end_ms: int, client: int,
             t = r["t"]
             v = r["velocity"]
             tr.transform.append(TransformSample(
-                t, r["origin"], v, math.hypot(v[0], v[1]), r["airborne"], r["ground"]))
+                t, r["origin"], v, math.hypot(v[0], v[1]), r["airborne"],
+                r["ground"], r.get("viewheight"), r.get("pm_type")))
             yr = pr = 0.0
             if prev and t > prev[0]:
                 dt = (t - prev[0]) / 1000.0

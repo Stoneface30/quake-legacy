@@ -52,6 +52,9 @@ class ActorTruth:
     torso_toggle: bool = False
     # angles2[YAW]: 0-7 movement direction, offsets legs from view.
     move_dir: int = 0
+    # 26 standing, 12 ducked, -16 dead. None when this actor was
+    # only observed as a third party, which carries no viewheight.
+    viewheight: int | None = None
     target: str | None = None
 
 
@@ -489,7 +492,8 @@ class FrameTruth:
                     torso_anim=int(anim.get("torso", 0)),
                     legs_toggle=bool(anim.get("legs_toggle", False)),
                     torso_toggle=bool(anim.get("torso_toggle", False)),
-                    move_dir=int(anim.get("move_dir") or 0))
+                    move_dir=int(anim.get("move_dir") or 0),
+                    viewheight=xf.get("viewheight"))
 
             events = [SemanticEvent(
                           t=(e["t"] - base_ms) / 1000.0,

@@ -533,8 +533,15 @@ def from_frame_truth(truth, *, cast: dict[str, Any],
                 # answer; holding the last camera would invent a viewpoint.
                 continue
             pos, yaw, pitch, cam_prov = ev
+            # THE RECORDED VIEWHEIGHT, not a constant 26. It is 12 ducked and
+            # -16 dead, and this fixture's own POV switches to the dead value
+            # at the obituary instant -- a camera pinned at +26 would float
+            # above the corpse for the rest of the shot.
+            _who = (prev_frame.actors.get(camera_owner)
+                    if (prev_frame := truth.at_server_time(out_t)) else None)
+            vh = _who.viewheight if (_who and _who.viewheight is not None) else VIEW_HEIGHT
             cam = RenderCamera(
-                origin=(pos[0], pos[1], pos[2] + VIEW_HEIGHT),
+                origin=(pos[0], pos[1], pos[2] + vh),
                 angles=(pitch, yaw, 0.0), fov=fov,
                 source="RECORDED_POV", owner=camera_owner)
         elif camera:

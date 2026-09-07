@@ -439,3 +439,55 @@ def test_short_arc_is_used_for_the_swing_destination():
     ang, swinging = rf._swing_angles(1.0, 40.0, 90.0, 0.3, 359.0, True, 25.0)
     assert ang > 359.0 or ang < 10.0, "moved the short way"
     assert rf._angle_subtract(1.0, 359.0) == pytest.approx(2.0)
+
+
+# ── decoder schema and view state ──────────────────────────────────────────
+
+def test_the_netfield_schema_still_matches_the_engine_source():
+    """The hand audit that skipped { PSF(groundEntityNum), GENTITYNUM_BITS }
+    shifted every later index by one and produced a confident wrong claim that
+    protocol 73 used a different playerstate table. It does not."""
+    import subprocess, sys
+    r = subprocess.run([sys.executable, "-m", "engine.parser.gen_netfields",
+                        "--check"], capture_output=True, text=True)
+    if "engine source not present" in (r.stdout + r.stderr):
+        pytest.skip("engine source tree not available here")
+    assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_playerstate_indices_the_parser_uses_match_the_generated_schema():
+    from engine.parser import demo_parse as dp
+    try:
+        from engine.parser.netfields_generated import PLAYERSTATE_Q3_INDEX as PS
+    except ImportError:
+        pytest.skip("schema not generated here")
+    for attr, field in (("_PS_GROUND", "groundEntityNum"),
+                        ("_PS_CLIENT", "clientNum"),
+                        ("_PS_WEAPON", "weapon"),
+                        ("_PS_VIEWHEIGHT", "viewheight"),
+                        ("_PS_PM_TYPE", "pm_type"),
+                        ("_PS_MOVEDIR", "movementDir"),
+                        ("_PS_DMG_EVENT", "damageEvent")):
+        assert getattr(dp, attr) == PS[field], attr
+
+
+def test_signed_viewheight_is_sign_extended():
+    """The wire byte 240 is -16, DEAD_VIEWHEIGHT. Read unsigned it puts the
+    camera 240 units above the corpse."""
+    from engine.pantheon.performance import _signed8
+    assert _signed8(240) == -16
+    assert _signed8(26) == 26
+    assert _signed8(12) == 12
+    assert _signed8(None) is None
+
+
+def test_the_camera_uses_recorded_viewheight_not_a_constant():
+    tr = _trace(5, 1000, 25, 4)
+    for i, smp in enumerate(tr["transform"]):
+        smp["viewheight"] = 26 if i < 2 else -16      # he dies partway
+    t = FrameTruth.from_traces([tr])
+    frames = rf.from_frame_truth(t, cast={"CLIENT_5": _Profile("sarge")},
+                                 camera_owner="CLIENT_5",
+                                 times_ms=[1000, 1075], intent=rf.SAMPLE_EXACT)
+    assert frames[0].camera.origin[2] == pytest.approx(100.0 + 26.0)
+    assert frames[1].camera.origin[2] == pytest.approx(100.0 - 16.0)
