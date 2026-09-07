@@ -1,0 +1,46 @@
+[
+ {
+  "cell": 1,
+  "font": "BlackOpsOne-Regular",
+  "material": "CC0 Marble012"
+ },
+ {
+  "cell": 2,
+  "font": "RussoOne-Regular",
+  "material": "CC0 Marble012"
+ },
+ {
+  "cell": 3,
+  "font": "BebasNeue-Regular",
+  "material": "CC0 Marble012"
+ },
+ {
+  "cell": 4,
+  "font": "BungeeInline-Regular",
+  "material": "CC0 Marble012"
+ },
+ {
+  "cell": 5,
+  "font": "BlackOpsOne-Regular",
+  "material": "CC0 Marble012",
+  "origin": "EXTERNAL_CC0"
+ },
+ {
+  "cell": 6,
+  "font": "BlackOpsOne-Regular",
+  "material": "CC0 MetalPlates013",
+  "origin": "EXTERNAL_CC0"
+ },
+ {
+  "cell": 7,
+  "font": "BlackOpsOne-Regular",
+  "material": "CC0 Metal055A",
+  "origin": "EXTERNAL_CC0"
+ },
+ {
+  "cell": 8,
+  "font": "BlackOpsOne-Regular",
+  "material": "PANTHEON blue glyph",
+  "origin": "PHOTOREAL_UPSCALE_4X"
+ }
+]

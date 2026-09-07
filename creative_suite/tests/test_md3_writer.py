@@ -132,3 +132,25 @@ def test_a_normal_whose_latitude_exceeds_127_still_writes(tmp_path):
     m = read_md3(write_md3(tmp_path / "n.md3", [s]))
     for got in m["surfaces"][0]["normals"]:
         assert math.dist(got, (0, -1, 0)) < 0.03
+
+
+def test_a_surface_over_the_vertex_cap_is_split_not_refused():
+    """PANTHEON set in Bungee Inline is 19,280 vertices. MD3 allows 4,096 per
+    surface, so a hero title either splits or cannot be a model."""
+    from engine.pantheon.md3_writer import MD3_MAX_VERTS, split_by_vertex_limit
+    n = 9000
+    big = Surface(name="word", shader="textures/pantheon/title",
+                  verts=[(i * 0.1, 0.0, 0.0) for i in range(n)],
+                  normals=[(0, 0, 1)] * n, uvs=[(0.0, 0.0)] * n,
+                  tris=[(i, i + 1, i + 2) for i in range(0, n - 2, 3)])
+    parts = split_by_vertex_limit(big)
+    assert len(parts) > 1
+    assert all(len(p.verts) <= MD3_MAX_VERTS for p in parts)
+    assert sum(len(p.tris) for p in parts) == len(big.tris)
+    assert all(p.shader == big.shader for p in parts)
+
+
+def test_splitting_leaves_a_small_surface_alone():
+    from engine.pantheon.md3_writer import split_by_vertex_limit
+    s = _quad()
+    assert split_by_vertex_limit(s) == [s]

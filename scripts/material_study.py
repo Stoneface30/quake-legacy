@@ -114,11 +114,23 @@ def _pack(materials, models_dir: Path = MODELS) -> dict:
     return man
 
 
+# Mesa's WGL negotiates a driver at startup and tries ZINK first. ZINK fails
+# here (vkCreateDevice VK_ERROR_INITIALIZATION_FAILED) and the attempt loads
+# the NVIDIA ICD, after which renders die INTERMITTENTLY inside nvoglv32.dll
+# -- the same driver that crashes on glColor* (docs/reference/
+# 2026-09-07-nvidia-32bit-immediate-mode-blocker). Pinning the Gallium driver
+# keeps the ICD out of the process entirely. Found from a gdb backtrace, not
+# from the symptom: the crash reads as "the renderer broke".
+GL_ENV = {"GALLIUM_DRIVER": "softpipe", "LIBGL_ALWAYS_SOFTWARE": "1"}
+
+
 def _render(shot: Path) -> None:
+    import os
+    env = dict(os.environ, **GL_ENV)
     subprocess.run([str(BIN / "pantheon_frame.exe"), "--shot", shot.name,
                     "--set", "r_picmip", "0", "--set", "r_ext_max_anisotropy", "16",
                     "--basepath", QL, "--game", "baseq3", "--home", str(HOME)],
-                   cwd=BIN, check=True, capture_output=True)
+                   cwd=BIN, check=True, capture_output=True, env=env)
 
 
 def _label(tga: Path, png: Path, text: str) -> None:

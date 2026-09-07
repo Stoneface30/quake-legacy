@@ -17,7 +17,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from engine.pantheon.md3_writer import read_md3, read_obj, write_md3  # noqa: E402
+from engine.pantheon.md3_writer import (read_md3, read_obj,  # noqa: E402
+                                        split_by_vertex_limit, write_md3)
 
 
 def main() -> int:
@@ -41,6 +42,8 @@ def main() -> int:
             sf.verts = [(-x, y, z) for (x, y, z) in sf.verts]
             sf.normals = [(-x, y, z) for (x, y, z) in sf.normals]
             sf.tris = [(c, b, aa) for (aa, b, c) in sf.tris]
+    # MD3 caps a surface at 4096 vertices; a bevelled word is far past that
+    surfaces = [part for s in surfaces for part in split_by_vertex_limit(s)]
     out = write_md3(a.out, surfaces, name=a.name or a.out.stem)
 
     back = read_md3(out)

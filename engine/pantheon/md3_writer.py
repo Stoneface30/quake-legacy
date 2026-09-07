@@ -107,6 +107,49 @@ class Surface:
                 raise ValueError(f"{self.name}: animation frame has {len(f)} verts, not {n}")
 
 
+def split_by_vertex_limit(surface: Surface, limit: int = MD3_MAX_VERTS) -> list[Surface]:
+    """Cut one surface into several that each fit MD3's per-surface caps.
+
+    A word set in a bevelled display face is 19,000 vertices; MD3 allows 4,096
+    per surface and 32 surfaces per model, so a hero asset either splits or
+    does not exist. Splitting is by triangle, re-indexing each part, so the
+    seams are exactly the triangle edges that were already there.
+    """
+    if len(surface.verts) <= limit and len(surface.tris) <= MD3_MAX_TRIANGLES:
+        return [surface]
+    out: list[Surface] = []
+    part_tris: list[tuple[int, int, int]] = []
+    remap: dict[int, int] = {}
+    verts: list[Vec3] = []
+    normals: list[Vec3] = []
+    uvs: list[Vec2] = []
+
+    def flush(n: int) -> None:
+        if part_tris:
+            out.append(Surface(name=f"{surface.name[:26]}_{n}", shader=surface.shader,
+                               verts=list(verts), normals=list(normals),
+                               uvs=list(uvs), tris=list(part_tris)))
+
+    for tri in surface.tris:
+        if len(verts) + 3 > limit or len(part_tris) + 1 > MD3_MAX_TRIANGLES:
+            flush(len(out))
+            part_tris, remap, verts, normals, uvs = [], {}, [], [], []
+        new = []
+        for i in tri:
+            if i not in remap:
+                remap[i] = len(verts)
+                verts.append(surface.verts[i])
+                normals.append(surface.normals[i])
+                uvs.append(surface.uvs[i])
+            new.append(remap[i])
+        part_tris.append(tuple(new))
+    flush(len(out))
+    if len(out) > MD3_MAX_SURFACES:
+        raise ValueError(f"{surface.name}: needs {len(out)} surfaces, "
+                         f"MD3_MAX_SURFACES is {MD3_MAX_SURFACES}")
+    return out
+
+
 def _bounds(frames: Sequence[Sequence[Vec3]]) -> list[tuple[Vec3, Vec3, float]]:
     out = []
     for verts in frames:
