@@ -1,0 +1,74 @@
+[
+ {
+  "id": "Bricks075A",
+  "file": "Bricks075A.jpg",
+  "source": "ambientCG",
+  "licence": "CC0 1.0",
+  "member": "Bricks075A_1K-JPG_Color.jpg",
+  "bytes": 846181,
+  "sha256": "9e5e42ea1ec80a86",
+  "converted": "Bricks075A.tga",
+  "converted_sha256": "cacd6292f8b6f76d",
+  "note": "converted to 24-bit TGA for the engine's loader"
+ },
+ {
+  "id": "Concrete034",
+  "file": "Concrete034.jpg",
+  "source": "ambientCG",
+  "licence": "CC0 1.0",
+  "member": "Concrete034_1K-JPG_Color.jpg",
+  "bytes": 269501,
+  "sha256": "8ceb9186d990b31f",
+  "converted": "Concrete034.tga",
+  "converted_sha256": "7bd42ae0732cb15d",
+  "note": "converted to 24-bit TGA for the engine's loader"
+ },
+ {
+  "id": "Marble012",
+  "file": "Marble012.jpg",
+  "source": "ambientCG",
+  "licence": "CC0 1.0",
+  "member": "Marble012_1K-JPG_Color.jpg",
+  "bytes": 1220876,
+  "sha256": "a34b55c889c6b381",
+  "converted": "Marble012.tga",
+  "converted_sha256": "cfbc620916d8bb12",
+  "note": "converted to 24-bit TGA for the engine's loader"
+ },
+ {
+  "id": "Metal055A",
+  "file": "Metal055A.jpg",
+  "source": "ambientCG",
+  "licence": "CC0 1.0",
+  "member": "Metal055A_1K-JPG_Color.jpg",
+  "bytes": 813574,
+  "sha256": "79938ccc3c75aaab",
+  "converted": "Metal055A.tga",
+  "converted_sha256": "4fac8854181f1233",
+  "note": "converted to 24-bit TGA for the engine's loader"
+ },
+ {
+  "id": "MetalPlates013",
+  "file": "MetalPlates013.jpg",
+  "source": "ambientCG",
+  "licence": "CC0 1.0",
+  "member": "MetalPlates013_1K-JPG_Color.jpg",
+  "bytes": 1339722,
+  "sha256": "17bb6359da420cfa",
+  "converted": "MetalPlates013.tga",
+  "converted_sha256": "501ac392f6b249ad",
+  "note": "converted to 24-bit TGA for the engine's loader"
+ },
+ {
+  "id": "Travertine009",
+  "file": "Travertine009.jpg",
+  "source": "ambientCG",
+  "licence": "CC0 1.0",
+  "member": "Travertine009_1K-JPG_Color.jpg",
+  "bytes": 922573,
+  "sha256": "6561c87d92aef321",
+  "converted": "Travertine009.tga",
+  "converted_sha256": "6869c311f1d24346",
+  "note": "converted to 24-bit TGA for the engine's loader"
+ }
+]

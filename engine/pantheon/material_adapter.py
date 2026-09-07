@@ -69,6 +69,10 @@ class Material:
 
     name: str                       # e.g. "pantheon/door_body"
     source: str                     # e.g. "textures/gothic_block/blocks15_blue"
+    # A file outside the game entirely -- a CC0 photo-sourced material. When
+    # set it wins over `source`, and its licence and hash are recorded: art we
+    # did not make and did not pay for still has to be attributable.
+    external: Path | None = None
     kind: str = SURFACE
     halo: float = 0.10              # EMISSIVE only: additive amplitude
     resolved: dict = field(default_factory=dict)
@@ -98,6 +102,13 @@ def _from_pak(source: str, pak: Path) -> tuple[str, bytes] | None:
 
 def resolve(m: Material, *, pak: Path = PAK, photoreal_root: Path = PHOTOREAL) -> Material:
     """Pick the best available image and record WHICH, with a hash."""
+    if m.external is not None:
+        ext = Path(m.external)
+        data = ext.read_bytes()
+        m.resolved = {"origin": "EXTERNAL_CC0", "path": str(ext),
+                      "ext": ext.suffix.lower(), "bytes": len(data),
+                      "sha256": hashlib.sha256(data).hexdigest()[:16]}
+        return m
     hi = _photoreal(m.source, photoreal_root)
     if hi is not None:
         data = hi.read_bytes()
@@ -151,7 +162,7 @@ def build(materials: Sequence[Material], out_dir: Path, *, pak: Path = PAK,
     for m in resolved:
         dst = out_dir / "textures" / f"{m.name}{m.resolved['ext']}"
         dst.parent.mkdir(parents=True, exist_ok=True)
-        if m.resolved["origin"] == "PHOTOREAL_UPSCALE_4X":
+        if m.resolved["origin"] in ("PHOTOREAL_UPSCALE_4X", "EXTERNAL_CC0"):
             dst.write_bytes(Path(m.resolved["path"]).read_bytes())
         else:
             src, ext = m.source, m.resolved["ext"]

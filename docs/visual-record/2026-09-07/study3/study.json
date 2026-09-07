@@ -1,0 +1,64 @@
+[
+ {
+  "kind": "textures",
+  "cells": [
+   {
+    "cell": 1,
+    "label": "QL gothic_door/door02_j",
+    "source": "textures/gothic_door/door02_j",
+    "origin": "PHOTOREAL_UPSCALE_4X",
+    "sha256": "81c8e409dc3a2d60"
+   },
+   {
+    "cell": 2,
+    "label": "QL gothic_door/ornate5",
+    "source": "textures/gothic_door/door02_i_ornate5_fin",
+    "origin": "PHOTOREAL_UPSCALE_4X",
+    "sha256": "1a10fb248faa984d"
+   },
+   {
+    "cell": 3,
+    "label": "QL gothic_door/arch_tall2_blue",
+    "source": "textures/gothic_door/arch_tall2_blue",
+    "origin": "PHOTOREAL_UPSCALE_4X",
+    "sha256": "f273b88d02477589"
+   },
+   {
+    "cell": 4,
+    "label": "QL base_door/talldoormetal",
+    "source": "textures/base_door/kcdm18talldoormetal_combined",
+    "origin": "PHOTOREAL_UPSCALE_4X",
+    "sha256": "aeca2e41c0217fef"
+   },
+   {
+    "cell": 5,
+    "label": "QL base_door/shinymetaldoor",
+    "source": "textures/base_door/shinymetaldoor_outside3a2",
+    "origin": "PHOTOREAL_UPSCALE_4X",
+    "sha256": "a9d7eb4084bc88f0"
+   },
+   {
+    "cell": 6,
+    "label": "CC0 Marble012",
+    "source": "G:\\QUAKE_LEGACY\\.claude\\worktrees\\pantheon-world\\assets\\pantheon_world\\external\\Marble012.tga",
+    "origin": "EXTERNAL_CC0",
+    "sha256": "cfbc620916d8bb12"
+   },
+   {
+    "cell": 7,
+    "label": "CC0 Travertine009",
+    "source": "G:\\QUAKE_LEGACY\\.claude\\worktrees\\pantheon-world\\assets\\pantheon_world\\external\\Travertine009.tga",
+    "origin": "EXTERNAL_CC0",
+    "sha256": "6869c311f1d24346"
+   },
+   {
+    "cell": 8,
+    "label": "CC0 MetalPlates013",
+    "source": "G:\\QUAKE_LEGACY\\.claude\\worktrees\\pantheon-world\\assets\\pantheon_world\\external\\MetalPlates013.tga",
+    "origin": "EXTERNAL_CC0",
+    "sha256": "501ac392f6b249ad"
+   }
+  ],
+  "panel": "docs\\visual-record\\2026-09-07\\study3\\panel_textures.png"
+ }
+]

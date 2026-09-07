@@ -1,0 +1,64 @@
+[
+ {
+  "kind": "textures",
+  "cells": [
+   {
+    "cell": 1,
+    "label": "CC0 Marble012",
+    "source": "G:\\QUAKE_LEGACY\\.claude\\worktrees\\pantheon-world\\assets\\pantheon_world\\external\\Marble012.tga",
+    "origin": "EXTERNAL_CC0",
+    "sha256": "cfbc620916d8bb12"
+   },
+   {
+    "cell": 2,
+    "label": "CC0 Travertine009",
+    "source": "G:\\QUAKE_LEGACY\\.claude\\worktrees\\pantheon-world\\assets\\pantheon_world\\external\\Travertine009.tga",
+    "origin": "EXTERNAL_CC0",
+    "sha256": "6869c311f1d24346"
+   },
+   {
+    "cell": 3,
+    "label": "CC0 Concrete034",
+    "source": "G:\\QUAKE_LEGACY\\.claude\\worktrees\\pantheon-world\\assets\\pantheon_world\\external\\Concrete034.tga",
+    "origin": "EXTERNAL_CC0",
+    "sha256": "7bd42ae0732cb15d"
+   },
+   {
+    "cell": 4,
+    "label": "CC0 Metal055A",
+    "source": "G:\\QUAKE_LEGACY\\.claude\\worktrees\\pantheon-world\\assets\\pantheon_world\\external\\Metal055A.tga",
+    "origin": "EXTERNAL_CC0",
+    "sha256": "4fac8854181f1233"
+   },
+   {
+    "cell": 5,
+    "label": "CC0 MetalPlates013",
+    "source": "G:\\QUAKE_LEGACY\\.claude\\worktrees\\pantheon-world\\assets\\pantheon_world\\external\\MetalPlates013.tga",
+    "origin": "EXTERNAL_CC0",
+    "sha256": "501ac392f6b249ad"
+   },
+   {
+    "cell": 6,
+    "label": "CC0 Bricks075A",
+    "source": "G:\\QUAKE_LEGACY\\.claude\\worktrees\\pantheon-world\\assets\\pantheon_world\\external\\Bricks075A.tga",
+    "origin": "EXTERNAL_CC0",
+    "sha256": "cacd6292f8b6f76d"
+   },
+   {
+    "cell": 7,
+    "label": "QL iron01_ndark",
+    "source": "textures/gothic_wall/iron01_ndark",
+    "origin": "PHOTOREAL_UPSCALE_4X",
+    "sha256": "5a10189bf0a6ff08"
+   },
+   {
+    "cell": 8,
+    "label": "QL church_brick3",
+    "source": "textures/gothic_wall/church_brick3",
+    "origin": "PHOTOREAL_UPSCALE_4X",
+    "sha256": "b033f4c41d6e6afe"
+   }
+  ],
+  "panel": "docs\\visual-record\\2026-09-07\\study2\\panel_textures.png"
+ }
+]

@@ -156,6 +156,7 @@ def build():
 
 
 def main(argv):
+    global UV_UNITS_PER_TILE
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", default="assets/pantheon_world/generated/"
                                      "pantheon_door_leaf_v1.obj")
@@ -164,7 +165,6 @@ def main(argv):
                     help="Quake units per texture tile (the study sweeps this)")
     a = ap.parse_args(argv)
 
-    global UV_UNITS_PER_TILE
     UV_UNITS_PER_TILE = a.uv_units
     leaf = build()
     out = Path(a.out).absolute()
