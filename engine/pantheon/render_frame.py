@@ -328,7 +328,13 @@ class PresentationEvaluator:
 
     def _step(self, st, a, dt_ms):
         head_yaw = _angle_mod(a.yaw)
-        dir_ = a.move_dir if 0 <= a.move_dir < 8 else 0
+        # EF_DEAD forces direction 0. The swing DESTINATION depends on it, so
+        # applying the rule only when composing the final angles let a dead
+        # actor's legs swing toward an offset the engine never targets.
+        if getattr(a, "e_flags", 0) & EF_DEAD:
+            dir_ = 0
+        else:
+            dir_ = a.move_dir if 0 <= a.move_dir < 8 else 0
 
         if not st.started:
             # First sight of an actor is centred rather than swung in from
@@ -361,8 +367,16 @@ class PresentationEvaluator:
             dest, PITCH_SWING_TOLERANCE, PITCH_CLAMP, PITCH_SPEED,
             st.torso_pitch, st.torso_pitching, dt_ms)
 
+    def state_at(self, actor_id: str, t_ms: int):
+        """The full swing state at t_ms, replayed from a checkpoint."""
+        return self._replay(actor_id, t_ms)
+
     def pose_at(self, actor_id: str, t_ms: int):
         """(legs_yaw, torso_yaw, torso_pitch) at t_ms. Order-independent."""
+        st = self._replay(actor_id, t_ms)
+        return st.legs_yaw, st.torso_yaw, st.torso_pitch
+
+    def _replay(self, actor_id: str, t_ms: int):
         marks = self._checkpoints.setdefault(actor_id, {})
         want = self._t0 + ((t_ms - self._t0) // self.checkpoint_ms) * self.checkpoint_ms
         base_ms = max((m for m in marks if m <= want), default=None)
@@ -379,8 +393,113 @@ class PresentationEvaluator:
             marks[nxt] = st.copy()
             base_ms = nxt
 
-        st = self._advance(actor_id, st, base_ms, t_ms)
-        return st.legs_yaw, st.torso_yaw, st.torso_pitch
+        return self._advance(actor_id, st, base_ms, t_ms)
+
+
+
+# ── the rest of CG_PlayerAngles ────────────────────────────────────────────
+#
+# The swing is only half of it. After swinging, the engine leans the legs by
+# velocity, adds a pain twitch to the torso, honours the model's fixedlegs /
+# fixedtorso flags, and then makes the torso and head angles RELATIVE to their
+# parents before converting to axes. Skipping any of that leaves a body that
+# is upright and rigid where the original leans and reacts.
+
+PAIN_TWITCH_TIME = 200          # cg_local.h
+EF_DEAD = 0x00000001            # bg_public.h
+
+
+def _angle_vectors(angles):
+    """q_math.c AngleVectors -> (forward, right, up)."""
+    ay = math.radians(angles[1])
+    sy, cy = math.sin(ay), math.cos(ay)
+    ap = math.radians(angles[0])
+    sp, cp = math.sin(ap), math.cos(ap)
+    ar = math.radians(angles[2])
+    sr, cr = math.sin(ar), math.cos(ar)
+    forward = (cp * cy, cp * sy, -sp)
+    right = (-1 * sr * sp * cy + -1 * cr * -sy,
+             -1 * sr * sp * sy + -1 * cr * cy,
+             -1 * sr * cp)
+    up = (cr * sp * cy + -sr * -sy,
+          cr * sp * sy + -sr * cy,
+          cr * cp)
+    return forward, right, up
+
+
+def angles_to_axis(angles):
+    """q_math.c AnglesToAxis. axis[1] is -right, not the y vector."""
+    f, r, u = _angle_vectors(angles)
+    return [list(f), [-r[0], -r[1], -r[2]], list(u)]
+
+
+def _vector_normalize(v):
+    """q_math.c VectorNormalize: returns the length, normalises in place."""
+    length = math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
+    if length:
+        inv = 1.0 / length
+        return length, (v[0] * inv, v[1] * inv, v[2] * inv)
+    return 0.0, (0.0, 0.0, 0.0)
+
+
+def _pain_twitch(torso_angles, now_ms, pain_time, pain_direction):
+    """CG_AddPainTwitch: 20 degrees of roll decaying over 200 ms."""
+    t = now_ms - pain_time
+    if t >= PAIN_TWITCH_TIME:
+        return
+    f = 1.0 - float(t) / PAIN_TWITCH_TIME
+    if pain_direction:
+        torso_angles[2] += 20 * f
+    else:
+        torso_angles[2] -= 20 * f
+
+
+def player_angles(st, *, view_yaw, view_pitch, legs_anim, torso_anim,
+                  move_dir, velocity=(0.0, 0.0, 0.0), e_flags=0,
+                  now_ms=0, pain_time=-10000, pain_direction=0,
+                  fixed_legs=False, fixed_torso=False,
+                  lean_scale=1.0):
+    """The tail of CG_PlayerAngles, from the already-swung state `st`.
+
+    Returns (legsAngles, torsoAngles, headAngles) with torso and head made
+    RELATIVE to their parent, exactly as the engine hands them to
+    AnglesToAxis.
+    """
+    head = [view_pitch, _angle_mod(view_yaw), 0.0]
+    legs = [0.0, 0.0, 0.0]
+    torso = [0.0, 0.0, 0.0]
+
+    dir_ = 0 if (e_flags & EF_DEAD) else (move_dir if 0 <= move_dir < 8 else 0)
+
+    torso[1] = st.torso_yaw
+    legs[1] = st.legs_yaw
+    torso[0] = st.torso_pitch
+    if fixed_torso:
+        torso[0] = 0.0
+
+    # velocity lean -- the legs bank into the direction of travel
+    speed, vel = _vector_normalize(list(velocity))
+    speed *= lean_scale
+    if speed < 0:
+        speed = 0.0
+    if speed > 0:
+        speed *= 0.05
+        axis = angles_to_axis(legs)
+        side = speed * sum(vel[i] * axis[1][i] for i in range(3))
+        legs[2] -= side
+        side = speed * sum(vel[i] * axis[0][i] for i in range(3))
+        legs[0] += side
+
+    if fixed_legs:
+        legs[1] = torso[1]
+        legs[0] = 0.0
+        legs[2] = 0.0
+
+    _pain_twitch(torso, now_ms, pain_time, pain_direction)
+
+    head = [_angle_subtract(head[i], torso[i]) for i in range(3)]
+    torso = [_angle_subtract(torso[i], legs[i]) for i in range(3)]
+    return legs, torso, head
 
 
 @dataclass
@@ -409,9 +528,13 @@ class RenderActor:
     move_dir: int = 0
     # PRESENTATION angles, produced by the swing evaluator. These are what the
     # renderer draws; `angles` above remains the raw recorded view.
-    legs_yaw: float = 0.0
-    torso_yaw: float = 0.0
-    torso_pitch: float = 0.0
+    # The FINAL pose, straight from the ported CG_PlayerAngles: legs in
+    # world space, torso and head RELATIVE to their parent, exactly as the
+    # engine hands them to AnglesToAxis. Includes velocity lean and pain
+    # twitch, both verified against the engine's own code.
+    legs_angles: tuple = (0.0, 0.0, 0.0)
+    torso_angles: tuple = (0.0, 0.0, 0.0)
+    head_angles: tuple = (0.0, 0.0, 0.0)
     # The view pitch. The torso takes 0.75 of it and the legs none,
     # per CG_PlayerAngles; pitching the whole body tips the character.
     view_pitch: float = 0.0
@@ -528,6 +651,16 @@ def from_frame_truth(truth, *, cast: dict[str, Any],
 
     swing = PresentationEvaluator(truth)
 
+    # CG_AddPainTwitch needs the time of the last EV_PAIN and a direction that
+    # ALTERNATES on each one (cg_event.c: painDirection ^= 1). Both come from
+    # the recorded event stream; neither is invented.
+    _pain_state: dict[str, tuple[int, int]] = {}
+    _pain_seen: dict[str, int] = {}
+    for _f in truth.frames:
+        for _e in _f.events:
+            if _e.kind.split(":", 1)[-1] == "pain" and _e.actor:
+                _pain_seen[_e.actor] = _pain_seen.get(_e.actor, 0) ^ 1
+
     frames: list[RenderFrame] = []
     wanted = None if indices is None else set(indices)
     # actor_id -> {'legs': (anim, toggle, started_ms), 'torso': ...}
@@ -580,7 +713,15 @@ def from_frame_truth(truth, *, cast: dict[str, Any],
             # or actor and world drift apart by up to one snapshot.
             _ev = _evaluate_actor(truth, actor_id, out_t, intent)
             _apos, _ayaw = (_ev[0], _ev[1]) if _ev else (a.position, a.yaw)
-            _lyaw, _tyaw, _tpitch = swing.pose_at(actor_id, out_t)
+            _sw = swing.state_at(actor_id, out_t)
+            _pain = _pain_state.get(actor_id, (-100000, 0))
+            _la, _ta, _ha = player_angles(
+                _sw, view_yaw=_ayaw, view_pitch=float(a.pitch),
+                legs_anim=a.legs_anim, torso_anim=a.torso_anim,
+                move_dir=a.move_dir,
+                velocity=tuple(float(v) for v in a.velocity),
+                e_flags=(0 if a.alive else EF_DEAD),
+                now_ms=out_t, pain_time=_pain[0], pain_direction=_pain[1])
             actors.append(RenderActor(
                 actor_id=actor_id, client=a.client, team=a.team,
                 model=getattr(profile, "model", str(profile)),
@@ -590,7 +731,8 @@ def from_frame_truth(truth, *, cast: dict[str, Any],
                 legs_anim=a.legs_anim, torso_anim=a.torso_anim,
                 weapon=a.weapon, alive=a.alive,
                 move_dir=a.move_dir, view_pitch=float(a.pitch),
-                legs_yaw=_lyaw, torso_yaw=_tyaw, torso_pitch=_tpitch,
+                legs_angles=tuple(_la), torso_angles=tuple(_ta),
+                head_angles=tuple(_ha),
                 weapon_model=(weapon_assets(int(a.weapon)).get("hand") or "")
                               if str(a.weapon).lstrip('-').isdigit() else "",
                 legs_anim_ms=out_t - clocks["legs"][2],
@@ -655,9 +797,11 @@ def save_shot_script(frames: Sequence[RenderFrame], path: Path,
         player <model> <skin>                     # declared once, in order
         frame <idx> <serverTimeMs> <cx cy cz> <pitch yaw roll> <fov> <out>
         model <md3 path>                          # declared once, in order
-        actor <playerIdx> <x y z> <pitch yaw roll> <legs> <torso>
-              <legsMs> <torsoMs> <legsYaw> <torsoYaw> <torsoPitch> <viewPitch>
-              <weaponModelIdx|-1>
+        actor <playerIdx> <x y z> <legsAnim> <torsoAnim> <legsMs> <torsoMs>
+              <legsPitch legsYaw legsRoll> <torsoPitch torsoYaw torsoRoll>
+              <headPitch headYaw headRoll> <weaponModelIdx|-1>
+              -- torso and head angles are RELATIVE to their parent, as the
+              -- engine hands them to AnglesToAxis
         projectile <modelIdx> <x y z> <pitch yaw roll>
 
     The host treats an unknown keyword as fatal, so this writer and that
@@ -698,14 +842,15 @@ def save_shot_script(frames: Sequence[RenderFrame], path: Path,
             c.angles[0], c.angles[1], c.angles[2], c.fov, f.out))
         for a in f.actors:
             out.append(
-                "actor %d %.3f %.3f %.3f %.3f %.3f %.3f %d %d %d %d "
-                "%.3f %.3f %.3f %.3f %d"
+                "actor %d %.3f %.3f %.3f %d %d %d %d "
+                "%.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %d"
                 % (roster.index((a.model, a.skin)),
                    a.origin[0], a.origin[1], a.origin[2],
-                   a.angles[0], a.angles[1], a.angles[2],
                    a.legs_anim, a.torso_anim,
                    a.legs_anim_ms, a.torso_anim_ms,
-                   a.legs_yaw, a.torso_yaw, a.torso_pitch, a.view_pitch,
+                   a.legs_angles[0], a.legs_angles[1], a.legs_angles[2],
+                   a.torso_angles[0], a.torso_angles[1], a.torso_angles[2],
+                   a.head_angles[0], a.head_angles[1], a.head_angles[2],
                    models.index(a.weapon_model) if a.weapon_model else -1))
         for pr in f.projectiles:
             out.append("projectile %d %.3f %.3f %.3f %.3f %.3f %.3f" % (

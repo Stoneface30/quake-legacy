@@ -149,6 +149,8 @@ def test_shot_script_round_trips_the_values_the_host_will_read(tmp_path):
     assert len(actor_lines) == len(frames)
     # Every actor line references a declared player index.
     assert all(int(l.split()[1]) == 0 for l in actor_lines)
+    # the pose is nine angles: legs, torso, head
+    assert all(len(l.split()) == 19 for l in actor_lines)
 
 
 # ── projectiles ────────────────────────────────────────────────────────────
