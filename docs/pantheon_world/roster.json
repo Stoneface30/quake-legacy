@@ -1,0 +1,522 @@
+{
+ "source_paks": [
+  "bin.pk3",
+  "pak00.pk3"
+ ],
+ "unique_characters": 26,
+ "skin_variants_total": 199,
+ "roster": [
+  {
+   "name": "anarki",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/anarki/lower.md3",
+    "upper": "models/players/anarki/upper.md3",
+    "head": "models/players/anarki/head.md3"
+   },
+   "animation_cfg": "models/players/anarki/animation.cfg"
+  },
+  {
+   "name": "biker",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "hossman",
+    "red",
+    "slammer",
+    "sport",
+    "sport_blue",
+    "sport_red",
+    "stroggo"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/biker/lower.md3",
+    "upper": "models/players/biker/upper.md3",
+    "head": "models/players/biker/head.md3"
+   },
+   "animation_cfg": "models/players/biker/animation.cfg"
+  },
+  {
+   "name": "bitterman",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/bitterman/lower.md3",
+    "upper": "models/players/bitterman/upper.md3",
+    "head": "models/players/bitterman/head.md3"
+   },
+   "animation_cfg": "models/players/bitterman/animation.cfg"
+  },
+  {
+   "name": "bones",
+   "skins": [
+    "blue",
+    "bones",
+    "bright",
+    "default",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red"
+   ],
+   "lod_levels": 1,
+   "parts": {
+    "lower": "models/players/bones/lower.md3",
+    "upper": "models/players/bones/upper.md3",
+    "head": "models/players/bones/head.md3"
+   },
+   "animation_cfg": "models/players/bones/animation.cfg"
+  },
+  {
+   "name": "crash",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red",
+    "trainer"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/crash/lower.md3",
+    "upper": "models/players/crash/upper.md3",
+    "head": "models/players/crash/head.md3"
+   },
+   "animation_cfg": "models/players/crash/animation.cfg"
+  },
+  {
+   "name": "doom",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "phobos",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/doom/lower.md3",
+    "upper": "models/players/doom/upper.md3",
+    "head": "models/players/doom/head.md3"
+   },
+   "animation_cfg": "models/players/doom/animation.cfg"
+  },
+  {
+   "name": "grunt",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red",
+    "stripe"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/grunt/lower.md3",
+    "upper": "models/players/grunt/upper.md3",
+    "head": "models/players/grunt/head.md3"
+   },
+   "animation_cfg": "models/players/grunt/animation.cfg"
+  },
+  {
+   "name": "hunter",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "harpy",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/hunter/lower.md3",
+    "upper": "models/players/hunter/upper.md3",
+    "head": "models/players/hunter/head.md3"
+   },
+   "animation_cfg": "models/players/hunter/animation.cfg"
+  },
+  {
+   "name": "james",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/james/lower.md3",
+    "upper": "models/players/james/upper.md3",
+    "head": "models/players/james/head.md3"
+   },
+   "animation_cfg": "models/players/james/animation.cfg"
+  },
+  {
+   "name": "janet",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/janet/lower.md3",
+    "upper": "models/players/janet/upper.md3",
+    "head": "models/players/janet/head.md3"
+   },
+   "animation_cfg": "models/players/janet/animation.cfg"
+  },
+  {
+   "name": "keel",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/keel/lower.md3",
+    "upper": "models/players/keel/upper.md3",
+    "head": "models/players/keel/head.md3"
+   },
+   "animation_cfg": "models/players/keel/animation.cfg"
+  },
+  {
+   "name": "klesk",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "flisk",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/klesk/lower.md3",
+    "upper": "models/players/klesk/upper.md3",
+    "head": "models/players/klesk/head.md3"
+   },
+   "animation_cfg": "models/players/klesk/animation.cfg"
+  },
+  {
+   "name": "lucy",
+   "skins": [
+    "angel",
+    "blue",
+    "bright",
+    "default",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/lucy/lower.md3",
+    "upper": "models/players/lucy/upper.md3",
+    "head": "models/players/lucy/head.md3"
+   },
+   "animation_cfg": "models/players/lucy/animation.cfg"
+  },
+  {
+   "name": "major",
+   "skins": [
+    "blue",
+    "bright",
+    "daemia",
+    "default",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/major/lower.md3",
+    "upper": "models/players/major/upper.md3",
+    "head": "models/players/major/head.md3"
+   },
+   "animation_cfg": "models/players/major/animation.cfg"
+  },
+  {
+   "name": "mynx",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/mynx/lower.md3",
+    "upper": "models/players/mynx/upper.md3",
+    "head": "models/players/mynx/head.md3"
+   },
+   "animation_cfg": "models/players/mynx/animation.cfg"
+  },
+  {
+   "name": "orbb",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/orbb/lower.md3",
+    "upper": "models/players/orbb/upper.md3",
+    "head": "models/players/orbb/head.md3"
+   },
+   "animation_cfg": "models/players/orbb/animation.cfg"
+  },
+  {
+   "name": "ranger",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "red",
+    "sport_blue",
+    "sport_red",
+    "wrack"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/ranger/lower.md3",
+    "upper": "models/players/ranger/upper.md3",
+    "head": "models/players/ranger/head.md3"
+   },
+   "animation_cfg": "models/players/ranger/animation.cfg"
+  },
+  {
+   "name": "razor",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "id",
+    "patriot",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/razor/lower.md3",
+    "upper": "models/players/razor/upper.md3",
+    "head": "models/players/razor/head.md3"
+   },
+   "animation_cfg": "models/players/razor/animation.cfg"
+  },
+  {
+   "name": "santa",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/santa/lower.md3",
+    "upper": "models/players/santa/upper.md3",
+    "head": "models/players/santa/head.md3"
+   },
+   "animation_cfg": "models/players/santa/animation.cfg"
+  },
+  {
+   "name": "sarge",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "krusade",
+    "red",
+    "roderic",
+    "sport",
+    "sport_blue",
+    "sport_red"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/sarge/lower.md3",
+    "upper": "models/players/sarge/upper.md3",
+    "head": "models/players/sarge/head.md3"
+   },
+   "animation_cfg": "models/players/sarge/animation.cfg"
+  },
+  {
+   "name": "slash",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red",
+    "yuriko"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/slash/lower.md3",
+    "upper": "models/players/slash/upper.md3",
+    "head": "models/players/slash/head.md3"
+   },
+   "animation_cfg": "models/players/slash/animation.cfg"
+  },
+  {
+   "name": "sorlag",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/sorlag/lower.md3",
+    "upper": "models/players/sorlag/upper.md3",
+    "head": "models/players/sorlag/head.md3"
+   },
+   "animation_cfg": "models/players/sorlag/animation.cfg"
+  },
+  {
+   "name": "tankjr",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/tankjr/lower.md3",
+    "upper": "models/players/tankjr/upper.md3",
+    "head": "models/players/tankjr/head.md3"
+   },
+   "animation_cfg": "models/players/tankjr/animation.cfg"
+  },
+  {
+   "name": "uriel",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/uriel/lower.md3",
+    "upper": "models/players/uriel/upper.md3",
+    "head": "models/players/uriel/head.md3"
+   },
+   "animation_cfg": "models/players/uriel/animation.cfg"
+  },
+  {
+   "name": "visor",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "gorre",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/visor/lower.md3",
+    "upper": "models/players/visor/upper.md3",
+    "head": "models/players/visor/head.md3"
+   },
+   "animation_cfg": "models/players/visor/animation.cfg"
+  },
+  {
+   "name": "xaero",
+   "skins": [
+    "blue",
+    "bright",
+    "default",
+    "red",
+    "sport",
+    "sport_blue",
+    "sport_red"
+   ],
+   "lod_levels": 2,
+   "parts": {
+    "lower": "models/players/xaero/lower.md3",
+    "upper": "models/players/xaero/upper.md3",
+    "head": "models/players/xaero/head.md3"
+   },
+   "animation_cfg": "models/players/xaero/animation.cfg"
+  }
+ ],
+ "rejected": []
+}
