@@ -141,7 +141,7 @@ def test_shot_script_round_trips_the_values_the_host_will_read(tmp_path):
 # the observations we did get.
 
 def _missile_trace(client, *, entity, weapon, base, delta, launch_ms,
-                   observed, fire=True):
+                   observed, fire=True, tr_time=None, tr_type=None):
     """A trace whose missile samples repeat trBase, exactly as demos do."""
     return {
         "demo_hash": "deadbeef", "map": "campgrounds", "gametype": "CA",
@@ -155,7 +155,8 @@ def _missile_trace(client, *, entity, weapon, base, delta, launch_ms,
                        "legs_toggle": False, "torso_toggle": False}],
         "weapon": [{"t": launch_ms, "weapon": weapon}],
         "projectiles": [{"t": t, "entity": entity, "weapon": weapon,
-                         "origin": list(o), "velocity": list(delta)}
+                         "origin": list(o), "velocity": list(delta),
+                         "tr_time": tr_time, "tr_type": tr_type}
                         for t, o in observed],
         "events": ([{"t": launch_ms, "kind": "fire_weapon", "weapon": weapon,
                      "position": list(base), "other_client": None, "parm": None}]
@@ -201,8 +202,13 @@ def test_a_consistent_missile_is_evaluated_linearly_from_its_launch():
     seg_frames = [f for f in t.frames if f.projectiles]
     assert seg_frames, "a valid missile should appear"
     m = seg_frames[0].projectiles[0]
-    assert m.provenance == "DERIVED"
-    assert "TR_LINEAR" in m.method
+    # No trTime in this fixture, so the launch was inferred from the fire
+    # event. That inference was measured wrong by a systematic +50 ms on real
+    # data, so anything built on it must say so.
+    assert m.provenance == "DERIVED_PROVISIONAL"
+    # No trType either, so the evaluator says so rather than implying it knew.
+    assert "BG_EvaluateTrajectory" in m.method
+    assert "PROVISIONAL_FIRE_EVENT" in m.method
     assert m.speed == pytest.approx(1000.0)
 
 
@@ -211,6 +217,7 @@ def test_a_missile_is_not_drawn_after_the_last_snapshot_that_saw_it():
     from engine.pantheon.frame_truth import _evaluate_missile
     seg = {"entity": 211, "weapon": 5, "owner": 5, "valid": True,
            "base": (0.0, 0.0, 0.0), "delta": (1000.0, 0.0, 0.0),
+           "tr_type": 2, "launch_source": "RECORDED_TRTIME",
            "launch_ms": 1000, "first_seen_ms": 1000, "last_seen_ms": 1500,
            "residual_ms": 0.0}
     assert _evaluate_missile(seg, 1200) is not None
@@ -231,3 +238,98 @@ def test_a_weapon_with_no_missile_asset_is_not_given_one():
     assert rf.weapon_assets(7)["missile"] is None       # railgun is hitscan
     assert rf.weapon_assets(5)["missile"].endswith("rocket.md3")
     assert rf.weapon_assets(999)["missile"] is None     # unknown, not guessed
+
+
+def test_recorded_trTime_is_used_and_is_not_provisional():
+    """pos.trTime is in the demo (entityState field 0). Using it is the whole
+    difference between a measurement and a guess."""
+    from engine.pantheon.frame_truth import FrameTruth
+    tr = _missile_trace(5, entity=211, weapon=5, base=(0.0, 0.0, 0.0),
+                        delta=(1000.0, 0.0, 0.0), launch_ms=1000,
+                        observed=[(1050, (0, 0, 0))],
+                        fire=False, tr_time=1000, tr_type=2)
+    t = FrameTruth.from_traces([tr])
+    m = [f for f in t.frames if f.projectiles][0].projectiles[0]
+    assert m.provenance == "DERIVED"           # not PROVISIONAL
+    assert "trType=2" in m.method
+
+
+def test_two_trTimes_in_one_entity_slot_are_two_missiles():
+    """Slot reuse. Grouping by trBase merged them into one impossible flight."""
+    from engine.pantheon.frame_truth import _missile_segments
+    tr = _missile_trace(5, entity=206, weapon=5, base=(0.0, 0.0, 0.0),
+                        delta=(1000.0, 0.0, 0.0), launch_ms=1000,
+                        observed=[(1000, (0, 0, 0))], tr_time=1000, tr_type=2)
+    tr["projectiles"].append({"t": 2000, "entity": 206, "weapon": 5,
+                              "origin": [500.0, 0.0, 0.0],
+                              "velocity": [-800.0, 0.0, 0.0],
+                              "tr_time": 1950, "tr_type": 2})
+    segs = _missile_segments(tr)
+    assert len(segs) == 2, "two trTimes means two missiles"
+    assert {s["launch_ms"] for s in segs} == {1000, 1950}
+
+
+def test_a_grenade_falls_because_its_trType_says_so():
+    """trType 5 is TR_GRAVITY. Evaluating a grenade linearly flies it through
+    the ceiling."""
+    from engine.pantheon.frame_truth import _trajectory_at
+    lin = _trajectory_at((0, 0, 0), (0, 0, 100), 0, 2, 1000)
+    grav = _trajectory_at((0, 0, 0), (0, 0, 100), 0, 5, 1000)
+    assert lin[2] == pytest.approx(100.0)
+    assert grav[2] == pytest.approx(100.0 - 0.5 * 800.0)
+    assert grav[2] < lin[2]
+
+
+# ── camera evaluation ──────────────────────────────────────────────────────
+
+def test_yaw_interpolation_takes_the_short_way_round():
+    """359 -> 1 is two degrees, not 358."""
+    assert rf._short_arc(359.0, 1.0) == pytest.approx(2.0)
+    assert rf._short_arc(1.0, 359.0) == pytest.approx(-2.0)
+
+
+def test_faithful_intent_interpolates_between_observed_samples():
+    t = FrameTruth.from_traces([_trace(5, 1000, 25, 6, yaw=0.0)])
+    cast = {"CLIENT_5": _Profile("sarge")}
+    exact = rf.from_frame_truth(t, cast=cast, camera_owner="CLIENT_5",
+                                times_ms=[1010], intent=rf.SAMPLE_EXACT)
+    faith = rf.from_frame_truth(t, cast=cast, camera_owner="CLIENT_5",
+                                times_ms=[1010], intent=rf.POV_FAITHFUL)
+    assert exact[0].camera_provenance == "RECORDED_SAMPLE"
+    assert faith[0].camera_provenance == "DERIVED_INTERPOLATED"
+    # the source yaw advances 1 deg per 25 ms sample; 1010 is 40% between
+    assert faith[0].camera.angles[1] == pytest.approx(0.4, abs=1e-6)
+    # SOURCE time stays the sample's; EDIT time is the output instant
+    assert faith[0].server_time_ms == 1000
+    assert faith[0].edit_time_ms == 1010
+
+
+def test_interpolation_refuses_to_cross_an_observation_gap():
+    tr = _trace(5, 1000, 25, 4)
+    # blow a hole in the middle: next observation is 500 ms later
+    for track in ("transform", "aim", "animation"):
+        tr[track].append(dict(tr[track][-1], t=1575))
+    tr["end_ms"] = 1575
+    t = FrameTruth.from_traces([tr])
+    ev = rf._evaluate_actor(t, "CLIENT_5", 1200, rf.POV_FAITHFUL)
+    assert ev[3] == "RECORDED_SAMPLE", "a gap is held, never bridged"
+
+
+def test_interpolation_refuses_to_cross_a_teleport():
+    from engine.pantheon.frame_truth import SemanticEvent
+    t = FrameTruth.from_traces([_trace(5, 1000, 25, 4)])
+    t.frames[1].events.append(SemanticEvent(t=0.0, server_time_ms=1025,
+                                            kind="recorded:teleport_in"))
+    ev = rf._evaluate_actor(t, "CLIENT_5", 1010, rf.POV_FAITHFUL)
+    assert ev[3] == "RECORDED_SAMPLE", "a teleport is a discontinuity"
+
+
+def test_interpolation_preserves_a_genuine_flick():
+    """A real 800 deg/s flick must survive; only impossible jumps are cut."""
+    tr = _trace(5, 1000, 25, 3)
+    tr["aim"][1]["yaw"] = 20.0        # 20 deg in 25 ms = 800 deg/s
+    tr["aim"][2]["yaw"] = 20.0
+    t = FrameTruth.from_traces([tr])
+    ev = rf._evaluate_actor(t, "CLIENT_5", 1012, rf.POV_FAITHFUL)
+    assert ev[3] == "DERIVED_INTERPOLATED"
+    assert 5.0 < ev[1] < 15.0, "the flick is carried through, not flattened"

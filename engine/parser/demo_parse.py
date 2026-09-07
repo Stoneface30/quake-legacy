@@ -139,6 +139,15 @@ _MOD_NAMES = {
 # ---------------------------------------------------------------------------
 # EntityState NETF field indices (from qldemo EntityStateNETF.update())
 # ---------------------------------------------------------------------------
+# THE TRAJECTORY IS NOT JUST A POINT. pos.trBase alone is meaningless for a
+# moving entity: a Q3 missile sets trBase/trDelta/trTime once at spawn and
+# never changes them, so trBase repeats identically across snapshots while the
+# missile crosses the map. Reading it as a position is the classic mistake.
+# Indices from the protocol-73 entityState field table (docs/reference/
+# dm73-format-deep-dive.md, confirmed against qldemo EntityStateNETF).
+_F_POS_TIME = 0   # pos.trTime — 32 bits, the trajectory's own start time
+_F_POS_TRTYPE = 17  # pos.trType — 8 bits (TR_STATIONARY/TR_LINEAR/TR_GRAVITY…)
+_F_POS_TRDUR = 23  # pos.trDuration — 32 bits
 _F_POS_X   =  1   # pos.trBase[0] — float
 _F_POS_Y   =  2   # pos.trBase[1] — float
 _F_VEL_X   =  3   # pos.trDelta[0] — float
@@ -876,6 +885,11 @@ class DM73Parser:
                     'vel_x': accumulated.get(_F_VEL_X),
                     'vel_y': accumulated.get(_F_VEL_Y),
                     'vel_z': accumulated.get(_F_VEL_Z),
+                    # Without trTime the base and delta cannot be evaluated at
+                    # any instant, which is the whole point of a trajectory.
+                    'tr_time': accumulated.get(_F_POS_TIME),
+                    'tr_type': accumulated.get(_F_POS_TRTYPE),
+                    'tr_duration': accumulated.get(_F_POS_TRDUR),
                     'eflags': accumulated.get(_F_EFLAGS),
                     'removed': False,
                 })

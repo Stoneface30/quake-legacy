@@ -98,8 +98,14 @@ class ProjectileSample:
     t: int
     entity: int
     weapon: int
-    origin: tuple[float, float, float]
-    velocity: tuple[float, float, float]
+    origin: tuple[float, float, float]      # pos.trBase — NOT a position
+    velocity: tuple[float, float, float]    # pos.trDelta
+    # The trajectory's own clock and kind, straight from the entity state.
+    # None means the demo did not carry them (older traces), in which case the
+    # launch time has to be inferred and the result is PROVISIONAL.
+    tr_time: int | None = None
+    tr_type: int | None = None
+    tr_duration: int | None = None
 
 
 @dataclass
@@ -200,7 +206,9 @@ class PerformanceTrace:
                                    x["torso_toggle"]) for x in d.get("animation", [])]
         tr.weapon = [WeaponSample(x["t"], x["weapon"]) for x in d.get("weapon", [])]
         tr.projectiles = [ProjectileSample(x["t"], x["entity"], x["weapon"],
-                                           t3(x["origin"]), t3(x["velocity"]))
+                                           t3(x["origin"]), t3(x["velocity"]),
+                                           x.get("tr_time"), x.get("tr_type"),
+                                           x.get("tr_duration"))
                           for x in d.get("projectiles", [])]
         tr.events = [ActionEvent(x["t"], x["kind"], x.get("weapon"), t3(x.get("position")),
                                  x.get("other_client"), x.get("parm"),
@@ -391,7 +399,8 @@ def extract_performance(demo: Path, start_ms: int, end_ms: int, client: int,
             tr.projectiles.append(ProjectileSample(
                 m["server_time_ms"], m["entity_num"], m["weapon"] or 0,
                 (m["origin_x"] or 0.0, m["origin_y"] or 0.0, m["origin_z"] or 0.0),
-                (m["vel_x"] or 0.0, m["vel_y"] or 0.0, m["vel_z"] or 0.0)))
+                (m["vel_x"] or 0.0, m["vel_y"] or 0.0, m["vel_z"] or 0.0),
+                m.get("tr_time"), m.get("tr_type"), m.get("tr_duration")))
 
     for ev in out["events"]:
         t = ev["server_time_ms"]

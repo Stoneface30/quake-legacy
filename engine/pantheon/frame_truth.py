@@ -129,71 +129,82 @@ SOUND_INTENT = {
 def _missile_segments(trace: dict) -> list[dict]:
     """Recover trajectory segments from a trace's projectile samples.
 
-    A run of samples sharing the same trBase/trDelta is ONE trajectory. Its
-    launch time is taken from the EV_FIRE_WEAPON that names the same weapon at
-    the instant the missile first appears -- which is what g_missile.c does:
-    the missile is spawned by the fire, with trTime = the fire's time.
+    THE AUTHORITY IS pos.trTime, AND IT IS IN THE DEMO. An earlier version of
+    this function inferred the launch from the nearest EV_FIRE_WEAPON because
+    the parser did not read trTime. That inference was wrong by a systematic
+    +50 ms on every rocket in this fixture -- a residual of one server frame is
+    supporting evidence, never proof. trTime is now parsed (entityState field
+    0) and used; the fire-event inference survives only as a fallback for older
+    traces, and anything built on it is marked PROVISIONAL.
 
-    A segment with no matching fire event is returned with launch_ms None. It
-    is deliberately still returned, so callers can report it as UNDERIVABLE
-    rather than silently seeing fewer missiles than the demo contained.
+    SEGMENTATION IS BY trTime, NOT BY trBase. Entity slots are reused: slot 206
+    in this fixture holds two different missiles, and grouping by trBase merged
+    them into one impossible flight. Two trTimes means two missiles.
+
+    trBase, meanwhile, can be RE-BASED mid-flight while trTime stays put. Those
+    later bases are treated as VALIDATION of the spawn trajectory -- they match
+    it to a few units -- and never as new origins, because pairing a re-based
+    trBase with the original trTime evaluates to nonsense.
     """
     LAUNCH_TOLERANCE_MS = 50
-    MAX_RESIDUAL_MS = 100        # four snapshots; observed good segments are 30-40
+    MAX_RESIDUAL_MS = 100        # four snapshots
 
-    by_ent: dict[int, list[dict]] = {}
-    for s in trace.get("projectiles", []):
-        by_ent.setdefault(s["entity"], []).append(s)
+    by_key: dict[tuple, list[dict]] = {}
+    for smp in trace.get("projectiles", []):
+        # trTime is the missile's identity. Without it, fall back to the entity
+        # slot and accept that reuse cannot be told apart.
+        key = (smp["entity"], smp.get("tr_time"))
+        by_key.setdefault(key, []).append(smp)
 
     fires = [e for e in trace.get("events", [])
              if e.get("kind") == "fire_weapon" and e.get("weapon") is not None]
 
     segments: list[dict] = []
-    for entity, samples in by_ent.items():
-        samples.sort(key=lambda s: s["t"])
-        runs: list[list[dict]] = []
-        for s in samples:
-            if runs and (tuple(runs[-1][-1]["origin"]) == tuple(s["origin"])
-                         and tuple(runs[-1][-1]["velocity"]) == tuple(s["velocity"])):
-                runs[-1].append(s)
-            else:
-                runs.append([s])
+    for (entity, tr_time), samples in by_key.items():
+        samples.sort(key=lambda x: x["t"])
+        head = samples[0]
 
-        head = runs[0][0]
-        launch = None
-        for e in fires:
-            if e["weapon"] == head["weapon"] and abs(e["t"] - head["t"]) <= LAUNCH_TOLERANCE_MS:
-                launch = e["t"]
-                break
+        if tr_time is not None:
+            launch, launch_src = tr_time, "RECORDED_TRTIME"
+        else:
+            launch, launch_src = None, "PROVISIONAL_FIRE_EVENT"
+            for e in fires:
+                if (e["weapon"] == head["weapon"]
+                        and abs(e["t"] - head["t"]) <= LAUNCH_TOLERANCE_MS):
+                    launch = e["t"]
+                    break
 
-        # Every later run is an independent observation of the same flight:
-        # its trBase should equal the first base evaluated forward. That is
-        # the only check available that the derivation is not fiction.
+        tr_type = head.get("tr_type")
+        base, delta = tuple(head["origin"]), tuple(head["velocity"])
+        speed = math.sqrt(sum(v * v for v in delta)) or 1.0
+
+        # Every re-based observation should agree with the spawn trajectory.
         residual = None
-        if launch is not None and len(runs) > 1:
-            base, delta = head["origin"], head["velocity"]
+        if launch is not None:
+            # A re-based trBase is only meaningful at the snapshot where it
+            # was FIRST sent; the snapshots after it merely repeat the value
+            # unchanged. Comparing those repeats against the trajectory at
+            # their own later times inflates the residual by the distance the
+            # missile travelled in the meantime.
             worst = 0.0
-            for run in runs[1:]:
-                obs = run[0]
-                dt = (obs["t"] - launch) / 1000.0
-                pred = [base[i] + delta[i] * dt for i in range(3)]
-                worst = max(worst, max(abs(pred[i] - obs["origin"][i])
-                                       for i in range(3)))
-            residual = worst
-
-        # THE VALIDITY GATE. A derivation is only honest if it predicts the
-        # observations we did get. Express the disagreement as TIME, not
-        # distance, so it is comparable across weapons: residual / speed. A
-        # genuine segment lands within a snapshot or two of its fire event
-        # (measured: 30-40 ms). One segment in this corpus disagrees by 1.9
-        # SECONDS -- entity slots are reused and a delta-compressed trDelta can
-        # survive from the previous occupant, so the parameters simply do not
-        # describe that flight. Evaluating it anyway put a rocket outside the
-        # map. It is refused rather than drawn.
-        speed = math.sqrt(sum(v * v for v in head["velocity"])) or 1.0
+            seen_other = False
+            prev = base
+            for smp in samples[1:]:
+                cur = tuple(smp["origin"])
+                if cur == prev:
+                    continue                    # unchanged: no new evidence
+                prev = cur
+                seen_other = True
+                pred = _trajectory_at(base, delta, launch, tr_type, smp["t"])
+                if pred is None:
+                    continue
+                worst = max(worst, max(abs(pred[i] - cur[i]) for i in range(3)))
+            residual = worst if seen_other else None
         residual_ms = None if residual is None else residual / speed * 1000.0
-        valid = launch is not None and (residual_ms is None
-                                        or residual_ms <= MAX_RESIDUAL_MS)
+
+        valid = (launch is not None
+                 and _trajectory_at(base, delta, launch, tr_type, launch) is not None
+                 and (residual_ms is None or residual_ms <= MAX_RESIDUAL_MS))
 
         segments.append({
             "valid": valid,
@@ -201,22 +212,48 @@ def _missile_segments(trace: dict) -> list[dict]:
             "entity": entity,
             "weapon": head["weapon"],
             "owner": trace.get("client"),
-            "base": tuple(float(v) for v in head["origin"]),
-            "delta": tuple(float(v) for v in head["velocity"]),
+            "base": tuple(float(v) for v in base),
+            "delta": tuple(float(v) for v in delta),
+            "tr_type": tr_type,
             "launch_ms": launch,
+            "launch_source": launch_src,
             "first_seen_ms": head["t"],
             "last_seen_ms": samples[-1]["t"],
-            "residual_u": residual,
         })
     return segments
 
 
-def _evaluate_missile(seg: dict, t_ms: int) -> ProjectileTruth | None:
-    """TR_LINEAR at one instant, or nothing.
+# bg_public.h trType_t. Only the kinds a missile actually uses are supported;
+# anything else is refused rather than approximated with the wrong physics.
+TR_STATIONARY, TR_INTERPOLATE, TR_LINEAR, TR_LINEAR_STOP, TR_SINE, TR_GRAVITY = range(6)
+DEFAULT_GRAVITY = 800.0
 
-    Outside [launch, last observed] the missile is not drawn. After the last
-    snapshot that saw it we do not know it still exists -- it very likely
-    exploded, but "likely" is not a render input.
+
+def _trajectory_at(base, delta, tr_time, tr_type, t_ms):
+    """BG_EvaluateTrajectory, for the kinds a missile uses.
+
+    A rocket is TR_LINEAR; a grenade is TR_GRAVITY and falls. Evaluating a
+    grenade linearly would fly it straight through the ceiling, which is why
+    trType is consulted rather than assumed.
+    """
+    dt = (t_ms - tr_time) / 1000.0
+    if tr_type in (None, TR_LINEAR, TR_LINEAR_STOP):
+        return tuple(base[i] + delta[i] * dt for i in range(3))
+    if tr_type == TR_GRAVITY:
+        pos = [base[i] + delta[i] * dt for i in range(3)]
+        pos[2] -= 0.5 * DEFAULT_GRAVITY * dt * dt
+        return tuple(pos)
+    if tr_type == TR_STATIONARY:
+        return tuple(base)
+    return None                      # TR_SINE / TR_INTERPOLATE: not a missile
+
+
+def _evaluate_missile(seg: dict, t_ms: int) -> ProjectileTruth | None:
+    """The missile at one instant, or nothing.
+
+    Outside [launch, last observed] it is not drawn. After the last snapshot
+    that saw it we do not know it still exists -- it very likely exploded, but
+    "likely" is not a render input.
     """
     launch = seg["launch_ms"]
     if launch is None or not seg.get("valid"):
@@ -224,18 +261,34 @@ def _evaluate_missile(seg: dict, t_ms: int) -> ProjectileTruth | None:
     if t_ms < launch or t_ms > seg["last_seen_ms"]:
         return None
 
-    dt = (t_ms - launch) / 1000.0
-    base, delta = seg["base"], seg["delta"]
-    pos = tuple(base[i] + delta[i] * dt for i in range(3))
+    pos = _trajectory_at(seg["base"], seg["delta"], launch,
+                         seg.get("tr_type"), t_ms)
+    if pos is None:
+        return None
+
+    delta = seg["delta"]
     speed = math.sqrt(sum(d * d for d in delta))
-    unit = tuple(d / speed for d in delta) if speed else (1.0, 0.0, 0.0)
+
+    # A body under gravity points along its CURRENT velocity, not its launch
+    # velocity, or a falling grenade keeps pointing at the sky.
+    if seg.get("tr_type") == TR_GRAVITY:
+        dt = (t_ms - launch) / 1000.0
+        vel = (delta[0], delta[1], delta[2] - DEFAULT_GRAVITY * dt)
+    else:
+        vel = delta
+    vmag = math.sqrt(sum(v * v for v in vel)) or 1.0
+    unit = tuple(v / vmag for v in vel)
+
+    provenance = ("DERIVED" if seg["launch_source"] == "RECORDED_TRTIME"
+                  else "DERIVED_PROVISIONAL")
+    method = "BG_EvaluateTrajectory(trType=%s, trBase, trDelta, trTime=%s)" % (
+        seg.get("tr_type"), seg["launch_source"])
 
     return ProjectileTruth(
         track_id="P:%d:%d" % (seg["entity"], launch),
         entity=seg["entity"], weapon=seg["weapon"],
         owner_client=seg["owner"], position=pos, direction=unit,
-        speed=speed, launch_ms=launch, provenance="DERIVED",
-        method="TR_LINEAR(trBase,trDelta,trTime=EV_FIRE_WEAPON)")
+        speed=speed, launch_ms=launch, provenance=provenance, method=method)
 
 
 def sound_intent(kind: str, weapon: str | None) -> str | None:

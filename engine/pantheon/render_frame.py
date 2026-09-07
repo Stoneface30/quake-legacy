@@ -76,6 +76,114 @@ def vector_to_angles(v) -> tuple[float, float, float]:
     return (-pitch, yaw, 0.0)
 
 
+
+# ── temporal evaluation ────────────────────────────────────────────────────
+#
+# A demo is 40 Hz. Video is not. Choosing which pose to show at an output time
+# is a real decision and it has exactly three honest answers.
+
+SAMPLE_EXACT = "RECORDED_SAMPLE_EXACT"
+POV_FAITHFUL = "RECORDED_POV_FAITHFUL"
+POV_CINEMATIC = "RECORDED_POV_CINEMATIC"
+
+# Beyond this the bracketing samples are not the same continuous motion, so
+# interpolating between them would invent a path. Two snapshots is generous.
+MAX_INTERP_GAP_MS = 60
+
+# Angular speed above which a change is a discontinuity rather than a flick.
+# The fastest genuine human flick measured in this corpus is 841 deg/s; a
+# teleport or a POV switch presents as an instantaneous jump far above that.
+MAX_INTERP_RATE_DEG_S = 2000.0
+
+
+def _short_arc(a: float, b: float) -> float:
+    """b - a, taking the short way round. Without this, 359 -> 1 spins 358
+    degrees the wrong way in a single frame."""
+    return (b - a + 180.0) % 360.0 - 180.0
+
+
+def _lerp_angles(a, b, f):
+    return tuple(a[i] + _short_arc(a[i], b[i]) * f for i in range(3))
+
+
+def _bracket(truth, t_ms):
+    """The observed frames immediately at-or-before and after t_ms."""
+    prev = nxt = None
+    for fr in truth.frames:
+        if fr.server_time_ms <= t_ms:
+            prev = fr
+        else:
+            nxt = fr
+            break
+    return prev, nxt
+
+
+def _can_interpolate(prev, nxt, actor_id) -> bool:
+    """Is the interval between these two frames one continuous motion?
+
+    Refuses across: an observation gap, an actor missing from either end, a
+    teleport, a death, and any angular jump too fast to be a human. Each of
+    those is a DISCONTINUITY -- a straight line through it is a path the
+    player never took.
+    """
+    if prev is None or nxt is None:
+        return False
+    if nxt.server_time_ms - prev.server_time_ms > MAX_INTERP_GAP_MS:
+        return False
+
+    a = prev.actors.get(actor_id)
+    b = nxt.actors.get(actor_id)
+    if a is None or b is None:
+        return False                      # UNOBSERVED at one end
+    if a.alive != b.alive:
+        return False                      # death changes the camera outright
+
+    for fr in (prev, nxt):
+        for ev in fr.events:
+            kind = ev.kind.split(":", 1)[-1]
+            if kind in ("teleport_in", "teleport_out", "death", "obituary"):
+                return False
+
+    dt = (nxt.server_time_ms - prev.server_time_ms) / 1000.0
+    if dt <= 0:
+        return False
+    rate = max(abs(_short_arc(a.yaw, b.yaw)), abs(b.pitch - a.pitch)) / dt
+    return rate <= MAX_INTERP_RATE_DEG_S
+
+
+def _evaluate_actor(truth, actor_id, t_ms, intent):
+    """(position, yaw, pitch, provenance) for one actor at an output time.
+
+    SAMPLE_EXACT returns the sample at-or-before: no invention at all, but it
+    is not what the player saw, and over a 40 Hz source at 30 fps it holds
+    some poses and skips others, which reads as judder.
+
+    POV_FAITHFUL interpolates between the bracketing observations -- which is
+    precisely what the game client does between snapshots, and what this
+    trace's own `authorities` field already records as the intended treatment.
+    It is closer to the original view, and it is still DERIVED.
+    """
+    prev, nxt = _bracket(truth, t_ms)
+    if prev is None:
+        return None
+
+    a = prev.actors.get(actor_id)
+    if a is None:
+        return None
+
+    if intent == SAMPLE_EXACT or not _can_interpolate(prev, nxt, actor_id):
+        return (a.position, a.yaw, a.pitch, "RECORDED_SAMPLE")
+
+    b = nxt.actors[actor_id]
+    span = nxt.server_time_ms - prev.server_time_ms
+    f = (t_ms - prev.server_time_ms) / span
+    pos = tuple(a.position[i] + (b.position[i] - a.position[i]) * f
+                for i in range(3))
+    yaw = a.yaw + _short_arc(a.yaw, b.yaw) * f
+    pitch = a.pitch + (b.pitch - a.pitch) * f
+    return (pos, yaw, pitch, "DERIVED_INTERPOLATED")
+
+
 @dataclass
 class RenderActor:
     """One placed body. Performance and identity, joined."""
@@ -125,9 +233,15 @@ class RenderCamera:
 class RenderFrame:
     """Everything the renderer may know about one instant, and no more."""
     map: str
-    server_time_ms: int
+    server_time_ms: int             # SOURCE: the demo's own clock
     frame_index: int
     camera: RenderCamera
+    # EDIT: where this frame sits in the output. Kept separate on purpose --
+    # an event happens at its source time, and moving it to the nearest
+    # convenient output frame would rewrite when it happened.
+    edit_time_ms: int = 0
+    camera_intent: str = POV_FAITHFUL
+    camera_provenance: str = "RECORDED_SAMPLE"
     actors: list[RenderActor] = field(default_factory=list)
     projectiles: list[RenderProjectile] = field(default_factory=list)
     width: int = 1280
@@ -169,6 +283,7 @@ def from_frame_truth(truth, *, cast: dict[str, Any],
                      out_pattern: str = "frame_%05d.tga",
                      indices: Iterable[int] | None = None,
                      times_ms: Sequence[int] | None = None,
+                     intent: str = POV_FAITHFUL,
                      demo_hash: str | None = None) -> list[RenderFrame]:
     """Project FrameTruth into RenderFrames.
 
@@ -188,14 +303,14 @@ def from_frame_truth(truth, *, cast: dict[str, Any],
     # instant takes the sample at-or-before it, exactly as FrameTruth.at()
     # does. Rendering 30fps from a 40Hz demo must not invent poses that were
     # never observed, so the same source frame may legitimately repeat.
-    source = list(enumerate(truth.frames))
+    source = [(i, f, f.server_time_ms) for i, f in enumerate(truth.frames)]
     if times_ms is not None:
         picked = []
         for t_ms in times_ms:
             chosen = None
-            for i, f in source:
+            for i, f, _ in source:
                 if f.server_time_ms <= t_ms:
-                    chosen = (i, f)
+                    chosen = (i, f, t_ms)      # keep the OUTPUT time too
                 else:
                     break
             if chosen is not None:
@@ -207,17 +322,22 @@ def from_frame_truth(truth, *, cast: dict[str, Any],
     # actor_id -> (legs, torso, server_time_ms the pair was first seen)
     anim_since: dict[str, tuple[int, int, int]] = {}
 
-    for out_index, (i, f) in enumerate(source):
+    for out_index, (i, f, out_t) in enumerate(source):
         if wanted is not None and i not in wanted:
             continue
 
+        cam_prov = "RECORDED_SAMPLE"
         if camera_owner:
-            who = f.actors.get(camera_owner)
-            if who is None:
+            ev = _evaluate_actor(truth, camera_owner, out_t, intent)
+            if ev is None:
                 # His eyes were not observed here. Skipping is the honest
                 # answer; holding the last camera would invent a viewpoint.
                 continue
-            cam = pov_camera(who, fov=fov)
+            pos, yaw, pitch, cam_prov = ev
+            cam = RenderCamera(
+                origin=(pos[0], pos[1], pos[2] + VIEW_HEIGHT),
+                angles=(pitch, yaw, 0.0), fov=fov,
+                source="RECORDED_POV", owner=camera_owner)
         elif camera:
             cam = camera
         else:
@@ -236,20 +356,32 @@ def from_frame_truth(truth, *, cast: dict[str, Any],
                 anim_since[actor_id] = (a.legs_anim, a.torso_anim,
                                         f.server_time_ms)
             started = anim_since[actor_id][2]
+            # The body is evaluated at the same output instant as the camera,
+            # or actor and world drift apart by up to one snapshot.
+            _ev = _evaluate_actor(truth, actor_id, out_t, intent)
+            _apos, _ayaw = (_ev[0], _ev[1]) if _ev else (a.position, a.yaw)
             actors.append(RenderActor(
                 actor_id=actor_id, client=a.client, team=a.team,
                 model=getattr(profile, "model", str(profile)),
                 skin=getattr(profile, "skin", "default"),
-                origin=tuple(float(v) for v in a.position),
-                angles=(0.0, float(a.yaw), 0.0),   # a body yaws; it does not pitch
+                origin=tuple(float(v) for v in _apos),
+                angles=(0.0, float(_ayaw), 0.0),   # a body yaws; it does not pitch
                 legs_anim=a.legs_anim, torso_anim=a.torso_anim,
                 weapon=a.weapon, alive=a.alive,
                 weapon_model=(weapon_assets(int(a.weapon)).get("hand") or "")
                               if str(a.weapon).lstrip('-').isdigit() else "",
                 anim_time_ms=f.server_time_ms - started))
 
+        # A missile has a continuous trajectory, so it is evaluated at the
+        # OUTPUT time rather than snapped to the source sample -- otherwise it
+        # advances in 25 ms steps while the camera moves smoothly.
+        proj_source = f
+        if intent != SAMPLE_EXACT:
+            _pf = truth.at_server_time(out_t)
+            proj_source = _pf if _pf is not None else f
+
         missiles = []
-        for m in getattr(f, "projectiles", []):
+        for m in getattr(proj_source, "projectiles", []):
             assets = weapon_assets(m.weapon)
             if not assets["missile"]:
                 continue          # no model for this weapon: not drawn
@@ -262,8 +394,9 @@ def from_frame_truth(truth, *, cast: dict[str, Any],
 
         frames.append(RenderFrame(
             map=truth.map_name, server_time_ms=f.server_time_ms,
-            frame_index=i, camera=cam, actors=actors,
-            projectiles=missiles,
+            frame_index=i, edit_time_ms=out_t,
+            camera_intent=intent, camera_provenance=cam_prov,
+            camera=cam, actors=actors, projectiles=missiles,
             width=width, height=height, out=out_pattern % out_index,
             provenance=truth.provenance, demo_hash=demo_hash))
 
@@ -280,7 +413,8 @@ def save(frames: Sequence[RenderFrame], path: Path) -> Path:
     return path
 
 
-def save_shot_script(frames: Sequence[RenderFrame], path: Path) -> Path:
+def save_shot_script(frames: Sequence[RenderFrame], path: Path,
+                     *, lighting: str = "QUAKE_AUTHENTIC") -> Path:
     """Write the shot script the native host reads.
 
     This is the SAME RenderFrame data in a flat, line-oriented form, because
@@ -326,7 +460,8 @@ def save_shot_script(frames: Sequence[RenderFrame], path: Path) -> Path:
            "map %s" % first.map,
            "size %d %d" % (first.width, first.height),
            "provenance %s" % (first.provenance or "UNKNOWN"),
-           "demo %s" % (first.demo_hash or "UNKNOWN")]
+           "demo %s" % (first.demo_hash or "UNKNOWN"),
+           "lighting %s" % lighting]
     out += ["player %s %s" % (m, sk) for m, sk in roster]
     out += ["model %s" % m for m in models]
 
