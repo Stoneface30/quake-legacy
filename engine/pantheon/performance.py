@@ -316,11 +316,48 @@ def _parse_with_anims(path: Path):
 
 
 def recorder_client(out: dict) -> int | None:
-    """The POV client slot, from the playerstate itself."""
+    """The FIRST POV client slot seen in the playerstate.
+
+    Kept for callers that only need "whose demo is this", but be careful: in
+    Clan Arena the POV MOVES. A dead player follows his team-mates, so the
+    playerstate's clientNum changes mid-demo. Anything that needs to know
+    whose eyes a given instant belongs to must ask `pov_spans`.
+    """
     for r in out.get("recorder_track", []):
         if r["client"] is not None:
             return int(r["client"])
     return None
+
+
+def pov_spans(out: dict) -> list[tuple[int, int, int]]:
+    """(client, first_ms, last_ms) for each run the playerstate belonged to.
+
+    THE POV IS A FUNCTION OF TIME, NOT A CONSTANT. Treating it as a constant
+    is how the recorder's own full-precision playerstate got ignored for the
+    interval he was actually playing: `recorder_client` returned the client he
+    happened to be spectating in the first snapshot, the equality test against
+    it failed for everybody, and every actor fell through to the coarse
+    third-party entity path. Entity angles are server-snapped to whole
+    degrees; the playerstate is full float. The difference is not cosmetic.
+    """
+    spans: list[list[int]] = []
+    for r in out.get("recorder_track", []):
+        c = r.get("client")
+        if c is None:
+            continue
+        c = int(c)
+        if spans and spans[-1][0] == c:
+            spans[-1][2] = r["t"]
+        else:
+            spans.append([c, r["t"], r["t"]])
+    return [tuple(s) for s in spans]
+
+
+def pov_rows(out: dict, client: int, start_ms: int, end_ms: int) -> list[dict]:
+    """The playerstate rows that are genuinely THIS client's, in window."""
+    return [r for r in out.get("recorder_track", [])
+            if r.get("client") is not None and int(r["client"]) == client
+            and start_ms <= r["t"] <= end_ms]
 
 
 def extract_performance(demo: Path, start_ms: int, end_ms: int, client: int,
@@ -334,19 +371,20 @@ def extract_performance(demo: Path, start_ms: int, end_ms: int, client: int,
                           gametype=out["gametype"], client=client,
                           start_ms=start_ms, end_ms=end_ms)
     win = lambda t: start_ms <= t <= end_ms
-    tr.pov = (client == rec)
 
     prev = None
-    if client == rec:
+    own = pov_rows(out, client, start_ms, end_ms)
+    # POV is per-interval: True when this client's OWN playerstate covered
+    # the window, not merely when he happens to own the demo file.
+    tr.pov = bool(own)
+    if own:
         # THE RECORDER. Not in his own entity list; every track comes from the
         # playerstate, sampled at every snapshot.
         tr.authorities["transform"] = "OBSERVED playerstate origin/velocity per snapshot"
         tr.authorities["aim"] = "OBSERVED playerstate viewangles per snapshot"
         tr.authorities["animation"] = "OBSERVED playerstate legsAnim/torsoAnim (PS 17/14, verified)"
-        for r in out["recorder_track"]:
+        for r in own:
             t = r["t"]
-            if not win(t):
-                continue
             v = r["velocity"]
             tr.transform.append(TransformSample(
                 t, r["origin"], v, math.hypot(v[0], v[1]), r["airborne"], r["ground"]))

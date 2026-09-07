@@ -351,3 +351,23 @@ def test_interpolation_preserves_a_genuine_flick():
     ev = rf._evaluate_actor(t, "CLIENT_5", 1012, rf.POV_FAITHFUL)
     assert ev[3] == "DERIVED_INTERPOLATED"
     assert 5.0 < ev[1] < 15.0, "the flick is carried through, not flattened"
+
+
+# ── POV attribution ────────────────────────────────────────────────────────
+
+def test_the_pov_client_is_a_function_of_time_not_a_constant():
+    """In Clan Arena a dead player follows his team-mates, so the
+    playerstate's clientNum changes mid-demo. Treating it as constant made
+    the recorder's own full-precision playerstate get ignored for the very
+    interval he was playing, and every actor fell back to server-snapped
+    entity angles."""
+    from engine.pantheon.performance import pov_spans, pov_rows, recorder_client
+    out = {"recorder_track": [
+        {"t": 1000, "client": 7}, {"t": 1025, "client": 7},
+        {"t": 1050, "client": 1}, {"t": 1075, "client": 1},
+        {"t": 1100, "client": 3},
+    ]}
+    assert recorder_client(out) == 7          # the first, and not the whole truth
+    assert pov_spans(out) == [(7, 1000, 1025), (1, 1050, 1075), (3, 1100, 1100)]
+    assert [r["t"] for r in pov_rows(out, 1, 0, 9999)] == [1050, 1075]
+    assert pov_rows(out, 5, 0, 9999) == [], "a client who never held the POV"
