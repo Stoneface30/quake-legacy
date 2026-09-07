@@ -23,11 +23,20 @@ FFMPEG = Path("G:/QUAKE_LEGACY/creative_suite/tools/ffmpeg/ffmpeg.exe")
 W, H = 1920, 1080
 
 
-def frame_rgb(avi: Path, t: float, size: tuple[int, int] = (W, H)) -> bytes:
-    """One frame as raw RGB24, straight from the AVI -- no lossy round trip."""
+def frame_rgb(avi: Path, t: float, size: tuple[int, int] = (W, H), *,
+              resample: bool = False) -> bytes:
+    """One frame as raw RGB24, straight from the AVI -- no lossy round trip.
+
+    `resample` asks ffmpeg to area-average the frame down to `size` instead of
+    demanding the frame already be that shape. A downscaled reading answers a
+    different question from a full-resolution one: fine per-pixel jitter
+    averages away, so what survives is a difference a viewer would name --
+    a different model, a different colour, a missing effect, a gamma shift.
+    """
+    scale = ["-vf", f"scale={size[0]}:{size[1]}:flags=area"] if resample else []
     out = subprocess.run(
         [str(FFMPEG), "-v", "error", "-ss", f"{t:.3f}", "-i", str(avi),
-         "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
+         "-frames:v", "1", *scale, "-f", "rawvideo", "-pix_fmt", "rgb24", "-"],
         capture_output=True, timeout=180)
     if len(out.stdout) != size[0] * size[1] * 3:
         raise RuntimeError(f"{avi.name}: expected {size} frame, got "

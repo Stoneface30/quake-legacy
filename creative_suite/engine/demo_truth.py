@@ -510,7 +510,9 @@ ROUND_UNKNOWN = "UNKNOWN"
 
 CS_SCORES_RED = 6
 CS_SCORES_BLUE = 7
-CS_ROUND_TIME = 662
+from engine.parser.protocol import ConfigString as _CS
+
+CS_ROUND_TIME = int(_CS.ROUND_TIME)
 
 
 @dataclass(frozen=True)

@@ -35,7 +35,9 @@ RECOGNITION_DB = REPO_ROOT / "creative_suite" / "database" / "frag_recognition.d
 
 # `\time\<ms>\round\<n>` inside configstring 661.
 _CS_ROUND = re.compile(r"\\time\\(-?\d+)\\round\\(\d+)")
-CS_ROUND_INDEX = 661
+from engine.parser.protocol import ConfigString as _CS
+
+CS_ROUND_INDEX = int(_CS.ROUND_STATUS)
 
 OBSERVED = "OBSERVED"        # the server announced this round's start
 BOUNDED = "BOUNDED"          # constrained by the neighbouring rounds

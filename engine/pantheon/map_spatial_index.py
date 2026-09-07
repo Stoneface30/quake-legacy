@@ -160,13 +160,83 @@ class MapSpatialIndex:
     def add_encounter(self, killer: Vec3, victim: Vec3) -> None:
         self.encounters[(cell_of(killer), cell_of(victim))] += 1
 
-    # -- io ------------------------------------------------------------
-    def save(self, path: Path | None = None) -> Path:
-        path = path or CACHE / f"{self.map_name}.json"
+    # -- io: ONE store, map_geography.db, beside the regions -----------------
+    # MapSpatialIndex (cells) and map_geography (regions over those cells)
+    # are one authority with one database. JSON export remains for a human
+    # to look at; nothing reads it back.
+    SPATIAL_SCHEMA = """
+    create table if not exists spatial_cells_v1 (
+      map text not null, layer text not null, cx integer, cy integer, cz integer, n integer,
+      primary key (map, layer, cx, cy, cz));
+    create table if not exists spatial_adjacency_v1 (
+      map text not null, ax integer, ay integer, az integer, bx integer, by integer, bz integer,
+      n integer, primary key (map, ax, ay, az, bx, by, bz));
+    create table if not exists spatial_encounters_v1 (
+      map text not null, kx integer, ky integer, kz integer, vx integer, vy integer, vz integer,
+      n integer, primary key (map, kx, ky, kz, vx, vy, vz));
+    create table if not exists spatial_meta_v1 (
+      map text primary key, version text, sources_json text, built_at real);
+    """
+    VERSION = "map-spatial-v2"
+
+    def save(self, db: Path | None = None) -> Path:
+        from engine.pantheon import map_geography as mg
+        db = db or mg.GEO_DB
+        with mg.conn(db) as c:
+            c.executescript(self.SPATIAL_SCHEMA)
+            for t in ("spatial_cells_v1", "spatial_adjacency_v1", "spatial_encounters_v1",
+                      "spatial_meta_v1"):
+                c.execute(f"delete from {t} where map=?", (self.map_name,))
+            c.executemany("insert into spatial_cells_v1 values (?,?,?,?,?,?)",
+                          [(self.map_name, layer, *cell, n)
+                           for layer, cnt in self.layers.items() for cell, n in cnt.items()])
+            c.executemany("insert into spatial_adjacency_v1 values (?,?,?,?,?,?,?,?)",
+                          [(self.map_name, *a, *b, n) for (a, b), n in self.adjacency.items()])
+            c.executemany("insert into spatial_encounters_v1 values (?,?,?,?,?,?,?,?)",
+                          [(self.map_name, *k, *v, n) for (k, v), n in self.encounters.items()])
+            c.execute("insert into spatial_meta_v1 values (?,?,?,?)",
+                      (self.map_name, self.VERSION, json.dumps(self.sources), time.time()))
+            c.commit()
+        return db
+
+    @classmethod
+    def load(cls, map_name: str, db: Path | None = None) -> "MapSpatialIndex":
+        from engine.pantheon import map_geography as mg
+        db = db or mg.GEO_DB
+        idx = cls(map_name)
+        with mg.conn(db) as c:
+            c.executescript(cls.SPATIAL_SCHEMA)
+            meta = c.execute("select sources_json from spatial_meta_v1 where map=?",
+                             (map_name,)).fetchone()
+            if meta is None:
+                raise KeyError(f"no spatial index for {map_name!r} in {db}")
+            idx.sources = json.loads(meta[0] or "{}")
+            for layer, cx, cy, cz, n in c.execute(
+                    "select layer, cx, cy, cz, n from spatial_cells_v1 where map=?", (map_name,)):
+                idx.layers.setdefault(layer, Counter())[(cx, cy, cz)] = n
+            for ax, ay, az, bx, by, bz, n in c.execute(
+                    "select ax, ay, az, bx, by, bz, n from spatial_adjacency_v1 where map=?",
+                    (map_name,)):
+                idx.adjacency[((ax, ay, az), (bx, by, bz))] = n
+            for kx, ky, kz, vx, vy, vz, n in c.execute(
+                    "select kx, ky, kz, vx, vy, vz, n from spatial_encounters_v1 where map=?",
+                    (map_name,)):
+                idx.encounters[((kx, ky, kz), (vx, vy, vz))] = n
+        return idx
+
+    @classmethod
+    def available(cls, db: Path | None = None) -> list[str]:
+        from engine.pantheon import map_geography as mg
+        with mg.conn(db or mg.GEO_DB) as c:
+            c.executescript(cls.SPATIAL_SCHEMA)
+            return [r[0] for r in c.execute("select map from spatial_meta_v1 order by map")]
+
+    def export_json(self, path: Path) -> Path:
+        """A human-readable copy. Never read back."""
         path.parent.mkdir(parents=True, exist_ok=True)
         enc = lambda c: ",".join(map(str, c))
         path.write_text(json.dumps({
-            "version": "map-spatial-v1", "map": self.map_name, "cell": CELL,
+            "version": self.VERSION, "map": self.map_name, "cell": CELL,
             "layers": {k: {enc(c): n for c, n in v.items()} for k, v in self.layers.items()},
             "adjacency": {f"{enc(a)}|{enc(b)}": n for (a, b), n in self.adjacency.items()},
             "encounters": {f"{enc(a)}|{enc(b)}": n for (a, b), n in self.encounters.items()},
@@ -175,27 +245,11 @@ class MapSpatialIndex:
         return path
 
     @classmethod
-    def load(cls, map_name: str, path: Path | None = None) -> "MapSpatialIndex":
-        path = path or CACHE / f"{map_name}.json"
-        d = json.loads(Path(path).read_text(encoding="utf-8"))
-        dec = lambda s: tuple(int(x) for x in s.split(","))
-        idx = cls(d["map"])
-        for k, v in d["layers"].items():
-            idx.layers[k] = Counter({dec(c): n for c, n in v.items()})
-        idx.adjacency = Counter({tuple(dec(x) for x in key.split("|")): n
-                                 for key, n in d["adjacency"].items()})
-        idx.encounters = Counter({tuple(dec(x) for x in key.split("|")): n
-                                  for key, n in d["encounters"].items()})
-        idx.sources = d.get("sources", {})
-        return idx
-
-    @classmethod
     def for_map(cls, map_name: str, *, rebuild: bool = False, **kw) -> "MapSpatialIndex":
-        path = CACHE / f"{map_name}.json"
-        if path.exists() and not rebuild:
-            return cls.load(map_name, path)
+        if not rebuild and map_name in cls.available():
+            return cls.load(map_name)
         idx = build(map_name, **kw)
-        idx.save(path)
+        idx.save()
         return idx
 
 
@@ -264,9 +318,21 @@ def build(map_name: str, *, max_traces: int = 20000, max_demos: int | None = Non
     if S.index_db().exists():
         con = PI._ro()
         prefixes = {h[:16] for h in hashes}
+        # PER KIND, ALWAYS. `select ... where map=? limit N` reads through
+        # ix_actions_map(map, kind), so an unordered cap returns rows in KIND
+        # order and silently drops every kind past the cut -- on campgrounds
+        # the first 200,000 rows were FIRE_* only, and no jump pad or kill
+        # reached the index. A cap may thin a kind; it may never delete one.
+        kinds = [r[0] for r in con.execute(
+            "select distinct kind from actions where map=? order by kind", (map_name,))]
+        per_kind = max(1, max_traces // max(1, len(kinds)))
         q = ("select kind, demo_hash, path_cells, origin_x, origin_y, origin_z, "
-             "landing_x, landing_y, landing_z, victim from actions where map=? limit ?")
-        for kind, dh, cells, ox, oy, oz, lx, ly, lz, victim in con.execute(q, (map_name, max_traces)):
+             "landing_x, landing_y, landing_z, victim, client, t_ms "
+             "from actions where map=? and kind=? limit ?")
+        rows = [r for k in kinds for r in con.execute(q, (map_name, k, per_kind))]
+        kills: list[tuple] = []
+        for (kind, dh, cells, ox, oy, oz, lx, ly, lz,
+             victim, client, t_ms) in rows:
             if dh not in prefixes:
                 continue
             n_tr += 1
@@ -281,6 +347,20 @@ def build(map_name: str, *, max_traces: int = 20000, max_demos: int | None = Non
                 idx.add_landing((lx, ly, lz))
             if kind == "KILL" and ox is not None:
                 idx.layers["combat"][cell_of((ox, oy, oz))] += 1
+                if victim is not None:
+                    kills.append((dh, victim, t_ms, (ox, oy, oz)))
+        # ENCOUNTERS: killer cell -> victim cell, both from observed rows.
+        # The victim's position comes from HIS OWN nearest indexed action, not
+        # from the killer's trace and not from the obituary's event position
+        # (which is where the body was, not where he was standing when the
+        # shot left). A victim with no row near the kill contributes nothing.
+        for dh, victim, t_ms, killer_pos in kills:
+            row = con.execute(
+                "select origin_x, origin_y, origin_z from actions where demo_hash=? "
+                "and client=? and abs(t_ms-?) <= 2000 and origin_x is not null "
+                "order by abs(t_ms-?) limit 1", (dh, victim, t_ms, t_ms)).fetchone()
+            if row is not None:
+                idx.add_encounter(killer_pos, row)
         con.close()
     idx.sources["traces"] = n_tr
 
@@ -325,6 +405,8 @@ def main() -> int:
               f"adjacent {cov['adjacent_pairs']}  encounters {cov['encounter_pairs']}")
     CACHE.mkdir(parents=True, exist_ok=True)
     (CACHE / "coverage.json").write_text(json.dumps(report, indent=1), encoding="utf-8")
+    for m in maps:
+        MapSpatialIndex.load(m).export_json(CACHE / f"{m}.json")
     return 0
 
 

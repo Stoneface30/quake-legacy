@@ -54,10 +54,10 @@ def test_the_facade_answers_from_regions_and_cells(tmp_path, monkeypatch):
     layers, regions, lookup = mg.build_regions(pts, "synthetic")
     fake = mg.MapIndex("synthetic", layers, regions, lookup)
     monkeypatch.setattr(G.mc, "index_for", lambda m: fake if m == "synthetic" else None)
-    monkeypatch.setattr(G.S, "map_spatial_dir", lambda: tmp_path)
+    monkeypatch.setattr(mg, "GEO_DB", tmp_path / "map_geography.db")
     sp = MapSpatialIndex("synthetic")
     sp.add_walked_path([(x, 300.0, 30.0) for x in range(0, 600, 40)])
-    sp.save(tmp_path / "synthetic.json")
+    sp.save()
     G.MapGeography.clear_cache()
 
     loc = G.location_for_event("synthetic", 300.0, 300.0, 30.0)

@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Iterable
 
 from engine.parser import demo_parse as dp
+from engine.parser import protocol as _P
 from engine.parser.demo_parse import DM73Parser
 
 FRAGS_DB = Path("G:/QUAKE_LEGACY/creative_suite/database/frags_rebuilt.db")
@@ -46,7 +47,7 @@ PS_ORIGIN = (1, 2, 9)
 PS_VELOCITY = (4, 5, 10)
 PS_YAW, PS_PITCH, PS_GROUND, PS_CLIENT, PS_WEAPON = 6, 7, 20, 40, 41
 ANIM_TOGGLE = 128
-ENTITYNUM_NONE = 1023
+ENTITYNUM_NONE = _P.ENTITYNUM_NONE
 WP_ROCKET, WP_RAIL = 5, 7
 # MOD_ROCKET / MOD_ROCKET_SPLASH, from the parser's own table rather than a
 # restated bg_public.h. A first version wrote {3, 4}, which the parser reads
@@ -66,6 +67,10 @@ class TransformSample:
     speed: float                 # |velocity| in the horizontal plane
     airborne: bool
     ground_entity: int | None
+    # Own-POV only. 26 standing, 12 ducked, -16 dead. None when this actor was
+    # observed as a third party, because an entity carries no viewheight.
+    viewheight: int | None = None
+    pm_type: int | None = None
 
 
 @dataclass
@@ -84,6 +89,9 @@ class AnimSample:
     torso: int
     legs_toggle: bool            # the toggle bit as sent
     torso_toggle: bool
+    # angles2[YAW]: the 0-7 movement direction index. Drives how far the legs
+    # are turned away from the view (CG_PlayerAngles).
+    move_dir: int | None = None
 
 
 @dataclass
@@ -97,8 +105,14 @@ class ProjectileSample:
     t: int
     entity: int
     weapon: int
-    origin: tuple[float, float, float]
-    velocity: tuple[float, float, float]
+    origin: tuple[float, float, float]      # pos.trBase — NOT a position
+    velocity: tuple[float, float, float]    # pos.trDelta
+    # The trajectory's own clock and kind, straight from the entity state.
+    # None means the demo did not carry them (older traces), in which case the
+    # launch time has to be inferred and the result is PROVISIONAL.
+    tr_time: int | None = None
+    tr_type: int | None = None
+    tr_duration: int | None = None
 
 
 @dataclass
@@ -196,10 +210,13 @@ class PerformanceTrace:
         tr.aim = [AimSample(x["t"], x["yaw"], x["pitch"], x["yaw_rate"], x["pitch_rate"])
                   for x in d.get("aim", [])]
         tr.animation = [AnimSample(x["t"], x["legs"], x["torso"], x["legs_toggle"],
-                                   x["torso_toggle"]) for x in d.get("animation", [])]
+                                   x["torso_toggle"], x.get("move_dir"))
+                        for x in d.get("animation", [])]
         tr.weapon = [WeaponSample(x["t"], x["weapon"]) for x in d.get("weapon", [])]
         tr.projectiles = [ProjectileSample(x["t"], x["entity"], x["weapon"],
-                                           t3(x["origin"]), t3(x["velocity"]))
+                                           t3(x["origin"]), t3(x["velocity"]),
+                                           x.get("tr_time"), x.get("tr_type"),
+                                           x.get("tr_duration"))
                           for x in d.get("projectiles", [])]
         tr.events = [ActionEvent(x["t"], x["kind"], x.get("weapon"), t3(x.get("position")),
                                  x.get("other_client"), x.get("parm"),
@@ -239,7 +256,8 @@ def _parse_with_anims(path: Path):
                 anims.append({"t": t, "client": st.get(dp._F_CLIENT, num),
                               "legs": l & ~ANIM_TOGGLE, "torso": to & ~ANIM_TOGGLE,
                               "legs_toggle": bool(l & ANIM_TOGGLE),
-                              "torso_toggle": bool(to & ANIM_TOGGLE)})
+                              "torso_toggle": bool(to & ANIM_TOGGLE),
+                              "move_dir": st.get(dp._F_ANGLES2_YAW)})
         ps = parser._ps_state
         if ps:
             l = int(ps.get(PS_LEGS_ANIM, 0) or 0); to = int(ps.get(PS_TORSO_ANIM, 0) or 0)
@@ -254,7 +272,23 @@ def _parse_with_anims(path: Path):
                 "weapon": ps.get(PS_WEAPON),
                 "legs": l & ~ANIM_TOGGLE, "torso": to & ~ANIM_TOGGLE,
                 "legs_toggle": bool(l & ANIM_TOGGLE),
-                "torso_toggle": bool(to & ANIM_TOGGLE)})
+                "torso_toggle": bool(to & ANIM_TOGGLE),
+                # View and movement state, from the generated schema.
+                # HEIGHT IS NOT GROUNDING: the player collision box extends 24
+                # below the origin, so a standing player on a floor at z=0 has
+                # origin z=24. groundEntityNum and pm_type are the authority,
+                # and viewheight is not always 26 (it drops when ducking and
+                # changes on death).
+                "move_dir": ps.get(dp._PS_MOVEDIR),
+                "pm_type": ps.get(dp._PS_PM_TYPE),
+                "pm_flags": ps.get(dp._PS_PM_FLAGS),
+                "viewheight": _signed8(ps.get(dp._PS_VIEWHEIGHT)),
+                "legs_timer": ps.get(dp._PS_LEGSTIMER),
+                "torso_timer": ps.get(dp._PS_TORSOTIMER),
+                "damage_event": ps.get(dp._PS_DMG_EVENT),
+                "damage_yaw": ps.get(dp._PS_DMG_YAW),
+                "damage_pitch": ps.get(dp._PS_DMG_PITCH),
+                "damage_count": ps.get(dp._PS_DMG_COUNT)})
 
     # Temp-entity events (missile hits, misses) carry otherEntityNum -- the
     # thing that was hit -- which the parser's event rows do not keep. They
@@ -301,12 +335,62 @@ def _parse_with_anims(path: Path):
     return out, anims
 
 
+def _signed8(v):
+    """Decode a signed 8-bit netfield.
+
+    The netfield table marks width -8 for signed fields, and the decoder was
+    returning the raw byte. viewheight came back as 240 instead of -16, which
+    is DEAD_VIEWHEIGHT -- so the camera would have been placed 240 units above
+    the corpse instead of 16 below the origin.
+    """
+    if v is None:
+        return None
+    v = int(v)
+    return v - 256 if v > 127 else v
+
 def recorder_client(out: dict) -> int | None:
-    """The POV client slot, from the playerstate itself."""
+    """The FIRST POV client slot seen in the playerstate.
+
+    Kept for callers that only need "whose demo is this", but be careful: in
+    Clan Arena the POV MOVES. A dead player follows his team-mates, so the
+    playerstate's clientNum changes mid-demo. Anything that needs to know
+    whose eyes a given instant belongs to must ask `pov_spans`.
+    """
     for r in out.get("recorder_track", []):
         if r["client"] is not None:
             return int(r["client"])
     return None
+
+
+def pov_spans(out: dict) -> list[tuple[int, int, int]]:
+    """(client, first_ms, last_ms) for each run the playerstate belonged to.
+
+    THE POV IS A FUNCTION OF TIME, NOT A CONSTANT. Treating it as a constant
+    is how the recorder's own full-precision playerstate got ignored for the
+    interval he was actually playing: `recorder_client` returned the client he
+    happened to be spectating in the first snapshot, the equality test against
+    it failed for everybody, and every actor fell through to the coarse
+    third-party entity path. Entity angles are server-snapped to whole
+    degrees; the playerstate is full float. The difference is not cosmetic.
+    """
+    spans: list[list[int]] = []
+    for r in out.get("recorder_track", []):
+        c = r.get("client")
+        if c is None:
+            continue
+        c = int(c)
+        if spans and spans[-1][0] == c:
+            spans[-1][2] = r["t"]
+        else:
+            spans.append([c, r["t"], r["t"]])
+    return [tuple(s) for s in spans]
+
+
+def pov_rows(out: dict, client: int, start_ms: int, end_ms: int) -> list[dict]:
+    """The playerstate rows that are genuinely THIS client's, in window."""
+    return [r for r in out.get("recorder_track", [])
+            if r.get("client") is not None and int(r["client"]) == client
+            and start_ms <= r["t"] <= end_ms]
 
 
 def extract_performance(demo: Path, start_ms: int, end_ms: int, client: int,
@@ -320,22 +404,24 @@ def extract_performance(demo: Path, start_ms: int, end_ms: int, client: int,
                           gametype=out["gametype"], client=client,
                           start_ms=start_ms, end_ms=end_ms)
     win = lambda t: start_ms <= t <= end_ms
-    tr.pov = (client == rec)
 
     prev = None
-    if client == rec:
+    own = pov_rows(out, client, start_ms, end_ms)
+    # POV is per-interval: True when this client's OWN playerstate covered
+    # the window, not merely when he happens to own the demo file.
+    tr.pov = bool(own)
+    if own:
         # THE RECORDER. Not in his own entity list; every track comes from the
         # playerstate, sampled at every snapshot.
         tr.authorities["transform"] = "OBSERVED playerstate origin/velocity per snapshot"
         tr.authorities["aim"] = "OBSERVED playerstate viewangles per snapshot"
         tr.authorities["animation"] = "OBSERVED playerstate legsAnim/torsoAnim (PS 17/14, verified)"
-        for r in out["recorder_track"]:
+        for r in own:
             t = r["t"]
-            if not win(t):
-                continue
             v = r["velocity"]
             tr.transform.append(TransformSample(
-                t, r["origin"], v, math.hypot(v[0], v[1]), r["airborne"], r["ground"]))
+                t, r["origin"], v, math.hypot(v[0], v[1]), r["airborne"],
+                r["ground"], r.get("viewheight"), r.get("pm_type")))
             yr = pr = 0.0
             if prev and t > prev[0]:
                 dt = (t - prev[0]) / 1000.0
@@ -344,7 +430,8 @@ def extract_performance(demo: Path, start_ms: int, end_ms: int, client: int,
             tr.aim.append(AimSample(t, r["yaw"], r["pitch"], round(yr, 1), round(pr, 1)))
             prev = (t, r["yaw"], r["pitch"])
             tr.animation.append(AnimSample(t, r["legs"], r["torso"],
-                                           r["legs_toggle"], r["torso_toggle"]))
+                                           r["legs_toggle"], r["torso_toggle"],
+                                           r.get("move_dir")))
             if r["weapon"] is not None and (not tr.weapon or tr.weapon[-1].weapon != r["weapon"]):
                 tr.weapon.append(WeaponSample(t, int(r["weapon"])))
     # The parser appends one entity row per DELTA, and a snapshot can carry
@@ -383,14 +470,16 @@ def extract_performance(demo: Path, start_ms: int, end_ms: int, client: int,
         for t in sorted(an_by_t):
             a = an_by_t[t]
             tr.animation.append(AnimSample(a["t"], a["legs"], a["torso"],
-                                           a["legs_toggle"], a["torso_toggle"]))
+                                           a["legs_toggle"], a["torso_toggle"],
+                                           a.get("move_dir")))
 
     for m in out["missiles"]:
         if m.get("other") == client and win(m["server_time_ms"]):
             tr.projectiles.append(ProjectileSample(
                 m["server_time_ms"], m["entity_num"], m["weapon"] or 0,
                 (m["origin_x"] or 0.0, m["origin_y"] or 0.0, m["origin_z"] or 0.0),
-                (m["vel_x"] or 0.0, m["vel_y"] or 0.0, m["vel_z"] or 0.0)))
+                (m["vel_x"] or 0.0, m["vel_y"] or 0.0, m["vel_z"] or 0.0),
+                m.get("tr_time"), m.get("tr_type"), m.get("tr_duration")))
 
     for ev in out["events"]:
         t = ev["server_time_ms"]

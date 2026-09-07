@@ -184,6 +184,7 @@ LAUNCH_SITES = {
     "creative_suite/api/_preview_job.py",
     "creative_suite/engine/supervisor.py",
     "engine/pantheon/shot.py",
+    "engine/pantheon/offscreen.py",
     "engine/pantheon/cvar_probe.py",
     "engine/parser/playback_probe.py",
 }
@@ -299,3 +300,62 @@ def test_capture_demo_asks_before_any_process(monkeypatch, tmp_path):
     with pytest.raises(rp.RenderNotPermitted):
         wc.capture_demo("x.dm_73", [{"clip_name": "c", "start_ms": 0, "end_ms": 1000}],
                         staging=tmp_path)
+
+
+# ── disk policy: three thresholds, not one ─────────────────────────────────
+
+def test_a_full_disk_defers_a_render_but_not_a_review_write(monkeypatch, tmp_path):
+    from engine.pantheon import disk_policy as dp
+    _quiet(monkeypatch, False)
+    monkeypatch.setattr(dp, "free_bytes", lambda p: 300 * dp.MB)
+    d = rp.check(purpose="proxy capture", output_dir=tmp_path)
+    assert d.permit is rp.Permit.DEFERRED and "disk unsafe" in d.reason
+    assert dp.review_db_write_safe(tmp_path).ok            # a verdict still fits
+    assert not dp.large_build_safe(tmp_path).ok
+    monkeypatch.setattr(dp, "free_bytes", lambda p: 10 * dp.GB)
+    assert rp.check(purpose="proxy capture", output_dir=tmp_path).may_render
+    # the job's own expected size counts
+    assert not rp.check(purpose="beauty pass", output_dir=tmp_path,
+                        expected_output_bytes=9 * dp.GB).may_render
+
+
+def test_disk_policy_never_spawns(monkeypatch, tmp_path):
+    import subprocess
+    from engine.pantheon import disk_policy as dp
+    monkeypatch.setattr(subprocess, "Popen", lambda *a, **k: (_ for _ in ()).throw(AssertionError("spawned")))
+    assert dp.free_bytes(tmp_path) >= 0
+
+
+# ── the reviewer branch's vocabulary, against the same one permit ───────────
+
+def test_a_batch_is_held_to_more_headroom_than_one_clip(monkeypatch, tmp_path):
+    """The reviewer branch says check(batch=True); this branch says
+    expected_output_bytes. Both must work, and batch must be the stricter of
+    the two -- a whole run that fills the drive leaves broken media AND no
+    space to record that it broke."""
+    from engine.pantheon import disk_policy
+    from engine.pantheon import render_permit as rp
+
+    monkeypatch.setattr(rp, "mode", lambda: rp.MODE_AUTO)
+    monkeypatch.setattr("creative_suite.engine.capture_guard.game_is_running",
+                        lambda: False)
+    # room for one clip, nowhere near room for a build
+    one_job = disk_policy.RENDER_EXPECTED_DEFAULT + disk_policy.RENDER_MARGIN
+    monkeypatch.setattr(disk_policy, "free_bytes", lambda path: one_job * 3)
+
+    assert rp.check(purpose="one clip", output_dir=tmp_path).permit is rp.Permit.GRANTED
+    assert rp.check(purpose="a whole run", output_dir=tmp_path,
+                    batch=True).permit is rp.Permit.DEFERRED
+
+
+def test_a_tiny_write_is_not_held_to_render_headroom(monkeypatch, tmp_path):
+    """A verdict is a few bytes. Holding it to the space a capture needs is
+    how a reviewer stops being able to record an opinion on a full disk."""
+    from engine.pantheon import disk_policy
+
+    monkeypatch.setattr(disk_policy, "free_bytes",
+                        lambda path: disk_policy.REVIEW_DB_WRITE_SAFE * 2)
+    assert disk_policy.REVIEW_DB_WRITE_SAFE * 2 < (
+        disk_policy.RENDER_EXPECTED_DEFAULT + disk_policy.RENDER_MARGIN)
+    assert disk_policy.review_db_write_safe(tmp_path).ok
+    assert not disk_policy.render_job_safe(tmp_path).ok

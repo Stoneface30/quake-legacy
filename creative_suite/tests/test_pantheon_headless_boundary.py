@@ -28,6 +28,7 @@ HEADLESS = {
     "performance",      # PerformanceTrace extraction
     "performance_index",  # corpus-wide discovery index (lightweight rows, no trace copies)
     "store",            # where derived performance data lives (configurable root)
+    "disk_policy",      # three write thresholds; shutil only
     "real_action_proof",  # extract -> compile -> compare, headless
     "headless",         # the loop: extract / compile / reextract / compare / run
     "retarget",         # EXACT_WORLD / LOCAL_FRAME rigid transform + map validity
@@ -37,11 +38,26 @@ HEADLESS = {
     "performance_library",  # anonymous PERF: references over the index
     "headless_bench",   # loop timings, no render
     "performance_templates",  # reusable real motion, chosen by measured facts
+    "trace_cache",      # which rebuilt traces earn a stored copy, and why
+    "visual_proof",     # what a person judged on screen; reads a db, films nothing
+    "effect_recipes",   # the film grammar as semantics; no backend detail
+    "possibilities",    # which recipes a moment can carry, and why
+    "ideas",            # the director's 306-item master list, verbatim
+    "director_notes",   # the original free-form notes it came from
+    "creative_intent",  # a human note, kept as written
+    "review_moment",    # the one object the reviewer reads
+    "backend_planner",  # which backend does which pass; plans, never launches
+    "defaults",         # versioned project profiles; values, not behaviour
+    "maturity",         # how finished each subsystem is, by measurement
+    "choreography",     # recipe + moment -> plan; traces the map, films nothing
     "map_geography",    # height layers, watershed regions, route graph (review authority, adopted)
     "map_context",      # place / approach words for a moment, over map_geography
     "geography",        # the one API over map_geography + map_spatial_index
     "presenter_performance_proof",  # Crash enters via a real recording, headless first
     "frame_truth",      # FrameTruth
+    # The renderer's input DTO. Headless by construction: it projects one
+    # instant of FrameTruth and imports nothing that can launch a game.
+    "render_frame",
     "scenario",         # RoundScenario authoring
     "compiler",         # intent -> .dm_73 grammar
     "navigation",       # NavigationTruth
@@ -54,6 +70,7 @@ HEADLESS = {
 # Modules that are allowed to touch a backend or spawn a process, and why.
 BACKEND_ALLOWED = {
     "backends",         # the interface itself
+    "offscreen",        # hosts the renderer on a hidden desktop; spawns processes
     "render_permit",    # the one gate every launch asks; reads the process list
     "shot",             # WOLFCAM_REFERENCE implementation
     "cvar_probe",       # RUNTIME_CAPABILITY_PROOF
@@ -63,10 +80,36 @@ BACKEND_ALLOWED = {
     "presenter_film",   # films a presenter proof
     "presenter_camera_film",  # films PRESENTER_CAMERA_DIALOGUE_PROOF_02
     "ab_scene",         # A/B capture harness
+    "first_recipe_proof",  # the one end-to-end run: it films
+    "engine_census",    # asks the running binary what it has; one session
+    "engine_inventory", # the raw inventory and its grades; reads files only
+    "conformance",      # the 10-case backend A/B: it films both legs
     "cast_proof", "presenter_proof", "instruction_proof", "proofs",
     "proof0_color", "proof_b_identity", "proof_c_rails",
     "ca_explainer",     # end-to-end explainer, may render
     "color_format",     # a fact about the Wolfcam cvar format, decided on pixels
+    "capabilities",     # what a backend can do and how we know; names cvars as backend detail
+    "visual_profile",   # the one translator from film words to backend values
+    "doctor",           # the self-test: it REPLACES Popen to prove nothing spawns,
+                        # and reads the permit to report it -- launches nothing
+}
+
+# A THIRD CLASS, because two were not enough.
+#
+# These modules choose between backends, or record which one a proof was taken
+# against, or quote the director naming one. They must still never IMPORT a
+# backend and never launch anything -- what they may do is say the name. A
+# planner that cannot name what it is planning for is not a planner, and a
+# proof that cannot say what it was filmed on is not evidence.
+NAMES_BACKENDS_AS_DATA = {
+    "backend_planner",  # its whole job is choosing one
+    "effect_recipes",   # each recipe says which backend would suit it
+    "visual_proof",     # a proof is only valid for the backend it was taken on
+    "ideas",            # the director's own words, and they name backends
+    "director_notes",   # likewise, verbatim
+    "defaults",         # a profile names the engine cfg it expects
+    "maturity",         # it reports per backend, so it names them
+    "engine_inventory", # its subject IS the raw names; it launches nothing
 }
 
 FORBIDDEN_IMPORTS = {
@@ -188,10 +231,29 @@ def _code_tokens(path: Path) -> list[tuple[int, str]]:
     return out
 
 
-@pytest.mark.parametrize("path", _headless_modules(), ids=lambda p: p.stem)
+def _vocabulary_modules() -> list[Path]:
+    return [p for p in _headless_modules() if p.stem not in NAMES_BACKENDS_AS_DATA]
+
+
+@pytest.mark.parametrize("path", _vocabulary_modules(), ids=lambda p: p.stem)
 def test_headless_module_speaks_no_backend_vocabulary(path: Path):
     hits = [(ln, tok) for ln, tok in _code_tokens(path)
             for word in BACKEND_TOKENS if word.lower() in tok.lower()]
     assert not hits, (f"{path.name} carries backend vocabulary in code: {hits[:5]}. "
                       "CameraPlan may state intent; a cvar, a capture cfg, an AVI or "
                       "a process is a backend's business (HL-1).")
+
+
+@pytest.mark.parametrize(
+    "path", sorted(PANTHEON / f"{m}.py" for m in NAMES_BACKENDS_AS_DATA
+                   if (PANTHEON / f"{m}.py").exists()),
+    ids=lambda p: p.stem)
+def test_a_module_that_names_a_backend_still_never_reaches_one(path: Path):
+    """Naming is allowed here; importing and launching are not."""
+    hit = sorted(i for i in _imports(path)
+                 if i in FORBIDDEN_IMPORTS
+                 or i.startswith("creative_suite.engine.wolfcam_capture"))
+    assert not hit, f"{path.name} imports a backend: {hit}"
+    src = path.read_text(encoding="utf-8")
+    for word in ("Popen", "CreateProcess", "os.system", "capture_demo("):
+        assert word not in src, f"{path.name} can start a process ({word})"

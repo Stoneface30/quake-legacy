@@ -1,0 +1,709 @@
+{
+ "what": "backend A/B conformance: WOLFCAM_REFERENCE vs PANTHEON_QUAKE_OFFSCREEN",
+ "at": "2026-09-06 16:37",
+ "minutes": 1.3,
+ "profile": "REVIEW",
+ "window_ms": {
+  "pre": 1400,
+  "post": 900
+ },
+ "samples_per_case": 6,
+ "offscreen_captures_per_case": 3,
+ "tolerances": {
+  "hist": 0.02,
+  "luma": 3.0,
+  "green": 0.01,
+  "seconds": 0.25
+ },
+ "diff_threshold": 24,
+ "cases": [
+  {
+   "case": "PROJECTILE_IMPACT",
+   "why": "an impact WITHOUT a kill: marks, smoke, no obituary",
+   "verdict": "EQUIVALENT",
+   "detail": "colour distribution 0.00275, inside the backend's own 0.0028; exposure 0.06, inside the backend's own 0.095; the forced enemy on screen 0, inside the backend's own 0; clip length 0, inside the backend's own 0",
+   "moment": {
+    "performance_id": "PERF:FIRE_ROCKET:e254d19bbb520039:2:30075",
+    "demo_hash": "e254d19bbb520039",
+    "client": 2,
+    "kind": "FIRE_ROCKET",
+    "t_ms": 30075,
+    "map": "campgrounds",
+    "weapon": "ROCKET",
+    "outcome": "HIT"
+   },
+   "legs": {
+    "A": {
+     "backend": "WOLFCAM_REFERENCE",
+     "ok": true,
+     "seconds": 9.9,
+     "visible_windows": [
+      "wolfcam quakelive demo player"
+     ],
+     "stole_focus": true,
+     "returncode": 0,
+     "avi": "G:\\QUAKE_LEGACY\\output\\demo_v2\\_wolfcam_staging\\wolfcam-ql\\videos\\ab_PROJECTILE_IMPACT_A-0000.avi"
+    },
+    "B1": {
+     "backend": "PANTHEON_QUAKE_OFFSCREEN",
+     "ok": true,
+     "seconds": 9.9,
+     "visible_windows": [],
+     "stole_focus": false,
+     "returncode": 0,
+     "avi": "G:\\QUAKE_LEGACY\\output\\demo_v2\\_wolfcam_staging\\wolfcam-ql\\videos\\ab_PROJECTILE_IMPACT_B1-0000.avi"
+    },
+    "B2": {
+     "backend": "PANTHEON_QUAKE_OFFSCREEN",
+     "ok": true,
+     "seconds": 9.5,
+     "visible_windows": [],
+     "stole_focus": false,
+     "returncode": 0,
+     "avi": "G:\\QUAKE_LEGACY\\output\\demo_v2\\_wolfcam_staging\\wolfcam-ql\\videos\\ab_PROJECTILE_IMPACT_B2-0000.avi"
+    },
+    "B3": {
+     "backend": "PANTHEON_QUAKE_OFFSCREEN",
+     "ok": true,
+     "seconds": 9.1,
+     "visible_windows": [],
+     "stole_focus": false,
+     "returncode": 0,
+     "avi": "G:\\QUAKE_LEGACY\\output\\demo_v2\\_wolfcam_staging\\wolfcam-ql\\videos\\ab_PROJECTILE_IMPACT_B3-0000.avi"
+    }
+   },
+   "readings": {
+    "hist": {
+     "a_vs_b": 0.00275,
+     "b_vs_b": 0.0028,
+     "tolerance": 0.02
+    },
+    "luma": {
+     "a_vs_b": 0.06,
+     "b_vs_b": 0.095,
+     "tolerance": 3.0
+    },
+    "green": {
+     "a_vs_b": 0.0,
+     "b_vs_b": 0.0,
+     "tolerance": 0.01
+    },
+    "seconds": {
+     "a_vs_b": 0.0,
+     "b_vs_b": 0.0,
+     "tolerance": 0.25
+    }
+   },
+   "ab": [
+    {
+     "comparable": true,
+     "sampled": [
+      0.18,
+      0.3,
+      0.42,
+      0.53,
+      0.65,
+      0.77
+     ],
+     "seconds_a": 0.88,
+     "seconds_b": 0.88,
+     "frames_compared": 6,
+     "per_frame": {
+      "0.18": {
+       "pixel_share": 0.0134,
+       "aligned_frames": 0,
+       "luma_a": 19.94,
+       "luma_b": 19.98,
+       "luma_delta": 0.04,
+       "hist_distance": 0.0024,
+       "green_a": 0.00093,
+       "green_b": 0.00093,
+       "green_delta": 0.0
+      },
+      "0.3": {
+       "pixel_share": 0.0131,
+       "aligned_frames": 0,
+       "luma_a": 18.55,
+       "luma_b": 18.38,
+       "luma_delta": 0.17,
+       "hist_distance": 0.0029,
+       "green_a": 0.00059,
+       "green_b": 0.00059,
+       "green_delta": 0.0
+      },
+      "0.42": {
+       "pixel_share": 0.0119,
+       "aligned_frames": 0,
+       "luma_a": 17.53,
+       "luma_b": 17.46,
+       "luma_delta": 0.06,
+       "hist_distance": 0.0028,
+       "green_a": 0.00046,
+       "green_b": 0.00046,
+       "green_delta": 0.0
+      },
+      "0.53": {
+       "pixel_share": 0.0078,
+       "aligned_frames": 0,
+       "luma_a": 16.76,
+       "luma_b": 16.62,
+       "luma_delta": 0.15,
+       "hist_distance": 0.0041,
+       "green_a": 0.00046,
+       "green_b": 0.00046,
+       "green_delta": 0.0
+      },
+      "0.65": {
+       "pixel_share": 0.0062,
+       "aligned_frames": 0,
+       "luma_a": 15.1,
+       "luma_b": 15.09,
+       "luma_delta": 0.01,
+       "hist_distance": 0.0013,
+       "green_a": 0.00071,
+       "green_b": 0.00071,
+       "green_delta": 0.0
+      },
+      "0.77": {
+       "pixel_share": 0.0087,
+       "aligned_frames": 0,
+       "luma_a": 15.7,
+       "luma_b": 15.64,
+       "luma_delta": 0.06,
+       "hist_distance": 0.0019,
+       "green_a": 0.00074,
+       "green_b": 0.00074,
+       "green_delta": 0.0
+      }
+     },
+     "max_hist_distance": 0.0041,
+     "median_hist_distance": 0.0026,
+     "max_luma_delta": 0.17,
+     "median_luma_delta": 0.06,
+     "max_green_delta": 0.0,
+     "median_green_delta": 0.0,
+     "max_pixel_share": 0.0134,
+     "median_pixel_share": 0.0103,
+     "alignment_frames": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "errors": [],
+     "pair": "A:B1",
+     "still_at_s": 0.53
+    },
+    {
+     "comparable": true,
+     "sampled": [
+      0.18,
+      0.3,
+      0.42,
+      0.53,
+      0.65,
+      0.77
+     ],
+     "seconds_a": 0.88,
+     "seconds_b": 0.88,
+     "frames_compared": 6,
+     "per_frame": {
+      "0.18": {
+       "pixel_share": 0.0061,
+       "aligned_frames": 0,
+       "luma_a": 19.94,
+       "luma_b": 19.91,
+       "luma_delta": 0.03,
+       "hist_distance": 0.0017,
+       "green_a": 0.00093,
+       "green_b": 0.00093,
+       "green_delta": 0.0
+      },
+      "0.3": {
+       "pixel_share": 0.0055,
+       "aligned_frames": 0,
+       "luma_a": 18.55,
+       "luma_b": 18.54,
+       "luma_delta": 0.01,
+       "hist_distance": 0.0017,
+       "green_a": 0.00059,
+       "green_b": 0.00059,
+       "green_delta": 0.0
+      },
+      "0.42": {
+       "pixel_share": 0.0046,
+       "aligned_frames": 0,
+       "luma_a": 17.53,
+       "luma_b": 17.57,
+       "luma_delta": 0.05,
+       "hist_distance": 0.0019,
+       "green_a": 0.00046,
+       "green_b": 0.00046,
+       "green_delta": 0.0
+      },
+      "0.53": {
+       "pixel_share": 0.004,
+       "aligned_frames": 0,
+       "luma_a": 16.76,
+       "luma_b": 16.81,
+       "luma_delta": 0.05,
+       "hist_distance": 0.0022,
+       "green_a": 0.00046,
+       "green_b": 0.00046,
+       "green_delta": 0.0
+      },
+      "0.65": {
+       "pixel_share": 0.0033,
+       "aligned_frames": 0,
+       "luma_a": 15.1,
+       "luma_b": 15.12,
+       "luma_delta": 0.01,
+       "hist_distance": 0.0012,
+       "green_a": 0.00071,
+       "green_b": 0.00071,
+       "green_delta": 0.0
+      },
+      "0.77": {
+       "pixel_share": 0.0037,
+       "aligned_frames": 0,
+       "luma_a": 15.7,
+       "luma_b": 15.71,
+       "luma_delta": 0.01,
+       "hist_distance": 0.0012,
+       "green_a": 0.00074,
+       "green_b": 0.00074,
+       "green_delta": 0.0
+      }
+     },
+     "max_hist_distance": 0.0022,
+     "median_hist_distance": 0.0017,
+     "max_luma_delta": 0.05,
+     "median_luma_delta": 0.02,
+     "max_green_delta": 0.0,
+     "median_green_delta": 0.0,
+     "max_pixel_share": 0.0061,
+     "median_pixel_share": 0.0043,
+     "alignment_frames": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "errors": [],
+     "pair": "A:B2"
+    },
+    {
+     "comparable": true,
+     "sampled": [
+      0.18,
+      0.3,
+      0.42,
+      0.53,
+      0.65,
+      0.77
+     ],
+     "seconds_a": 0.88,
+     "seconds_b": 0.88,
+     "frames_compared": 6,
+     "per_frame": {
+      "0.18": {
+       "pixel_share": 0.0131,
+       "aligned_frames": 0,
+       "luma_a": 19.94,
+       "luma_b": 20.04,
+       "luma_delta": 0.1,
+       "hist_distance": 0.0025,
+       "green_a": 0.00093,
+       "green_b": 0.00093,
+       "green_delta": 0.0
+      },
+      "0.3": {
+       "pixel_share": 0.0128,
+       "aligned_frames": 0,
+       "luma_a": 18.55,
+       "luma_b": 18.69,
+       "luma_delta": 0.14,
+       "hist_distance": 0.0031,
+       "green_a": 0.00059,
+       "green_b": 0.00059,
+       "green_delta": 0.0
+      },
+      "0.42": {
+       "pixel_share": 0.0122,
+       "aligned_frames": 0,
+       "luma_a": 17.53,
+       "luma_b": 17.58,
+       "luma_delta": 0.05,
+       "hist_distance": 0.003,
+       "green_a": 0.00046,
+       "green_b": 0.00046,
+       "green_delta": 0.0
+      },
+      "0.53": {
+       "pixel_share": 0.0073,
+       "aligned_frames": 0,
+       "luma_a": 16.76,
+       "luma_b": 16.71,
+       "luma_delta": 0.05,
+       "hist_distance": 0.0049,
+       "green_a": 0.00046,
+       "green_b": 0.00046,
+       "green_delta": 0.0
+      },
+      "0.65": {
+       "pixel_share": 0.0062,
+       "aligned_frames": 0,
+       "luma_a": 15.1,
+       "luma_b": 15.16,
+       "luma_delta": 0.06,
+       "hist_distance": 0.002,
+       "green_a": 0.00071,
+       "green_b": 0.00071,
+       "green_delta": 0.0
+      },
+      "0.77": {
+       "pixel_share": 0.008,
+       "aligned_frames": 0,
+       "luma_a": 15.7,
+       "luma_b": 15.7,
+       "luma_delta": 0.0,
+       "hist_distance": 0.0016,
+       "green_a": 0.00074,
+       "green_b": 0.00074,
+       "green_delta": 0.0
+      }
+     },
+     "max_hist_distance": 0.0049,
+     "median_hist_distance": 0.00275,
+     "max_luma_delta": 0.14,
+     "median_luma_delta": 0.055,
+     "max_green_delta": 0.0,
+     "median_green_delta": 0.0,
+     "max_pixel_share": 0.0131,
+     "median_pixel_share": 0.0101,
+     "alignment_frames": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "errors": [],
+     "pair": "A:B3"
+    }
+   ],
+   "control": [
+    {
+     "comparable": true,
+     "sampled": [
+      0.18,
+      0.3,
+      0.42,
+      0.53,
+      0.65,
+      0.77
+     ],
+     "seconds_a": 0.88,
+     "seconds_b": 0.88,
+     "frames_compared": 6,
+     "per_frame": {
+      "0.18": {
+       "pixel_share": 0.013,
+       "aligned_frames": 0,
+       "luma_a": 19.98,
+       "luma_b": 19.91,
+       "luma_delta": 0.07,
+       "hist_distance": 0.0027,
+       "green_a": 0.00093,
+       "green_b": 0.00093,
+       "green_delta": 0.0
+      },
+      "0.3": {
+       "pixel_share": 0.0128,
+       "aligned_frames": 0,
+       "luma_a": 18.38,
+       "luma_b": 18.54,
+       "luma_delta": 0.16,
+       "hist_distance": 0.0031,
+       "green_a": 0.00059,
+       "green_b": 0.00059,
+       "green_delta": 0.0
+      },
+      "0.42": {
+       "pixel_share": 0.0119,
+       "aligned_frames": 0,
+       "luma_a": 17.46,
+       "luma_b": 17.57,
+       "luma_delta": 0.11,
+       "hist_distance": 0.0029,
+       "green_a": 0.00046,
+       "green_b": 0.00046,
+       "green_delta": 0.0
+      },
+      "0.53": {
+       "pixel_share": 0.0099,
+       "aligned_frames": 0,
+       "luma_a": 16.62,
+       "luma_b": 16.81,
+       "luma_delta": 0.19,
+       "hist_distance": 0.0048,
+       "green_a": 0.00046,
+       "green_b": 0.00046,
+       "green_delta": 0.0
+      },
+      "0.65": {
+       "pixel_share": 0.0062,
+       "aligned_frames": 0,
+       "luma_a": 15.09,
+       "luma_b": 15.12,
+       "luma_delta": 0.03,
+       "hist_distance": 0.0015,
+       "green_a": 0.00071,
+       "green_b": 0.00071,
+       "green_delta": 0.0
+      },
+      "0.77": {
+       "pixel_share": 0.0087,
+       "aligned_frames": 0,
+       "luma_a": 15.64,
+       "luma_b": 15.71,
+       "luma_delta": 0.08,
+       "hist_distance": 0.0018,
+       "green_a": 0.00074,
+       "green_b": 0.00074,
+       "green_delta": 0.0
+      }
+     },
+     "max_hist_distance": 0.0048,
+     "median_hist_distance": 0.0028,
+     "max_luma_delta": 0.19,
+     "median_luma_delta": 0.095,
+     "max_green_delta": 0.0,
+     "median_green_delta": 0.0,
+     "max_pixel_share": 0.013,
+     "median_pixel_share": 0.0109,
+     "alignment_frames": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "errors": [],
+     "pair": "B1:B2"
+    },
+    {
+     "comparable": true,
+     "sampled": [
+      0.18,
+      0.3,
+      0.42,
+      0.53,
+      0.65,
+      0.77
+     ],
+     "seconds_a": 0.88,
+     "seconds_b": 0.88,
+     "frames_compared": 6,
+     "per_frame": {
+      "0.18": {
+       "pixel_share": 0.0135,
+       "aligned_frames": 0,
+       "luma_a": 19.98,
+       "luma_b": 20.04,
+       "luma_delta": 0.06,
+       "hist_distance": 0.0026,
+       "green_a": 0.00093,
+       "green_b": 0.00093,
+       "green_delta": 0.0
+      },
+      "0.3": {
+       "pixel_share": 0.0131,
+       "aligned_frames": 0,
+       "luma_a": 18.38,
+       "luma_b": 18.69,
+       "luma_delta": 0.31,
+       "hist_distance": 0.0027,
+       "green_a": 0.00059,
+       "green_b": 0.00059,
+       "green_delta": 0.0
+      },
+      "0.42": {
+       "pixel_share": 0.0117,
+       "aligned_frames": 0,
+       "luma_a": 17.46,
+       "luma_b": 17.58,
+       "luma_delta": 0.12,
+       "hist_distance": 0.0026,
+       "green_a": 0.00046,
+       "green_b": 0.00046,
+       "green_delta": 0.0
+      },
+      "0.53": {
+       "pixel_share": 0.0062,
+       "aligned_frames": 0,
+       "luma_a": 16.62,
+       "luma_b": 16.71,
+       "luma_delta": 0.09,
+       "hist_distance": 0.0023,
+       "green_a": 0.00046,
+       "green_b": 0.00046,
+       "green_delta": 0.0
+      },
+      "0.65": {
+       "pixel_share": 0.0065,
+       "aligned_frames": 0,
+       "luma_a": 15.09,
+       "luma_b": 15.16,
+       "luma_delta": 0.07,
+       "hist_distance": 0.0021,
+       "green_a": 0.00071,
+       "green_b": 0.00071,
+       "green_delta": 0.0
+      },
+      "0.77": {
+       "pixel_share": 0.0084,
+       "aligned_frames": 0,
+       "luma_a": 15.64,
+       "luma_b": 15.7,
+       "luma_delta": 0.06,
+       "hist_distance": 0.002,
+       "green_a": 0.00074,
+       "green_b": 0.00074,
+       "green_delta": 0.0
+      }
+     },
+     "max_hist_distance": 0.0027,
+     "median_hist_distance": 0.00245,
+     "max_luma_delta": 0.31,
+     "median_luma_delta": 0.08,
+     "max_green_delta": 0.0,
+     "median_green_delta": 0.0,
+     "max_pixel_share": 0.0135,
+     "median_pixel_share": 0.01005,
+     "alignment_frames": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "errors": [],
+     "pair": "B1:B3"
+    },
+    {
+     "comparable": true,
+     "sampled": [
+      0.18,
+      0.3,
+      0.42,
+      0.53,
+      0.65,
+      0.77
+     ],
+     "seconds_a": 0.88,
+     "seconds_b": 0.88,
+     "frames_compared": 6,
+     "per_frame": {
+      "0.18": {
+       "pixel_share": 0.0135,
+       "aligned_frames": 0,
+       "luma_a": 19.91,
+       "luma_b": 20.04,
+       "luma_delta": 0.13,
+       "hist_distance": 0.0025,
+       "green_a": 0.00093,
+       "green_b": 0.00093,
+       "green_delta": 0.0
+      },
+      "0.3": {
+       "pixel_share": 0.0129,
+       "aligned_frames": 0,
+       "luma_a": 18.54,
+       "luma_b": 18.69,
+       "luma_delta": 0.15,
+       "hist_distance": 0.0029,
+       "green_a": 0.00059,
+       "green_b": 0.00059,
+       "green_delta": 0.0
+      },
+      "0.42": {
+       "pixel_share": 0.0122,
+       "aligned_frames": 0,
+       "luma_a": 17.57,
+       "luma_b": 17.58,
+       "luma_delta": 0.01,
+       "hist_distance": 0.0032,
+       "green_a": 0.00046,
+       "green_b": 0.00046,
+       "green_delta": 0.0
+      },
+      "0.53": {
+       "pixel_share": 0.0098,
+       "aligned_frames": 0,
+       "luma_a": 16.81,
+       "luma_b": 16.71,
+       "luma_delta": 0.1,
+       "hist_distance": 0.0057,
+       "green_a": 0.00046,
+       "green_b": 0.00046,
+       "green_delta": 0.0
+      },
+      "0.65": {
+       "pixel_share": 0.0066,
+       "aligned_frames": 0,
+       "luma_a": 15.12,
+       "luma_b": 15.16,
+       "luma_delta": 0.04,
+       "hist_distance": 0.002,
+       "green_a": 0.00071,
+       "green_b": 0.00071,
+       "green_delta": 0.0
+      },
+      "0.77": {
+       "pixel_share": 0.009,
+       "aligned_frames": 0,
+       "luma_a": 15.71,
+       "luma_b": 15.7,
+       "luma_delta": 0.01,
+       "hist_distance": 0.0017,
+       "green_a": 0.00074,
+       "green_b": 0.00074,
+       "green_delta": 0.0
+      }
+     },
+     "max_hist_distance": 0.0057,
+     "median_hist_distance": 0.0027,
+     "max_luma_delta": 0.15,
+     "median_luma_delta": 0.07,
+     "max_green_delta": 0.0,
+     "median_green_delta": 0.0,
+     "max_pixel_share": 0.0135,
+     "median_pixel_share": 0.011,
+     "alignment_frames": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "errors": [],
+     "pair": "B2:B3"
+    }
+   ]
+  }
+ ],
+ "equivalent": 1,
+ "total": 1,
+ "inconclusive": 0,
+ "may_become_default": false,
+ "stills": "G:\\QUAKE_LEGACY\\docs\\visual-record\\2026-09-06\\backend_ab"
+}

@@ -139,6 +139,15 @@ _MOD_NAMES = {
 # ---------------------------------------------------------------------------
 # EntityState NETF field indices (from qldemo EntityStateNETF.update())
 # ---------------------------------------------------------------------------
+# THE TRAJECTORY IS NOT JUST A POINT. pos.trBase alone is meaningless for a
+# moving entity: a Q3 missile sets trBase/trDelta/trTime once at spawn and
+# never changes them, so trBase repeats identically across snapshots while the
+# missile crosses the map. Reading it as a position is the classic mistake.
+# Indices from the protocol-73 entityState field table (docs/reference/
+# dm73-format-deep-dive.md, confirmed against qldemo EntityStateNETF).
+_F_POS_TIME = 0   # pos.trTime — 32 bits, the trajectory's own start time
+_F_POS_TRTYPE = 17  # pos.trType — 8 bits (TR_STATIONARY/TR_LINEAR/TR_GRAVITY…)
+_F_POS_TRDUR = 23  # pos.trDuration — 32 bits
 _F_POS_X   =  1   # pos.trBase[0] — float
 _F_POS_Y   =  2   # pos.trBase[1] — float
 _F_VEL_X   =  3   # pos.trDelta[0] — float
@@ -147,6 +156,11 @@ _F_POS_Z   =  5   # pos.trBase[2] — float
 _F_YAW     =  6   # apos.trBase[1] — float
 _F_VEL_Z   =  7   # pos.trDelta[2] — float
 _F_PITCH   =  8   # apos.trBase[0] — float
+# angles2[YAW] on a player is NOT an angle: it is the 0-7 movement
+# direction index cgame uses to offset the legs from the view
+# (CG_PlayerAngles movementOffsets). Without it a strafing player's
+# legs face his aim instead of his travel.
+_F_ANGLES2_YAW = 11
 _F_EVENT   = 10   # event (10 bits)
 _F_ETYPE   = 12   # eType (8 bits)
 _F_EVPARM  = 14   # eventParm (8 bits)
@@ -182,6 +196,21 @@ _PS_EVPARM1   = 39   # eventParms[1] (8 bits)
 _MAX_PS_EVENTS = 2
 _PS_GROUND    = 20   # groundEntityNum (10 bits); 1023 = airborne
 _PS_WEAPON    = 41   # weapon slot (5 bits)
+# From the GENERATED schema (engine/parser/netfields_generated.py,
+# playerStateFieldsQ3, which msg.c selects for protocol 73). Not transcribed
+# by hand: a test regenerates the table from the engine source and fails on
+# drift. The previous hand audit skipped the one entry whose bit width is a
+# macro and concluded, wrongly, that protocol 73 used a different table.
+_PS_MOVEDIR    = 15  # movementDir (4 bits): 0-7 octant, own-POV
+_PS_LEGSTIMER  = 11  # legsTimer
+_PS_PM_FLAGS   = 19  # pm_flags
+_PS_VIEWHEIGHT = 28  # viewheight (signed 8) -- NOT always 26
+_PS_DMG_EVENT  = 29  # damageEvent
+_PS_DMG_YAW    = 30  # damageYaw
+_PS_DMG_PITCH  = 31  # damagePitch
+_PS_DMG_COUNT  = 32  # damageCount
+_PS_PM_TYPE    = 34  # pm_type: PM_NORMAL / PM_DEAD / PM_SPECTATOR / ...
+_PS_TORSOTIMER = 37  # torsoTimer
 
 # ---------------------------------------------------------------------------
 # Q3A msg_hData[256] frequency table (from engine/_canonical/src/qcommon/msg.c)
@@ -876,6 +905,11 @@ class DM73Parser:
                     'vel_x': accumulated.get(_F_VEL_X),
                     'vel_y': accumulated.get(_F_VEL_Y),
                     'vel_z': accumulated.get(_F_VEL_Z),
+                    # Without trTime the base and delta cannot be evaluated at
+                    # any instant, which is the whole point of a trajectory.
+                    'tr_time': accumulated.get(_F_POS_TIME),
+                    'tr_type': accumulated.get(_F_POS_TRTYPE),
+                    'tr_duration': accumulated.get(_F_POS_TRDUR),
                     'eflags': accumulated.get(_F_EFLAGS),
                     'removed': False,
                 })
@@ -893,6 +927,7 @@ class DM73Parser:
                     'vel_z':          accumulated.get(_F_VEL_Z),
                     'angle_yaw':      accumulated.get(_F_YAW),
                     'angle_pitch':    accumulated.get(_F_PITCH),
+                    'move_dir':       accumulated.get(_F_ANGLES2_YAW),
                     'weapon':         accumulated.get(_F_WEAPON),
                     'ground_entity':  g,
                     # None = field never sent = standing on world (default 0).
