@@ -1,0 +1,46 @@
+{
+ "materials": [
+  {
+   "name": "textures/pantheon/door_body",
+   "source": "textures/gothic_block/blocks15_blue",
+   "kind": "SURFACE",
+   "origin": "PHOTOREAL_UPSCALE_4X",
+   "path": "G:\\QUAKE_LEGACY\\creative_suite\\comfy\\photoreal\\pipelines\\upscale_only\\pak00\\textures\\gothic_block\\blocks15_blue.png",
+   "ext": ".png",
+   "bytes": 1776824,
+   "sha256": "75247665593643fb"
+  },
+  {
+   "name": "textures/pantheon/door_metal",
+   "source": "textures/base_wall/bluemetal3b",
+   "kind": "SURFACE",
+   "origin": "PHOTOREAL_UPSCALE_4X",
+   "path": "G:\\QUAKE_LEGACY\\creative_suite\\comfy\\photoreal\\pipelines\\upscale_only\\pak00\\textures\\base_wall\\bluemetal3b.png",
+   "ext": ".png",
+   "bytes": 2312234,
+   "sha256": "6ac3244d49fdf59d"
+  },
+  {
+   "name": "textures/pantheon/door_relief",
+   "source": "textures/gothic_block/blocks15_c",
+   "kind": "SURFACE",
+   "origin": "PHOTOREAL_UPSCALE_4X",
+   "path": "G:\\QUAKE_LEGACY\\creative_suite\\comfy\\photoreal\\pipelines\\upscale_only\\pak00\\textures\\gothic_block\\blocks15_c.png",
+   "ext": ".png",
+   "bytes": 2189033,
+   "sha256": "1e2238f1e2679024"
+  },
+  {
+   "name": "textures/pantheon/glyph",
+   "source": "textures/base_light/proto_lightblue",
+   "kind": "EMISSIVE",
+   "origin": "PHOTOREAL_UPSCALE_4X",
+   "path": "G:\\QUAKE_LEGACY\\creative_suite\\comfy\\photoreal\\pipelines\\upscale_only\\pak00\\textures\\base_light\\proto_lightblue.png",
+   "ext": ".png",
+   "bytes": 136344,
+   "sha256": "4d13c528dfd5c3cf"
+  }
+ ],
+ "photoreal_used": 4,
+ "count": 4
+}

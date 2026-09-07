@@ -65,11 +65,39 @@ void GLimp_Init(void)
     wc.lpszClassName = "PantheonRenderHost";
     RegisterClassA(&wc);
 
-    s_hwnd = CreateWindowExA(0, "PantheonRenderHost", "pantheon",
-                             WS_OVERLAPPEDWINDOW,   /* never shown */
-                             0, 0, glConfig.vidWidth ? glConfig.vidWidth : 1280,
-                             glConfig.vidHeight ? glConfig.vidHeight : 720,
-                             NULL, NULL, wc.hInstance, NULL);
+    /* WS_POPUP, not WS_OVERLAPPEDWINDOW: CreateWindow's width and height are
+     * the OUTER size, so a framed window's client area -- the GL drawable --
+     * comes out smaller than asked. That is what put a black band along the
+     * bottom of a 960x540 render and left a 2560x1440 render mostly empty.
+     * A borderless window's client area is exactly the size requested. */
+    {
+        /* THE SIZE COMES FROM r_customwidth/r_customheight, READ HERE.
+         * glConfig is still zeroed at this point -- ioquake3 fills it inside
+         * GLimp_SetMode, which this host does not use. Trusting glConfig here
+         * silently created a 1280x720 drawable for every render, so a
+         * 1920x1080 shot rendered 1280x720 of picture into a 1920x1080
+         * readback and the rest came back black. */
+        cvar_t *cw = ri.Cvar_Get("r_customwidth", "1280", CVAR_ARCHIVE | CVAR_LATCH);
+        cvar_t *ch = ri.Cvar_Get("r_customheight", "720", CVAR_ARCHIVE | CVAR_LATCH);
+        int want_w = cw && cw->integer > 0 ? cw->integer
+                     : (glConfig.vidWidth ? glConfig.vidWidth : 1280);
+        int want_h = ch && ch->integer > 0 ? ch->integer
+                     : (glConfig.vidHeight ? glConfig.vidHeight : 720);
+        glConfig.vidWidth = want_w;
+        glConfig.vidHeight = want_h;
+        RECT cr;
+
+        s_hwnd = CreateWindowExA(0, "PantheonRenderHost", "pantheon",
+                                 WS_POPUP,             /* never shown */
+                                 0, 0, want_w, want_h,
+                                 NULL, NULL, wc.hInstance, NULL);
+        if (s_hwnd && GetClientRect(s_hwnd, &cr)
+            && (cr.right != want_w || cr.bottom != want_h)) {
+            /* Never silently render at a size nobody asked for. */
+            ri.Error(ERR_FATAL, "PANTHEON: asked for a %dx%d drawable, got %ldx%ld",
+                     want_w, want_h, (long)cr.right, (long)cr.bottom);
+        }
+    }
     if (!s_hwnd)
         ri.Error(ERR_FATAL, "PANTHEON: CreateWindow failed (%lu)",
                  (unsigned long)GetLastError());

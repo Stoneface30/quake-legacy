@@ -60,6 +60,8 @@ HEADLESS = {
     "render_frame",
     # writes MD3 geometry files. Pure format arithmetic: no game, no backend.
     "md3_writer",
+    # resolves which IMAGE a material wears. Files and hashes, no game.
+    "material_adapter",
     "scenario",         # RoundScenario authoring
     "compiler",         # intent -> .dm_73 grammar
     "navigation",       # NavigationTruth

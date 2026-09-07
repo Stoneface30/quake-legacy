@@ -44,10 +44,13 @@ GLYPH_PROUD = 2.5                    # inlay stands proud so it catches light
 # PANTHEON's own material set (assets/pantheon_world/build_materials_v1.py).
 # NOT Quake Live world textures: those are world shaders whose first stage is
 # `map $lightmap`, and a model has no lightmap coordinates to sample.
-STONE = "textures/pantheon/basalt"
-METAL = "textures/pantheon/metal_deep"
+# PANTHEON material NAMES, wearing Quake's own images at 4x -- see
+# engine/pantheon/material_adapter.py. The name is ours so it cannot collide
+# with a world shader; the picture is the game's.
+STONE = "textures/pantheon/door_body"
+METAL = "textures/pantheon/door_metal"
 GLYPH = "textures/pantheon/glyph"
-CARVED = "textures/pantheon/carved"
+CARVED = "textures/pantheon/door_relief"
 
 UV_UNITS_PER_TILE = 64.0             # one texture tile per 64 Quake units
 
