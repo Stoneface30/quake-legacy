@@ -53,7 +53,10 @@ HEADLESS = {
     "map_geography",    # height layers, watershed regions, route graph (review authority, adopted)
     "map_context",      # place / approach words for a moment, over map_geography
     "geography",        # the one API over map_geography + map_spatial_index
-    "frame_truth",      # FrameTruth
+    "frame_truth",
+    # The renderer's input DTO. Headless by construction: it projects one
+    # instant of FrameTruth and imports nothing that can launch a game.
+    "render_frame",      # FrameTruth
     "scenario",         # RoundScenario authoring
     "compiler",         # intent -> .dm_73 grammar
     "navigation",       # NavigationTruth

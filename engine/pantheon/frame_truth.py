@@ -185,6 +185,112 @@ class FrameTruth:
 
     # -- construction --------------------------------------------------
     @classmethod
+    def from_traces(cls, traces: Sequence[dict], *,
+                    names: dict[int, str] | None = None,
+                    teams: dict[int, str] | None = None) -> "FrameTruth":
+        """Build FrameTruth from RECORDED PerformanceTraces.
+
+        `from_scenario` samples something we authored. This samples what the
+        demo actually contained, so the provenance is RECORDED_TRACE and the
+        serverTime is the demo's own -- not re-based to a synthetic origin.
+        That distinction is the whole point: a renderer fed a re-timed
+        explainer is not rendering history.
+
+        Each trace is a PerformanceTrace as saved to JSON, carrying `transform`,
+        `aim` and `animation` tracks that share a sample clock.
+
+        NOTHING IS INTERPOLATED. A sample is taken at-or-before the frame's
+        serverTime, exactly as `at()` does, and a trace that does not cover an
+        instant contributes no actor there rather than a guessed one -- the
+        UNOBSERVED rule (HL-6), applied at the point the renderer would
+        otherwise be handed a plausible fiction.
+        """
+        if not traces:
+            raise ValueError("from_traces: no traces")
+
+        maps = {t["map"] for t in traces}
+        if len(maps) != 1:
+            raise ValueError("from_traces: traces disagree on the map: %s" % maps)
+
+        # Every distinct serverTime any trace observed, in order.
+        stamps = sorted({s["t"] for tr in traces for s in tr["transform"]})
+        if not stamps:
+            raise ValueError("from_traces: no transform samples")
+        base_ms = stamps[0]
+
+        deltas = sorted(b - a for a, b in zip(stamps, stamps[1:]))
+        step = deltas[len(deltas) // 2] if deltas else 25
+        hz = int(round(1000.0 / step)) if step else 40
+
+        def at_or_before(track: list[dict], t_ms: int) -> dict | None:
+            found = None
+            for s in track:
+                if s["t"] <= t_ms:
+                    found = s
+                else:
+                    break
+            return found
+
+        ft = cls(map_name=maps.pop(), snapshot_hz=hz,
+                 provenance="RECORDED_TRACE")
+
+        for t_ms in stamps:
+            actors: dict[str, ActorTruth] = {}
+            for tr in traces:
+                client = tr["client"]
+                if not (tr["start_ms"] <= t_ms <= tr["end_ms"]):
+                    continue                      # UNOBSERVED: contribute nothing
+                xf = at_or_before(tr["transform"], t_ms)
+                if xf is None:
+                    continue
+                aim = at_or_before(tr.get("aim", []), t_ms) or {}
+                anim = at_or_before(tr.get("animation", []), t_ms) or {}
+                wpn = at_or_before(tr.get("weapon", []), t_ms) or {}
+
+                # A death observed at or before this instant ends the actor.
+                dead = any(e.get("kind") in ("obituary", "death")
+                           and e.get("t", 0) <= t_ms
+                           and e.get("other_client") == client
+                           for e in tr.get("events", []))
+
+                actor_id = (names or {}).get(client, "CLIENT_%d" % client)
+                actors[actor_id] = ActorTruth(
+                    actor_id=actor_id, client=client,
+                    team=(teams or {}).get(client, "UNKNOWN"),
+                    position=tuple(float(v) for v in xf["origin"]),
+                    yaw=float(aim.get("yaw", 0.0)),
+                    pitch=float(aim.get("pitch", 0.0)),
+                    velocity=tuple(float(v) for v in xf.get("velocity",
+                                                            (0.0, 0.0, 0.0))),
+                    weapon=str(wpn.get("weapon", "UNKNOWN")),
+                    alive=not dead,
+                    legs_anim=int(anim.get("legs", 0)),
+                    torso_anim=int(anim.get("torso", 0)))
+
+            events = [SemanticEvent(
+                          t=(e["t"] - base_ms) / 1000.0,
+                          server_time_ms=e["t"],
+                          kind="recorded:" + e.get("kind", "unknown"),
+                          actor=(names or {}).get(tr["client"]),
+                          weapon=str(e.get("weapon")) if e.get("weapon") is not None else None,
+                          position=tuple(e["position"]) if e.get("position") else None,
+                          sound=sound_intent("recorded:" + e.get("kind", ""),
+                                             str(e.get("weapon"))))
+                      for tr in traces for e in tr.get("events", [])
+                      if e.get("t") == t_ms]
+
+            ft.frames.append(Frame(
+                t=(t_ms - base_ms) / 1000.0,
+                server_time_ms=t_ms,
+                actors=actors,
+                round_state=RoundStateTruth(
+                    phase="active", round_number=1,
+                    alive_red=sum(1 for a in actors.values() if a.alive),
+                    alive_blue=0),
+                events=events))
+        return ft
+
+    @classmethod
     def from_scenario(cls, scn, *, duration: float) -> "FrameTruth":
         """Sample the scenario at its own snapshot rate.
 
