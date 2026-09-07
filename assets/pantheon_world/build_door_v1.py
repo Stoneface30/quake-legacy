@@ -41,9 +41,13 @@ COL_W, COL_N = 9.0, 3                # columns of the mark, per leaf (5 across
                                      # the pair: the centre one splits)
 GLYPH_PROUD = 2.5                    # inlay stands proud so it catches light
 
-STONE = "textures/gothic_block/blocks15"
-METAL = "textures/base_wall/bluemetal3b"
-GLYPH = "textures/base_light/proto_lightblue"
+# PANTHEON's own material set (assets/pantheon_world/build_materials_v1.py).
+# NOT Quake Live world textures: those are world shaders whose first stage is
+# `map $lightmap`, and a model has no lightmap coordinates to sample.
+STONE = "textures/pantheon/basalt"
+METAL = "textures/pantheon/metal_deep"
+GLYPH = "textures/pantheon/glyph"
+CARVED = "textures/pantheon/carved"
 
 UV_UNITS_PER_TILE = 64.0             # one texture tile per 64 Quake units
 
@@ -89,6 +93,7 @@ def material(name):
 def build():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     stone, metal, glyph = material(STONE), material(METAL), material(GLYPH)
+    carved = material(CARVED)
     parts = []
 
     # the slab: stone, recessed relative to the frame
@@ -109,7 +114,7 @@ def build():
         x = BORDER + pitch * (i + 1) - FLUTE_W / 2
         parts.append(box(f"flute_{i}", x, PANEL_INSET, BORDER + 8,
                          x + FLUTE_W, D + 1.0, PEDIMENT_Z - ENTAB_H - BORDER - 8,
-                         stone))
+                         carved))
 
     # the mark: entablature, columns, and half a pediment per leaf
     parts.append(box("entablature", 0, PANEL_INSET, PEDIMENT_Z - ENTAB_H,

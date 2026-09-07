@@ -56,8 +56,47 @@ That last line matters: a door is a brush model on the *same* trajectory type
 PANTHEON already evaluates for missiles. We do not need to invent door motion;
 we need to evaluate a trajectory we already honour.
 
-## Two honest routes, and what each may claim
+## Which mover the game actually has — checked, not assumed
 
+`g_mover.c` of the banked 11.3 source spawns exactly these:
+`func_door` · `func_plat` · `func_button` · `func_train` · `func_static` ·
+`func_rotating` · `func_bobbing` · `func_pendulum`.
+
+**There is no `func_door_rotating`.** `func_rotating` sets
+`s.apos.trType = TR_LINEAR` — it spins forever around an axis; it is not a
+hinge that opens and stops. So:
+
+* **A sliding split door is the native, correct design.** Two `func_door`
+  leaves with opposite `angle`s, `speed 400`, `lip 8`, `TR_LINEAR_STOP` — real
+  collision, real blocked-policy (`dmg 2`), deterministic at any timestamp.
+  This is what PANTHEON_TEMPLE_V1 will use.
+* **A hinged door is authorable but not stock.** Entities carry an angular
+  trajectory (`s.apos`) that the engine evaluates with the same law, so
+  PANTHEON can author `TR_LINEAR_STOP` on `apos` and get a deterministic
+  hinge. It would have **no stock spawn function and no pusher collision**,
+  and must be labelled that way wherever it appears.
+
+## The door state contract
+
+A door is not an animation; it is a function of time, and PANTHEON renders
+frames out of order.
+
+| | |
+|---|---|
+| closed | `pos1`, the authored spawn origin |
+| open | `pos2 = pos1 + movedir · (dot(abs(movedir), size) − lip)` |
+| law | `trType TR_LINEAR_STOP`, `trTime`, `trDuration = |delta| / speed · 1000`, `trDelta = delta · 1000 / trDuration` |
+| leaves | one team; both leaves derive from the same `trTime`, never from two clocks |
+| blocked | `dmg 2` per `SP_func_door`; a blocked leaf reverses, and that is part of the state |
+| seek | `state(t)` is pure in `t`. Rendering frame 900 then frame 12 must give the same two poses as playing forward |
+
+**The decorative MD3 leaves are driven BY the mover transform, never beside
+it.** One evaluation per frame, feeding both the collision brush and the
+drawn model; if they are ever computed twice, they will disagree, and the
+disagreement will show up as a door whose picture is open and whose collision
+is shut.
+
+## Two honest routes, and what each may claim
 **D1 — MD3 leaves on the real mover law** *(Phase 2, no map compiler)*
 Door leaves are `.md3` props placed by the shot script; their origin follows
 `TR_LINEAR_STOP` with `speed 400` and the real `pos1`/`pos2` arithmetic.
