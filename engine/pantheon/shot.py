@@ -23,8 +23,13 @@ from enum import Enum
 from pathlib import Path
 from typing import Sequence
 
-MAIN = Path("G:/QUAKE_LEGACY")
-sys.path.insert(0, str(MAIN))
+# The checkout that owns this file, never a hard-coded drive path: a
+# worktree that inserts another checkout at sys.path[0] silently imports
+# THAT session's parser and engine. store.REPO_ROOT is the one authority.
+from engine.pantheon import store as _S  # noqa: E402
+MAIN = _S.REPO_ROOT
+if str(MAIN) not in sys.path:
+    sys.path.insert(0, str(MAIN))
 
 
 class SourceKind(Enum):
