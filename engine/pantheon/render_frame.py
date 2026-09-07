@@ -184,6 +184,193 @@ def _evaluate_actor(truth, actor_id, t_ms, intent):
     return (pos, yaw, pitch, "DERIVED_INTERPOLATED")
 
 
+
+# ── original-client angle swing ────────────────────────────────────────────
+#
+# CG_PlayerAngles does not point the legs straight at their target. It SWINGS
+# them, with per-entity state that persists between frames, and that lag is a
+# large part of why a Quake player reads as a body rather than a turret.
+#
+# This was previously omitted with the reasoning that stateful logic "breaks
+# determinism". That reasoning was wrong. A stateful evaluator is perfectly
+# deterministic: the same initial state plus the same inputs in the same order
+# gives the same result every time. What state costs is RANDOM ACCESS, and the
+# answer to that is a checkpoint and a replay -- not a different algorithm.
+#
+# One honest deviation: the original steps by `cg.frametime`, the client's own
+# variable render delta, so its exact output depends on the frame rate the
+# player happened to be running. We replay at a fixed canonical step instead.
+# The behaviour is the original's; the numbers are not bit-identical to any
+# particular historical client run, and could not be.
+
+SWING_STEP_MS = 25          # canonical replay step: the demo's snapshot rate
+CHECKPOINT_MS = 500         # bounded: replay never exceeds this much history
+
+# CG_PlayerAngles constants, from the source.
+LEGS_SWING_TOLERANCE, LEGS_CLAMP = 40.0, 90.0
+TORSO_SWING_TOLERANCE, TORSO_CLAMP = 25.0, 90.0
+PITCH_SWING_TOLERANCE, PITCH_CLAMP = 15.0, 30.0
+SWING_SPEED = 0.3           # cg_swingSpeed default
+PITCH_SPEED = 0.1           # the literal in CG_PlayerAngles
+
+LEGS_IDLE, TORSO_STAND, TORSO_STAND2 = 22, 11, 12
+MOVEMENT_OFFSETS = (0, 22, 45, -22, 0, 22, -45, -22)
+
+
+def _angle_mod(a: float) -> float:
+    return a % 360.0
+
+
+def _angle_subtract(a: float, b: float) -> float:
+    """AngleSubtract: the short way round."""
+    return (a - b + 180.0) % 360.0 - 180.0
+
+
+def _swing_angles(destination, swing_tolerance, clamp_tolerance, speed,
+                  angle, swinging, frametime_ms):
+    """CG_SwingAngles, returning (angle, swinging) instead of mutating."""
+    if not swinging:
+        swing = _angle_subtract(angle, destination)
+        if swing > swing_tolerance or swing < -swing_tolerance:
+            swinging = True
+    if not swinging:
+        return angle, swinging
+
+    swing = _angle_subtract(destination, angle)
+    scale = abs(swing)
+    if scale < swing_tolerance * 0.5:
+        scale = 0.5
+    elif scale < swing_tolerance:
+        scale = 1.0
+    else:
+        scale = 2.0
+
+    if swing >= 0:
+        move = frametime_ms * scale * speed
+        if move >= swing:
+            move = swing
+            swinging = False
+        angle = _angle_mod(angle + move)
+    else:
+        move = frametime_ms * scale * -speed
+        if move <= swing:
+            move = swing
+            swinging = False
+        angle = _angle_mod(angle + move)
+
+    # the clamp: never let a part twist further than this off its target
+    swing = _angle_subtract(destination, angle)
+    if swing > clamp_tolerance:
+        angle = _angle_mod(destination - (clamp_tolerance - 1))
+    elif swing < -clamp_tolerance:
+        angle = _angle_mod(destination + (clamp_tolerance - 1))
+    return angle, swinging
+
+
+class _Swing:
+    """One actor's persistent presentation state. Not game truth."""
+
+    __slots__ = ("legs_yaw", "legs_yawing", "torso_yaw", "torso_yawing",
+                 "torso_pitch", "torso_pitching", "t_ms", "started")
+
+    def __init__(self):
+        self.legs_yaw = self.torso_yaw = self.torso_pitch = 0.0
+        self.legs_yawing = self.torso_yawing = self.torso_pitching = False
+        self.t_ms = None
+        self.started = False
+
+    def copy(self):
+        o = _Swing()
+        for f in self.__slots__:
+            setattr(o, f, getattr(self, f))
+        return o
+
+
+class PresentationEvaluator:
+    """Deterministic, checkpointed replay of the original angle behaviour.
+
+    `pose_at` may be called in any order and returns the same answer for the
+    same time, because it always replays forward from a checkpoint at or
+    before that time rather than from wherever the last call happened to stop.
+    """
+
+    def __init__(self, truth, *, step_ms: int = SWING_STEP_MS,
+                 checkpoint_ms: int = CHECKPOINT_MS):
+        self.truth = truth
+        self.step = step_ms
+        self.checkpoint_ms = checkpoint_ms
+        self._t0 = truth.frames[0].server_time_ms if truth.frames else 0
+        self._checkpoints: dict[str, dict[int, _Swing]] = {}
+
+    def _advance(self, actor_id, st, from_ms, to_ms):
+        """Replay the swing forward, one canonical step at a time."""
+        t = from_ms
+        while t < to_ms:
+            nxt = min(t + self.step, to_ms)
+            dt = nxt - t
+            fr = self.truth.at_server_time(nxt)
+            a = fr.actors.get(actor_id) if fr else None
+            if a is not None:
+                self._step(st, a, dt)
+            t = nxt
+        st.t_ms = to_ms
+        return st
+
+    def _step(self, st, a, dt_ms):
+        head_yaw = _angle_mod(a.yaw)
+        dir_ = a.move_dir if 0 <= a.move_dir < 8 else 0
+
+        if not st.started:
+            # CG_PlayerEntity's first sight of an actor centres him rather
+            # than swinging in from zero, which would look like a spin.
+            st.legs_yaw = st.torso_yaw = head_yaw
+            st.torso_pitch = a.pitch * 0.75
+            st.started = True
+            return
+
+        # "always center" while moving or acting, straight from the original
+        if (a.legs_anim != LEGS_IDLE
+                or a.torso_anim not in (TORSO_STAND, TORSO_STAND2)):
+            st.legs_yawing = st.torso_yawing = st.torso_pitching = True
+
+        legs_dest = head_yaw + MOVEMENT_OFFSETS[dir_]
+        torso_dest = head_yaw + 0.25 * MOVEMENT_OFFSETS[dir_]
+
+        st.torso_yaw, st.torso_yawing = _swing_angles(
+            torso_dest, TORSO_SWING_TOLERANCE, TORSO_CLAMP, SWING_SPEED,
+            st.torso_yaw, st.torso_yawing, dt_ms)
+        st.legs_yaw, st.legs_yawing = _swing_angles(
+            legs_dest, LEGS_SWING_TOLERANCE, LEGS_CLAMP, SWING_SPEED,
+            st.legs_yaw, st.legs_yawing, dt_ms)
+
+        pitch = a.pitch
+        dest = (-360.0 + pitch) * 0.75 if pitch > 180 else pitch * 0.75
+        st.torso_pitch, st.torso_pitching = _swing_angles(
+            dest, PITCH_SWING_TOLERANCE, PITCH_CLAMP, PITCH_SPEED,
+            st.torso_pitch, st.torso_pitching, dt_ms)
+
+    def pose_at(self, actor_id: str, t_ms: int):
+        """(legs_yaw, torso_yaw, torso_pitch) at t_ms. Order-independent."""
+        marks = self._checkpoints.setdefault(actor_id, {})
+        want = self._t0 + ((t_ms - self._t0) // self.checkpoint_ms) * self.checkpoint_ms
+        base_ms = max((m for m in marks if m <= want), default=None)
+
+        if base_ms is None:
+            st, base_ms = _Swing(), self._t0
+        else:
+            st = marks[base_ms].copy()
+
+        # fill in checkpoints up to `want` so later seeks are bounded
+        while base_ms + self.checkpoint_ms <= want:
+            nxt = base_ms + self.checkpoint_ms
+            st = self._advance(actor_id, st, base_ms, nxt)
+            marks[nxt] = st.copy()
+            base_ms = nxt
+
+        st = self._advance(actor_id, st, base_ms, t_ms)
+        return st.legs_yaw, st.torso_yaw, st.torso_pitch
+
+
 @dataclass
 class RenderActor:
     """One placed body. Performance and identity, joined."""
@@ -208,6 +395,11 @@ class RenderActor:
     torso_anim_ms: int = 0
     # angles2[YAW] 0-7: how far the legs are turned off the view.
     move_dir: int = 0
+    # PRESENTATION angles, produced by the swing evaluator. These are what the
+    # renderer draws; `angles` above remains the raw recorded view.
+    legs_yaw: float = 0.0
+    torso_yaw: float = 0.0
+    torso_pitch: float = 0.0
     # The view pitch. The torso takes 0.75 of it and the legs none,
     # per CG_PlayerAngles; pitching the whole body tips the character.
     view_pitch: float = 0.0
@@ -322,6 +514,8 @@ def from_frame_truth(truth, *, cast: dict[str, Any],
                 picked.append(chosen)
         source = picked
 
+    swing = PresentationEvaluator(truth)
+
     frames: list[RenderFrame] = []
     wanted = None if indices is None else set(indices)
     # actor_id -> {'legs': (anim, toggle, started_ms), 'torso': ...}
@@ -367,6 +561,7 @@ def from_frame_truth(truth, *, cast: dict[str, Any],
             # or actor and world drift apart by up to one snapshot.
             _ev = _evaluate_actor(truth, actor_id, out_t, intent)
             _apos, _ayaw = (_ev[0], _ev[1]) if _ev else (a.position, a.yaw)
+            _lyaw, _tyaw, _tpitch = swing.pose_at(actor_id, out_t)
             actors.append(RenderActor(
                 actor_id=actor_id, client=a.client, team=a.team,
                 model=getattr(profile, "model", str(profile)),
@@ -376,6 +571,7 @@ def from_frame_truth(truth, *, cast: dict[str, Any],
                 legs_anim=a.legs_anim, torso_anim=a.torso_anim,
                 weapon=a.weapon, alive=a.alive,
                 move_dir=a.move_dir, view_pitch=float(a.pitch),
+                legs_yaw=_lyaw, torso_yaw=_tyaw, torso_pitch=_tpitch,
                 weapon_model=(weapon_assets(int(a.weapon)).get("hand") or "")
                               if str(a.weapon).lstrip('-').isdigit() else "",
                 legs_anim_ms=out_t - clocks["legs"][2],
@@ -441,7 +637,8 @@ def save_shot_script(frames: Sequence[RenderFrame], path: Path,
         frame <idx> <serverTimeMs> <cx cy cz> <pitch yaw roll> <fov> <out>
         model <md3 path>                          # declared once, in order
         actor <playerIdx> <x y z> <pitch yaw roll> <legs> <torso>
-              <legsMs> <torsoMs> <moveDir> <viewPitch> <weaponModelIdx|-1>
+              <legsMs> <torsoMs> <legsYaw> <torsoYaw> <torsoPitch> <viewPitch>
+              <weaponModelIdx|-1>
         projectile <modelIdx> <x y z> <pitch yaw roll>
 
     The host treats an unknown keyword as fatal, so this writer and that
@@ -482,13 +679,14 @@ def save_shot_script(frames: Sequence[RenderFrame], path: Path,
             c.angles[0], c.angles[1], c.angles[2], c.fov, f.out))
         for a in f.actors:
             out.append(
-                "actor %d %.3f %.3f %.3f %.3f %.3f %.3f %d %d %d %d %d %.3f %d"
+                "actor %d %.3f %.3f %.3f %.3f %.3f %.3f %d %d %d %d "
+                "%.3f %.3f %.3f %.3f %d"
                 % (roster.index((a.model, a.skin)),
                    a.origin[0], a.origin[1], a.origin[2],
                    a.angles[0], a.angles[1], a.angles[2],
                    a.legs_anim, a.torso_anim,
                    a.legs_anim_ms, a.torso_anim_ms,
-                   a.move_dir, a.view_pitch,
+                   a.legs_yaw, a.torso_yaw, a.torso_pitch, a.view_pitch,
                    models.index(a.weapon_model) if a.weapon_model else -1))
         for pr in f.projectiles:
             out.append("projectile %d %.3f %.3f %.3f %.3f %.3f %.3f" % (

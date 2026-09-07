@@ -348,8 +348,22 @@ class FrameTruth:
         return best
 
     def at_server_time(self, server_time_ms: int) -> Frame:
-        return min(self.frames,
-                   key=lambda f: abs(f.server_time_ms - server_time_ms))
+        """The frame covering this serverTime. AT-OR-BEFORE, like `at`.
+
+        This used to return the NEAREST frame, which can be in the FUTURE: at
+        1240 it preferred the 1250 sample over the 1225 one. For a lookup that
+        is merely sloppy; for anything replaying forward in time it is wrong,
+        because state then reacts to an observation that has not happened yet.
+        A swing began turning 10 ms before the player did.
+        """
+        best = None
+        for f in self.frames:
+            if f.server_time_ms <= server_time_ms:
+                best = f
+            else:
+                break
+        # Before the first observation there is nothing earlier to hold.
+        return best if best is not None else self.frames[0]
 
     def actor_track(self, actor_id: str) -> list[tuple[float, Vec3]]:
         """A world-space path, for arrows and camera targets."""

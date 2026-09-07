@@ -371,3 +371,71 @@ def test_the_pov_client_is_a_function_of_time_not_a_constant():
     assert pov_spans(out) == [(7, 1000, 1025), (1, 1050, 1075), (3, 1100, 1100)]
     assert [r["t"] for r in pov_rows(out, 1, 0, 9999)] == [1050, 1075]
     assert pov_rows(out, 5, 0, 9999) == [], "a client who never held the POV"
+
+
+# ── stateful presentation, deterministically replayed ──────────────────────
+#
+# CG_SwingAngles carries per-entity state between frames. That is NOT a
+# obstacle to determinism -- same initial state plus same inputs in the same
+# order gives the same result. It only costs random access, and a checkpoint
+# plus replay buys that back.
+
+def _swing_truth():
+    tr = _trace(5, 1000, 25, 40, yaw=0.0)
+    for i, smp in enumerate(tr["aim"]):
+        smp["yaw"] = 0.0 if i < 10 else 90.0     # a hard 90 degree turn
+    for smp in tr["animation"]:
+        smp["legs"] = 15                          # LEGS_RUN: "always center"
+    return FrameTruth.from_traces([tr])
+
+
+def test_swing_lags_the_view_instead_of_snapping_to_it():
+    t = _swing_truth()
+    ev = rf.PresentationEvaluator(t)
+    before = ev.pose_at("CLIENT_5", 1240)
+    during = ev.pose_at("CLIENT_5", 1260)
+    later = ev.pose_at("CLIENT_5", 1500)
+    assert before[0] == pytest.approx(0.0, abs=1e-6)
+    # mid-turn the legs are somewhere between: they have not snapped
+    assert 0.0 < during[0] < 90.0, "the legs swing, they do not teleport"
+    assert later[0] == pytest.approx(90.0, abs=1.0), "and they get there"
+
+
+def test_seeking_agrees_with_sequential_evaluation():
+    """Frame N evaluated after a seek must equal frame N evaluated in order."""
+    t = _swing_truth()
+    seq = rf.PresentationEvaluator(t)
+    ordered = [seq.pose_at("CLIENT_5", ms) for ms in range(1000, 1900, 33)]
+
+    jump = rf.PresentationEvaluator(t)
+    picked = list(range(1000, 1900, 33))
+    # deliberately out of order: late, early, late again
+    a = jump.pose_at("CLIENT_5", picked[-1])
+    jump.pose_at("CLIENT_5", picked[3])
+    b = jump.pose_at("CLIENT_5", picked[-1])
+    assert a == b, "evaluating the same time twice must agree"
+    assert a == pytest.approx(ordered[-1]), "and must match sequential replay"
+
+
+def test_a_direct_seek_matches_the_sequential_answer_at_every_frame():
+    t = _swing_truth()
+    seq = rf.PresentationEvaluator(t)
+    ordered = {ms: seq.pose_at("CLIENT_5", ms) for ms in range(1000, 1900, 33)}
+    for ms in sorted(ordered, reverse=True):       # reverse order on purpose
+        fresh = rf.PresentationEvaluator(t)
+        assert fresh.pose_at("CLIENT_5", ms) == pytest.approx(ordered[ms])
+
+
+def test_checkpoints_are_bounded_not_one_per_frame():
+    t = _swing_truth()
+    ev = rf.PresentationEvaluator(t)
+    ev.pose_at("CLIENT_5", 1900)
+    marks = ev._checkpoints["CLIENT_5"]
+    assert len(marks) <= 4, "bounded checkpoints, not a per-frame cache"
+
+
+def test_short_arc_is_used_for_the_swing_destination():
+    """359 -> 1 must swing 2 degrees forward, not 358 backward."""
+    ang, swinging = rf._swing_angles(1.0, 40.0, 90.0, 0.3, 359.0, True, 25.0)
+    assert ang > 359.0 or ang < 10.0, "moved the short way"
+    assert rf._angle_subtract(1.0, 359.0) == pytest.approx(2.0)
