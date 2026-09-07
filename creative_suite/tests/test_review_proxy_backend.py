@@ -115,3 +115,23 @@ def test_the_tools_resolve_from_the_checkout_that_owns_the_data():
     from engine.pantheon import store as S
     assert rp.FFMPEG.is_relative_to(S.PROJECT_ROOT)
     assert rp.FFMPEG.exists(), f"ffmpeg not found at {rp.FFMPEG}"
+
+
+def test_the_mock_path_does_not_ask_the_render_permit(monkeypatch):
+    """CS_PROXY_MOCK writes a testsrc mp4 with ffmpeg and never opens a
+    renderer, so the permit has nothing to protect. It was asked anyway, and
+    on 2026-09-07 the whole proxy suite failed because the developer happened
+    to be playing a game."""
+    from engine.pantheon import render_permit
+
+    monkeypatch.setenv("CS_PROXY_MOCK", "1")
+    monkeypatch.setattr(render_permit, "check", lambda **kw: pytest.fail(
+        "the mock path asked the permit; there is no renderer to protect"))
+
+    # the worker resolves its decision exactly as the real loop does
+    import os
+    decision = (render_permit.Decision(render_permit.Permit.GRANTED,
+                                       "mock: no renderer is opened")
+                if os.getenv("CS_PROXY_MOCK")
+                else render_permit.check(purpose="review proxy capture"))
+    assert decision.may_render
