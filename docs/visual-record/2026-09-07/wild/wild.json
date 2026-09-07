@@ -1,0 +1,152 @@
+[
+ {
+  "cell": "1 CHROME",
+  "font": "BlackOpsOne-Regular",
+  "fov": 90.0,
+  "lighting": "CINEMATIC",
+  "note": "tcGen environment: the room reflected off the letters",
+  "images": [
+   {
+    "local": "env",
+    "source": "textures/base_wall/bluemetal3b",
+    "origin": "PHOTOREAL_UPSCALE_4X",
+    "sha256": "6ac3244d49fdf59d"
+   }
+  ]
+ },
+ {
+  "cell": "2 MOLTEN",
+  "font": "BlackOpsOne-Regular",
+  "fov": 90.0,
+  "lighting": "CINEMATIC",
+  "note": "the letters ripple and burn: deformVertexes wave + scrolling additive fire",
+  "images": [
+   {
+    "local": "stone",
+    "source": "G:\\QUAKE_LEGACY\\.claude\\worktrees\\pantheon-world\\assets\\pantheon_world\\external\\Marble012.tga",
+    "origin": "EXTERNAL_CC0",
+    "sha256": "cfbc620916d8bb12"
+   },
+   {
+    "local": "fire",
+    "source": "textures/sfx/b_flame4",
+    "origin": "PHOTOREAL_UPSCALE_4X",
+    "sha256": "d074aaaaf7fe1ec3"
+   }
+  ]
+ },
+ {
+  "cell": "3 VOID GLOW",
+  "font": "BlackOpsOne-Regular",
+  "fov": 70.0,
+  "lighting": "QUAKE_AUTHENTIC",
+  "note": "unlit blue in the darkest render profile: a source, not a surface",
+  "images": [
+   {
+    "local": "glow",
+    "source": "textures/base_light/proto_lightblue",
+    "origin": "PHOTOREAL_UPSCALE_4X",
+    "sha256": "4d13c528dfd5c3cf"
+   }
+  ]
+ },
+ {
+  "cell": "4 MACRO",
+  "font": "BlackOpsOne-Regular",
+  "fov": 60.0,
+  "lighting": "CINEMATIC",
+  "note": "110 units from the P: the bevel, the depth and the grain",
+  "images": [
+   {
+    "local": "stone",
+    "source": "G:\\QUAKE_LEGACY\\.claude\\worktrees\\pantheon-world\\assets\\pantheon_world\\external\\Travertine009.tga",
+    "origin": "EXTERNAL_CC0",
+    "sha256": "6869c311f1d24346"
+   }
+  ]
+ },
+ {
+  "cell": "5 TOWER",
+  "font": "BlackOpsOne-Regular",
+  "fov": 100.0,
+  "lighting": "CINEMATIC",
+  "note": "floor level looking up, tilted: stone with an environment sheen",
+  "images": [
+   {
+    "local": "stone",
+    "source": "textures/gothic_block/blocks18c",
+    "origin": "PHOTOREAL_UPSCALE_4X",
+    "sha256": "8d8cae9602f42aea"
+   },
+   {
+    "local": "env",
+    "source": "textures/base_wall/bluemetal3b",
+    "origin": "PHOTOREAL_UPSCALE_4X",
+    "sha256": "6ac3244d49fdf59d"
+   }
+  ]
+ },
+ {
+  "cell": "6 HOLOGRAM",
+  "font": "BebasNeue-Regular",
+  "fov": 90.0,
+  "lighting": "CINEMATIC",
+  "note": "additive only, scanlines scrolling, no depth write: it is projected",
+  "images": [
+   {
+    "local": "glow",
+    "source": "textures/base_light/proto_lightblue",
+    "origin": "PHOTOREAL_UPSCALE_4X",
+    "sha256": "4d13c528dfd5c3cf"
+   },
+   {
+    "local": "beam",
+    "source": "textures/sfx/beam_blue4",
+    "origin": "PHOTOREAL_UPSCALE_4X",
+    "sha256": "7651a001863d77f8"
+   }
+  ]
+ },
+ {
+  "cell": "7 GOLD LEAF",
+  "font": "RussoOne-Regular",
+  "fov": 80.0,
+  "lighting": "CINEMATIC",
+  "note": "warm metal with a doubled environment pass: heavier, older",
+  "images": [
+   {
+    "local": "gold",
+    "source": "textures/gothic_trim/goldsupport_a",
+    "origin": "PHOTOREAL_UPSCALE_4X",
+    "sha256": "744fa0d1a1765d30"
+   },
+   {
+    "local": "env",
+    "source": "textures/base_wall/bluemetal3b",
+    "origin": "PHOTOREAL_UPSCALE_4X",
+    "sha256": "6ac3244d49fdf59d"
+   }
+  ]
+ },
+ {
+  "cell": "8 SHATTER",
+  "font": "BungeeInline-Regular",
+  "fov": 85.0,
+  "lighting": "CINEMATIC",
+  "note": "deformVertexes bulge: the word is coming apart, energy through it",
+  "images": [
+   {
+    "local": "stone",
+    "source": "G:\\QUAKE_LEGACY\\.claude\\worktrees\\pantheon-world\\assets\\pantheon_world\\external\\MetalPlates013.tga",
+    "origin": "EXTERNAL_CC0",
+    "sha256": "501ac392f6b249ad"
+   },
+   {
+    "local": "glow",
+    "source": "textures/base_light/proto_lightblue",
+    "origin": "PHOTOREAL_UPSCALE_4X",
+    "sha256": "4d13c528dfd5c3cf"
+   }
+  ]
+ }
+]
