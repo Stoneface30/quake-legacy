@@ -41,16 +41,57 @@ TABLES = {
 }
 
 
+# What the tables MUST contain. A generator that silently skips an entry it
+# does not recognise recreates, in automated form, exactly the bug it exists to
+# prevent -- so the counts are asserted and anything unparseable is fatal.
+EXPECTED_COUNT = {
+    "playerStateFieldsQ3": 48,
+    "entityStateFieldsQldm73": 53,
+}
+
+
+class SchemaError(RuntimeError):
+    pass
+
+
 def parse_table(src: str, c_name: str) -> list[tuple[str, str]]:
     i = src.index(c_name + "[]")
     j = src.index("};", i)
-    rows = []
-    for line in src[i:j].splitlines():
-        line = line.split("//")[0]
-        m = ENTRY.search(line)
+    rows, skipped = [], []
+    for lineno, line in enumerate(src[i:j].splitlines(), 1):
+        code = line.split("//")[0]
+        if "{" not in code or "}" not in code:
+            continue                    # not an entry line at all
+        m = ENTRY.search(code)
         if m:
             rows.append((m.group(2), m.group(3)))
+        else:
+            # An entry-shaped line we could not read. NEVER skip this: the
+            # original bug was one such line, `{ PSF(groundEntityNum),
+            # GENTITYNUM_BITS }`, quietly dropped by a regex that demanded a
+            # numeric width. One missing row shifts every later index by one.
+            skipped.append((lineno, code.strip()))
+    if skipped:
+        raise SchemaError(
+            "%s: %d entry-shaped line(s) could not be parsed -- refusing to "
+            "emit a table with holes in it:%s%s"
+            % (c_name, len(skipped), NL,
+               NL.join("    line %d: %s" % x for x in skipped)))
+
+    want = EXPECTED_COUNT.get(c_name)
+    if want is not None and len(rows) != want:
+        raise SchemaError("%s: expected %d fields, parsed %d"
+                          % (c_name, want, len(rows)))
     return rows
+
+
+def is_signed(bits: str) -> bool:
+    """A negative declared width means the field is signed (MSG_ReadBits).
+
+    Signedness is per-field. Blanket sign-extending every 8-bit field would
+    turn a perfectly good weapon slot or animation number negative.
+    """
+    return bits.lstrip().startswith("-")
 
 
 def render(src: str) -> str:
@@ -69,10 +110,13 @@ def render(src: str) -> str:
                    % (c_name, protos, len(rows)))
         out.append("%s = [" % py_name)
         for n, (name, bits) in enumerate(rows):
-            out.append("    (%3d, %-24r, %r)," % (n, name, bits))
+            out.append("    (%3d, %-24r, %r, %s),"
+                       % (n, name, bits, is_signed(bits)))
         out.append("]")
         out.append("")
-        out.append("%s_INDEX = {name: idx for idx, name, _bits in %s}"
+        out.append("%s_INDEX = {name: idx for idx, name, _b, _s in %s}"
+                   % (py_name, py_name))
+        out.append("%s_SIGNED = {name for _i, name, _b, sgn in %s if sgn}"
                    % (py_name, py_name))
         out.append("")
     return "\n".join(out) + "\n"

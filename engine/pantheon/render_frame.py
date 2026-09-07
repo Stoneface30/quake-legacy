@@ -218,7 +218,17 @@ MOVEMENT_OFFSETS = (0, 22, 45, -22, 0, 22, -45, -22)
 
 
 def _angle_mod(a: float) -> float:
-    return a % 360.0
+    """q_math.c AngleMod -- including its quantisation.
+
+    The engine does NOT wrap with a modulo. It rounds through a 16-bit angle
+    representation, so the result lands on a 1/182 degree grid. That looks
+    like a rounding detail and is not: CG_SwingAngles picks its speed scale
+    with a strict `<` against the tolerance, so an angle sitting exactly ON
+    the boundary takes a different branch from one 0.007 degrees below it.
+    Using a true modulo made the torso swing twice as fast for one step, and
+    only the engine oracle showed it.
+    """
+    return (360.0 / 65536) * (int(a * (65536 / 360.0)) & 65535)
 
 
 def _angle_subtract(a: float, b: float) -> float:
@@ -321,12 +331,14 @@ class PresentationEvaluator:
         dir_ = a.move_dir if 0 <= a.move_dir < 8 else 0
 
         if not st.started:
-            # CG_PlayerEntity's first sight of an actor centres him rather
-            # than swinging in from zero, which would look like a spin.
+            # First sight of an actor is centred rather than swung in from
+            # zero, which would look like a spin. It then runs the ordinary
+            # swing in the SAME step -- returning early here skipped a step
+            # the engine takes, and the oracle caught it as a persistent
+            # half-step offset on every movement direction.
             st.legs_yaw = st.torso_yaw = head_yaw
             st.torso_pitch = a.pitch * 0.75
             st.started = True
-            return
 
         # "always center" while moving or acting, straight from the original
         if (a.legs_anim != LEGS_IDLE
