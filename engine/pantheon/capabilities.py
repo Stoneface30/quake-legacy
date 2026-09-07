@@ -342,7 +342,7 @@ WOLFCAM_11_3: dict[str, Capability] = {c.name: c for c in (
         measured="the full runtime census lists cg_wh; the mode semantics come "
                  "from the drawing code in cg_players.c around line 4324"),
     Capability(
-        "POINTER_NOT_GRABBED", Evidence.EXECUTION_PROVEN,
+        "POINTER_NOT_GRABBED", Evidence.UNKNOWN,
         "measured on a real capture 2026-09-06: as shipped GetClipCursor "
         "returned the render window's rectangle for the whole run",
         ("in_nograb", "in_mouse"),
@@ -350,11 +350,15 @@ WOLFCAM_11_3: dict[str, Capability] = {c.name: c for c in (
         "in_nograb 1 and in_mouse 0 each released it and each still filmed; "
         "the offscreen launch sets both.",
         probe="already measured; the watcher samples GetClipCursor every run",
-        measured="GetClipCursor sampled throughout three real captures: as "
-                 "shipped (107,130,2027,1210) on a (0,0,3000,1440) desktop, "
-                 "then unconfined with in_nograb 1, and again with in_mouse 0. "
-                 "The 11.3 cvarlist capture never probed an in_* family, so "
-                 "its silence about these names is not evidence."),
+        measured="WITHDRAWN 2026-09-07. The original reading -- unconfined "
+                 "with in_nograb 1, and again with in_mouse 0 -- did not "
+                 "replicate: with both settings applied the engine confined "
+                 "the pointer again. The first measurement was taken on an "
+                 "idle desktop and the second while the operator was playing "
+                 "a full-screen game, so it is not even clear the engine was "
+                 "ever the one holding it. One observation was not a "
+                 "property, and this is UNKNOWN until a run on a provably "
+                 "idle desktop says otherwise."),
 )}
 
 # The offscreen backend drives the SAME binary, so it inherits every

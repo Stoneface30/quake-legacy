@@ -439,11 +439,23 @@ class OffscreenRun:
 
     @property
     def confined_cursor(self) -> bool:
-        """Did the operator's pointer get boxed in while this ran? Reported
-        by the user against the hidden desktop, so it is measured, not
-        assumed: a window nobody can see that still owns the mouse is worse
-        than a visible one."""
+        """Did the engine take the pointer at any point while this ran?
+
+        TRUE DOES NOT MEAN THE OPERATOR IS STILL STUCK. The watcher clears it
+        within a second of seeing it and again after the process dies; this
+        records that the engine tried, which is worth knowing because the
+        launch settings that were supposed to stop it did not.
+        """
         return bool(self.cursor_clips)
+
+    pointer_confined_before: bool = False
+
+    @property
+    def pointer_left_confined(self) -> bool:
+        """The one that would actually hurt: did OUR run leave the operator's
+        pointer boxed in? A pointer that was already grabbed when we started
+        is not ours and is not counted."""
+        return cursor_is_confined() and not self.pointer_confined_before
 
     @property
     def foreground_moved(self) -> bool:
@@ -456,6 +468,8 @@ class OffscreenRun:
                 "visible_windows": self.visible_windows,
                 "stole_focus": self.stole_focus,
                 "confined_cursor": self.confined_cursor,
+                "pointer_confined_before": self.pointer_confined_before,
+                "pointer_left_confined": self.pointer_left_confined,
                 "cursor_clips": self.cursor_clips[:4],
                 "foreground_moved": self.foreground_moved,
                 "foreground_before": self.foreground_before,
@@ -481,6 +495,10 @@ def run_engine(argv: Sequence[str], *, cwd: Path, timeout: float,
     render_permit.require(purpose, output_dir=cwd)
 
     before = foreground()
+    # The pointer's state BEFORE we start anything. Everything later is judged
+    # against this: a clip that was already here is not ours.
+    clip_before = cursor_clip()
+    was_confined_before = cursor_is_confined()
     seen: list[str] = []
     during: list[dict] = []
     clips: list[tuple] = []
@@ -501,8 +519,18 @@ def run_engine(argv: Sequence[str], *, cwd: Path, timeout: float,
                     # round, and a check that only looks afterwards misses it.
                     seen.extend(w for w in visible_windows_of(proc.pid) if w not in seen)
                     during.append(foreground().as_dict())
-                    if cursor_is_confined():
-                        clips.append(cursor_clip())
+                    # ONLY A CLIP WE CAUSED IS OURS TO CLEAR.
+                    #
+                    # An earlier version of this loop released the pointer
+                    # every time it saw it confined. That was wrong and it was
+                    # dangerous: on 2026-09-07 the confinement belonged to
+                    # OVERWATCH, which the operator was playing, and releasing
+                    # it would have pulled their mouse out of a live match
+                    # once a second. A clip that was already there before we
+                    # started is somebody else's, and we do not touch it.
+                    now = cursor_clip()
+                    if cursor_is_confined() and now != clip_before:
+                        clips.append(now)
                     rc = proc.wait(poll)
                     if rc is not None:
                         break
@@ -518,14 +546,19 @@ def run_engine(argv: Sequence[str], *, cwd: Path, timeout: float,
     tail = ""
     if log and log.exists():
         tail = log.read_text(encoding="utf-8", errors="replace")
-    # Whatever the run did, the operator gets the pointer back. A capture
-    # that leaves the mouse boxed into an invisible window is exactly as
-    # disruptive as one that steals the screen.
-    if clips:
-        release_cursor()
+    # Give back only what we took. If the pointer was already confined when
+    # this started, it belongs to whatever the operator is running and stays
+    # exactly where it was.
+    if clips and not was_confined_before:
+        for _ in range(20):
+            if not cursor_is_confined():
+                break
+            release_cursor()
+            time.sleep(0.1)
     return OffscreenRun(rc == 0, rc, time.time() - t0, seen, before.as_dict(),
                         after.as_dict(), tail, detail, render_pid=pid,
-                        foreground_during=during, cursor_clips=clips)
+                        foreground_during=during, cursor_clips=clips,
+                        pointer_confined_before=was_confined_before)
 
 
 def probe_gl(staging: Path, *, timeout: float = 120.0) -> dict:
@@ -641,7 +674,7 @@ def capture(safe_demo: str, windows: list[dict], *, staging: Path,
     # The interactive leg is EXPECTED to put a window on the screen -- that is
     # the behaviour being replaced. Only the hidden leg is judged on it.
     quiet = desktop is None or (not run.visible_windows and not run.stole_focus
-                                and not run.confined_cursor)
+                                and not run.pointer_left_confined)
     return {"ok": bool(avis) and quiet, "desktop": desktop or "interactive",
             "avis": avis, "missing": [k for k, v in made.items() if not v],
             **{k: v for k, v in run.as_dict().items() if k != "log_tail"}}

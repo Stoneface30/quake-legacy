@@ -382,6 +382,51 @@ A "no" names what is missing -- the truth the demo does not carry, or the
 capability no backend has proven -- which is why the output is useful rather
 than discouraging.
 
+## Assets: what the picture is made of
+
+A Quake install renders whatever pk3 files happen to sit in its gamedir, last
+one winning. That is fine for a game and wrong for a film pipeline, where the
+look of a shot would then be decided by a directory listing nobody wrote down.
+`engine/pantheon/assets.py` makes the set an explicit, versioned choice:
+`STOCK` is the game as shipped and the control for any claim; `UHD` is five
+packs of upscaled textures and models, installed by hard link so four
+gigabytes are not copied, with a manifest written beside them saying which set
+is in place.
+
+**Found 2026-09-07:** the UHD packs -- 4,895 files, 4 GB -- had been built into
+`_wolfcam_staging_patched`, and every render this project has ever made used
+`_wolfcam_staging`, which had none of them. The assets existed and were never
+in the picture. All 4,895 replace a stock file at the same path AND the same
+extension, so load order alone decides it; the engine confirms the load
+(14,232 files against the stock 9,285).
+
+Whether the frame looks BETTER is a pixel question and is not answered yet.
+Sound is not covered at all: the packs contain zero sound entries, and the
+only audio in the install is the 1,137 stock entries in `pak00.pk3`.
+
+## A game the list never heard of
+
+The render permit's promise is that a running game always defers. On
+2026-09-07 it granted every capture of the evening while the operator was
+playing **Overwatch**, because the protected-process list held four Quake Live
+executables and nothing else. A list can only know the games somebody
+remembered to add.
+
+`capture_guard` now answers the question by shape as well as by name. Any of
+three signals defers a render:
+
+- a process on the watched list, as before;
+- a **full-screen foreground window** belonging to another process;
+- a **pointer some application has grabbed**, which is what a game does.
+
+The same evening produced a second lesson. The offscreen watcher had been
+recording a confined pointer as the render's doing, and a version of it
+briefly released the clip every second -- which would have pulled the mouse
+out of a live match. The watcher now baselines the pointer before the run and
+**never touches a clip it did not cause**. `POINTER_NOT_GRABBED` is withdrawn
+from EXECUTION_PROVEN to UNKNOWN: the original release did not replicate, and
+it is no longer clear the engine was ever the one holding it.
+
 ## Backend A/B conformance
 
 Before the offscreen backend became the default, it was compared against the

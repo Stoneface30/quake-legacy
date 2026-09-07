@@ -82,6 +82,7 @@ BACKEND_ALLOWED = {
     "first_recipe_proof",  # the one end-to-end run: it films
     "engine_census",    # asks the running binary what it has; one session
     "engine_inventory", # the raw inventory and its grades; reads files only
+    "assets",           # which asset packs the picture uses; links files
     "conformance",      # the 10-case backend A/B: it films both legs
     "cast_proof", "presenter_proof", "instruction_proof", "proofs",
     "proof0_color", "proof_b_identity", "proof_c_rails",
