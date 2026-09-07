@@ -315,10 +315,15 @@ def orphaned_projectile(c, ch) -> list[Shape]:
             samp = c.execute(
                 "SELECT x,y,z,vx,vy,vz FROM missile_samples_v1 WHERE "
                 "content_hash=? AND entity_num=? AND server_time_ms<=? AND "
-                "x IS NOT NULL AND vx IS NOT NULL ORDER BY server_time_ms DESC "
+                "x IS NOT NULL AND y IS NOT NULL AND z IS NOT NULL AND vx IS NOT "
+                "NULL AND vy IS NOT NULL AND vz IS NOT NULL ORDER BY "
+                "server_time_ms DESC "
                 "LIMIT 1", (ch, m["entity_num"], t)).fetchone()
             kp = pos.at(k["killer_client"], t) if pos else None
-            if samp and kp and kp[3] <= 500:
+            usable = samp and None not in (
+                samp["x"], samp["y"], samp["z"], samp["vx"], samp["vy"],
+                samp["vz"])
+            if usable and kp and kp[3] <= 500:
                 to = (kp[0] - samp["x"], kp[1] - samp["y"], kp[2] - samp["z"])
                 v = (samp["vx"], samp["vy"], samp["vz"])
                 nt = sum(q * q for q in to) ** 0.5
@@ -418,9 +423,12 @@ def gauntlet_interrupt(c, ch) -> list[Shape]:
 def teleport_denial(c, ch) -> list[Shape]:
     """Killed within a heartbeat of arriving, before they had control."""
     out = []
+    # NOT semantic_events teleport_in: those are temp entities and carry no
+    # clientNum -- 10 rows in 263,210 have one. teleport_transits_v1 pairs the
+    # out/in ends and confirms the player, which is the only honest source.
     arrivals = c.execute(
-        "SELECT server_time_ms, client_num FROM semantic_events_v1 WHERE "
-        "content_hash=? AND type='teleport_in' AND client_num IS NOT NULL",
+        "SELECT server_time_ms, client AS client_num FROM teleport_transits_v1 "
+        "WHERE content_hash=? AND outcome='TELEPORT_PLAYER_CONFIRMED'",
         (ch,)).fetchall()
     if not arrivals:
         return out
@@ -577,6 +585,11 @@ def build(limit=None, db=None, out_db=None, progress=None):
     n = 0
     for i, ch in enumerate(hashes, 1):
         rows = [s.row() for s in detect_demo(src, ch)]
+        # A rescan must REPLACE this demo's findings, not merge with them.
+        # INSERT OR REPLACE alone leaves behind every row the new pass no
+        # longer produces -- which is how 40 DETECTOR_ERROR rows survived a
+        # scan that had already fixed the crash that caused them.
+        dest.execute("DELETE FROM frag_shapes_v1 WHERE content_hash=?", (ch,))
         if rows:
             dest.executemany(
                 "INSERT OR REPLACE INTO frag_shapes_v1 (content_hash,"
