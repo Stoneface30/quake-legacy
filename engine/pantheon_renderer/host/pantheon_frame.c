@@ -44,6 +44,11 @@ extern CRITICAL_SECTION printCriticalSection;
 
 #define PA_MAX_MODELS  16
 #define PA_MAX_MISSILES 8
+/* Authored world geometry placed in the scene: a PANTHEON door leaf,
+ * a plinth, a banner. Same transform as a missile and deliberately a
+ * SEPARATE keyword -- a door is not a projectile, and a grammar that
+ * blurs the two would put set dressing into the projectile track. */
+#define PA_MAX_PROPS 32
 
 typedef struct {
     int      player;                 /* index into the declared players */
@@ -72,6 +77,8 @@ typedef struct {
     shotActor_t actors[PA_MAX_ACTORS];
     int           numMissiles;
     shotMissile_t missiles[PA_MAX_MISSILES];
+    int           numProps;
+    shotMissile_t props[PA_MAX_PROPS];
 } shotFrame_t;
 
 typedef struct {
@@ -227,6 +234,22 @@ static void ParseShot(const char *path)
                           "PANTHEON: projectile names undeclared model %d, "
                           "line %d", m->model, lineno);
             cur->numMissiles++;
+        } else if (!strcmp(kw, "prop")) {
+            shotMissile_t *m;
+            if (!cur) Com_Error(ERR_FATAL,
+                                "PANTHEON: prop before frame, line %d", lineno);
+            if (cur->numProps >= PA_MAX_PROPS)
+                Com_Error(ERR_FATAL, "PANTHEON: too many props, line %d", lineno);
+            m = &cur->props[cur->numProps];
+            if (sscanf(line, "%*s %d %f %f %f %f %f %f",
+                       &m->model, &m->origin[0], &m->origin[1], &m->origin[2],
+                       &m->angles[0], &m->angles[1], &m->angles[2]) != 7)
+                Com_Error(ERR_FATAL, "PANTHEON: bad prop line %d", lineno);
+            if (m->model < 0 || m->model >= s_shot.numModels)
+                Com_Error(ERR_FATAL,
+                          "PANTHEON: prop names undeclared model %d, line %d",
+                          m->model, lineno);
+            cur->numProps++;
         } else {
             Com_Error(ERR_FATAL, "PANTHEON: unknown shot keyword '%s' line %d",
                       kw, lineno);
@@ -499,6 +522,10 @@ int main(int argc, char **argv)
                 PANTHEON_MissileAdd(s_shot.modelHandle[sf->missiles[a].model],
                                     sf->missiles[a].origin,
                                     sf->missiles[a].angles);
+            for (a = 0; a < sf->numProps; a++)
+                PANTHEON_MissileAdd(s_shot.modelHandle[sf->props[a].model],
+                                    sf->props[a].origin,
+                                    sf->props[a].angles);
         } else if (cliActor) {
             {
                 vec3_t zero = {0, 0, 0};

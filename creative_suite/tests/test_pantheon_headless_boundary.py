@@ -58,6 +58,8 @@ HEADLESS = {
     # The renderer's input DTO. Headless by construction: it projects one
     # instant of FrameTruth and imports nothing that can launch a game.
     "render_frame",
+    # writes MD3 geometry files. Pure format arithmetic: no game, no backend.
+    "md3_writer",
     "scenario",         # RoundScenario authoring
     "compiler",         # intent -> .dm_73 grammar
     "navigation",       # NavigationTruth
