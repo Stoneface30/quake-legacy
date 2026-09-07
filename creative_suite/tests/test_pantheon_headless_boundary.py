@@ -69,6 +69,7 @@ HEADLESS = {
 # Modules that are allowed to touch a backend or spawn a process, and why.
 BACKEND_ALLOWED = {
     "backends",         # the interface itself
+    "model_assets",     # asks the host what a model.cfg declares; spawns it
     "offscreen",        # hosts the renderer on a hidden desktop; spawns processes
     "render_permit",    # the one gate every launch asks; reads the process list
     "shot",             # WOLFCAM_REFERENCE implementation

@@ -449,6 +449,46 @@ def corpus_status(corpus: str) -> dict[str, Any]:
             out["blocked_by"] = ("kill_events_v1 is empty or not yet derived; "
                                  "run engine/parser/derive_kill_events.py")
         return out
+    if corpus == NO_KILL_ACTIONS:
+        # The lane was fully built -- _action_where, _action_item, count_items
+        # and the ACTION namespace all work -- but corpus_status never grew a
+        # branch for it, so it fell through to "unknown corpus" and the
+        # reviewer never offered it. The queue existed and nobody could reach
+        # it.
+        if not _action_table_exists():
+            return {"corpus": corpus, "label": CORPUS_LABEL[corpus],
+                    "item_type": ACTION, "available": False, "total": 0,
+                    "blocked_by": ("action_moments_v1 is not derived in this "
+                                   "recognition database")}
+        total = count_items(ACTION, corpus=NO_KILL_ACTIONS)
+        return {
+            "corpus": corpus, "label": CORPUS_LABEL[corpus],
+            "item_type": ACTION, "available": total > 0, "total": total,
+            # An action never had a highlight score and is not comparable to
+            # one. Saying so here stops the UI sorting it against frags.
+            "scored": False,
+            "scoring": ("actions carry no machine score. The queue order is "
+                        "editorial, and -1.0 on an item means NEVER SCORED, "
+                        "not scored low"),
+            "note": ("moments worth watching where the user killed nobody. A "
+                     "SEPARATE namespace: an ACTION never enters a frag "
+                     "queue and never moves the USER_FRAGS denominator"),
+            # What the queue filter costs, stated rather than hidden. A
+            # reviewer who wants the excluded majority should be told it
+            # exists and why it is held back, not left to infer a small
+            # corpus.
+            "queue_policy": {
+                "offered": total,
+                "no_user_kill_in_window": _action_population(),
+                "filter": ("activity_label = RECORDER_DOMINANT, i.e. the "
+                           "recorder fired most of the shots observed in the "
+                           "window. That is ACTIVITY, never causation -- it "
+                           "decides what is worth a reviewer's time and is "
+                           "never presented as attribution"),
+                "also_excluded": "warmup rounds, exactly as for frags",
+            },
+        }
+
     return {"corpus": corpus, "available": False, "total": 0,
             "blocked_by": "unknown corpus"}
 
@@ -1708,6 +1748,18 @@ def _action_table_exists() -> bool:
         return bool(c.execute(
             "SELECT 1 FROM sqlite_master WHERE type='table' AND "
             "name='action_moments_v1'").fetchone())
+
+
+def _action_population() -> int:
+    """Every no-user-kill action moment in the table, before queue policy.
+
+    The difference between this and the offered count is editorial, not
+    evidential: those moments are still game truth and still reachable by id.
+    """
+    with _rec() as c:
+        return int(c.execute(
+            "SELECT COUNT(*) FROM action_moments_v1 "
+            "WHERE user_kill_in_window = 0").fetchone()[0])
 
 
 def _action_where(corpus: str | None) -> tuple[str, list[Any]]:

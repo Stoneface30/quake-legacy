@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import math
+import struct as _struct
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any, Iterable, Sequence
@@ -397,6 +398,188 @@ class PresentationEvaluator:
 
 
 
+# -- ANIMATION_PHASE: frame, oldFrame, backlerp ----------------------------
+#
+# CG_RunLerpFrame / CG_SetAnimFrame / CG_SetLerpFrameAnimation, reproduced
+# faithfully -- and STATEFULLY, because the engine's is.
+#
+# The tempting closed form `frame = time / frameLerp` is wrong, and the
+# oracle is what proved it. The engine advances `frameTime` by exactly ONE
+# frameLerp per rendered frame, from the PREVIOUS frameTime, and only then
+# clamps it up to `time` if it has fallen behind. Two consequences the
+# closed form cannot express:
+#
+#   * an animation advances at most one frame per render call, so a render
+#     schedule coarser than the animation's own frame rate plays it SLOWER,
+#     it does not skip frames;
+#   * `backlerp` measures the real interval between the two frame times, not
+#     the fractional part of an index.
+#
+# `animationTime` is also offset by the animation's `initialLerp` at the
+# moment of the switch, so where an animation starts depends on when the
+# switch happened, not on any absolute clock.
+
+ANIM_TOGGLEBIT = 128             # bg_public.h
+MAX_TOTALANIMATIONS = 37         # bg_public.h, last value of animNumber_t
+
+
+@dataclass(frozen=True)
+class Animation:
+    """animation_t, as CG_ParseAnimationFile fills it from animation.cfg."""
+
+    first_frame: int
+    num_frames: int
+    loop_frames: int
+    frame_lerp: int
+    initial_lerp: int
+    reversed_: bool = False
+    flipflop: bool = False
+
+
+def _f32(x: float) -> float:
+    """Round to single precision, which is what the engine computes in."""
+    return _struct.unpack("f", _struct.pack("f", x))[0]
+
+
+def _ctrunc(n: int, d: int) -> int:
+    """C integer division: truncates toward zero, not toward -inf.
+
+    Right after an animation switch the numerator really is negative
+    (frameTime can land before animationTime), so Python's floor division
+    would put the actor a frame behind the engine.
+    """
+    q = abs(n) // abs(d)
+    return -q if (n < 0) != (d < 0) else q
+
+
+class _LerpFrame:
+    """lerpFrame_t, the animation half. Persistent, per body part."""
+
+    __slots__ = ("animation", "animation_number", "animation_time",
+                 "frame_time", "old_frame_time", "frame", "old_frame",
+                 "backlerp")
+
+    def __init__(self):
+        self.animation = None
+        self.animation_number = 0
+        self.animation_time = 0
+        self.frame_time = 0
+        self.old_frame_time = 0
+        self.frame = 0
+        self.old_frame = 0
+        self.backlerp = 0.0
+
+    def copy(self):
+        o = _LerpFrame()
+        for f in self.__slots__:
+            setattr(o, f, getattr(self, f))
+        return o
+
+
+def _set_lerp_frame_animation(anims, lf, new_animation):
+    """CG_SetLerpFrameAnimation."""
+    lf.animation_number = new_animation
+    n = new_animation & ~ANIM_TOGGLEBIT
+    if n < 0 or n >= MAX_TOTALANIMATIONS:
+        raise ValueError("Bad animation number: %i" % n)
+    anim = anims[n]
+    lf.animation = anim
+    lf.animation_time = lf.frame_time + anim.initial_lerp
+
+
+def _set_anim_frame(lf, time_ms, speed_scale):
+    """CG_SetAnimFrame."""
+    anim = lf.animation
+    if not anim.frame_lerp:
+        return
+
+    if time_ms < lf.animation_time:
+        lf.frame_time = lf.animation_time          # initial lerp
+    else:
+        lf.frame_time = lf.old_frame_time + anim.frame_lerp
+
+    f = _ctrunc(lf.frame_time - lf.animation_time, anim.frame_lerp)
+    # `f *= speedScale` in C: speedScale is a float32, but the PRODUCT is
+    # evaluated in higher precision and truncated straight to int (32-bit
+    # gcc, FLT_EVAL_METHOD 2). At speedScale 1.3 that is the difference
+    # between 12.99999952 -> frame 2 and a float32-rounded 13.0 -> frame 3.
+    # The oracle caught both halves of this.
+    f = int(f * _f32(speed_scale))
+
+    num_frames = anim.num_frames
+    if anim.flipflop:
+        num_frames *= 2
+    if f >= num_frames:
+        f -= num_frames
+        if anim.loop_frames:
+            f %= anim.loop_frames
+            f += anim.num_frames - anim.loop_frames
+        else:
+            f = num_frames - 1
+            # stuck at the end, so it can transition away immediately
+            lf.frame_time = time_ms
+
+    if anim.reversed_:
+        lf.frame = anim.first_frame + anim.num_frames - 1 - f
+    elif anim.flipflop and f >= anim.num_frames:
+        lf.frame = anim.first_frame + anim.num_frames - 1 - (f % anim.num_frames)
+    else:
+        lf.frame = anim.first_frame + f
+
+
+def run_lerp_frame(anims, lf, new_animation, speed_scale, time_ms):
+    """CG_RunLerpFrame. Mutates `lf` in place, exactly as the engine does."""
+    if new_animation != lf.animation_number or lf.animation is None:
+        _set_lerp_frame_animation(anims, lf, new_animation)
+
+    if time_ms >= lf.frame_time:
+        lf.old_frame = lf.frame
+        lf.old_frame_time = lf.frame_time
+        if not lf.animation.frame_lerp:
+            return
+        _set_anim_frame(lf, time_ms, speed_scale)
+        if time_ms > lf.frame_time:
+            lf.frame_time = time_ms
+
+    if lf.frame_time > time_ms + 200:
+        lf.frame_time = time_ms
+    if lf.old_frame_time > time_ms:
+        lf.old_frame_time = time_ms
+
+    if lf.frame_time == lf.old_frame_time:
+        lf.backlerp = 0.0
+    else:
+        lf.backlerp = 1.0 - float(time_ms - lf.old_frame_time) / (
+            lf.frame_time - lf.old_frame_time)
+
+
+@dataclass(frozen=True)
+class AnimationSet:
+    """Everything one player model's animation.cfg declares.
+
+    Read out of the pak by the renderer host (`--dump-model`), because only it
+    can open a pk3. What the numbers MEAN is decided here, not there.
+    `fixed_legs` / `fixed_torso` live in this file too -- they are not
+    configstring fields, and a model that declares them is posed differently
+    by CG_PlayerAngles.
+    """
+
+    animations: tuple[Animation, ...]
+    fixed_legs: bool = False
+    fixed_torso: bool = False
+
+    def __getitem__(self, i):
+        return self.animations[i]
+
+
+def clear_lerp_frame(anims, lf, animation_number, time_ms):
+    """CG_ClearLerpFrame."""
+    lf.frame_time = lf.old_frame_time = time_ms
+    _set_lerp_frame_animation(anims, lf, animation_number)
+    lf.old_frame = lf.frame = lf.animation.first_frame
+
+
+
 # ── the rest of CG_PlayerAngles ────────────────────────────────────────────
 #
 # The swing is only half of it. After swinging, the engine leans the legs by
@@ -521,9 +704,20 @@ class RenderActor:
     alive: bool = True
     # How long each part has been in ITS animation. Legs and torso run
     # independent clocks in the original client, so sharing one made a
-    # torso change restart the legs mid-stride.
+    # torso change restart the legs mid-stride. Kept because it is the
+    # honest description of the performance; it is NOT what gets drawn.
     legs_anim_ms: int = 0
     torso_anim_ms: int = 0
+    # WHAT GETS DRAWN: the MD3 frame pair and the blend between them, from
+    # the engine's own stateful lerp-frame rule (run_lerp_frame, proved
+    # against oracle_anim.exe). Zero here means the caller supplied no
+    # animation table, and the renderer draws frame 0 rather than guessing.
+    legs_frame: int = 0
+    legs_old_frame: int = 0
+    legs_backlerp: float = 0.0
+    torso_frame: int = 0
+    torso_old_frame: int = 0
+    torso_backlerp: float = 0.0
     # angles2[YAW] 0-7: how far the legs are turned off the view.
     move_dir: int = 0
     # PRESENTATION angles, produced by the swing evaluator. These are what the
@@ -616,6 +810,7 @@ def from_frame_truth(truth, *, cast: dict[str, Any],
                      indices: Iterable[int] | None = None,
                      times_ms: Sequence[int] | None = None,
                      intent: str = POV_FAITHFUL,
+                     model_anims: dict[str, "AnimationSet"] | None = None,
                      demo_hash: str | None = None) -> list[RenderFrame]:
     """Project FrameTruth into RenderFrames.
 
@@ -666,6 +861,15 @@ def from_frame_truth(truth, *, cast: dict[str, Any],
     # actor_id -> {'legs': (anim, toggle, started_ms), 'torso': ...}
     anim_since: dict[str, dict[str, tuple[int, bool, int]]] = {}
 
+    # One persistent lerp frame per actor per body part. The engine's rule is
+    # stateful -- frameTime advances from the PREVIOUS frameTime, once per
+    # render call -- so these are advanced strictly forward, in output order,
+    # over the OUTPUT schedule. That is the render clock the animation is
+    # then a faithful reproduction under; it is not a claim about the frame
+    # rate of whatever client originally recorded the demo.
+    lerp: dict[str, dict[str, _LerpFrame]] = {}
+    model_anims = model_anims or {}
+
     for out_index, (i, f, out_t) in enumerate(source):
         if wanted is not None and i not in wanted:
             continue
@@ -714,6 +918,7 @@ def from_frame_truth(truth, *, cast: dict[str, Any],
             _ev = _evaluate_actor(truth, actor_id, out_t, intent)
             _apos, _ayaw = (_ev[0], _ev[1]) if _ev else (a.position, a.yaw)
             _sw = swing.state_at(actor_id, out_t)
+            _fixed = model_anims.get(getattr(profile, "model", str(profile)))
             _pain = _pain_state.get(actor_id, (-100000, 0))
             _la, _ta, _ha = player_angles(
                 _sw, view_yaw=_ayaw, view_pitch=float(a.pitch),
@@ -721,7 +926,38 @@ def from_frame_truth(truth, *, cast: dict[str, Any],
                 move_dir=a.move_dir,
                 velocity=tuple(float(v) for v in a.velocity),
                 e_flags=(0 if a.alive else EF_DEAD),
-                now_ms=out_t, pain_time=_pain[0], pain_direction=_pain[1])
+                now_ms=out_t, pain_time=_pain[0], pain_direction=_pain[1],
+                # From the MODEL's animation.cfg, via the host. False when no
+                # table was supplied, which is what every render did before
+                # this was wired -- correct for models that declare neither,
+                # wrong for any that do.
+                fixed_legs=bool(_fixed and _fixed.fixed_legs),
+                fixed_torso=bool(_fixed and _fixed.fixed_torso))
+            # the MD3 frames, if the caller told us what this model declares
+            _mdl = getattr(profile, "model", str(profile))
+            _set = model_anims.get(_mdl)
+            _lf = lerp.setdefault(actor_id, {"legs": _LerpFrame(),
+                                             "torso": _LerpFrame()})
+            _frames = {}
+            for _part, _num, _tog in (("legs", a.legs_anim, a.legs_toggle),
+                                      ("torso", a.torso_anim, a.torso_toggle)):
+                if _set is None:
+                    _frames[_part] = (0, 0, 0.0)
+                    continue
+                # The toggle bit is how the engine restarts an animation whose
+                # NUMBER did not change -- a repeated gesture, a second shot.
+                _n = int(_num) | (ANIM_TOGGLEBIT if _tog else 0)
+                if _lf[_part].animation is None:
+                    # First sight of this body. The engine calls
+                    # CG_ClearLerpFrame here, which seeds oldFrame AND frame
+                    # to the animation's first frame. Starting from a zeroed
+                    # lerp frame instead leaves oldFrame at 0 -- frame 0 of
+                    # the model, an unrelated pose -- and the first render
+                    # blends the actor out of it.
+                    clear_lerp_frame(_set.animations, _lf[_part], _n, out_t)
+                run_lerp_frame(_set.animations, _lf[_part], _n, 1.0, out_t)
+                _frames[_part] = (_lf[_part].frame, _lf[_part].old_frame,
+                                  _lf[_part].backlerp)
             actors.append(RenderActor(
                 actor_id=actor_id, client=a.client, team=a.team,
                 model=getattr(profile, "model", str(profile)),
@@ -736,7 +972,13 @@ def from_frame_truth(truth, *, cast: dict[str, Any],
                 weapon_model=(weapon_assets(int(a.weapon)).get("hand") or "")
                               if str(a.weapon).lstrip('-').isdigit() else "",
                 legs_anim_ms=out_t - clocks["legs"][2],
-                torso_anim_ms=out_t - clocks["torso"][2]))
+                torso_anim_ms=out_t - clocks["torso"][2],
+                legs_frame=_frames["legs"][0],
+                legs_old_frame=_frames["legs"][1],
+                legs_backlerp=_frames["legs"][2],
+                torso_frame=_frames["torso"][0],
+                torso_old_frame=_frames["torso"][1],
+                torso_backlerp=_frames["torso"][2]))
 
         # A missile has a continuous trajectory, so it is evaluated at the
         # OUTPUT time rather than snapped to the source sample -- otherwise it
@@ -797,11 +1039,16 @@ def save_shot_script(frames: Sequence[RenderFrame], path: Path,
         player <model> <skin>                     # declared once, in order
         frame <idx> <serverTimeMs> <cx cy cz> <pitch yaw roll> <fov> <out>
         model <md3 path>                          # declared once, in order
-        actor <playerIdx> <x y z> <legsAnim> <torsoAnim> <legsMs> <torsoMs>
+        actor <playerIdx> <x y z> <legsAnim> <torsoAnim>
+              <legsFrame legsOldFrame legsBacklerp>
+              <torsoFrame torsoOldFrame torsoBacklerp>
               <legsPitch legsYaw legsRoll> <torsoPitch torsoYaw torsoRoll>
               <headPitch headYaw headRoll> <weaponModelIdx|-1>
               -- torso and head angles are RELATIVE to their parent, as the
               -- engine hands them to AnglesToAxis
+              -- the frame pair and backlerp are already evaluated: the host
+              -- runs no animation maths, because the closed form it used to
+              -- run was disproved by the source oracle
         projectile <modelIdx> <x y z> <pitch yaw roll>
 
     The host treats an unknown keyword as fatal, so this writer and that
@@ -842,12 +1089,14 @@ def save_shot_script(frames: Sequence[RenderFrame], path: Path,
             c.angles[0], c.angles[1], c.angles[2], c.fov, f.out))
         for a in f.actors:
             out.append(
-                "actor %d %.3f %.3f %.3f %d %d %d %d "
+                "actor %d %.3f %.3f %.3f %d %d "
+                "%d %d %.6f %d %d %.6f "
                 "%.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %d"
                 % (roster.index((a.model, a.skin)),
                    a.origin[0], a.origin[1], a.origin[2],
                    a.legs_anim, a.torso_anim,
-                   a.legs_anim_ms, a.torso_anim_ms,
+                   a.legs_frame, a.legs_old_frame, a.legs_backlerp,
+                   a.torso_frame, a.torso_old_frame, a.torso_backlerp,
                    a.legs_angles[0], a.legs_angles[1], a.legs_angles[2],
                    a.torso_angles[0], a.torso_angles[1], a.torso_angles[2],
                    a.head_angles[0], a.head_angles[1], a.head_angles[2],
