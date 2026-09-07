@@ -478,8 +478,12 @@ _PUBLIC_EXPORT = {
 
 FAST_REVIEW_LAUNCH_SETS = {
     **REVIEW_LAUNCH_SETS,
-    "r_customwidth": 1280,
-    "r_customheight": 720,
+    # Review proxies render on software GL (softpipe), which is pixel-bound:
+    # cost scales with area, so 640x360 is ~4x cheaper than 720p and still
+    # perfectly legible for judging what happened in a frag. Final renders do
+    # not use this profile -- P1-J's quality ceiling is untouched.
+    "r_customwidth": 640,
+    "r_customheight": 360,
     # MUST be 0. Wolfcam captures through a multisampled FBO, and this driver
     # rejects it outright:
     #     anti-alias samples: 2

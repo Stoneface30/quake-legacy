@@ -133,3 +133,43 @@ Stated plainly so nothing is discovered later:
 - `review_db_write_safe` exists and has no caller. The reviewer owns the
   verdict-write path and should call it there.
 - Seven capabilities in the proof registry are waiting on a human verdict.
+
+
+---
+
+# Addendum, 2026-09-07 — what is NOT yet in the reviewer's branch
+
+`review-headless-integration` merged this branch at `2fc1947e`. Three commits
+landed here afterwards and the reviewer's render path does not have them.
+`git merge-tree` reports **zero conflicts**, so this is a clean merge whenever
+that worktree is free (it had uncommitted work in `review_proxy.py` and
+`master_profile.py` when this was written, so nothing was pushed into it).
+
+| Missing there | Why it matters to the reviewer |
+|---|---|
+| `engine/pantheon/assets.py` + the capture default | Their `review_proxy` calls `offscreen.capture()`, which now installs the asset set before filming. Without it, proxies render against whatever pk3s happen to be in the gamedir. |
+| the `capture_guard` rewrite | Their permit still defers only to four named Quake Live executables. Any other game is invisible to it. |
+| `engine/pantheon/capture_lock.py` | Their proxy takes the capture lock; the offscreen backend did not, so the two clobbered each other's `capture.cfg`. Now both use it. |
+
+## The collision that proved the lock was needed
+
+A headless A/B launched while the review proxy held the staging install. The
+`capture.cfg` on disk turned out to be a proxy capture with a different seek,
+the headless engine exited rc=1 in two seconds, and the console log recorded
+the proxy's run. Both paths now take `output/demo_v2/_capture.lock` with the
+same PID convention. **When both branches are merged, collapse
+`review_proxy._try_acquire_lock` into `capture_lock`** -- two implementations
+of one lock is one more than there should be.
+
+## Assets
+
+`STOCK` is the control; `UHD` is five packs of upscaled art and is the default
+for every capture. Measured directly against the stock pak, without a
+renderer: **600 of 600 sampled replacements are larger**, 587 of them at 4x
+linear -- 128x128 becomes 512x512, 256x256 becomes 1024x1024. All 4,895
+replace a stock file at the same path AND extension, so load order alone
+decides it.
+
+Sound is not covered. The packs hold zero sound entries and the ComfyUI
+regeneration never included audio; the only audio in the install is the 1,137
+stock entries in `pak00.pk3`.

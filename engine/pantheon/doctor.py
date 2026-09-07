@@ -30,6 +30,7 @@ reason; only a check that ran and gave the wrong answer is FAIL.
     TRACE_CACHE     what is kept, why, and whether it is inside its budget
     RECIPES         the film grammar, and what each one is still missing
     ENGINE_INVENTORY  every command and cvar, graded, with nothing unclassified
+    ASSETS          which art the picture is made of, and whether it is there
     VISUAL_PROOF    what a person judged, and what is waiting on one
     IDEAS           the director's list, and how much of it has a route
     PROFILES        the versioned project defaults
@@ -122,6 +123,7 @@ class Doctor:
             self.run("TEMPLATES", self._templates)
             self.run("TRACE_CACHE", self._trace_cache)
             self.run("ENGINE_INVENTORY", self._engine_inventory)
+            self.run("ASSETS", self._assets)
             self.run("RECIPES", self._recipes)
             self.run("VISUAL_PROOF", self._visual_proof_registry)
             self.run("IDEAS", self._ideas)
@@ -361,6 +363,29 @@ class Doctor:
         return OK, (f"{rep['traces']} traces, {rep['bytes'] / 1e6:.1f} MB of "
                     f"{rep['budget_bytes'] / 1e6:.0f} MB ({share})"), rep
 
+    def _assets(self):
+        """The regenerated art is only an upgrade if it is in the gamedir.
+
+        4,895 upscaled files sat in a second staging install for a week while
+        every render used the first one, so this check exists to make that
+        state loud rather than invisible.
+        """
+        from engine.pantheon import assets as A
+        from engine.pantheon import offscreen as O
+        rep = A.report()
+        missing = [n for n, v in rep["available"].items() if not v["present"]]
+        if missing:
+            return FAIL, (f"the {O.DEFAULT_ASSET_SET} packs are not on this "
+                          f"machine: {missing[:3]}"), rep
+        cov = A.coverage(O.DEFAULT_ASSET_SET)
+        if cov.get("same_path_other_extension"):
+            return FAIL, (f"{cov['same_path_other_extension']} files would "
+                          f"override nothing: wrong extension for the path"), rep
+        active = rep["active_set"]
+        note = "" if active == O.DEFAULT_ASSET_SET else             f"; gamedir currently holds {active}, and every capture installs "            f"{O.DEFAULT_ASSET_SET} before it films"
+        return OK, (f"{cov['files']:,} upscaled files, all replacing a stock "
+                    f"path at the same extension{note}"), rep
+
     def _engine_inventory(self):
         """Every raw engine name is graded, and nothing is merely absent.
 
@@ -522,8 +547,8 @@ class Doctor:
             return FAIL, r.detail, {}
         if r.visible_windows:
             return FAIL, f"a window reached the operator's desktop: {r.visible_windows}", {}
-        if r.foreground_before["hwnd"] != r.foreground_after["hwnd"]:
-            return FAIL, "the foreground moved while a hidden-desktop process ran", {}
+        if r.stole_focus:
+            return FAIL, "a hidden-desktop process took the foreground", {}
         return OK, ("hidden desktop isolates a GUI process: no window, no focus "
                     "change (probed with a harmless process, not the game)"), r.as_dict()
 

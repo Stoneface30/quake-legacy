@@ -69,6 +69,26 @@ def watched_games() -> tuple[str, ...]:
     return tuple(p.strip().lower() for p in raw.split(",") if p.strip())
 
 
+# A MAXIMISED CHAT WINDOW IS NOT A MATCH.
+#
+# The shape signal alone is too eager: on 2026-09-07 it deferred every render
+# because Discord was full-screen. These are the things that routinely fill a
+# monitor and are not somebody playing. The list is a convenience, not the
+# safety net -- a grabbed pointer is, and that is checked separately and
+# unconditionally.
+NOT_A_GAME = {
+    "explorer.exe", "searchhost.exe", "dwm.exe", "shellexperiencehost.exe",
+    "wolfcamql.exe",                       # our own renderer
+    "discord.exe", "slack.exe", "teams.exe", "zoom.exe",
+    "chrome.exe", "firefox.exe", "msedge.exe", "brave.exe", "opera.exe",
+    "code.exe", "devenv.exe", "pycharm64.exe", "idea64.exe",
+    "windowsterminal.exe", "powershell.exe", "pwsh.exe", "cmd.exe",
+    "claude.exe", "notepad.exe", "notepad++.exe",
+    "vlc.exe", "mpv.exe", "mpc-hc64.exe", "spotify.exe",
+    "obs64.exe", "snippingtool.exe", "photos.exe",
+}
+
+
 def foreground_is_fullscreen() -> bool:
     """Is a full-screen application in front of the operator right now?
 
@@ -77,9 +97,10 @@ def foreground_is_fullscreen() -> bool:
     granted every capture of the evening. A list can only ever know the games
     someone remembered to add.
 
-    So the shape of the thing is checked instead. A window that covers its
-    whole monitor and belongs to somebody else is something not to interrupt,
-    whatever it is called.
+    So the shape of the thing is checked too -- a window covering its whole
+    monitor, belonging to a process that is not obviously not a game. That
+    exclusion matters: the first version of this deferred everything because
+    Discord was full-screen.
     """
     if sys.platform != "win32":
         return False
@@ -114,8 +135,7 @@ def foreground_is_fullscreen() -> bool:
             name = (psutil.Process(pid.value).name() or "").lower()
         except Exception:                                      # noqa: BLE001
             return True                                        # unreadable: defer
-        return name not in {"explorer.exe", "searchhost.exe", "dwm.exe",
-                            "shellexperiencehost.exe", "wolfcamql.exe"}
+        return name not in NOT_A_GAME
     except Exception:                                          # noqa: BLE001
         return True            # cannot tell: fail towards the operator
 
@@ -149,10 +169,22 @@ def game_is_running() -> bool:
     would rather delay a capture we could have run than steal the screen
     from a game we could not see.
 
-    Three signals, any of which is enough: a named process, a full-screen
-    foreground window, or a pointer some application has grabbed.
+    Two signals, either of which is enough: a pointer some application has
+    grabbed, or a named process.
+
+    FULL-SCREEN SHAPE IS NOT ONE OF THEM, and that is a correction. The first
+    version of this deferred on any window covering its monitor, which on
+    2026-09-07 meant Discord, and then qBittorrent, within ten minutes -- two
+    false alarms and no true one that the pointer had not already caught. An
+    exclusion list only moves the problem to the next app nobody enumerated.
+
+    A GRABBED POINTER NEEDS NO LIST. Overwatch was caught by it: the clip
+    rectangle was 1920x1080 on a 3000x1440 desktop. Only an application that
+    captures the mouse does that, and that is what being played looks like.
+    `foreground_is_fullscreen()` remains available and is reported, because it
+    is worth SEEING in a diagnosis; it just does not decide anything.
     """
-    if foreground_is_fullscreen() or pointer_is_grabbed():
+    if pointer_is_grabbed():
         return True
     names = watched_games()
     try:

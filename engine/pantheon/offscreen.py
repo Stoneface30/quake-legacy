@@ -367,11 +367,29 @@ class IsolationResult:
     foreground_before: dict = field(default_factory=dict)
     foreground_after: dict = field(default_factory=dict)
     detail: str = ""
+    probe_pid: int = 0
+
+    @property
+    def stole_focus(self) -> bool:
+        """Did the PROBE take the screen? Not: did the screen change.
+
+        The earlier reading demanded the foreground window be identical
+        before and after, and on 2026-09-07 it reported a failure because the
+        operator changed windows during the second and a half it ran. That is
+        the same false alarm OffscreenRun.stole_focus was built to avoid: an
+        operator switching app is not the render's doing.
+        """
+        pid = self.foreground_after.get("pid")
+        return bool(self.probe_pid) and pid == self.probe_pid
+
+    @property
+    def foreground_moved(self) -> bool:
+        """Reported for information; not a failure on its own."""
+        return self.foreground_before.get("hwnd") != self.foreground_after.get("hwnd")
 
     @property
     def isolated(self) -> bool:
-        return (self.ran and not self.visible_windows
-                and self.foreground_before.get("hwnd") == self.foreground_after.get("hwnd"))
+        return self.ran and not self.visible_windows and not self.stole_focus
 
     def as_dict(self) -> dict:
         return {"ran": self.ran, "isolated": self.isolated,
@@ -393,9 +411,11 @@ def probe_isolation(argv: Sequence[str] | None = None, *, dwell: float = 2.0
     """
     before = foreground()
     argv = list(argv or ISOLATION_PROBE_ARGV)
+    probe_pid = 0
     try:
         with HiddenDesktop() as _d:
             proc = spawn_on_desktop(argv)
+            probe_pid = proc.pid
             try:
                 time.sleep(dwell)                     # let it create its window
                 windows = visible_windows_of(proc.pid)
@@ -408,7 +428,7 @@ def probe_isolation(argv: Sequence[str] | None = None, *, dwell: float = 2.0
                                foreground_before=before.as_dict(),
                                foreground_after=before.as_dict())
     return IsolationResult(True, windows, before.as_dict(), after.as_dict(),
-                           f"probe: {' '.join(argv)}")
+                           f"probe: {' '.join(argv)}", probe_pid=probe_pid)
 
 
 # ── running the engine there ───────────────────────────────────────────────
@@ -606,10 +626,23 @@ CUE_PROFILE = {
 }
 
 
+# THE ASSET SET IS NOT A MANUAL STEP.
+#
+# assets.py existed for a session before it was wired here, and in that
+# session every render still filmed against whatever pk3s happened to be
+# sitting in the gamedir -- which is exactly the "assets exist and are never
+# in the picture" failure it was built to end. Every capture now asks for a
+# set and gets it, cheaply (a handful of hard links, a no-op if already
+# linked), instead of depending on someone having run the CLI first.
+DEFAULT_ASSET_SET = "UHD"
+
+
 def capture(safe_demo: str, windows: list[dict], *, staging: Path,
             profile_cvars: dict | None = None, timeout: float | None = None,
             purpose: str = "offscreen capture", profile: str | None = None,
             cues: list[dict] | None = None,
+            asset_set: str | None = DEFAULT_ASSET_SET,
+            lock_wait_s: float = 0.0,
             desktop: str | None = DESKTOP_NAME) -> dict:
     """One offscreen capture, through the project's own staging and cfg.
 
@@ -618,8 +651,41 @@ def capture(safe_demo: str, windows: list[dict], *, staging: Path,
     latched cvars on the command line, the 32 `+` group ceiling, the SDL
     video driver, the seek settle -- reaches this path automatically. The
     only difference from WOLFCAM_REFERENCE is WHERE the process lives.
+
+    `asset_set=None` skips the install (a caller doing its own asset
+    management); anything else is a name from `engine.pantheon.assets.SETS`,
+    installed before the launch so the result always says what the picture
+    was actually made of.
+
+    Raises `capture_lock.CaptureBusy` when another renderer holds the staging
+    install. `lock_wait_s` gives a batch a budget to wait its turn; the
+    default of 0 fails fast, which is what an interactive caller wants.
     """
     from creative_suite.engine import wolfcam_capture as wc
+    from engine.pantheon import capture_lock
+
+    # ONE ENGINE AT A TIME. The staging install has one capture.cfg and one
+    # videos directory; a second renderer does not queue behind us, it
+    # overwrites us. The review proxy has always taken this lock and this
+    # path never did, which is how a headless capture came to launch with a
+    # review proxy's cfg on disk and exit rc=1 in two seconds.
+    with capture_lock.held(purpose=purpose, wait_s=lock_wait_s):
+        return _capture_locked(
+            safe_demo, windows, staging=staging, profile_cvars=profile_cvars,
+            timeout=timeout, purpose=purpose, profile=profile, cues=cues,
+            asset_set=asset_set, desktop=desktop)
+
+
+def _capture_locked(safe_demo: str, windows: list[dict], *, staging: Path,
+                    profile_cvars: dict | None, timeout: float | None,
+                    purpose: str, profile: str | None, cues: list[dict] | None,
+                    asset_set: str | None, desktop: str | None) -> dict:
+    """The body of `capture`, with the staging install already held."""
+    from creative_suite.engine import wolfcam_capture as wc
+    asset_state = None
+    if asset_set is not None:
+        from engine.pantheon import assets as A
+        asset_state = A.install(asset_set, staging)
     videos = staging / "wolfcam-ql" / "videos"
     videos.mkdir(parents=True, exist_ok=True)
     for w in windows:
@@ -676,5 +742,6 @@ def capture(safe_demo: str, windows: list[dict], *, staging: Path,
     quiet = desktop is None or (not run.visible_windows and not run.stole_focus
                                 and not run.pointer_left_confined)
     return {"ok": bool(avis) and quiet, "desktop": desktop or "interactive",
+            "asset_set": asset_state["set"] if asset_state else None,
             "avis": avis, "missing": [k for k, v in made.items() if not v],
             **{k: v for k, v in run.as_dict().items() if k != "log_tail"}}
