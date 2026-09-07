@@ -1,0 +1,11 @@
+# Upstream GPL-2.0 source, extracted by bootstrap_source.sh from an archive
+# whose sha256 is recorded in SOURCE.sha256. Not vendored: reproducible.
+wolfcamql-11.3-src/
+# Build products and the Mesa staging (2.3 GB of DLLs and frame dumps).
+build/
+gl_software/bin/
+gl_software/_pkg/
+gl_software/out/
+*.o
+*.exe
+*.tga

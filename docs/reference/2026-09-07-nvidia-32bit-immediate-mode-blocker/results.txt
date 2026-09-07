@@ -1,0 +1,18 @@
+CALL         x86-gcc    x64-msvc   sw-GL-x86 
+----         -------    --------   --------- 
+none         SURVIVED   SURVIVED   SURVIVED  
+color4f      CRASHED    CRASHED    SURVIVED  
+color3f      CRASHED    CRASHED    SURVIVED  
+color4ub     CRASHED    CRASHED    -         
+color4fv     CRASHED    CRASHED    -         
+shademodel   SURVIVED   SURVIVED   -         
+depthfunc    SURVIVED   SURVIVED   -         
+enabletex    SURVIVED   SURVIVED   -         
+matrixmode   SURVIVED   SURVIVED   -         
+clientstate  SURVIVED   SURVIVED   -         
+texenv       SURVIVED   SURVIVED   -         
+clearcolor   SURVIVED   SURVIVED   SURVIVED  
+normal3f     CRASHED    CRASHED    SURVIVED  
+
+accelerated: NVIDIA GeForce RTX 5060 Ti / 4.6.0 NVIDIA 610.88
+software   : Microsoft Corporation / 1.1.0 (generic pixel format)

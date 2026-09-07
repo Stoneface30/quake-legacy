@@ -1,0 +1,23 @@
+=== binaries (sha256) ===
+1ca36ca292f79207ee82cd001c114bf7dec401ab64d3602b2a4535560ee6d95f *glchar.exe
+0c094d23db9075a67c9294dc2ac32bac327253426962dd0758409945a5cc5ec9 *glchar64.exe
+950463fa2cec0a67e4948942cd0cc087ef7a8b7c76aadf1ac488e5be65e6f53d *glabi32.exe
+98e583ea657dcae3c90aa300c58e15ad0ce737395d56feda49738497f21977fd *glabi64.exe
+243b53b3a6ab6a2b6c949119d668a40604de28f0646bdeb7fa1b3532ae2cb824 *glsw32.exe
+
+=== sources (sha256) ===
+360a0e87013dca0420a126e7badd7b4e0129ebac86d2189b1d4d07ca7b0fa702 *glchar.c
+522ebe2b276a860bf9f694716d45deb79f6e86820a8fcd62f5d6705bc9e6b4be *glabi.c
+4c9a44fd7cc5c7530146eb60ddbfca6fff77ac3fff356c30f5c3a5a63ce2fa96 *glmin.c
+4a357e73b3ed6a0f09fdb659b88f7a0860dcd7a1ff681e8021c92313c29bb084 *glmin2.c
+337822eaa3ee85c21ed0b06277b0f72256f0ddc6396132eb1e344d566bb494bd *glsw.c
+ebe5d5e54f043156e582a61094a7a7f004b155acf3cbedd0fab4f22dde4db413 *build_x64_msvc.bat
+
+=== toolchains ===
+i686-w64-mingw32
+gcc.exe (MinGW-W64 i686-msvcrt-posix-dwarf, built by Brecht Sanders, r3) 14.2.0
+MSVC: 19.44.35211 x64 (BuildTools 14.44.35207)
+
+=== driver ===
+NVIDIA GeForce RTX 5060 Ti / 4.6.0 NVIDIA 610.88
+-rwxr-xr-x 1 Stoneface 197609 26770152 2026-07-23 14:09 /c/WINDOWS/System32/DriverStore/FileRepository/nvmdi.inf_amd64_d9379a506a4c3691/nvoglv32.dll
