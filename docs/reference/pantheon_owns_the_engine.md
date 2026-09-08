@@ -81,3 +81,56 @@ Neither premise holds now. Nothing is being reimplemented -- the code is
 linked, not rewritten -- and the renderer is on the GPU. HL-4 should be
 rewritten to say what is actually true: **do not AUTHOR what the source
 already contains; link it, own it, then improve it.**
+
+
+---
+
+## Update: the seam is built
+
+`engine/pantheon_renderer/host/pantheon_cg_syscall.c`.
+
+WolfcamQL compiles cgame to a DLL and reaches it through a virtual machine.
+Every `trap_` call marshals its arguments into `syscall()`, which the client
+dispatches in `CL_CgameSystemCalls`. PANTHEON links cgame **statically**:
+there is no VM, no DLL and no address translation, so the `VMA()` macro that
+existed to translate VM addresses becomes a plain cast.
+
+`cg_syscalls.c` is kept **exactly as upstream wrote it**. This file supplies
+the one function it calls.
+
+    660  CG_*    symbols   (cgame itself)
+    134  trap_*  symbols   (upstream's wrappers, untouched)
+      1  syscall dispatcher (ours)
+
+One binary, 2.2 MB, and it still renders: 3,329 faces, 1280x720, on the GPU.
+
+### What is implemented, and what stops loudly
+
+Implemented by copying `cl_cgame.c` verbatim where the mapping is mechanical:
+console and time, cvars, command args, files, the whole collision model, and
+the renderer -- `LoadWorld`, `RegisterModel/Skin/Shader`, `ClearScene`,
+`AddRefEntityToScene`, `AddPolyToScene`, `AddLightToScene`, `RenderScene`,
+`SetColor`, `DrawStretchPic`, `ModelBounds`, `LerpTag`, `MarkFragments`,
+`RemapShader`. Three signatures had drifted from what cgame calls and were
+corrected against `cl_cgame.c` rather than guessed: `Com_RealTime`,
+`Q_SnapVector`, `RemapShader`.
+
+**Sound is counted, not silently dropped.** PANTHEON links no mixer -- a still
+frame has nothing to play and the mixer drags in the whole client -- so the
+eight sound syscalls increment `PANTHEON_CG_SoundCallCount()`. "cgame asked
+for sound N times" is a fact we can report; silence is not.
+
+**Everything else calls `Com_Error` with its own syscall number.** Returning 0
+from an unknown syscall is how an engine draws a frame quietly missing a third
+of its content, and this project has been bitten by silent no-ops repeatedly:
+a cvar accepted and never registered, a capture exiting rc=0 having written
+nothing. A missing syscall here stops loudly and names itself, so the next
+piece of work is never a guess.
+
+### Still not called
+
+`CG_Init` and `CG_DrawActiveFrame` are linked and now *callable*, but the host
+does not yet invoke them, and cgame is fed no gamestate and no snapshots.
+That is the next step, and it is the interesting one: `cg.snap` comes from
+**FrameTruth**, not from a demo player. Wolfcam PLAYS a recording; PANTHEON
+composes one.

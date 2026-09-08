@@ -45,6 +45,10 @@ $CC $CGFLAGS $INC -c "$SRC"/game/bg_*.c --output-dir "$OBJ" 2>/dev/null || \
 # ui_shared.c supplies Menu_*/Display_*/PC_*_Parse, which cgame's HUD uses.
 $CC $CGFLAGS -DCGAME $INC -c "$SRC/ui/ui_shared.c" -o "$OBJ/ui_shared.o"
 
+# THE SEAM. cg_syscalls.c is kept verbatim and calls syscall(); this supplies
+# it, dispatching straight into the renderer with no VM in between.
+$CC $CGFLAGS $INC -c "$HERE/host/pantheon_cg_syscall.c" -o "$OBJ/pantheon_cg_syscall.o"
+
 $CC -m32 -o "$OUT/pantheon_cgame.exe" "$OUT"/*.o "$OBJ"/*.o \
     -lopengl32 -lgdi32 -lwinmm -lws2_32 -lole32 -luser32 -ladvapi32 \
     -lshell32 -lm
