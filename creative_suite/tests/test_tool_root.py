@@ -52,9 +52,12 @@ KNOWN_TOOL_DEBT = frozenset({
     "creative_suite/tests/test_effect_templates.py",
     "creative_suite/tests/test_forensic_replay.py",
     "creative_suite/tests/test_prologue_proof.py",
-    # UNKNOWN (2) -- not exercised by the suite today
+    # UNKNOWN (1) -- not exercised by the suite today
     "creative_suite/prologue/build_proof.py",
-    "engine/pantheon/voice.py",
+    # engine/pantheon/voice.py left this list on 2026-09-08: it now resolves
+    # ffmpeg through store.PROJECT_ROOT rather than counting parents from its
+    # own file. The list is asserted not to rot precisely so that a fix shows
+    # up as a number going down instead of as nothing at all.
 })
 
 
