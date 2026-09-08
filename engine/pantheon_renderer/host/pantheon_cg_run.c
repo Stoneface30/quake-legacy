@@ -117,6 +117,11 @@ void PANTHEON_CG_ComposeSnapshot(snapshot_t *snap, int serverTime, int number,
     snap->ps.stats[STAT_HEALTH]     = 100;
     snap->ps.stats[STAT_MAX_HEALTH] = 100;
     snap->ps.persistant[PERS_TEAM]  = TEAM_SPECTATOR;
+    /* The camera IS the eye. cgame adds ps.viewheight to ps.origin to place
+     * the view, which is right for a body walking around and wrong for a
+     * ShotSpec that already decided where the lens goes. Zeroed, so the
+     * camera lands where PANTHEON put it and not 26 units above it. */
+    snap->ps.viewheight  = 0;
     snap->ps.weapon      = WP_NONE;
     snap->ps.weaponstate = WEAPON_READY;
     VectorCopy(origin, snap->ps.origin);
@@ -224,4 +229,77 @@ void PANTHEON_CG_Report(void)
     if (s)
         Com_Printf("PANTHEON: cgame asked for sound %i times "
                    "(no mixer is linked)\n", s);
+}
+
+
+/*
+ * A PLAYER, AS cgame UNDERSTANDS ONE.
+ *
+ * PANTHEON's shot script carries a fully evaluated pose: frame, oldframe and
+ * backlerp per body part, computed headless against the engine's own stateful
+ * lerp rule. cgame is NOT given those. It is given the ANIMATION NUMBERS the
+ * demo recorded -- legsAnim and torsoAnim -- and left to run its own
+ * interpolation, its own torso swing, its own footsteps and its own muzzle
+ * flashes.
+ *
+ * That is deliberate. The headless evaluation exists to CHECK the engine, not
+ * to replace it: it is what proved the closed-form animation model wrong. Once
+ * cgame is the renderer, asking PANTHEON to pre-chew the pose would mean
+ * maintaining a second animation system whose only job is to agree with the
+ * first. The comparison stays available; the pipeline does not depend on it.
+ *
+ * The toggle bit on the animation number is what tells cgame an animation was
+ * RESTARTED rather than continued -- the same number twice in a row means
+ * "still playing", so a repeated jump would not replay without it. It comes
+ * from the recording, so it is passed through, not synthesised.
+ */
+void PANTHEON_CG_AddPlayer(snapshot_t *snap, int clientNum,
+                           const vec3_t origin, const vec3_t angles,
+                           int legsAnim, int torsoAnim, int weapon)
+{
+    entityState_t *es;
+
+    if (snap->numEntities >= MAX_ENTITIES_IN_SNAPSHOT) return;
+    es = &snap->entities[snap->numEntities++];
+    memset(es, 0, sizeof(*es));
+    es->number    = clientNum;
+    es->eType     = ET_PLAYER;
+    es->clientNum = clientNum;
+    es->weapon    = weapon;
+    es->legsAnim  = legsAnim;
+    es->torsoAnim = torsoAnim;
+    es->groundEntityNum = ENTITYNUM_WORLD;
+    es->pos.trType = TR_INTERPOLATE;
+    VectorCopy(origin, es->pos.trBase);
+    es->apos.trType = TR_INTERPOLATE;
+    VectorCopy(angles, es->apos.trBase);
+}
+
+/*
+ * Publish a player's identity into the gamestate.
+ *
+ * Without a CS_PLAYERS entry cgame's clientinfo for that slot is not
+ * infoValid, and an ET_PLAYER entity naming it is skipped in silence -- the
+ * frame renders, correctly lit and correctly framed, with nobody in it.
+ */
+void PANTHEON_CG_AddPlayerInfo(gameState_t *gs, int slot,
+                               const char *model, const char *skin)
+{
+    char info[MAX_INFO_STRING];
+    char ms[MAX_QPATH];
+    int  len;
+
+    Com_sprintf(ms, sizeof(ms), "%s/%s", model, skin && *skin ? skin : "default");
+    info[0] = '\0';
+    Info_SetValueForKey(info, "n", "PANTHEON");
+    Info_SetValueForKey(info, "t", "0");
+    Info_SetValueForKey(info, "model", ms);
+    Info_SetValueForKey(info, "hmodel", ms);
+    Info_SetValueForKey(info, "c1", "4");
+    Info_SetValueForKey(info, "c2", "5");
+    Info_SetValueForKey(info, "hc", "100");
+    len = strlen(info) + 1;
+    gs->stringOffsets[CS_PLAYERS + slot] = gs->dataCount;
+    memcpy(gs->stringData + gs->dataCount, info, len);
+    gs->dataCount += len;
 }

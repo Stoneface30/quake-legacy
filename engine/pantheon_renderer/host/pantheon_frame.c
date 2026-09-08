@@ -24,6 +24,7 @@
  */
 #include <windows.h>
 #include <GL/gl.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -54,6 +55,11 @@ void PANTHEON_CG_AddRocket(snapshot_t *snap, int number, const vec3_t origin,
                            const vec3_t velocity, int trTime);
 void PANTHEON_CG_AddExplosion(snapshot_t *snap, int number,
                               const vec3_t origin, const vec3_t normal);
+void PANTHEON_CG_AddPlayer(snapshot_t *snap, int clientNum,
+                           const vec3_t origin, const vec3_t angles,
+                           int legsAnim, int torsoAnim, int weapon);
+void PANTHEON_CG_AddPlayerInfo(gameState_t *gs, int slot,
+                               const char *model, const char *skin);
 static int s_cgame;
 /* A rocket and an explosion the host can put in the snapshot. Not a feature of
  * the renderer -- a PROOF that a composed snapshot reaches every effect cgame
@@ -129,6 +135,57 @@ static qboolean   s_noWorld;
 static const char *s_dumpModel;   /* --dump-model: asset query, no render */
 
 /* ── TGA out ────────────────────────────────────────────────────────────── */
+/*
+ * THE BRIDGE: a shot frame IS a snapshot.
+ *
+ * A RenderFrame and a snapshot_t are the same statement in two vocabularies --
+ * a time, a camera, and what existed. Composing one from the other is all that
+ * stands between "PANTHEON knows what happened" and "cgame draws it".
+ *
+ * `n` is 1-based so that it matches the snapshot number cgame will ask for.
+ */
+static void PANTHEON_ShotSnapshot(int n)
+{
+    shotFrame_t *sf = &s_shot.frames[n - 1];
+    snapshot_t   snap;
+    int          a;
+
+    PANTHEON_CG_ComposeSnapshot(&snap, sf->server_time_ms, n,
+                                sf->cam_origin, sf->cam_angles);
+
+    for (a = 0; a < sf->numActors; a++) {
+        vec3_t ang;
+        /* cgame turns the body from ONE angle set: it derives the legs and
+         * the torso itself, from the movement direction and the aim, with its
+         * own swing rules. Handing it three pre-composed sets would be handing
+         * it the answer to a question it is about to ask, and would mean
+         * maintaining a second animation system whose only job is to agree
+         * with the first. The aim is the truth; the rest is cgame's. */
+        ang[PITCH] = 0;
+        ang[YAW]   = sf->actors[a].torsoAngles[YAW];
+        ang[ROLL]  = 0;
+        PANTHEON_CG_AddPlayer(&snap, sf->actors[a].player + 1,
+                              sf->actors[a].origin, ang,
+                              sf->actors[a].legs, sf->actors[a].torso,
+                              WP_ROCKET_LAUNCHER);
+    }
+
+    for (a = 0; a < sf->numMissiles; a++) {
+        vec3_t vel;
+        /* A recorded projectile has a position per frame, not a velocity. The
+         * direction it FACES is what the trace measured, and 900 u/s is the
+         * rocket's own speed -- so the trail is laid along the path the rocket
+         * actually flew, rather than differentiated from two samples that were
+         * never meant to be differentiated. */
+        AngleVectors(sf->missiles[a].angles, vel, NULL, NULL);
+        VectorScale(vel, 900.0f, vel);
+        PANTHEON_CG_AddRocket(&snap, 32 + a, sf->missiles[a].origin, vel,
+                              sf->server_time_ms);
+    }
+
+    PANTHEON_CG_PushSnapshot(n, &snap);
+}
+
 static void WriteTGA(const char *path, const byte *rgb, int w, int h)
 {
     FILE *f = fopen(path, "wb");
@@ -161,6 +218,26 @@ static void WriteTGA(const char *path, const byte *rgb, int w, int h)
  * error rather than a skipped line: a silently ignored actor is a frame that
  * renders happily while being wrong about history.
  */
+/*
+ * ParseShot runs BEFORE Com_Init, because the shot declares the resolution the
+ * window has to be created at. Com_Error at that point walks into Cvar_Set,
+ * CopyString and Z_TagMalloc with no zone allocator behind them and takes the
+ * process down with a segfault -- so a shot script one column out of date is
+ * indistinguishable from a crash in the renderer, which is exactly how an
+ * afternoon gets spent. Parse failures report themselves and exit instead.
+ */
+static void ShotError(const char *fmt, ...)
+{
+    char    msg[1024];
+    va_list ap;
+
+    va_start(ap, fmt);
+    vsnprintf(msg, sizeof(msg), fmt, ap);
+    va_end(ap);
+    fprintf(stderr, "PANTHEON shot script: %s\n", msg);
+    exit(2);
+}
+
 static void ParseShot(const char *path)
 {
     FILE *f = fopen(path, "r");
@@ -168,7 +245,7 @@ static void ParseShot(const char *path)
     shotFrame_t *cur = NULL;
     int lineno = 0;
 
-    if (!f) Com_Error(ERR_FATAL, "PANTHEON: cannot open shot script %s", path);
+    if (!f) ShotError("cannot open shot script %s", path);
 
     s_shot.width = 1280;
     s_shot.height = 720;
@@ -193,21 +270,21 @@ static void ParseShot(const char *path)
         } else if (!strcmp(kw, "player")) {
             int i = s_shot.numPlayers;
             if (i >= PA_MAX_PLAYERS)
-                Com_Error(ERR_FATAL, "PANTHEON: too many players in shot");
+                ShotError("too many players in shot");
             if (sscanf(line, "%*s %63s %63s",
                        s_shot.playerModel[i], s_shot.playerSkin[i]) != 2)
-                Com_Error(ERR_FATAL, "PANTHEON: bad player line %d", lineno);
+                ShotError("bad player line %d", lineno);
             s_shot.numPlayers++;
         } else if (!strcmp(kw, "model")) {
             int i = s_shot.numModels;
             if (i >= PA_MAX_MODELS)
-                Com_Error(ERR_FATAL, "PANTHEON: too many models in shot");
+                ShotError("too many models in shot");
             if (sscanf(line, "%*s %63s", s_shot.modelPath[i]) != 1)
-                Com_Error(ERR_FATAL, "PANTHEON: bad model line %d", lineno);
+                ShotError("bad model line %d", lineno);
             s_shot.numModels++;
         } else if (!strcmp(kw, "frame")) {
             if (s_shot.numFrames >= PA_MAX_FRAMES)
-                Com_Error(ERR_FATAL, "PANTHEON: too many frames in shot");
+                ShotError("too many frames in shot");
             cur = &s_shot.frames[s_shot.numFrames++];
             memset(cur, 0, sizeof(*cur));
             if (sscanf(line, "%*s %d %d %f %f %f %f %f %f %f %255s",
@@ -216,13 +293,13 @@ static void ParseShot(const char *path)
                        &cur->cam_origin[2],
                        &cur->cam_angles[0], &cur->cam_angles[1],
                        &cur->cam_angles[2], &cur->fov, cur->out) != 10)
-                Com_Error(ERR_FATAL, "PANTHEON: bad frame line %d", lineno);
+                ShotError("bad frame line %d", lineno);
         } else if (!strcmp(kw, "actor")) {
             shotActor_t *a;
             if (!cur) Com_Error(ERR_FATAL,
                                 "PANTHEON: actor before frame, line %d", lineno);
             if (cur->numActors >= PA_MAX_ACTORS)
-                Com_Error(ERR_FATAL, "PANTHEON: too many actors, line %d", lineno);
+                ShotError("too many actors, line %d", lineno);
             a = &cur->actors[cur->numActors];
             if (sscanf(line,
                        "%*s %d %f %f %f %d %d "
@@ -236,7 +313,7 @@ static void ParseShot(const char *path)
                        &a->torsoAngles[0], &a->torsoAngles[1], &a->torsoAngles[2],
                        &a->headAngles[0], &a->headAngles[1], &a->headAngles[2],
                        &a->weaponModel) != 22)
-                Com_Error(ERR_FATAL, "PANTHEON: bad actor line %d", lineno);
+                ShotError("bad actor line %d", lineno);
             if (a->weaponModel >= s_shot.numModels)
                 Com_Error(ERR_FATAL,
                           "PANTHEON: actor names undeclared model %d, line %d",
@@ -252,27 +329,27 @@ static void ParseShot(const char *path)
                                 "PANTHEON: projectile before frame, line %d",
                                 lineno);
             if (cur->numMissiles >= PA_MAX_MISSILES)
-                Com_Error(ERR_FATAL, "PANTHEON: too many missiles, line %d",
+                ShotError("too many missiles, line %d",
                           lineno);
             m = &cur->missiles[cur->numMissiles];
             if (sscanf(line, "%*s %d %f %f %f %f %f %f",
                        &m->model, &m->origin[0], &m->origin[1], &m->origin[2],
                        &m->angles[0], &m->angles[1], &m->angles[2]) != 7)
-                Com_Error(ERR_FATAL, "PANTHEON: bad projectile line %d", lineno);
+                ShotError("bad projectile line %d", lineno);
             if (m->model < 0 || m->model >= s_shot.numModels)
                 Com_Error(ERR_FATAL,
                           "PANTHEON: projectile names undeclared model %d, "
                           "line %d", m->model, lineno);
             cur->numMissiles++;
         } else {
-            Com_Error(ERR_FATAL, "PANTHEON: unknown shot keyword '%s' line %d",
+            ShotError("unknown shot keyword '%s' line %d",
                       kw, lineno);
         }
     }
     fclose(f);
 
-    if (!s_shot.map[0])   Com_Error(ERR_FATAL, "PANTHEON: shot has no map");
-    if (!s_shot.numFrames) Com_Error(ERR_FATAL, "PANTHEON: shot has no frames");
+    if (!s_shot.map[0])   ShotError("shot has no map");
+    if (!s_shot.numFrames) ShotError("shot has no frames");
 }
 
 /*
@@ -521,7 +598,12 @@ int main(int argc, char **argv)
         re->LoadWorld(va("maps/%s.bsp",
                          shotPath ? s_shot.map : cliMap));
 
-    if (shotPath) {
+    /* With cgame in charge, PANTHEON's own actor renderer is not used: cgame
+     * registers the player models, the weapons and the missiles itself, from
+     * the configstrings, exactly as it does in a game. Registering them twice
+     * here would only mean two places that can disagree about which model a
+     * client is wearing. */
+    if (shotPath && !s_cgame) {
         for (i = 0; i < s_shot.numModels; i++) {
             s_shot.modelHandle[i] = re->RegisterModel(s_shot.modelPath[i]);
             if (!s_shot.modelHandle[i])
@@ -550,6 +632,11 @@ int main(int argc, char **argv)
 
         PANTHEON_CG_BindRenderer(re, &s_glconfig);
         PANTHEON_CG_BuildGameState(&gs, shotPath ? s_shot.map : cliMap, 0);
+        /* Slot 0 is the camera. The shot's cast starts at slot 1, so a real
+         * player is never confused with the observer. */
+        for (i = 0; shotPath && i < s_shot.numPlayers; i++)
+            PANTHEON_CG_AddPlayerInfo(&gs, i + 1, s_shot.playerModel[i],
+                                      s_shot.playerSkin[i]);
         PANTHEON_CG_SetGameState(&gs);
 
         /* A pair 50 ms apart, both holding the requested view. cgame
@@ -558,6 +645,20 @@ int main(int argc, char **argv)
          * the rocket moves between them, because a rocket at the same place
          * in both snapshots is a rocket with no velocity, and cgame draws
          * that as a stationary ball with no trail. */
+        if (shotPath) {
+            /* THE BRIDGE. A shot frame and a snapshot are the same statement
+             * made twice: a time, a camera, and what existed. Every frame the
+             * trace produced becomes snapshot n+1, in order, and cgame walks
+             * them exactly as it walks a demo -- interpolating, transitioning
+             * entities, firing events, laying trails.
+             *
+             * Two are pushed before CG_Init because cgame refuses to have a
+             * world until it can interpolate between a pair; the rest are
+             * pushed as the render loop reaches them, which is what keeps a
+             * long sequence from having to fit in the ring at once. */
+            for (n = 1; n <= 2 && n <= s_shot.numFrames; n++)
+                PANTHEON_ShotSnapshot(n);
+        } else
         for (n = 1; n <= 2; n++) {
             int t = 1000 + (n - 1) * 50;
             PANTHEON_CG_ComposeSnapshot(&snap, t, n, cliOrigin, cliAngles);
@@ -682,6 +783,13 @@ int main(int argc, char **argv)
              * effect, and calls RenderScene itself. The camera comes from the
              * snapshot's playerState, not from rd -- which is the whole
              * point, because a snapshot is something we compose. */
+            /* Keep one snapshot AHEAD of the frame being drawn, so cgame
+             * always has a nextSnap to interpolate toward. Without it every
+             * frame is the tail of the pair and the world stops moving
+             * between them -- which looks like a low frame rate rather than
+             * like a bug. */
+            if (shotPath && fi + 3 <= s_shot.numFrames)
+                PANTHEON_ShotSnapshot(fi + 3);
             PANTHEON_CG_Frame(time_ms, fi == 0);
             re->EndFrame(NULL, NULL);
             goto pantheon_readback;
