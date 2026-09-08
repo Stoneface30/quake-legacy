@@ -38,8 +38,14 @@ RECOGNITION_DB = REPO_ROOT / "creative_suite/database/frag_recognition.db"
 
 SCHEMA_VERSION = 1
 
-CS_SCORES1, CS_SCORES2 = 6, 7
-CS_ROUND_STATUS, CS_ROUND_TIME, CS_ROUND_WINNERS = 661, 662, 705
+# The protocol layer owns these numbers. Spelling them here once meant two
+# places to correct when a slot turned out to mean something else.
+from engine.parser.protocol import ConfigString as _CS
+
+CS_SCORES1, CS_SCORES2 = _CS.SCORES1, _CS.SCORES2
+CS_ROUND_STATUS = _CS.ROUND_STATUS
+CS_ROUND_TIME = _CS.ROUND_TIME
+CS_ROUND_WINNERS = _CS.ROUND_WINNERS
 
 DDL = """
 CREATE TABLE IF NOT EXISTS round_outcome_v1 (

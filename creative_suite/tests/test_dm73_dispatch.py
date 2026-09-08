@@ -49,7 +49,12 @@ class _Rec:
 
         parser._parse_gamestate = lambda s: self.seen.append("gamestate")
         parser._parse_servercommand = lambda s: self.seen.append("servercommand")
-        parser._parse_snapshot = lambda s, e, n: self.seen.append("snapshot")
+        # Mirror the REAL signature. _parse_snapshot takes the message
+        # number so it can decode against snapshot[messageNum - deltaNum];
+        # a double that drops it turns a signature change into a dispatch
+        # failure that looks like a parser bug.
+        parser._parse_snapshot = (
+            lambda s, e, n, message_num=0: self.seen.append("snapshot"))
         return fb
 
 
