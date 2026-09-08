@@ -616,26 +616,36 @@ def frag_video(frag_id: int):
 # ------------------------------------------------------------ review proxies
 
 def _frag_window(frag: dict[str, Any]) -> dict[str, int]:
-    """Proxy capture window: the master's capture window when one exists,
-    else server_time_ms - 4s .. + 3s."""
-    master = frag.get("master")
-    if master and master.get("capture_start_ms") is not None:
-        return {
-            "start_ms": int(master["capture_start_ms"]),
-            "end_ms": int(master["capture_end_ms"]),
-        }
-    t = int(frag["server_time_ms"])
-    return {
-        "start_ms": t - review_proxy.WINDOW_PRE_MS,
-        "end_ms": t + review_proxy.WINDOW_POST_MS,
-    }
+    """Proxy capture window. The rule lives in review_proxy.capture_window.
+
+    This used to spell the window out again, so the 4s/3s asymmetry and later
+    the countdown lead-in had to be changed in two places to take effect.
+    """
+    round_start = None
+    attrs = frag.get("attributes")
+    if isinstance(attrs, str):
+        try:
+            attrs = json.loads(attrs)
+        except (TypeError, ValueError):
+            attrs = None
+    if isinstance(attrs, dict):
+        round_start = attrs.get("round_start_ms")
+    w = review_proxy.capture_window(
+        int(frag["server_time_ms"]),
+        round_start_ms=round_start,
+        master=frag.get("master"),
+    )
+    return {"start_ms": w["start_ms"], "end_ms": w["end_ms"]}
 
 
 def _load_frag_with_master(frag_id: int) -> dict[str, Any]:
     conn = _connect()
     try:
         row = conn.execute(
-            f"SELECT rf.id, rf.demo_name, rf.server_time_ms, "
+            # attributes carries round_start_ms, which decides whether the
+            # window opens on the round countdown. Without it selected here
+            # the countdown lead-in silently never applied on this route.
+            f"SELECT rf.id, rf.demo_name, rf.server_time_ms, rf.attributes, "
             f"{_MASTER_SUBQ} AS master_clip_id "
             "FROM recognized_frags rf WHERE rf.id = ?",
             (frag_id,),

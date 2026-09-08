@@ -206,3 +206,38 @@ def test_the_offscreen_path_launches_from_the_engine_directory():
     from engine.pantheon import offscreen as O
     src = inspect.getsource(O._capture_locked)
     assert "Path(argv[0]).parent" in src
+
+
+# ── the two bugs that stopped generation entirely (2026-09-08) ─────────────
+
+def test_the_engine_path_and_the_staging_paths_are_all_absolute():
+    """Launching the engine from ITS OWN directory (so Windows resolves
+    opengl32.dll there) breaks every relative path in the argv. Measured:
+    relative fs_basepath exits rc=1 in 0.1 s with NO stdout, NO stderr and
+    nothing in any log -- which reads exactly like a hang and stopped clip
+    generation dead."""
+    from pathlib import Path
+    argv = wc.wolfcam_cmd("safe", Path("output/demo_v2/_wolfcam_staging"))
+    assert Path(argv[0]).is_absolute(), "argv[0] must be absolute"
+    for i, a in enumerate(argv):
+        if a in ("fs_homepath", "fs_basepath"):
+            assert Path(argv[i + 1]).is_absolute(), f"{a} must be absolute"
+
+
+def test_the_expected_frame_count_follows_the_profiles_own_rate():
+    """The fast-review master records at 30 and the gameplay master at 60.
+    Measuring a 30 fps capture against 60 declares every fast-review clip
+    under-sampled and 'twice too fast', then retimes a correct file."""
+    from creative_suite.engine import master_profile as mp
+    w = [{"start_ms": 0, "end_ms": 10000}]
+    assert wc.profile_fps(mp.FAST_REVIEW_PROFILE_NAME) == 30
+    assert wc.profile_fps(mp.PROFILE_NAME) == 60
+    assert wc.frames_expected(w, profile=mp.FAST_REVIEW_PROFILE_NAME) == 300
+    assert wc.frames_expected(w, profile=mp.PROFILE_NAME) == 600
+    # a correct fast-review capture must not read as too fast
+    rate = wc.profile_fps(mp.FAST_REVIEW_PROFILE_NAME)
+    assert wc.playback_error(w, 300, rate) == pytest.approx(1.0)
+
+
+def test_an_unknown_profile_falls_back_rather_than_raising():
+    assert wc.profile_fps("NO_SUCH_PROFILE") == wc.CAPTURE_FPS

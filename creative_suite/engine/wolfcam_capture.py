@@ -235,6 +235,12 @@ def wolfcam_cmd(safe_demo: str, staging: Path = STAGING,
         merged = dict(master_profile.launch_sets_for(profile))
         merged.update(extra_sets or {})
         extra_sets = merged
+    # ABSOLUTE, all of it. The launcher runs the engine from its OWN
+    # directory so Windows resolves opengl32.dll there -- which means a
+    # relative fs_basepath no longer points anywhere the engine can find, and
+    # it exits rc=1 in a tenth of a second with no stdout, no stderr and
+    # nothing in any log. argv[0] alone is not enough; the paths travel too.
+    staging = Path(staging).resolve()
     cmd = [
         str(engine_exe(staging)),
         "+set", "fs_homepath", str(staging),
@@ -315,7 +321,12 @@ def native_gl_dir(staging: Path = STAGING) -> Path:
     reads all its assets from staging through fs_basepath -- the only thing
     this directory changes is which `opengl32.dll` Windows finds first.
     """
-    staging = Path(staging)
+    # ABSOLUTE. The launcher passes this as argv[0] AND changes cwd to it;
+    # CreateProcess resolves a relative argv[0] against the PARENT's directory,
+    # not the child's, so a relative path here dies with rc=1, no stdout, no
+    # stderr, and nothing in any log. Measured: relative rc=1 in 0.1 s,
+    # absolute rc=0 in 15 s, same argv otherwise.
+    staging = Path(staging).resolve()
     d = staging / "_native_gl"
     d.mkdir(parents=True, exist_ok=True)
     skip = {n.lower() for n in MESA_DLLS}
@@ -338,14 +349,36 @@ def native_gl_dir(staging: Path = STAGING) -> Path:
 
 
 def engine_exe(staging: Path = STAGING) -> Path:
-    """The executable to launch, for the renderer this run wants."""
+    """The executable to launch, for the renderer this run wants.
+
+    Always absolute, for the CreateProcess reason above.
+    """
     if software_gl():
-        return Path(staging) / "wolfcamql.exe"
+        return (Path(staging).resolve() / "wolfcamql.exe")
     return native_gl_dir(staging) / "wolfcamql.exe"
 
 
-def frames_expected(windows: list[dict], fps: int = CAPTURE_FPS) -> int:
-    return sum(int(round((int(w["end_ms"]) - int(w["start_ms"])) / 1000.0 * fps))
+def profile_fps(profile: str | None = None) -> int:
+    """The rate THIS profile captures at.
+
+    Not a constant: the fast-review master records at 30 and the gameplay
+    master at 60. Measuring a 30 fps clip against 60 declares every fast-review
+    capture under-sampled and "twice too fast", then retimes a file that was
+    already correct.
+    """
+    try:
+        from creative_suite.engine import master_profile as _mp
+        cv = _mp.PROFILES.get(profile or _mp.PROFILE_NAME) or {}
+        rate = cv.get("cl_aviFrameRate") if isinstance(cv, dict) else None
+        return int(rate) if rate else CAPTURE_FPS
+    except Exception:                                       # noqa: BLE001
+        return CAPTURE_FPS
+
+
+def frames_expected(windows: list[dict], fps: int | None = None,
+                    profile: str | None = None) -> int:
+    rate = fps if fps is not None else profile_fps(profile)
+    return sum(int(round((int(w["end_ms"]) - int(w["start_ms"])) / 1000.0 * rate))
                for w in windows)
 
 
@@ -467,19 +500,22 @@ def capture_demo(safe_demo: str, windows: list[dict],
         # that into QUEUED + RENDER DEFERRED, never FAILED.
         from engine.pantheon import render_permit
         render_permit.require(f"capture_demo:{safe_demo}")
-        # SOFTWARE GL. This driver kills wolfcam during R_Init -- the same
-        # NVIDIA 32-bit blocker documented for PANTHEON's own renderer, on the
-        # same GPU. Mesa is staged BESIDE wolfcamql.exe (Windows resolves
-        # opengl32.dll from the executable's own directory first), so this
-        # process gets softpipe and every other process on the machine is
-        # untouched. Nothing in System32 was modified and no driver setting
-        # was changed. GALLIUM_DRIVER must be set explicitly: the default
-        # Zink probe crashes before it can fall back.
+        # WHICH RENDERER. The belief that the NVIDIA driver kills wolfcam
+        # during R_Init was inherited from a CUSTOM HOST's crash and was never
+        # tested against this engine. It is wrong: wolfcamql gets a real
+        # hardware context on the hidden desktop and captures 13.5x faster
+        # with the full frame count. Mesa softpipe remains reachable through
+        # PANTHEON_GL=software, and only then is GALLIUM_DRIVER forced --
+        # the default Zink probe crashes before it can fall back.
         env = dict(os.environ)
         if software_gl():
             env["GALLIUM_DRIVER"] = "softpipe"
+        argv = wolfcam_cmd(safe_demo, staging, profile=profile)
+        # LAUNCH FROM THE ENGINE'S OWN DIRECTORY. Windows resolves
+        # opengl32.dll from there first, and the current directory is in the
+        # search order too -- running from staging would let Mesa back in.
         proc = subprocess.Popen(
-            wolfcam_cmd(safe_demo, staging, profile=profile), cwd=staging,
+            argv, cwd=Path(argv[0]).parent,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             env=env, startupinfo=quiet_startup_info())
         try:
@@ -502,9 +538,10 @@ def capture_demo(safe_demo: str, windows: list[dict],
     # THE FILE CAN BE COMPLETE AND STILL WRONG. Count the frames, work out the
     # rate that actually implies, and RETIME the container so the declared
     # rate is the truth. The frames are not touched.
-    want = frames_expected(windows)
+    rate = profile_fps(profile)
+    want = frames_expected(windows, profile=profile)
     got = sum(count_frames(a) for a in avis.values())
-    speed = playback_error(windows, got) if got else 0.0
+    speed = playback_error(windows, got, rate) if got else 0.0
     retimed = []
     if got and abs(speed - 1.0) > 0.05:
         actual = true_frame_rate(windows, got)

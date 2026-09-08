@@ -48,6 +48,7 @@ _staging_cleanup/
 
 # MCP / tool caches
 .playwright-mcp/
+.playwright-cli/
 .claude/scheduled_tasks.lock
 
 # Phase 5 intermediate pipeline output (regenerable from source)

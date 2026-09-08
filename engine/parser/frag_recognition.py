@@ -64,11 +64,12 @@ from frag_classify import (  # noqa: F401  (re-exported for callers)
 )
 
 # Bump on any taxonomy/scoring change so the corpus scan recomputes.
+# v4: ROUND_OPENING_FRAG and the round countdown window.
 # v3: round/team context traits. Rounds reconstructed from the round
 # configstrings (the native counter over-reports), round windows run one
 # snapshot past the end command (the round-winning frag lands 25ms after
 # it), and Clan Arena alive-counts come from the round's own obituaries.
-RECOGNITION_VERSION = 3
+RECOGNITION_VERSION = 4
 
 # ── confidence ladder ───────────────────────────────────────────────────────
 CONFIRMED = "CONFIRMED"
@@ -1140,6 +1141,16 @@ def recognize(parsed: dict, player: int | None = None,
                             f"{mates}v{foes} at the kill")
                 r.add_score("round_score", 0.5 * ctx["outnumbered_by"],
                             f"+ killed while {mates}v{foes}")
+
+            if ctx["is_round_opening_frag"]:
+                r.add_class("ROUND_OPENING_FRAG", CONFIRMED,
+                            f"{ctx['ms_into_round']} ms into round "
+                            f"{ctx['round_index']}; "
+                            f"{ctx['countdown_available_ms']} ms of countdown "
+                            "precedes the start")
+                # Not a score change. An opening frag is not better, it is
+                # SHAPED differently -- it has a countdown in front of it, and
+                # that is an editing fact rather than a quality one.
 
             if ctx["is_first_blood"]:
                 r.add_class("FIRST_BLOOD", CONFIRMED,

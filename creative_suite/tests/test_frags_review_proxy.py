@@ -126,8 +126,10 @@ def test_proxy_missing_then_queue_then_ready(client: TestClient) -> None:
     st = _wait_state(client, 1, "READY")
     assert st["url"] == "/api/frags/1/proxy/video"
     # window = server_time - 4000 .. + 3000 (no master row)
-    assert st["start_ms"] == 96000
-    assert st["end_ms"] == 103000
+    # Symmetric 5s/5s around the kill. The old 4s/3s put the kill near the
+    # end of the clip and swept in the preceding frags of the teamfight.
+    assert st["start_ms"] == 95000
+    assert st["end_ms"] == 105000
 
     v = client.get("/api/frags/1/proxy/video")
     assert v.status_code == 200
@@ -207,7 +209,7 @@ def test_review_put_get_roundtrip(client: TestClient) -> None:
     d = client.get("/api/frags/1").json()
     assert d["review"]["verdict"] == "LOVE"
     assert d["proxy"]["state"] in ("MISSING", "QUEUED", "GENERATING", "READY", "FAILED")
-    assert d["window"] == {"start_ms": 96000, "end_ms": 103000}
+    assert d["window"] == {"start_ms": 95000, "end_ms": 105000}
 
 
 def test_recognition_dbs_never_opened_writable(client: TestClient) -> None:
