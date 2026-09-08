@@ -434,9 +434,17 @@ class Doctor:
             return FAIL, ("the shader writer does not round-trip the shipped "
                           "file; every HUD diff would be untrustworthy"), {}
         rep = hud.report()
-        return OK, (f"{rep['shaders']} shaders, {len(rep['cueable'])} cueable "
-                    f"treatments and {len(rep['free_running'])} free-running"
-                    ), {"families": rep["film_families"]}
+        ctl = hud.control_report()
+        if ctl["draw_cvars"] < 300:
+            return FAIL, ("the HUD control surface is missing: the census "
+                          "should carry ~383 cg_draw* cvars, not "
+                          f"{ctl['draw_cvars']}"), ctl
+        return OK, (f"{rep['shaders']} shaders for art; "
+                    f"{ctl['draw_cvars']} engine switches over "
+                    f"{ctl['elements']} elements for layout"), {
+            "families": rep["film_families"],
+            "movable": len(ctl["can_be_moved"]),
+            "fadable": len(ctl["can_be_faded"])}
 
     def _morph(self):
         """A blend is never offered while frame alignment is unproven.

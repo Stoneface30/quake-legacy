@@ -4,7 +4,44 @@ Three open items closed on 2026-09-08, plus the honest state of the fourth.
 
 ---
 
-## 1. The HUD is an animation system, and it always was
+## 0. Correction, 2026-09-08: I built the HUD on the wrong surface first
+
+The user pointed out that `drawhud` / `drawweapon` exist and that the capability
+ingestion should already have covered them. Checked: **the census did ingest
+them** -- 383 `cg_draw*` cvars are in `engine_census_11_3.json`, covering 81
+elements, 30 of which carry a full control set (`FragMessage` 20 controls,
+`Rewards` and `ItemPickups` 16 each; each with X, Y, Scale, Alpha, Color,
+Font, Style, Align, Time).
+
+What went wrong is what happened NEXT. Project profiles set 42 of the 383. The
+other **341 were ingested and never offered to the film layer**, and I reached
+for the shader layer to control the HUD without checking that the engine has a
+dedicated switch for every element. That is the same failure this project has
+recorded before: the producer was reviewed, the consumer was assumed.
+
+It also explains why the first HUD capture proved nothing. `cg_draw2D` is 1 in
+the REVIEW profile but names, FPS, gun, speed and team overlay are already off,
+so a shader pack that hides HUD art was operating on a nearly empty surface.
+
+**The corrected architecture, now in `engine/pantheon/hud.py`:**
+
+| Surface | Controls | Cueable? |
+|---|---|---|
+| **cvars (primary)** | whether an element draws, where, how big, how faded, what colour, how long it dwells | yes -- set per capture |
+| shaders (secondary) | what the art itself looks like | as a pack swap |
+
+`hud.elements()` derives all 81 from the RUNTIME census, never from source, so
+a name the 11.3 binary did not register cannot leak in. `hud.hide()` and
+`hud.restyle()` emit cvar settings, and asking for a knob the runtime lacks
+**raises** instead of silently setting a no-op. 24 elements can be moved, 26
+can be faded.
+
+Everything below about the shader layer still stands -- it is simply the second
+surface, not the first.
+
+---
+
+## 1. The shader layer: what the art can do
 
 Every 2D element Quake draws over the world is a named shader in
 `scripts/gfx.shader`: **281 blocks** — 116 screen 2D, 61 item icons, 18
@@ -232,3 +269,75 @@ can capture at 5760×3240.
 Every builder in this work returns `proven: False` alongside `how_to_prove`,
 because the alternative is a system that reports its own intentions as
 results.
+
+---
+
+# Addendum, 2026-09-08 evening — what was actually filmed
+
+Four things were attempted against the running engine. Two produced evidence,
+one produced a defect, one was refused.
+
+## PROVEN — the wardrobe reaches the picture
+
+`capture(asset_set="NEON")` resolved the look through the library, installed a
+388 MB pack built from 800 database renders, and filmed offscreen with **no
+visible window and no stolen focus**. Filmed the same moment again as `STOCK`.
+
+Artefacts: `docs/visual-record/2026-09-08/wardrobe/`.
+
+The two frames are unmistakably different art — flat dark brick against
+detailed brick, and the NEON capture is **30.5 MB against STOCK's 11.2 MB** for
+the same window and codec. The regenerated art is in the picture. That is the
+claim that had never been tested, and it holds.
+
+**What is NOT claimed: the size of the difference.** The measured ratios
+(x2.14 saturation, x3.56 luminance) are **contaminated**. The two legs do not
+cover the same world instants — two engine runs do not start on the same tick,
+so a comparison at matched *timestamps* compares different *content*. The exact
+trap this repository documents in `morph.py`, walked into while proving
+`morph.py`. Averaging 14 frames did not fix it because the clip is short. A
+clean magnitude needs frame-locked takes, which is the same unproven alignment
+step the blend plans are waiting on.
+
+## DEFECT FOUND — captures are truncated
+
+Both legs asked for a 2,500 ms window and produced **44 frames, 0.73 s**, with
+`ok=False`. Same for every capture attempted today. The clip is roughly 30% of
+the requested length. Not caused by any change here — it reproduces on the
+plain path — but it silently shortens every review proxy and every A/B leg, and
+it is why frame sampling past ~0.7 s returned nothing. **This is the highest
+value thing to fix next.**
+
+## INCONCLUSIVE — the HUD shader proof could not discriminate
+
+`HUD_STOCK` against `HUD_CLEAN`, art fixed. The measured difference ran the
+wrong way (clean showed *more* ink) for two reasons, both mine:
+
+1. The REVIEW profile already turns off names, FPS, gun, speed and team
+   overlay, so there was almost no HUD art left for a shader pack to hide.
+2. The bottom-band measure caught the floor, not just the HUD, so it measured
+   scene brightness across two different camera phases.
+
+The mechanism is not disproven; the test was incapable of answering. With the
+cvar surface now exposed (§0) the right test is `cg_drawRewards 0` against
+`cg_drawRewards 1`, which changes exactly one element and nothing else.
+
+## REFUSED — the supersampling canary
+
+`MASTER_RASTER` at 5760×3240 was blocked: another session held
+`output/demo_v2/_capture.lock` for a legitimate clip regeneration run. The lock
+behaved exactly as designed — it deferred rather than clobbering, which is the
+failure it was written for after two renderers once overwrote each other's
+`capture.cfg`. **The canary remains unrun and 5760×3240 remains unproven.**
+
+## PROVEN — voice reaches the fragmovie mux
+
+`mux_music(..., voice=stem)` adds a third summed leg before the loudness and
+true-peak stage. Measured on a real encode: **−1.8 dBTP with voice and −1.8
+dBTP without**, integrated loudness −14.2 LUFS in both. The safety gate that
+once let a mix reach +1.94 dBFS still bounds the sum with three legs.
+
+No ducking: P1-G v6 forbids level-following, so the voice sits above a music
+bed that never moves. `VOICE_VOLUME = 2.60` (about +6.4 dB over music) is a
+**starting point for a listening pass**, not a measured optimum — nobody has
+judged a narrated episode by ear.

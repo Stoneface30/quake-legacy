@@ -138,6 +138,15 @@ def install(set_name: str, staging: Path, *, lib: Path | None = None) -> dict:
     holding half of a set renders a picture nobody chose.
     """
     if set_name not in SETS:
+        # The wardrobe is built from assets.db and registers itself lazily, so
+        # a caller asking for NEON does not have to know that looks come from
+        # a different module than STOCK and UHD do.
+        try:
+            from engine.pantheon import asset_library
+            asset_library.register()
+        except Exception:                                   # noqa: BLE001
+            pass                    # no database here; the error below stands
+    if set_name not in SETS:
         raise KeyError(f"no such asset set: {set_name}; known: {sorted(SETS)}")
     chosen = SETS[set_name]
     lib = library(lib)

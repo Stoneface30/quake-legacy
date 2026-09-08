@@ -103,6 +103,19 @@ MUSIC_VOLUME = 1.24   # user 2026-08-29: "at least twice louder"
 # rail and rocket transients start driving the limiter, which pumps the music.
 GAME_VOLUME = 3.60
 
+# NARRATION. A generated voice line sits ABOVE the mix at its own fixed level;
+# it never pulls the music down. Rule P1-G v6 bans level-following of any kind,
+# so a broadcast-style voice duck is not available to us and is not wanted --
+# the music holds one level and the voice is simply placed over it.
+#
+# The ratio that matters is voice against music, because music is the bed the
+# words compete with: 2.60 / 1.24 = 2.10, about +6.4 dB. That is the low end of
+# the usual speech-over-bed range and deliberately so, since our lines are
+# short and the game transients are already loud. It is a STARTING POINT for a
+# listening pass, not a measured optimum -- nobody has yet judged a narrated
+# episode by ear.
+VOICE_VOLUME = 2.60
+
 # Visible seam. v6 used 0.40 s, which reads as a hard cut across 120 clips.
 # User 2026-08-29: "more transition". Research ceiling is 0.10-0.25 s -- a
 # transition the viewer notices on first viewing is the error, so 0.20 s.
@@ -1347,17 +1360,28 @@ def concat_copy(segments: list[Path], dst: Path, cfg: Config) -> Path:
     return dst
 
 
-def mux_music(body: Path, music: list[Path], dst: Path, cfg: Config) -> Path:
-    """Game audio + music at ONE CONSTANT level.
+def mux_music(body: Path, music: list[Path], dst: Path, cfg: Config,
+              voice: Path | None = None) -> Path:
+    """Game audio + music at ONE CONSTANT level, optionally under narration.
 
     Two songs per video (user 2026-08-29), joined end to end and trimmed to the
     body. No sidechain duck, no loudness gate, and the music is never resampled
     or time-stretched, so its pitch is untouched (Rule P1-G v6).
+
+    `voice` is a pre-rendered dialogue stem -- one stereo track with every line
+    already placed, panned and treated on the scenario clock (see
+    `engine.pantheon.dialogue_mix.build_dialogue_stem`). It enters as a third
+    summed leg BEFORE the loudness and true-peak stage, so the same ceiling
+    that bounds game+music bounds game+music+voice. It does NOT duck anything.
+    A stem shorter than the body simply stops contributing: `duration=first`
+    means the game track decides the length.
     """
     body_dur = probe_duration(body, cfg)
     inputs: list[str] = ["-i", str(body)]
     for m in music:
         inputs += ["-i", str(m)]
+    if voice is not None:
+        inputs += ["-i", str(voice)]
 
     n = len(music)
     if n == 1:
@@ -1378,8 +1402,15 @@ def mux_music(body: Path, music: list[Path], dst: Path, cfg: Config) -> Path:
         + pre
         + f"[mraw]volume={MUSIC_VOLUME},afade=t=in:st=0:d=1.0,"
           f"afade=t=out:st={max(0.0, body_dur - 4.0):.3f}:d=4.0[m];"
-          f"[g][m]amix=inputs=2:duration=first:dropout_transition=0:"
-          f"normalize=0[mixed];"
+          + (f"[{n + 1}:a]aresample=48000,volume={VOICE_VOLUME}[v];"
+             if voice is not None else "")
+        + (f"[g][m][v]amix=inputs=3:duration=first:dropout_transition=0:"
+           f"normalize=0[mixed];" if voice is not None else
+           f"[g][m]amix=inputs=2:duration=first:dropout_transition=0:"
+           f"normalize=0[mixed];")
+        # The loudness and true-peak stage below is the ONE ceiling, and it
+        # bounds the sum whether that sum has two legs or three.
+        +
         # SAFETY GATE. amix with normalize=0 SUMS its inputs, so music 1.24 +
         # game 1.45 can reach 2.69x and hard-clip. Measured on the rejected
         # Part12_highlight.mp4: +1.94 dBFS.

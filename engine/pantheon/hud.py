@@ -1,10 +1,20 @@
 """THE HUD IS A FILM SURFACE, NOT A GAME OVERLAY.
 
-Every 2D element Quake draws over the world -- crosshairs, ammo digits, item
-icons, medals, the lagometer, powerup overlays -- is a named shader in
-`scripts/gfx.shader`. A shader is a small program: it can scroll its texture,
-rotate it, pulse its colour, fade its alpha, flip through frames, or draw
-nothing at all. That is an animation system, and it was already in the game.
+TWO SURFACES, AND THE CVARS COME FIRST.
+
+    cvars    WHETHER an element draws, WHERE, how big, how faded, what
+             colour, how long it dwells. 383 `cg_draw*` cvars over 81
+             elements; 30 of them carry a full control set. Per element,
+             set per capture, therefore CUEABLE.
+    shaders  WHAT THE ART LOOKS LIKE. 281 blocks in `scripts/gfx.shader`,
+             which can scroll, rotate, pulse, fade or draw nothing.
+
+This module was written shader-first and that was the wrong order. The engine
+already had a dedicated switch for every element, the census had ingested all
+383 of them, and project profiles used 42 -- so 341 controls sat unoffered
+while a HUD treatment was attempted by rewriting art. The control surface is
+now the primary one (`elements`, `hide`, `restyle`); the shader surface below
+is for restyling the art those elements draw, which no cvar can do.
 
 WHAT THE PROJECT ALREADY DID, AND WHAT IT PROVES. `zzz_zz_moviehud.pk3` holds
 exactly one file, a copy of the stock `scripts/gfx.shader` with ONE block
@@ -371,4 +381,158 @@ def report(text: str | None = None) -> dict:
                           if e.timing == CUEABLE),
         "free_running": sorted(n for n, e in EFFECTS.items()
                                if e.timing == FREE_RUNNING),
+    }
+
+
+# ── THE CONTROL SURFACE THIS MODULE SHOULD HAVE STARTED FROM ───────────────
+#
+# The shader layer above restyles the ART a HUD element draws. It does NOT
+# decide whether the element is drawn, where, how big, how faded or what
+# colour -- and the engine has a dedicated switch for every one of those, on
+# every element.
+#
+# THE CENSUS COUNTED 383 `cg_draw*` CVARS. Seventy elements; thirty-two of
+# them carry a whole control set -- FragMessage has twenty, Rewards and
+# ItemPickups sixteen each. Project profiles set forty-two of the 383. The
+# rest were ingested and never offered to the film layer, which is how a HUD
+# treatment came to be attempted with shaders first.
+#
+# These are the right primary surface because they are per-element and they
+# are CUEABLE: a cvar is set per capture, so the same moment filmed twice with
+# a different value is a cut the editor can place. See `morph.py`.
+
+# The census is COMMITTED, so it is a fact about the CODE, not about the data
+# drive -- and the main checkout may sit on a branch that does not carry it.
+# Resolving it through PROJECT_ROOT found nothing and reported an empty HUD.
+CENSUS = S.CODE_ROOT / "docs" / "reference" / "engine_census_11_3.json"
+
+#: Suffixes that turn a base element name into one of its controls. Longest
+#: match wins, so `FadeTime` is not read as `Time`.
+CONTROL_SUFFIXES: tuple[str, ...] = (
+    "Align", "Alpha", "BackgroundAlpha", "BackgroundColor", "Color", "Count",
+    "Fade", "FadeTime", "Filter", "Font", "Icon", "IconScale", "IconSize",
+    "IconStyle", "IconXoffset", "IconYoffset", "ImageScale", "LineOffset",
+    "Max", "MaxWidth", "MinWidth", "NoText", "Offset", "PointSize", "Scale",
+    "SelectedColor", "Separate", "Spacing", "Style", "TextAlpha", "TextColor",
+    "TextStyle", "Time", "WideScreen", "X", "Y",
+)
+
+#: What a film actually wants to do to an element, and which control does it.
+FILM_CONTROLS = {"visibility": "", "position": ("X", "Y"), "size": "Scale",
+                 "opacity": "Alpha", "colour": "Color", "dwell": "Time",
+                 "fade": ("Fade", "FadeTime")}
+
+
+@dataclass(frozen=True)
+class HudElement:
+    """One addressable thing on screen and every knob the engine gives it."""
+    name: str                       # e.g. "Rewards"
+    switch: str                     # the cvar that draws it at all
+    controls: dict = field(default_factory=dict)   # suffix -> cvar name
+
+    def can(self, what: str) -> bool:
+        want = FILM_CONTROLS.get(what)
+        if want == "":
+            return True
+        want = (want,) if isinstance(want, str) else want
+        return all(w in self.controls for w in want)
+
+    @property
+    def control_count(self) -> int:
+        return 1 + len(self.controls)
+
+
+def _census_cvars() -> tuple[str, ...]:
+    import json
+    if not CENSUS.exists():
+        return ()
+    data = json.loads(CENSUS.read_text(encoding="utf-8"))
+    return tuple(data.get("cvars", {}))
+
+
+def elements() -> dict[str, HudElement]:
+    """Every HUD element the running engine registers, with its controls.
+
+    Derived from the RUNTIME census, not from source: a name the 11.3 binary
+    never registered is a silent no-op, and this project has been caught by
+    that before.
+    """
+    names = [c for c in _census_cvars() if c.lower().startswith("cg_draw")]
+    by_base: dict[str, dict] = {}
+    for cvar in names:
+        stem = cvar[len("cg_draw"):]
+        hit = None
+        for suf in sorted(CONTROL_SUFFIXES, key=len, reverse=True):
+            if stem.endswith(suf) and len(stem) > len(suf):
+                hit = suf
+                break
+        base = stem[: -len(hit)] if hit else stem
+        e = by_base.setdefault(base, {"switch": None, "controls": {}})
+        if hit is None:
+            e["switch"] = cvar
+        else:
+            e["controls"][hit] = cvar
+    out = {}
+    for base, e in sorted(by_base.items()):
+        # An element with no bare switch is still addressable through its
+        # controls; name the switch it WOULD have rather than inventing one.
+        out[base] = HudElement(base, e["switch"] or f"cg_draw{base}",
+                               e["controls"])
+    return out
+
+
+def hide(*names: str) -> dict[str, int]:
+    """Turn named elements off. The cheapest HUD effect there is, and the one
+    the shader layer was reaching for the hard way."""
+    els = elements()
+    out = {}
+    for n in names:
+        if n not in els:
+            raise KeyError(f"no such HUD element: {n}")
+        out[els[n].switch] = 0
+    return out
+
+
+def restyle(name: str, *, x=None, y=None, scale=None, alpha=None,
+            colour=None, dwell=None) -> dict:
+    """Move, resize, fade or recolour one element.
+
+    Returns cvar settings for a capture. Only knobs the engine actually
+    registered for that element are emitted -- asking for one it does not have
+    raises, rather than quietly setting a name the engine will ignore.
+    """
+    els = elements()
+    if name not in els:
+        raise KeyError(f"no such HUD element: {name}; known: {sorted(els)[:8]}")
+    el = els[name]
+    want = {"X": x, "Y": y, "Scale": scale, "Alpha": alpha, "Color": colour,
+            "Time": dwell}
+    out: dict = {}
+    for suffix, value in want.items():
+        if value is None:
+            continue
+        if suffix not in el.controls:
+            raise KeyError(
+                f"{name} has no {suffix} control in the 11.3 runtime; "
+                f"it has {sorted(el.controls)}")
+        out[el.controls[suffix]] = value
+    return out
+
+
+def control_report() -> dict:
+    """How much of the HUD the film layer can actually address."""
+    els = elements()
+    rich = {n: e for n, e in els.items() if e.control_count > 2}
+    return {
+        "census": str(CENSUS),
+        "draw_cvars": len([c for c in _census_cvars()
+                           if c.lower().startswith("cg_draw")]),
+        "elements": len(els),
+        "elements_with_a_control_set": len(rich),
+        "most_controllable": sorted(
+            ((n, e.control_count) for n, e in els.items()),
+            key=lambda kv: -kv[1])[:8],
+        "can_be_moved": sorted(n for n, e in els.items()
+                               if e.can("position")),
+        "can_be_faded": sorted(n for n, e in els.items() if e.can("opacity")),
     }

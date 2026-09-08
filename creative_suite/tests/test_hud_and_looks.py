@@ -238,3 +238,44 @@ def test_writing_a_verdict_asks_the_smallest_disk_threshold(monkeypatch,
     with pytest.raises(RuntimeError, match="refusing to write a verdict"):
         rp.put_review(1, verdict="LOVE")
     assert asked, "put_review did not ask the disk policy at all"
+
+
+# ── the HUD control surface (cvars), which is the PRIMARY one ──────────────
+
+def test_the_engines_own_hud_switches_are_offered_to_the_film_layer():
+    """383 cg_draw* cvars were ingested by the census and only 42 were ever
+    used, so a HUD treatment got attempted with shaders first. These are the
+    right primary surface: per element, and cueable per capture."""
+    r = hud.control_report()
+    assert r["draw_cvars"] > 300, "the census should carry the whole family"
+    assert r["elements"] > 50
+    assert r["elements_with_a_control_set"] >= 25
+
+
+def test_an_element_can_be_hidden_moved_and_faded_by_name():
+    off = hud.hide("Rewards")
+    assert off == {"cg_drawRewards": 0}
+    moved = hud.restyle("Rewards", x=760, y=420, scale=2.0, alpha=0.6)
+    assert moved == {"cg_drawRewardsX": 760, "cg_drawRewardsY": 420,
+                     "cg_drawRewardsScale": 2.0, "cg_drawRewardsAlpha": 0.6}
+
+
+def test_asking_for_a_knob_the_runtime_lacks_raises_instead_of_no_opping():
+    """An unregistered cvar is accepted by the console and silently does
+    nothing -- the defect class this project has been bitten by repeatedly."""
+    els = hud.elements()
+    victim = next(n for n, e in els.items() if "Scale" not in e.controls)
+    with pytest.raises(KeyError, match="no Scale control"):
+        hud.restyle(victim, scale=2.0)
+
+
+def test_an_unknown_element_is_refused():
+    with pytest.raises(KeyError, match="no such HUD element"):
+        hud.hide("NoSuchThing")
+
+
+def test_the_control_surface_comes_from_the_runtime_not_from_source():
+    """A name the 11.3 binary never registered is a no-op, so the element list
+    is derived from the census the running client produced."""
+    assert hud.CENSUS.name.endswith("engine_census_11_3.json")
+    assert hud.CENSUS.exists(), "the committed census must resolve from CODE_ROOT"
