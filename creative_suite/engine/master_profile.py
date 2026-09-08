@@ -493,7 +493,6 @@ FAST_REVIEW_LAUNCH_SETS = {
     # Review resolution is deliberately small. These clips exist to answer
     # "is this frag worth using", which needs the action legible and nothing
     # more; the master capture is where quality lives.
-    "r_mode": -1,               # -1 = use the custom width/height below
     "r_customwidth": 512,
     "r_customheight": 288,
     # MUST be 0. Wolfcam captures through a multisampled FBO, and this driver
@@ -517,6 +516,13 @@ FAST_REVIEW_LAUNCH_SETS = {
 PROFILES = {
     "TR4SH_FAST_REVIEW_V1": {
         **_QUALITY, **_GAMEPLAY_MASTER_V2, **_REVIEW_V2,
+        # A HIDDEN RENDER MUST NOT OWN THE POINTER, and these live HERE rather
+        # than on the command line because the command line has a ceiling of
+        # 32 `+` groups and the engine silently drops what overflows it --
+        # which is `+demo`, the last group, so the engine starts, initialises
+        # completely, and sits at the menu forever having filmed nothing.
+        "in_nograb": 1,
+        "in_mouse": 0,
         # 20 fps, not 30. Every captured frame is a rendered frame, so the
         # frame rate is close to a linear cost on a run of tens of thousands
         # of clips. 20 is still enough to judge tracking and timing, which is

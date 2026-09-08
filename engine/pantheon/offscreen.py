@@ -54,7 +54,14 @@ DESKTOP_NAME = "pantheon_render"
 # their own, and each still filmed. Both are set, because they say two
 # different things and the render wants both: do not grab, and do not read
 # the mouse at all.
-OFFSCREEN_SETS = {"in_nograb": 1, "in_mouse": 0}
+# These now live in the REVIEW PROFILE CFG, not here. Passing them as
+# `extra_sets` put the launch at 33 `+` groups against a ceiling of 32,
+# and the group the engine drops is the LAST one -- `+demo`. The engine
+# then started, initialised fully (GL, sound, UI, network) and sat at the
+# menu until something killed it, which is indistinguishable from a hang
+# and was read as one for a long time. The cvars are unchanged and still
+# applied; only where they are declared has moved.
+OFFSCREEN_SETS: dict = {}
 
 
 def ENGINE_ENV() -> dict[str, str]:
@@ -755,9 +762,14 @@ def _capture_locked(safe_demo: str, windows: list[dict], *, staging: Path,
     # MEASURE THE RATE, THEN MAKE THE HEADER TELL THE TRUTH. A capture can
     # cover its whole window and still declare a rate it did not achieve, in
     # which case the clip plays too fast -- complete, and unusable for a cut.
-    want = wc.frames_expected(windows)
+    # AT THE RATE THIS PROFILE ACTUALLY RECORDS. Measuring a 20 fps review
+    # capture against a hardcoded 60 declared every correct clip
+    # under-sampled and "three times too fast", and then RETIMED a file that
+    # was already right -- turning a good capture into a broken one.
+    fps = wc.profile_fps(profile)
+    want = wc.frames_expected(windows, fps=fps)
     got = sum(wc.count_frames(Path(a)) for a in avis.values())
-    speed = wc.playback_error(windows, got) if got else 0.0
+    speed = wc.playback_error(windows, got, declared_fps=fps) if got else 0.0
     retimed = []
     if got and abs(speed - 1.0) > 0.05:
         actual = wc.true_frame_rate(windows, got)
