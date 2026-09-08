@@ -375,6 +375,54 @@ as `engine_ok`.
 The real fix remains hardware GL, which is the NVIDIA blocker and is not
 addressed here.
 
+## CORRECTION — it was the clip's SPEED, not its length
+
+I reported the fixed capture as "still truncated". That was wrong, and the
+user caught it: `cl_aviFrameRate` is frames per second of DEMO time, so it
+sets temporal resolution, **not how much of the action is covered**.
+
+Checked by looking rather than by arithmetic. Two windows ending at the same
+instant:
+
+![coverage](../visual-record/2026-09-08/capture_length/coverage_2500_vs_5000.png)
+
+- **2,500 ms, post-fix** — opens on the jump pad at the start of its window,
+  closes on the kill at the end. **The content is complete.**
+- **5,000 ms, pre-fix** — opens and closes on the same dark corner. That one
+  really was cut off at its deadline.
+
+Two defects, which I had merged into one:
+
+| | what it is | status |
+|---|---|---|
+| Killed at the deadline | the engine terminated mid-capture; the clip really is short | **fixed** — budget sized to the renderer |
+| Wrong declared rate | 77 frames covering 2,500 ms in a file declaring 60 fps → 1.28 s of playback for 2.5 s of action, **double speed** | **repaired** |
+
+### The repair
+
+`afd.frameRate = cl_aviFrameRate->integer` — the engine writes the header
+straight from the cvar, so the 60 is honest about what was *asked for*, not
+what was *achieved*. The frames are the truth; only the clock is wrong.
+
+`true_frame_rate()` derives the achieved rate from the window the clip
+covered, `playback_error()` says how many times too fast it plays, and
+`retime()` **remuxes** the container to match — no re-encode, no generation
+loss, every frame kept.
+
+Verified on the real capture: 77 frames, rate corrected to 30.8 fps, duration
+now **exactly 2.500000 s** against a 2,500 ms window.
+
+Coverage is still reported, as `under_sampled`. It is a real thing; it is just
+not the same question as the rate, and conflating them is what produced the
+wrong diagnosis.
+
+### Still open: why 30 and not 60
+
+Every knob says 60 — `cl_aviFrameRate` registered at 60, divider 1 and
+unregistered, `mme_blurFrames` 0, no rate cvar in the profile, and the cfg
+execs the 60 fps master. Worth one focused look, but the clips are usable
+either way now: correct speed, 30 fps of smoothness.
+
 ## PROVEN — the HUD control surface works
 
 `cg_drawStatus 1` against `cg_drawStatus 0`, everything else identical. One
