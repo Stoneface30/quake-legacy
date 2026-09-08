@@ -478,9 +478,32 @@ _PUBLIC_EXPORT = {
 
 FAST_REVIEW_LAUNCH_SETS = {
     **REVIEW_LAUNCH_SETS,
-    "r_customwidth": 1280,
-    "r_customheight": 720,
-    "r_fboAntiAlias": 2,
+    # THESE CURRENTLY HAVE NO EFFECT, and the honest note matters more than
+    # the values. SDL_Init(SDL_INIT_VIDEO) fails in this environment, the
+    # client falls back to mode 11, and every proxy comes out 856x480 whatever
+    # is asked for -- measured on clips captured either side of a change from
+    # 1280x720 to 640x360, which produced byte-identical dimensions. So the
+    # expected 4x saving on software GL did not happen and capture stays at
+    # roughly two minutes a clip. Fixing the SDL probe is what would make this
+    # setting real; until then it is a declaration of intent.
+    "r_customwidth": 640,
+    "r_customheight": 360,
+    # MUST be 0. Wolfcam captures through a multisampled FBO, and this driver
+    # rejects it outright:
+    #     anti-alias samples: 2
+    #     InitFrameBufferAndRenderBuffer  multisample framebuffer error: 0x8cdd
+    # (0x8CDD is GL_FRAMEBUFFER_UNSUPPORTED). The session then exits having
+    # written NO AVI, and the proxy job fails with "missing 1 AVIs" -- a
+    # message that says nothing about anti-aliasing, which is why this cost a
+    # bulk run of 11,850 proxies before anyone read wolfcam's own log.
+    # The engine default is 0 and q3config.cfg already says 0; this profile
+    # was the only thing turning it on. Review clips do not need AA.
+    "r_fboAntiAlias": 0,
+    # The GLSL post-process chain (bloom, colour correct, blur passes) is the
+    # next thing this driver dies inside -- the session stops mid
+    # "scripts/posteffect.vs ->" and writes nothing. It gates the whole block,
+    # and a review proxy has no use for bloom.
+    "r_enablePostProcess": 0,
 }
 
 PROFILES = {

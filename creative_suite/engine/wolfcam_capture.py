@@ -276,10 +276,25 @@ def capture_demo(safe_demo: str, windows: list[dict],
         # top-level window takes the foreground, and doing that to someone
         # mid-round costs them the round. See capture_guard.
         from creative_suite.engine.capture_guard import quiet_startup_info
+        # ASK THE ONE AUTHORITY, even though every queue already did: this
+        # is the process that opens the window, and it must not be reachable
+        # by a caller that forgot. Raises RenderNotPermitted; a queue turns
+        # that into QUEUED + RENDER DEFERRED, never FAILED.
+        from engine.pantheon import render_permit
+        render_permit.require(f"capture_demo:{safe_demo}")
+        # SOFTWARE GL. This driver kills wolfcam during R_Init -- the same
+        # NVIDIA 32-bit blocker documented for PANTHEON's own renderer, on the
+        # same GPU. Mesa is staged BESIDE wolfcamql.exe (Windows resolves
+        # opengl32.dll from the executable's own directory first), so this
+        # process gets softpipe and every other process on the machine is
+        # untouched. Nothing in System32 was modified and no driver setting
+        # was changed. GALLIUM_DRIVER must be set explicitly: the default
+        # Zink probe crashes before it can fall back.
+        env = dict(os.environ, GALLIUM_DRIVER="softpipe")
         proc = subprocess.Popen(
             wolfcam_cmd(safe_demo, staging, profile=profile), cwd=staging,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            startupinfo=quiet_startup_info())
+            env=env, startupinfo=quiet_startup_info())
         try:
             rc = proc.wait(timeout=timeout)
         except subprocess.TimeoutExpired:

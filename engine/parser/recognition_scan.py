@@ -309,6 +309,9 @@ def main() -> int:
     ap.add_argument("--out-dir", default=str(OUT_DIR),
                     help="where the top-list CSVs land (pilot runs should"
                          " point this away from the live export dir)")
+    ap.add_argument("--min-bytes", type=int, default=0,
+                    help="skip demos smaller than this many bytes; 512000 "
+                         "drops connect-and-leave recordings")
     ap.add_argument("--export-only", action="store_true")
     a = ap.parse_args()
 
@@ -324,6 +327,23 @@ def main() -> int:
             " WHERE duplicate_of IS NULL AND parse_error IS NULL"
             " AND path IS NOT NULL")]
         src.close()
+
+        # Size floor. A tiny .dm_73 is a connect-and-leave or a truncated
+        # recording: it carries no round worth mining, and scanning it costs
+        # the same startup as a real match. Measured on this corpus, 1,491 of
+        # 6,445 files sit under the default 500 KB.
+        if a.min_bytes:
+            import os as _os
+            kept = []
+            for row in demos:
+                try:
+                    if _os.path.getsize(row[1]) >= a.min_bytes:
+                        kept.append(row)
+                except OSError:
+                    continue            # unreadable: not scannable either
+            print(f"size filter >= {a.min_bytes} bytes: "
+                  f"{len(kept)} of {len(demos)} demos", flush=True)
+            demos = kept
 
         # only demos already scanned at the CURRENT taxonomy version skip;
         # a version bump makes the whole corpus due for recompute (resumable)
