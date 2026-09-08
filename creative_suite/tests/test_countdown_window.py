@@ -73,3 +73,22 @@ def test_the_two_modules_agree_on_what_early_means():
     from engine.parser import round_context as rc
     assert rp.EARLY_ROUND_MS == rc.EARLY_ROUND_MS
     assert rp.COUNTDOWN_LEAD_MS == rc.COUNTDOWN_LEAD_MS
+
+
+def test_a_window_never_starts_before_zero():
+    """Server time is absolute, so an early kill can go negative.
+
+    A kill 2s into a recording asked for start_ms = -2975. The engine cannot
+    seek there: it exited in ten seconds having written no frames, and the
+    only evidence was "missing 1 AVIs".
+    """
+    w = rp.capture_window(2025, round_start_ms=None)
+    assert w["start_ms"] == 0
+    assert w["basis"] == "CLAMPED_AT_ZERO"
+    assert w["end_ms"] == 2025 + rp.WINDOW_POST_MS
+
+
+def test_the_clamp_also_applies_after_a_countdown_lead_in():
+    """The countdown extends backwards and must not push past zero either."""
+    w = rp.capture_window(1000, round_start_ms=500)
+    assert w["start_ms"] >= 0

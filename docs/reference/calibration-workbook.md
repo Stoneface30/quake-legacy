@@ -27,16 +27,16 @@ Clan Arena has no respawn inside a round, so the round's own deaths give an exac
 
 | trait | n | example | means | WORTH | verdict |
 |---|---:|---|---|---|---|
-| `ROUND_WINNING_FRAG` | 6,726 | FRAG:97476 | killed the last living opponent — the round ended on it | killed the last living opponent — the round ended on it |  |
-| `CLUTCH_ROUND_WIN` | 2,152 | FRAG:97476 | won the round while the last one alive on his team | won the round while the last one alive on his team |  |
-| `CLUTCH_1VN` | 3,311 | FRAG:114601 | last alive, 2+ opponents still up | last alive, 2+ opponents still up |  |
-| `LAST_MAN_STANDING` | 5,463 | FRAG:114601 | last alive on his team, 1+ opponents up | last alive on his team, 1+ opponents up |  |
-| `OUTNUMBERED_FRAG` | 4,654 | FRAG:117266 | his team had fewer players alive at the kill | his team had fewer players alive at the kill |  |
-| `ROUND_OPENING_FRAG` | 2,683 | FRAG:120519 | within 5s of the round going live; clip opens on the countdown | within 5s of the round going live; clip opens on the countdown |  |
-| `FIRST_BLOOD` | 5,848 | FRAG:117266 | first death of the round | first death of the round |  |
-| `TRADE_KILL` | 2,097 | FRAG:112317 | the victim had just killed a teammate | the victim had just killed a teammate |  |
-| `REVENGE_FRAG` | 4,651 | FRAG:98957 | killed whoever killed him last round | killed whoever killed him last round |  |
-| `SNAP_ON_ARRIVAL` | 542 | FRAG:106923 | the opponent was only visible for a moment before dying | the opponent was only visible for a moment before dying |  |
+| `ROUND_WINNING_FRAG` | 6,726 | FRAG:97476 | killed the last living opponent — the round ended on it | killed the last living opponent — the round ended on it | killed the last living opponent — the round ended on it |
+| `CLUTCH_ROUND_WIN` | 2,152 | FRAG:97476 | won the round while the last one alive on his team | won the round while the last one alive on his team | won the round while the last one alive on his team |
+| `CLUTCH_1VN` | 3,311 | FRAG:114601 | last alive, 2+ opponents still up | last alive, 2+ opponents still up | last alive, 2+ opponents still up |
+| `LAST_MAN_STANDING` | 5,463 | FRAG:114601 | last alive on his team, 1+ opponents up | last alive on his team, 1+ opponents up | last alive on his team, 1+ opponents up |
+| `OUTNUMBERED_FRAG` | 4,654 | FRAG:117266 | his team had fewer players alive at the kill | his team had fewer players alive at the kill | his team had fewer players alive at the kill |
+| `ROUND_OPENING_FRAG` | 2,683 | FRAG:120519 | within 5s of the round going live; clip opens on the countdown | within 5s of the round going live; clip opens on the countdown | within 5s of the round going live; clip opens on the countdown |
+| `FIRST_BLOOD` | 5,848 | FRAG:117266 | first death of the round | first death of the round | first death of the round |
+| `TRADE_KILL` | 2,097 | FRAG:112317 | the victim had just killed a teammate | the victim had just killed a teammate | the victim had just killed a teammate |
+| `REVENGE_FRAG` | 4,651 | FRAG:98957 | killed whoever killed him last round | killed whoever killed him last round | killed whoever killed him last round |
+| `SNAP_ON_ARRIVAL` | 542 | FRAG:106923 | the opponent was only visible for a moment before dying | the opponent was only visible for a moment before dying | the opponent was only visible for a moment before dying |
 
 Two questions only you can settle:
 
@@ -126,14 +126,14 @@ Two questions only you can settle:
 
 | signal | n | means | funny? | verdict |
 |---|---:|---|---|---|
-| `HERO_THEN_DEATH` | 11,001 | did something good, then died immediately | did something good, then died immediately |  |
-| `KILL_THEN_DEATH_FAST` | 6,139 | killed someone and died within moments | killed someone and died within moments |  |
-| `CHAT_REACTION_NEARBY` | 2,218 | someone typed in chat right after — the players reacted | someone typed in chat right after — the players reacted |  |
-| `TELEFRAG` | 1,443 | materialised inside someone | materialised inside someone |  |
-| `ENVIRONMENTAL_DEATH` | 1,424 | the map killed them, not a player | the map killed them, not a player |  |
-| `SELF_DAMAGE_DEATH` | 1,307 | killed themselves with their own weapon | killed themselves with their own weapon |  |
-| `INSTANT_TRADE` | 920 | both died within a breath of each other | both died within a breath of each other |  |
-| `GAUNTLET_KILL` | 904 | killed with the melee weapon | killed with the melee weapon |  |
+| `HERO_THEN_DEATH` | 11,001 | did something good, then died immediately | did something good, then died immediately | did something good, then died immediately |
+| `KILL_THEN_DEATH_FAST` | 6,139 | killed someone and died within moments | killed someone and died within moments | killed someone and died within moments |
+| `CHAT_REACTION_NEARBY` | 2,218 | someone typed in chat right after — the players reacted | someone typed in chat right after — the players reacted | someone typed in chat right after — the players reacted |
+| `TELEFRAG` | 1,443 | materialised inside someone | materialised inside someone | materialised inside someone |
+| `ENVIRONMENTAL_DEATH` | 1,424 | the map killed them, not a player | the map killed them, not a player | the map killed them, not a player |
+| `SELF_DAMAGE_DEATH` | 1,307 | killed themselves with their own weapon | killed themselves with their own weapon | killed themselves with their own weapon |
+| `INSTANT_TRADE` | 920 | both died within a breath of each other | both died within a breath of each other | both died within a breath of each other |
+| `GAUNTLET_KILL` | 904 | killed with the melee weapon | killed with the melee weapon | killed with the melee weapon |
 
 `CHAT_REACTION_NEARBY` is the interesting one: the players themselves reacted. If those hold up, chat proximity is the cheapest comedy detector we have. Chat text is never exported — only that it happened.
 
@@ -177,16 +177,16 @@ If a clip is wrong, it is more valuable to me than a clip that is good. Put anyt
 
 | what to watch for | why it matters | seen it? | notes |
 |---|---|---|---|
-| The clip ends before the frag happens | The old windows did this. It should be fixed; if you still see it, the round boundary is wrong somewhere I have not found. | The old windows did this. It should be fixed; if you still see it, the round boundary is wrong somewhere I have not found. |  |
-| Several other people's frags before the one under review | The kill should sit in the middle of the clip. Earlier kills in shot means the window moved. | The kill should sit in the middle of the clip. Earlier kills in shot means the window moved. |  |
-| Two different maps in one clip | Seen once. It means a seek landed in the wrong demo — a serious identity bug, and I want the clip id. | Seen once. It means a seek landed in the wrong demo — a serious identity bug, and I want the clip id. |  |
-| The clip plays too fast or too slow | The capture writes 30fps and the header can claim 60. If motion looks wrong, name the clip. | The capture writes 30fps and the header can claim 60. If motion looks wrong, name the clip. |  |
-| Wrong player followed / camera on someone else | The POV subject changes when the recorder dies. If the clip follows the wrong person at the kill, the subject tracking is off. | The POV subject changes when the recorder dies. If the clip follows the wrong person at the kill, the subject tracking is off. |  |
-| Player names visible on screen | These clips are internal, but names must never reach a public export. If you see one in something meant to be public, stop me. | These clips are internal, but names must never reach a public export. If you see one in something meant to be public, stop me. |  |
-| Health or armour numbers that cannot be right | Health is signed now, but a value over 200 in Clan Arena or a negative one on the HUD is a decoding bug. | Health is signed now, but a value over 200 in Clan Arena or a negative one on the HUD is a decoding bug. |  |
-| A kill credited to nobody, or to the wrong killer | Environmental deaths are credited to the world on purpose. A PLAYER kill with the wrong name on it is not. | Environmental deaths are credited to the world on purpose. A PLAYER kill with the wrong name on it is not. |  |
-| Countdown clips that start too early or in the wrong place | New this run. Nobody has ever looked at one. | New this run. Nobody has ever looked at one. |  |
-| Black frames, freezes, missing HUD, wrong colours | Capture faults. They tell me the profile is wrong, not the frag. | Capture faults. They tell me the profile is wrong, not the frag. |  |
+| The clip ends before the frag happens | The old windows did this. It should be fixed; if you still see it, the round boundary is wrong somewhere I have not found. | The old windows did this. It should be fixed; if you still see it, the round boundary is wrong somewhere I have not found. | The old windows did this. It should be fixed; if you still see it, the round boundary is wrong somewhere I have not found. |
+| Several other people's frags before the one under review | The kill should sit in the middle of the clip. Earlier kills in shot means the window moved. | The kill should sit in the middle of the clip. Earlier kills in shot means the window moved. | The kill should sit in the middle of the clip. Earlier kills in shot means the window moved. |
+| Two different maps in one clip | Seen once. It means a seek landed in the wrong demo — a serious identity bug, and I want the clip id. | Seen once. It means a seek landed in the wrong demo — a serious identity bug, and I want the clip id. | Seen once. It means a seek landed in the wrong demo — a serious identity bug, and I want the clip id. |
+| The clip plays too fast or too slow | The capture writes 30fps and the header can claim 60. If motion looks wrong, name the clip. | The capture writes 30fps and the header can claim 60. If motion looks wrong, name the clip. | The capture writes 30fps and the header can claim 60. If motion looks wrong, name the clip. |
+| Wrong player followed / camera on someone else | The POV subject changes when the recorder dies. If the clip follows the wrong person at the kill, the subject tracking is off. | The POV subject changes when the recorder dies. If the clip follows the wrong person at the kill, the subject tracking is off. | The POV subject changes when the recorder dies. If the clip follows the wrong person at the kill, the subject tracking is off. |
+| Player names visible on screen | These clips are internal, but names must never reach a public export. If you see one in something meant to be public, stop me. | These clips are internal, but names must never reach a public export. If you see one in something meant to be public, stop me. | These clips are internal, but names must never reach a public export. If you see one in something meant to be public, stop me. |
+| Health or armour numbers that cannot be right | Health is signed now, but a value over 200 in Clan Arena or a negative one on the HUD is a decoding bug. | Health is signed now, but a value over 200 in Clan Arena or a negative one on the HUD is a decoding bug. | Health is signed now, but a value over 200 in Clan Arena or a negative one on the HUD is a decoding bug. |
+| A kill credited to nobody, or to the wrong killer | Environmental deaths are credited to the world on purpose. A PLAYER kill with the wrong name on it is not. | Environmental deaths are credited to the world on purpose. A PLAYER kill with the wrong name on it is not. | Environmental deaths are credited to the world on purpose. A PLAYER kill with the wrong name on it is not. |
+| Countdown clips that start too early or in the wrong place | New this run. Nobody has ever looked at one. | New this run. Nobody has ever looked at one. | New this run. Nobody has ever looked at one. |
+| Black frames, freezes, missing HUD, wrong colours | Capture faults. They tell me the profile is wrong, not the frag. | Capture faults. They tell me the profile is wrong, not the frag. | Capture faults. They tell me the profile is wrong, not the frag. |
 
 ## 7. Open questions on my side — no answer needed, just visibility
 

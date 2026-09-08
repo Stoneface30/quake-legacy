@@ -115,6 +115,14 @@ def capture_window(server_time_ms: int, round_start_ms: int | None = None,
             if countdown_start < start:
                 start = countdown_start
                 basis = "COUNTDOWN_LEAD_IN"
+
+    # A window can never begin before the server's clock did. Server time is
+    # absolute, so a kill 2s into a recording produced start_ms = -2975 and a
+    # seek the engine cannot honour: it captured nothing in ten seconds and
+    # reported only "missing 1 AVIs". Six frags in the corpus land here.
+    if start < 0:
+        start = 0
+        basis = "CLAMPED_AT_ZERO"
     return {"start_ms": start, "end_ms": end, "basis": basis}
 
 _LOCK_RETRY_S = 5.0        # requeue delay while another writer holds the lock

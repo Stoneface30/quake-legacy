@@ -482,16 +482,20 @@ _PUBLIC_EXPORT = {
 
 FAST_REVIEW_LAUNCH_SETS = {
     **REVIEW_LAUNCH_SETS,
-    # THESE CURRENTLY HAVE NO EFFECT, and the honest note matters more than
-    # the values. SDL_Init(SDL_INIT_VIDEO) fails in this environment, the
-    # client falls back to mode 11, and every proxy comes out 856x480 whatever
-    # is asked for -- measured on clips captured either side of a change from
-    # 1280x720 to 640x360, which produced byte-identical dimensions. So the
-    # expected 4x saving on software GL did not happen and capture stays at
-    # roughly two minutes a clip. Fixing the SDL probe is what would make this
-    # setting real; until then it is a declaration of intent.
-    "r_customwidth": 640,
-    "r_customheight": 360,
+    # THESE NOW TAKE EFFECT. The previous note here said they did not: SDL_Init
+    # failed, the client fell back to mode 11, and every proxy came out 856x480
+    # whatever was asked for. That was a SOFTPIPE symptom, not a client one --
+    # on native GL a 1920x1080 capture was produced successfully, and softpipe
+    # no longer merely renders slowly, it access-violates (0xC0000005). Native
+    # GL is the only working path and it honours these values, so they are a
+    # real cost control again rather than a declaration of intent.
+    #
+    # Review resolution is deliberately small. These clips exist to answer
+    # "is this frag worth using", which needs the action legible and nothing
+    # more; the master capture is where quality lives.
+    "r_mode": -1,               # -1 = use the custom width/height below
+    "r_customwidth": 512,
+    "r_customheight": 288,
     # MUST be 0. Wolfcam captures through a multisampled FBO, and this driver
     # rejects it outright:
     #     anti-alias samples: 2
@@ -513,8 +517,12 @@ FAST_REVIEW_LAUNCH_SETS = {
 PROFILES = {
     "TR4SH_FAST_REVIEW_V1": {
         **_QUALITY, **_GAMEPLAY_MASTER_V2, **_REVIEW_V2,
-        "cl_aviFrameRate": 30,
-        "r_jpegCompressionQuality": 80,
+        # 20 fps, not 30. Every captured frame is a rendered frame, so the
+        # frame rate is close to a linear cost on a run of tens of thousands
+        # of clips. 20 is still enough to judge tracking and timing, which is
+        # the only question a review clip has to answer.
+        "cl_aviFrameRate": 20,
+        "r_jpegCompressionQuality": 70,
     },
     "TR4SH_PUBLIC_EXPORT": {**_QUALITY, **_PUBLIC_EXPORT},
     "TR4SH_REVIEW_V2": {**_QUALITY, **_GAMEPLAY_MASTER_V2, **_REVIEW_V2},
