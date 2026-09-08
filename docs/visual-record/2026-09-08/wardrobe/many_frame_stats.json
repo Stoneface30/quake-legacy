@@ -1,0 +1,18 @@
+{
+ "STOCK": {
+  "frames": 14,
+  "sat_mean": 0.0955,
+  "sat_median": 0.0912,
+  "strong_mean": 0.0173,
+  "lum_mean": 18.8,
+  "lum_median": 18.0
+ },
+ "NEON": {
+  "frames": 14,
+  "sat_mean": 0.2048,
+  "sat_median": 0.198,
+  "strong_mean": 0.0467,
+  "lum_mean": 66.9,
+  "lum_median": 70.1
+ }
+}
