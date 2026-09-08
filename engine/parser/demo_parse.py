@@ -468,9 +468,25 @@ class _Bits:
         return sym
 
     def readshort(self) -> int:
+        """MSG_ReadShort. SIGNED, like the engine.
+
+        msg.c does `c = (short)MSG_ReadBits(msg, 16)` -- an explicit cast to a
+        signed short -- and readlong() below already sign-extends. This one did
+        not, and the STAT_ array is read through it (see the playerstate
+        decode), so a dead player's negative health came back as its unsigned
+        complement: 23 stored health_at_frag values sat between 65,459 and
+        65,535, which are -77 to -1. Those are exactly the interesting ones,
+        the heavy overkill deaths.
+
+        Sign-extending is safe for the other callers: the configstring index
+        is bounded well below 32,767, and the stats/persistant bitmasks are
+        used with `&`, where Python's arbitrary-precision -1 behaves as
+        all-ones exactly as the 16-bit mask intends.
+        """
         lo, self._bit = self._h.receive(self._data, self._bit)
         hi, self._bit = self._h.receive(self._data, self._bit)
-        return lo | (hi << 8)
+        v = lo | (hi << 8)
+        return v - 0x10000 if v >= 0x8000 else v
 
     def readlong(self) -> int:
         b0, self._bit = self._h.receive(self._data, self._bit)
@@ -554,6 +570,11 @@ class DM73Parser:
         self._map: str      = ''
         self._gametype: str = ''
         # Delta-accumulation state
+        # Snapshot history for delta references: messageNum -> (playerstate,
+        # entity states) AFTER that snapshot was applied. PACKET_BACKUP is 32
+        # in the engine; anything older cannot be referenced.
+        self._snap_history: dict[int, tuple] = {}
+        self._missing_delta_refs = 0
         self._ps_state: dict   = {}           # accumulated playerstate fields
         self._entity_states: dict[int, dict] = {}   # entity_num → accumulated fields
         # Initialised here, NOT in parse(): callers (and tests) drive _dispatch()
@@ -589,7 +610,7 @@ class DM73Parser:
                 if len(payload) < length:
                     break
                 try:
-                    self._dispatch(payload, events, snapshots)
+                    self._dispatch(payload, events, snapshots, seq)
                 except Exception as exc:
                     # COUNT failures. A silent `pass` here hid a NameError that
                     # dropped every obituary packet and produced a completely
@@ -630,7 +651,8 @@ class DM73Parser:
 
     # ── packet dispatcher ─────────────────────────────────────────────────────
 
-    def _dispatch(self, payload: bytes, events: list, snapshots: list):
+    def _dispatch(self, payload: bytes, events: list, snapshots: list,
+                  message_num: int = 0):
         """Read EVERY message in the packet, not just the first.
 
         A packet carries an ack sequence then a SEQUENCE of messages terminated
@@ -655,7 +677,7 @@ class DM73Parser:
             elif cmd == _SVC_SERVERCOMMAND:
                 self._parse_servercommand(s)
             elif cmd == _SVC_SNAPSHOT:
-                self._parse_snapshot(s, events, snapshots)
+                self._parse_snapshot(s, events, snapshots, message_num)
             else:
                 # Unknown/unhandled opcode: the bit position is no longer
                 # trustworthy, so stop rather than decode garbage.
@@ -807,7 +829,9 @@ class DM73Parser:
             except (ValueError, IndexError):
                 continue
 
-    def _parse_snapshot(self, s: _Bits, events: list, snapshots: list):
+    def _parse_snapshot(self, s: _Bits, events: list, snapshots: list,
+                        message_num: int = 0):
+        """Decode one snapshot against its declared reference."""
         server_time           = s.readlong()
         self._last_server_time = server_time
         delta_num             = s.readbyte()
@@ -818,6 +842,23 @@ class DM73Parser:
             self._entity_states = {k: dict(v) for k, v in self._baseline_entities.items()}
             self._entity_prev_etype.clear()
             self._entity_prev_ev.clear()
+        else:
+            # THE DELTA REFERENCE. The engine decodes against the snapshot at
+            # messageNum - deltaNum, not against whatever state happens to be
+            # accumulated. Those differ whenever deltaNum > 1, which is 19.34%
+            # of snapshots measured over 12 demos: a field changed in a
+            # skipped snapshot and then omitted from this delta must revert to
+            # the older reference value, and accumulating keeps the skipped one.
+            ref = self._snap_history.get(message_num - delta_num)
+            if ref is not None:
+                self._ps_state = dict(ref[0])
+                self._entity_states = {k: dict(v) for k, v in ref[1].items()}
+            # A reference we no longer hold (older than the history, or a lost
+            # packet) leaves the accumulated state in place. That is the same
+            # fallback the client has, and it is recorded rather than hidden.
+            elif delta_num:
+                self._missing_delta_refs += 1
+
         area_len              = s.readbyte()
         # Exactly areamaskLen bytes -- see docs/reference/dm73-format-deep-dive.md
         # line 348 ("areamask byte[areamaskLen]") and Q3 CL_ParseSnapshot, which
@@ -838,6 +879,20 @@ class DM73Parser:
         snap['server_time_ms'] = server_time
         snap['round_num']      = self._cur_round
         snapshots.append(snap)
+
+        # Record the state AFTER this snapshot so a later delta can reference
+        # it. Both streams are complete at this point: entities were decoded
+        # above and the playerstate immediately before this.
+        #
+        # PACKET_BACKUP is 32 in the engine, so a reference older than that
+        # cannot exist; keeping a little more than that costs nothing and
+        # avoids evicting an entry a valid delta still wants.
+        self._snap_history[message_num] = (
+            dict(self._ps_state),
+            {k: dict(v) for k, v in self._entity_states.items()})
+        if len(self._snap_history) > 64:
+            for old_num in sorted(self._snap_history)[:-64]:
+                del self._snap_history[old_num]
         if self._ps_events:
             for pe in self._ps_events:
                 code = pe['event_code']
@@ -1121,6 +1176,26 @@ class DM73Parser:
             'speed':       speed,
             'health':      ps.get('s0'),   # STAT_HEALTH
             'armor':       ps.get('s4'),   # STAT_ARMOR
+
+            # DAMAGE TAKEN BY THE POV PLAYER, straight out of the playerstate.
+            # g_active.c::P_DamageFeedback:
+            #     count = client->damage_blood + client->damage_armor;
+            #     if (count > 255) count = 255;
+            #     G_AddEvent(player, EV_PAIN, player->health);
+            #     client->ps.damageCount = count;
+            #
+            # So EV_PAIN's parm is HEALTH AFTER, not damage -- a pain event is
+            # not a per-hit damage ledger. damageCount is the damage number,
+            # and it is AGGREGATED (blood + armour, possibly several hits in
+            # one server frame) and CLAMPED AT 255. It says how much the POV
+            # player was hurt, never how much they dealt.
+            #
+            # damageYaw/damagePitch give the direction it came from, which is
+            # evidence toward an attacker but not an identity.
+            'damage_count': ps.get(_PS_DMG_COUNT),
+            'damage_event': ps.get(_PS_DMG_EVENT),
+            'damage_yaw':   ps.get(_PS_DMG_YAW),
+            'damage_pitch': ps.get(_PS_DMG_PITCH),
         }
 
     # ── entity delta reader ───────────────────────────────────────────────────
