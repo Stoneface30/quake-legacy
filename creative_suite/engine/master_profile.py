@@ -478,10 +478,14 @@ _PUBLIC_EXPORT = {
 
 FAST_REVIEW_LAUNCH_SETS = {
     **REVIEW_LAUNCH_SETS,
-    # Review proxies render on software GL (softpipe), which is pixel-bound:
-    # cost scales with area, so 640x360 is ~4x cheaper than 720p and still
-    # perfectly legible for judging what happened in a frag. Final renders do
-    # not use this profile -- P1-J's quality ceiling is untouched.
+    # THESE CURRENTLY HAVE NO EFFECT, and the honest note matters more than
+    # the values. SDL_Init(SDL_INIT_VIDEO) fails in this environment, the
+    # client falls back to mode 11, and every proxy comes out 856x480 whatever
+    # is asked for -- measured on clips captured either side of a change from
+    # 1280x720 to 640x360, which produced byte-identical dimensions. So the
+    # expected 4x saving on software GL did not happen and capture stays at
+    # roughly two minutes a clip. Fixing the SDL probe is what would make this
+    # setting real; until then it is a declaration of intent.
     "r_customwidth": 640,
     "r_customheight": 360,
     # MUST be 0. Wolfcam captures through a multisampled FBO, and this driver
