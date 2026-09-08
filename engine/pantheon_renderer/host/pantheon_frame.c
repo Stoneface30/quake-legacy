@@ -136,6 +136,61 @@ static const char *s_dumpModel;   /* --dump-model: asset query, no render */
 
 /* ── TGA out ────────────────────────────────────────────────────────────── */
 /*
+ * MAKE THE DRAWABLE THE SIZE WE ASKED FOR.
+ *
+ * A window created at 1280x720 is 1280x720 INCLUDING its title bar and frame.
+ * GL draws into the client area, which is 1264x681 -- 16 columns and 39 rows
+ * smaller. glConfig still reports 1280x720, because that is what was
+ * requested, so nothing anywhere notices. The readback then takes 1280x720
+ * and gets the frame plus an L-shaped margin that was never drawn: every
+ * output was quietly 1264x681 of picture in a file claiming 1280x720, with
+ * the missing strip filled by whatever was in that memory.
+ *
+ * r_noborder is the intended answer and is not honoured by this build's
+ * window creation, so the window is corrected directly: measure the client
+ * area, grow the window by exactly the deficit, and verify. A frame that
+ * cannot be made the requested size is refused rather than delivered short --
+ * a sequence composited from mixed resolutions is worse than one that
+ * stopped.
+ */
+static void PANTHEON_MatchClientArea(int wantW, int wantH)
+{
+    HWND hwnd = WindowFromDC(wglGetCurrentDC());
+    RECT client, window;
+    int  dw, dh;
+
+    if (!hwnd) {
+        Com_Printf("^3PANTHEON: no window handle; cannot verify the drawable "
+                   "size, the frame may carry an undrawn margin\n");
+        return;
+    }
+    if (!GetClientRect(hwnd, &client)) return;
+    dw = wantW - (client.right - client.left);
+    dh = wantH - (client.bottom - client.top);
+    if (dw == 0 && dh == 0) return;
+
+    Com_Printf("PANTHEON: the window's client area is %ldx%ld, not %dx%d "
+               "(the frame and title bar); growing the window by %d,%d\n",
+               client.right - client.left, client.bottom - client.top,
+               wantW, wantH, dw, dh);
+
+    GetWindowRect(hwnd, &window);
+    SetWindowPos(hwnd, NULL, 0, 0,
+                 (window.right - window.left) + dw,
+                 (window.bottom - window.top) + dh,
+                 SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+
+    GetClientRect(hwnd, &client);
+    if (client.right - client.left != wantW ||
+        client.bottom - client.top != wantH)
+        Com_Error(ERR_FATAL,
+                  "PANTHEON: the drawable is %ldx%ld and %dx%d was asked for; "
+                  "refusing to write frames that are not the size they claim",
+                  client.right - client.left, client.bottom - client.top,
+                  wantW, wantH);
+}
+
+/*
  * THE BRIDGE: a shot frame IS a snapshot.
  *
  * A RenderFrame and a snapshot_t are the same statement in two vocabularies --
@@ -534,7 +589,20 @@ int main(int argc, char **argv)
                  va("+set r_customwidth %d +set r_customheight %d ", cliW, cliH));
     }
     Q_strcat(cmdline, sizeof(cmdline),
-             "+set r_mode -1 +set r_fullscreen 0 +set r_fboAntiAlias 0 ");
+             /* BORDERLESS, BECAUSE THE BORDER COSTS PIXELS.
+              *
+              * A decorated window created at 1280x720 has a CLIENT area of
+              * 1264x681 -- the title bar and frame eat 39 rows and 16
+              * columns. GL draws into the client area; glConfig reports the
+              * number that was asked for. Reading 1280x720 back therefore
+              * returns the frame plus an L-shaped margin that was never
+              * rendered, and every output was quietly 1264x681 of picture in
+              * a 1280x720 file.
+              *
+              * r_noborder removes the decoration, so the client area IS the
+              * requested size. Latched, hence set before Com_Init. */
+             "+set r_mode -1 +set r_fullscreen 0 +set r_fboAntiAlias 0 "
+             "+set r_noborder 1 ");
 
     Com_Init(cmdline);
 
@@ -585,6 +653,8 @@ int main(int argc, char **argv)
     {   /* BeginRegistration creates the GL context via GLimp_Init. */
         memset(&s_glconfig, 0, sizeof(s_glconfig));
         re->BeginRegistration(&s_glconfig);
+        PANTHEON_MatchClientArea(shotPath ? s_shot.width  : cliW,
+                                 shotPath ? s_shot.height : cliH);
     }
 
     /* Models and skins must register BEFORE EndRegistration closes the pass,
