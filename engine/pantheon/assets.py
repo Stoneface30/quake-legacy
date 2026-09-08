@@ -90,11 +90,19 @@ def library(path: Path | None = None) -> Path:
     return Path(path) if path else DEFAULT_LIBRARY
 
 
-def available(lib: Path | None = None) -> dict:
-    """What the pack library actually holds, by name and size."""
+def available(lib: Path | None = None, set_name: str | None = None) -> dict:
+    """What the pack library holds for a set, by name and size.
+
+    `set_name` matters now that the wardrobe registers ten looks: asking about
+    ALL sets reports every look that has not been built yet, which is not a
+    fault -- a look is a choice that exists whether or not its pack is on
+    disk. A caller checking whether it can film asks about the set it intends
+    to install.
+    """
     lib = library(lib)
+    chosen = ([SETS[set_name]] if set_name else list(SETS.values()))
     out = {}
-    for s in SETS.values():
+    for s in chosen:
         for p in s.packs:
             src = p.source(lib)
             out[p.name] = {"present": src.exists(),

@@ -376,7 +376,12 @@ class Doctor:
         from engine.pantheon import assets as A
         from engine.pantheon import offscreen as O
         rep = A.report()
-        missing = [n for n, v in rep["available"].items() if not v["present"]]
+        # Ask about the set this machine actually films with. The wardrobe
+        # registers ten looks as CHOICES; a look whose pack has not been built
+        # is not a fault, and reporting it as one made this check fail the
+        # moment the wardrobe arrived.
+        avail = A.available(set_name=O.DEFAULT_ASSET_SET)
+        missing = [n for n, v in avail.items() if not v["present"]]
         if missing:
             return FAIL, (f"the {O.DEFAULT_ASSET_SET} packs are not on this "
                           f"machine: {missing[:3]}"), rep

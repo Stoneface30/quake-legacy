@@ -279,3 +279,17 @@ def test_the_control_surface_comes_from_the_runtime_not_from_source():
     is derived from the census the running client produced."""
     assert hud.CENSUS.name.endswith("engine_census_11_3.json")
     assert hud.CENSUS.exists(), "the committed census must resolve from CODE_ROOT"
+
+
+def test_registering_looks_does_not_make_the_asset_check_fail():
+    """A look is a CHOICE that exists whether or not its pack is built. When
+    `available()` reported every registered set, adding the wardrobe made the
+    doctor's ASSETS check fail on ten packs nobody had asked for."""
+    from engine.pantheon import assets as A
+    from engine.pantheon import offscreen as O
+    L.register()
+    scoped = A.available(set_name=O.DEFAULT_ASSET_SET)
+    everything = A.available()
+    assert set(scoped) < set(everything), "scoping should narrow the answer"
+    assert all(v["present"] for v in scoped.values()), \
+        "the set we actually film with must be on disk"
