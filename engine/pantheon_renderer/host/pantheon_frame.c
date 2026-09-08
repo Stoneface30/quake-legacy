@@ -49,6 +49,8 @@ void PANTHEON_CG_PushSnapshot(int number, const snapshot_t *snap);
 void PANTHEON_CG_Frame(int serverTime, qboolean firstFrame);
 void PANTHEON_CG_Init(void);
 void PANTHEON_CG_Report(void);
+void PANTHEON_CG_Shutdown(void);
+void PANTHEON_CG_Reset(void);
 void PANTHEON_CG_ComposeSnapshot(snapshot_t *snap, int serverTime, int number,
                                  const vec3_t origin, const vec3_t angles);
 void PANTHEON_CG_AddRocket(snapshot_t *snap, int number, const vec3_t origin,
@@ -77,6 +79,7 @@ extern CRITICAL_SECTION printCriticalSection;
 
 #define PA_MAX_MODELS  16
 #define PA_MAX_MISSILES 8
+#define PA_MAX_SHOTS   512
 
 typedef struct {
     int      player;                 /* index into the declared players */
@@ -435,7 +438,15 @@ int main(int argc, char **argv)
     byte *pixels;
     int i, fi;
     char cmdline[1024];
+    /* A RUN IS A MAP, NOT A FRAG.
+     *
+     * Loading campgrounds costs seconds; drawing a frame of it costs
+     * milliseconds. Extracting a corpus means the same handful of maps over
+     * and over, so --shot is repeatable: one process loads the world once and
+     * renders every take recorded on it. */
     const char *shotPath = NULL;
+    const char *shotPaths[PA_MAX_SHOTS];
+    int         numShots = 0, take, totalFrames = 0;
 
     /* single-frame mode inputs */
     char  cliMap[MAX_QPATH] = {0};
@@ -457,9 +468,13 @@ int main(int argc, char **argv)
 
     cmdline[0] = '\0';
     for (i = 1; i < argc; i++) {
-        if (!strcmp(argv[i], "--shot") && i + 1 < argc)
-            shotPath = argv[++i];
-        else if (!strcmp(argv[i], "--map") && i + 1 < argc)
+        if (!strcmp(argv[i], "--shot") && i + 1 < argc) {
+            if (numShots >= PA_MAX_SHOTS)
+                ShotError("more than %d --shot scripts in one run",
+                          PA_MAX_SHOTS);
+            shotPaths[numShots++] = argv[++i];
+            shotPath = shotPaths[0];
+        } else if (!strcmp(argv[i], "--map") && i + 1 < argc)
             Q_strncpyz(cliMap, argv[++i], sizeof(cliMap));
         else if (!strcmp(argv[i], "--origin") && i + 3 < argc) {
             cliOrigin[0] = (float)atof(argv[++i]);
@@ -803,6 +818,45 @@ int main(int argc, char **argv)
     pixels = malloc((size_t)(shotPath ? s_shot.width : cliW) *
                     (size_t)(shotPath ? s_shot.height : cliH) * 3);
 
+  for (take = 0; take < (numShots > 1 ? numShots : 1); take++) {
+
+    /* Take 0 is already loaded and already inside cgame -- its CG_Init ran in
+     * the registration window, which is where cgame expects to register its
+     * media. Every take after it re-parses, tears cgame down and starts it
+     * again on the world that is already resident. Its assets come back from
+     * the renderer's cache; a genuinely new model would still register, and
+     * if a handle ever came back 0 the shot refuses to render rather than
+     * quietly dropping what it could not find. */
+    if (take > 0) {
+        gameState_t gs;
+        int n;
+
+        free(s_shot.frames);
+        memset(&s_shot, 0, sizeof(s_shot));
+        ParseShot(shotPaths[take]);
+        if (s_shot.width != s_glconfig.vidWidth ||
+            s_shot.height != s_glconfig.vidHeight)
+            ShotError("%s asks for %dx%d; the run is %dx%d and the window is "
+                      "created once", shotPaths[take], s_shot.width,
+                      s_shot.height, s_glconfig.vidWidth, s_glconfig.vidHeight);
+
+        PANTHEON_CG_Shutdown();
+        PANTHEON_CG_Reset();
+        PANTHEON_CG_BuildGameState(&gs, s_shot.map, 0);
+        for (i = 0; i < s_shot.numPlayers; i++)
+            PANTHEON_CG_AddPlayerInfo(&gs, i + 1, s_shot.playerModel[i],
+                                      s_shot.playerSkin[i]);
+        PANTHEON_CG_SetGameState(&gs);
+        for (n = 1; n <= 2 && n <= s_shot.numFrames; n++)
+            PANTHEON_ShotSnapshot(n);
+        PANTHEON_CG_Init();
+        re->EndFrame(NULL, NULL);
+        re->BeginFrame(STEREO_CENTER, qfalse);
+        re->EndFrame(NULL, NULL);
+        Com_Printf("PANTHEON: take %d/%d -- %s (%d frames)\n",
+                   take + 1, numShots, s_shot.map, s_shot.numFrames);
+    }
+
     for (fi = 0; fi < (shotPath ? s_shot.numFrames : 1); fi++) {
         int w = shotPath ? s_shot.width : cliW;
         int h = shotPath ? s_shot.height : cliH;
@@ -940,11 +994,15 @@ pantheon_readback:
             Com_Printf("PANTHEON: frame %d/%d t=%d -> %s\n",
                        fi + 1, s_shot.numFrames, time_ms, out);
     }
+    totalFrames += shotPath ? s_shot.numFrames : 1;
+  }
 
     free(pixels);
     if (shotPath)
-        Com_Printf("PANTHEON: wrote %d frames (%dx%d) map=%s provenance=%s\n",
-                   s_shot.numFrames, s_shot.width, s_shot.height,
+        Com_Printf("PANTHEON: wrote %d frames across %d take%s (%dx%d) "
+                   "map=%s provenance=%s\n",
+                   totalFrames, numShots, numShots == 1 ? "" : "s",
+                   s_shot.width, s_shot.height,
                    s_shot.map, s_shot.provenance);
     else
         Com_Printf("PANTHEON: wrote %s (%dx%d) map=%s\n",

@@ -223,6 +223,22 @@ void PANTHEON_CG_Frame(int serverTime, qboolean firstFrame)
     PANTHEON_CG_ProbePrint("after CG_DRAW_ACTIVE_FRAME");
 }
 
+/*
+ * END A TAKE.
+ *
+ * Batching frags by map means many takes in one process: the world is loaded
+ * once, and every moment recorded on it is rendered before the map changes.
+ * Each take is its own game as far as cgame is concerned, so it gets its own
+ * CG_Shutdown/CG_Init pair -- otherwise the marks, the trails, the local
+ * entities and the entity slots of the previous frag bleed into the next one,
+ * and a scorch mark from someone else's rocket appears in a frame it has no
+ * business being in.
+ */
+void PANTHEON_CG_Shutdown(void)
+{
+    vmMain(CG_SHUTDOWN, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+}
+
 void PANTHEON_CG_Report(void)
 {
     int s = PANTHEON_CG_SoundCallCount();

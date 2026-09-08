@@ -78,6 +78,10 @@ void PANTHEON_CG_BindRenderer(refexport_t *re, const glconfig_t *cfg)
 /* Sound is not linked into PANTHEON: a still frame has nothing to play, and
  * the mixer would pull in the whole client. Counted rather than ignored, so
  * "cgame asked for sound" is a fact we can report instead of a silence. */
+/* Which map is in the renderer. See CG_R_LOADWORLDMAP. */
+static char cg_worldLoaded[MAX_QPATH];
+const char *PANTHEON_CG_LoadedWorld(void) { return cg_worldLoaded; }
+
 static int cg_sound_calls;
 int PANTHEON_CG_SoundCallCount(void) { return cg_sound_calls; }
 
@@ -156,7 +160,31 @@ intptr_t PANTHEON_CG_Syscall(intptr_t cmd, ...)
         cg_sound_calls++; return 0;   /* a handle nothing will play */
 
     /* ---- renderer ----------------------------------------------------- */
-    case CG_R_LOADWORLDMAP:     cgre->LoadWorld(VMA(1)); return 0;
+    /* THE WORLD IS LOADED ONCE PER PROCESS, NOT ONCE PER TAKE.
+     *
+     * Loading campgrounds takes seconds; drawing a frame of it takes
+     * milliseconds. Extracting a few thousand frags means the same handful of
+     * maps over and over, so the only way the cost is bearable is to load a
+     * map once and render every moment that happens on it before moving on.
+     *
+     * cgame calls this from CG_Init, which runs once per take. The renderer
+     * refuses a second load outright -- "attempted to redundantly load world
+     * map" -- and it is right to: it cannot hold two worlds. So a repeat of
+     * the SAME map is answered by doing nothing, which is exactly true, and a
+     * request for a DIFFERENT map is a hard stop rather than a frame rendered
+     * against the wrong geometry. */
+    case CG_R_LOADWORLDMAP:
+        if (cg_worldLoaded[0]) {
+            if (strcmp(cg_worldLoaded, (const char *)VMA(1)))
+                Com_Error(ERR_FATAL,
+                          "PANTHEON: '%s' is loaded and cgame asked for '%s'; "
+                          "one process renders one map",
+                          cg_worldLoaded, (const char *)VMA(1));
+            return 0;
+        }
+        Q_strncpyz(cg_worldLoaded, (const char *)VMA(1), sizeof(cg_worldLoaded));
+        cgre->LoadWorld(VMA(1));
+        return 0;
     case CG_R_REGISTERMODEL:    return cgre->RegisterModel(VMA(1));
     case CG_R_REGISTERSKIN:     return cgre->RegisterSkin(VMA(1));
     case CG_R_REGISTERSHADER:   return cgre->RegisterShader(VMA(1));
