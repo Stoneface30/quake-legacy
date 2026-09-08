@@ -25,6 +25,14 @@ from pathlib import Path
 # DATA, not code: under a worktree these differ, and opening a
 # database beneath the wrong one silently CREATES an empty file
 # rather than failing. See engine.pantheon.store.
+#
+# The repo root has to be ON sys.path first. Python puts the SCRIPT's own
+# directory there, not the working directory, so running this as
+# `python engine/parser/extract_health_armor.py` raised
+# ModuleNotFoundError: No module named 'engine' -- the module imported fine
+# and the command line did not.
+import sys as _sys
+_sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from engine.pantheon.store import data_root as _data_root
 REPO_ROOT = _data_root()
 RECOG_DB = REPO_ROOT / "creative_suite" / "database" / "frag_recognition.db"
@@ -42,7 +50,14 @@ FRAGS_DB = REPO_ROOT / "creative_suite" / "database" / "frags_rebuilt.db"
 # A version bump is the honest way to say "the question changed", and it
 # re-opens exactly those demos without discarding the values already stored
 # (candidate_map still skips any frag that has health).
-EXTRACTOR_VERSION = 2
+# 3: the recognition rescan of 2026-09-08 REWROTE recognized_frags.attributes
+# and wiped every health key out of it, while health_extracted still recorded
+# those demos as done at version 2 -- so this pass skipped all of them and
+# health coverage fell from 51% of frags to 3%. The bookkeeping was right
+# about having run; it could not know its output had been overwritten
+# downstream. A version bump re-opens exactly those demos, which is the
+# mechanism this module already documents for the same class of problem.
+EXTRACTOR_VERSION = 3
 PRE_WINDOW_MS = 10_000
 MIN_SCORE = 10.0
 

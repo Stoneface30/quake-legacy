@@ -21,7 +21,11 @@ import json
 import sqlite3
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: under a worktree these differ, and opening a
+# database beneath the wrong one silently CREATES an empty file
+# rather than failing. See engine.pantheon.store (rule HL-9).
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 REC_DB = REPO_ROOT / "creative_suite/database/frag_recognition.db"
 ED_DB = REPO_ROOT / "creative_suite/database/editorial.db"
 MAP = REPO_ROOT / "creative_suite/database/frag_identity_map.json"
