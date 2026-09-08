@@ -59,24 +59,69 @@ def test_a_missing_file_counts_zero_rather_than_raising(tmp_path):
     assert wc.count_frames(tmp_path / "nope.avi") == 0
 
 
-def test_the_completeness_bar_allows_a_seam_frame_but_not_a_quarter_clip():
-    """A capture legitimately loses a frame or two at the seam. It does not
-    legitimately lose three quarters of the action."""
-    assert 0.9 < wc.COMPLETE_ENOUGH < 1.0
-    assert 42 / 150 < wc.COMPLETE_ENOUGH      # the measured failure
-    assert 149 / 150 > wc.COMPLETE_ENOUGH     # one dropped seam frame
+# ── the rate, which is a different defect from the length ──────────────────
+#
+# `cl_aviFrameRate` is frames per second of DEMO time: it decides temporal
+# resolution, not how much of the action is covered. A capture can write half
+# the frames the rate implies, cover the whole window, and be COMPLETE -- and
+# still be unusable, because the header declares a rate it did not achieve and
+# the clip plays at double speed.
+#
+# Confirmed by eye on 2026-09-08: the 77-frame clip's first frame is the jump
+# pad at the start of the window and its last frame is the kill at the end.
+# Nothing was missing. The clock was wrong.
 
 
-def test_truncation_is_reported_by_both_capture_paths():
-    """`ok` must be False when the file is short, in the window path and the
-    offscreen path alike -- otherwise a quarter-length clip looks like a
-    success to every caller."""
+def test_the_true_rate_comes_from_the_window_the_clip_covered():
+    w = [{"start_ms": 0, "end_ms": 2500}]
+    assert wc.true_frame_rate(w, 150) == pytest.approx(60.0)
+    assert wc.true_frame_rate(w, 77) == pytest.approx(30.8)
+
+
+def test_a_clip_that_covers_its_window_at_half_the_rate_plays_twice_too_fast():
+    w = [{"start_ms": 0, "end_ms": 2500}]
+    assert wc.playback_error(w, 150) == pytest.approx(1.0)
+    assert wc.playback_error(w, 77) == pytest.approx(1.95, abs=0.02)
+
+
+def test_an_empty_capture_reports_no_rate_rather_than_dividing_by_zero():
+    w = [{"start_ms": 0, "end_ms": 2500}]
+    assert wc.true_frame_rate(w, 0) == 0.0
+    assert wc.playback_error(w, 0) == 0.0
+    assert wc.true_frame_rate([], 10) == 0.0
+
+
+def test_retiming_is_a_remux_and_keeps_every_frame(tmp_path):
+    """The frames are the truth; only the clock was wrong. Re-encoding would
+    cost a generation of quality to fix a container field."""
+    src = tmp_path / "in.avi"
+    import subprocess as sp
+    sp.run([str(wc.FFMPEG), "-v", "error", "-y", "-f", "lavfi",
+            "-i", "testsrc=size=160x90:rate=60:duration=1",
+            "-c:v", "mjpeg", str(src)], check=True, timeout=180)
+    before = wc.count_frames(src)
+    assert before == 60
+    wc.retime(src, 30.0)
+    assert wc.count_frames(src) == before, "retiming must not drop frames"
+
+
+def test_the_speed_check_and_the_coverage_check_are_different_questions():
+    """Conflating them is how a complete clip got reported as truncated."""
+    import inspect
+    src = inspect.getsource(wc.capture_demo)
+    assert "played_too_fast_by" in src
+    assert "under_sampled" in src, (
+        "coverage is still worth reporting -- it is just not the same thing "
+        "as the rate")
+
+
+def test_both_capture_paths_measure_the_rate():
     import inspect
     from engine.pantheon import offscreen as O
-    for mod, fn in ((wc, wc.capture_demo), (O, O._capture_locked)):
+    for fn in (wc.capture_demo, O._capture_locked):
         src = inspect.getsource(fn)
-        assert "truncated" in src, f"{fn.__name__} does not report truncation"
-        assert "frames_written" in src, f"{fn.__name__} does not count frames"
+        assert "played_too_fast_by" in src, f"{fn.__name__} ignores the rate"
+        assert "retime" in src, f"{fn.__name__} does not repair the clock"
 
 
 def test_the_computed_verdict_is_not_overwritten_by_the_process_result():
@@ -91,5 +136,4 @@ def test_the_computed_verdict_is_not_overwritten_by_the_process_result():
     assert spread < verdict, (
         "the process dict must be spread BEFORE the computed verdict, or it "
         "overwrites it")
-    assert "engine_ok" in src, "the process-level result should still be "\
-                               "available, under a name that says what it is"
+    assert "engine_ok" in src, "the process-level result should still be "                               "available, under a name that says what it is"

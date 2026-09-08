@@ -306,9 +306,62 @@ def count_frames(avi: Path) -> int:
     return nums[0] if nums else 0
 
 
-#: Below this share of the requested frames a clip is reported TRUNCATED.
+#: Below this share of the requested frames the clip is not what was asked for.
 #: Not 1.0: a capture legitimately loses a frame or two at the seam.
 COMPLETE_ENOUGH = 0.95
+
+
+def true_frame_rate(windows: list[dict], frames: int) -> float:
+    """The rate the engine ACTUALLY captured at, from the window it covered.
+
+    THE HEADER CAN BE HONEST AND STILL WRONG. `cl_aviFrameRate` is frames
+    written per second of DEMO time -- it decides temporal resolution, not how
+    much of the action is covered. The engine writes that number into the AVI
+    header (`afd.frameRate = cl_aviFrameRate->integer`). If it then writes
+    fewer frames than the rate implies while still covering the whole window,
+    the file is COMPLETE but plays too fast.
+
+    Measured 2026-09-08: a 2,500 ms window produced 77 frames in a file
+    declaring 60 fps -- 1.28 s of playback for 2.5 s of action, i.e. double
+    speed. Checked by eye: the first frame is the jump pad at the start of the
+    window and the last frame is the kill at the end of it. Nothing was
+    missing; the clock was wrong.
+    """
+    span_s = sum((int(w["end_ms"]) - int(w["start_ms"])) / 1000.0
+                 for w in windows)
+    return frames / span_s if span_s > 0 else 0.0
+
+
+def playback_error(windows: list[dict], frames: int,
+                   declared_fps: int = CAPTURE_FPS) -> float:
+    """How many times too fast the clip plays. 1.0 is correct.
+
+    2.0 means the action runs at double speed, which is a sync defect an
+    editor cannot see in a thumbnail and will not notice until the cut is on
+    a beat.
+    """
+    actual = true_frame_rate(windows, frames)
+    return declared_fps / actual if actual > 0 else 0.0
+
+
+def retime(avi: Path, fps: float, dest: Path | None = None) -> Path:
+    """Rewrite the container so the declared rate matches what was captured.
+
+    The frames are untouched -- this is a remux, not a re-encode. A clip
+    captured at 30 fps and labelled 60 becomes a 30 fps clip that plays at the
+    right speed, with 30 fps of smoothness, which is the truth about it.
+    """
+    dest = Path(dest) if dest else avi
+    tmp = avi.with_suffix(".retimed.avi")
+    r = subprocess.run(
+        [str(FFMPEG), "-v", "error", "-y", "-r", f"{fps:.6f}", "-i", str(avi),
+         "-c", "copy", str(tmp)],
+        capture_output=True, timeout=900,
+        creationflags=subprocess.CREATE_NO_WINDOW)
+    if r.returncode != 0 or not tmp.exists():
+        raise RuntimeError(f"retime failed: {r.stderr.decode('utf-8','replace')[:200]}")
+    tmp.replace(dest)
+    return dest
 
 
 def capture_demo(safe_demo: str, windows: list[dict],
@@ -380,22 +433,30 @@ def capture_demo(safe_demo: str, windows: list[dict],
         if cand:
             avis[w["clip_name"]] = cand[0]
 
-    # A TRUNCATED CAPTURE IS A WELL-FORMED FILE. It opens, it plays, and its
-    # header claims 60 fps -- nothing about it says it holds a quarter of the
-    # action. Every clip filmed before 2026-09-08 was short and nothing said
-    # so, because success was "an AVI exists".
+    # THE FILE CAN BE COMPLETE AND STILL WRONG. Count the frames, work out the
+    # rate that actually implies, and RETIME the container so the declared
+    # rate is the truth. The frames are not touched.
     want = frames_expected(windows)
     got = sum(count_frames(a) for a in avis.values())
-    truncated = bool(avis) and want > 0 and got < want * COMPLETE_ENOUGH
-    return {"ok": len(avis) == len(windows) and not truncated,
-            "returncode": rc,
+    speed = playback_error(windows, got) if got else 0.0
+    retimed = []
+    if got and abs(speed - 1.0) > 0.05:
+        actual = true_frame_rate(windows, got)
+        for a in avis.values():
+            try:
+                retime(Path(a), actual)
+                retimed.append(str(a))
+            except (RuntimeError, OSError):
+                pass
+    short = bool(avis) and want > 0 and got < want * COMPLETE_ENOUGH
+    return {"ok": len(avis) == len(windows), "returncode": rc,
             "elapsed_s": time.time() - t0, "avis": avis,
             "frames_expected": want, "frames_written": got,
-            "truncated": truncated,
-            "error": (f"TRUNCATED: {got}/{want} frames "
-                      f"({got / max(want, 1):.0%}); the engine was cut off "
-                      f"before it finished writing")
-            if truncated else None if len(avis) == len(windows)
+            "capture_fps": round(true_frame_rate(windows, got), 2) if got else 0,
+            "played_too_fast_by": round(speed, 2),
+            "retimed": retimed,
+            "under_sampled": short,
+            "error": None if len(avis) == len(windows)
             else f"missing {len(windows) - len(avis)} AVIs"}
 
 

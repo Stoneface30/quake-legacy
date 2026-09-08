@@ -747,10 +747,21 @@ def _capture_locked(safe_demo: str, windows: list[dict], *, staging: Path,
     # the behaviour being replaced. Only the hidden leg is judged on it.
     quiet = desktop is None or (not run.visible_windows and not run.stole_focus
                                 and not run.pointer_left_confined)
-    # COUNT WHAT WAS WRITTEN. A capture cut off at its deadline produces a
-    # file that opens and plays; only the frame count says it is short.
+    # MEASURE THE RATE, THEN MAKE THE HEADER TELL THE TRUTH. A capture can
+    # cover its whole window and still declare a rate it did not achieve, in
+    # which case the clip plays too fast -- complete, and unusable for a cut.
     want = wc.frames_expected(windows)
     got = sum(wc.count_frames(Path(a)) for a in avis.values())
+    speed = wc.playback_error(windows, got) if got else 0.0
+    retimed = []
+    if got and abs(speed - 1.0) > 0.05:
+        actual = wc.true_frame_rate(windows, got)
+        for a in avis.values():
+            try:
+                wc.retime(Path(a), actual)
+                retimed.append(a)
+            except (RuntimeError, OSError):
+                pass
     truncated = bool(avis) and want > 0 and got < want * wc.COMPLETE_ENOUGH
     # THE SPREAD GOES FIRST. `run.as_dict()` carries its own "ok" -- the
     # process-level one -- and spreading it last silently overwrote the verdict
@@ -759,9 +770,12 @@ def _capture_locked(safe_demo: str, windows: list[dict], *, staging: Path,
     out = {k: v for k, v in run.as_dict().items() if k != "log_tail"}
     out.update({
         "engine_ok": run.ok,          # kept, under a name that says what it is
-        "ok": bool(avis) and quiet and not truncated,
+        "ok": bool(avis) and quiet,
         "frames_expected": want, "frames_written": got,
-        "truncated": truncated,
+        "capture_fps": round(wc.true_frame_rate(windows, got), 2) if got else 0,
+        "played_too_fast_by": round(speed, 2),
+        "retimed": retimed,
+        "under_sampled": truncated,
         "desktop": desktop or "interactive",
         "asset_set": asset_state["set"] if asset_state else None,
         "avis": avis, "missing": [k for k, v in made.items() if not v],
