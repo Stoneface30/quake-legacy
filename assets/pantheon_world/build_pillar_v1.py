@@ -71,8 +71,12 @@ def drum(bm, z0, z1, r0, r1, segments):
     return lo, hi
 
 
-def build(height, flutes, entasis, segments, shaft_ratio):
-    bpy.ops.wm.read_factory_settings(use_empty=True)
+def build(height, flutes, entasis, segments, shaft_ratio, reset=True):
+    # A caller that is assembling a colonnade must NOT have the scene wiped
+    # under it -- read_factory_settings invalidates every object made so far,
+    # which surfaces as "StructRNA of type Object has been removed".
+    if reset:
+        bpy.ops.wm.read_factory_settings(use_empty=True)
 
     base_h = height * 0.075
     cap_h = height * 0.105

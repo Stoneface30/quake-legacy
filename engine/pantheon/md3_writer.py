@@ -318,7 +318,11 @@ def read_obj(path: Path | str, *, scale: float = 1.0,
         elif tag == "vn":
             normals.append(tuple(float(v) for v in parts[1:4]))
         elif tag == "usemtl":
-            current = group(parts[1])
+            # Blender writes a BARE `usemtl` for an object with no material.
+            # A hero asset is assembled from parts and some of them will not
+            # have been given one, so a nameless group is the default shader
+            # rather than an IndexError halfway through a temple.
+            current = group(parts[1] if len(parts) > 1 else default_shader)
         elif tag == "f":
             g = current if current is not None else group(default_shader)
             face = []

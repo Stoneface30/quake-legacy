@@ -154,3 +154,15 @@ def test_splitting_leaves_a_small_surface_alone():
     from engine.pantheon.md3_writer import split_by_vertex_limit
     s = _quad()
     assert split_by_vertex_limit(s) == [s]
+
+
+def test_a_bare_usemtl_falls_back_to_the_default_shader(tmp_path):
+    """Blender emits `usemtl` with no name for an object that was never given
+    a material. A temple is assembled from parts and some of them will be like
+    that; the reader must not die halfway through one."""
+    obj = tmp_path / "bare.obj"
+    obj.write_text("v 0 0 0\nv 1 0 0\nv 1 1 0\nvt 0 0\nvt 1 0\nvt 1 1\nvn 0 0 1\n"
+                   "usemtl\nf 1/1/1 2/2/1 3/3/1\n", encoding="utf-8")
+    surfaces = read_obj(obj, default_shader="textures/pantheon/stone")
+    assert len(surfaces) == 1
+    assert surfaces[0].shader == "textures/pantheon/stone"
