@@ -86,6 +86,7 @@ BACKEND_ALLOWED = {
     "assets",           # which asset packs the picture uses; links files
     "asset_library",    # assets.db -> installable looks; reads a db, writes packs
     "hud",              # the HUD shader surface; writes a pack, films nothing
+    "review_sheet",     # crops and stacks frames for a person; ffmpeg, no engine
     "capture_lock",     # one engine at a time; a pid file, no processes
     "conformance",      # the 10-case backend A/B: it films both legs
     "cast_proof", "presenter_proof", "instruction_proof", "proofs",

@@ -1,0 +1,80 @@
+{
+ "softpipe": {
+  "ran": true,
+  "gl_initialised": true,
+  "renderer_line": "GL_RENDERER: softpipe",
+  "ok": true,
+  "returncode": 0,
+  "seconds": 60.3,
+  "visible_windows": [],
+  "stole_focus": false,
+  "confined_cursor": false,
+  "pointer_confined_before": false,
+  "pointer_left_confined": false,
+  "cursor_clips": [],
+  "foreground_moved": false,
+  "foreground_before": {
+   "hwnd": 18553056,
+   "pid": 53572,
+   "title": "Overwatch MOST VIEWED Twitch Clips of The Week! #407 - YouTube - Google Chrome"
+  },
+  "foreground_after": {
+   "hwnd": 18553056,
+   "pid": 53572,
+   "title": "Overwatch MOST VIEWED Twitch Clips of The Week! #407 - YouTube - Google Chrome"
+  },
+  "detail": ""
+ },
+ "d3d12": {
+  "ran": true,
+  "gl_initialised": false,
+  "renderer_line": "",
+  "ok": false,
+  "returncode": null,
+  "seconds": 180.8,
+  "visible_windows": [],
+  "stole_focus": false,
+  "confined_cursor": false,
+  "pointer_confined_before": false,
+  "pointer_left_confined": false,
+  "cursor_clips": [],
+  "foreground_moved": false,
+  "foreground_before": {
+   "hwnd": 18553056,
+   "pid": 53572,
+   "title": "Overwatch MOST VIEWED Twitch Clips of The Week! #407 - YouTube - Google Chrome"
+  },
+  "foreground_after": {
+   "hwnd": 18553056,
+   "pid": 53572,
+   "title": "Overwatch MOST VIEWED Twitch Clips of The Week! #407 - YouTube - Google Chrome"
+  },
+  "detail": "timeout after 180s"
+ },
+ "zink": {
+  "ran": true,
+  "gl_initialised": false,
+  "renderer_line": "",
+  "ok": false,
+  "returncode": 1,
+  "seconds": 3.3,
+  "visible_windows": [],
+  "stole_focus": false,
+  "confined_cursor": false,
+  "pointer_confined_before": false,
+  "pointer_left_confined": false,
+  "cursor_clips": [],
+  "foreground_moved": false,
+  "foreground_before": {
+   "hwnd": 18553056,
+   "pid": 53572,
+   "title": "Overwatch MOST VIEWED Twitch Clips of The Week! #407 - YouTube - Google Chrome"
+  },
+  "foreground_after": {
+   "hwnd": 18553056,
+   "pid": 53572,
+   "title": "Overwatch MOST VIEWED Twitch Clips of The Week! #407 - YouTube - Google Chrome"
+  },
+  "detail": ""
+ }
+}

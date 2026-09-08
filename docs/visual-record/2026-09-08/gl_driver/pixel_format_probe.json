@@ -1,0 +1,68 @@
+{
+ "d3d12_default": {
+  "driver": "d3d12",
+  "sets": {},
+  "seconds": 150.6,
+  "got_a_visual": false,
+  "GL_RENDERER": null,
+  "GL_VENDOR": null,
+  "failed_with": "no matching pixel format",
+  "log_bytes": 6480
+ },
+ "d3d12_no_stencil": {
+  "driver": "d3d12",
+  "sets": {
+   "r_stencilbits": 0
+  },
+  "seconds": 150.6,
+  "got_a_visual": false,
+  "GL_RENDERER": null,
+  "GL_VENDOR": null,
+  "failed_with": "no matching pixel format",
+  "log_bytes": 6480
+ },
+ "d3d12_no_msaa": {
+  "driver": "d3d12",
+  "sets": {
+   "r_ext_multisample": 0,
+   "r_fboAntiAlias": 0
+  },
+  "seconds": 150.5,
+  "got_a_visual": false,
+  "GL_RENDERER": null,
+  "GL_VENDOR": null,
+  "failed_with": "no matching pixel format",
+  "log_bytes": 6480
+ },
+ "d3d12_minimal": {
+  "driver": "d3d12",
+  "sets": {
+   "r_stencilbits": 0,
+   "r_depthbits": 24,
+   "r_colorbits": 32,
+   "r_ext_multisample": 0,
+   "r_fboAntiAlias": 0,
+   "r_useFbo": 0
+  },
+  "seconds": 150.4,
+  "got_a_visual": false,
+  "GL_RENDERER": null,
+  "GL_VENDOR": null,
+  "failed_with": "no matching pixel format",
+  "log_bytes": 6480
+ },
+ "zink_minimal": {
+  "driver": "zink",
+  "sets": {
+   "r_stencilbits": 0,
+   "r_ext_multisample": 0,
+   "r_fboAntiAlias": 0
+  },
+  "seconds": 3.1,
+  "got_a_visual": true,
+  "GL_RENDERER": null,
+  "GL_VENDOR": null,
+  "failed_with": null,
+  "log_bytes": 430
+ }
+}
