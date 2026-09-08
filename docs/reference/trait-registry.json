@@ -1,0 +1,1314 @@
+{
+  "profile": "3e8167badc49",
+  "total": 108,
+  "by_kind": {
+    "FRAG_TRAIT": 80,
+    "SHAPE": 16,
+    "BLOOPER": 8,
+    "ACTION_NO_KILL": 2,
+    "MOVEMENT": 2
+  },
+  "by_status": {
+    "HAS_EXAMPLE": 35,
+    "PENDING_CAPTURE": 45,
+    "NOT_READY": 28
+  },
+  "traits": [
+    {
+      "trait": "SHARED_FIREFIGHT",
+      "sources": [
+        "action_moments_v1"
+      ],
+      "candidates": 68451,
+      "kind": "ACTION_NO_KILL",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "JUMPPAD_ACTION",
+      "sources": [
+        "movement_moments_v1"
+      ],
+      "candidates": 40342,
+      "kind": "MOVEMENT",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "REFRAG",
+      "sources": [
+        "frag_shapes_v1"
+      ],
+      "candidates": 14723,
+      "kind": "SHAPE",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "OVERKILL_BLOW",
+      "sources": [
+        "frag_shapes_v1"
+      ],
+      "candidates": 13857,
+      "kind": "SHAPE",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "DODGE_AND_KILL",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 13180,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "RAIL_FRAG",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 11099,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "HERO_THEN_DEATH",
+      "sources": [
+        "funny_candidates_v1"
+      ],
+      "candidates": 11001,
+      "kind": "BLOOPER",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "RECORDER_DOMINANT",
+      "sources": [
+        "action_moments_v1"
+      ],
+      "candidates": 8789,
+      "kind": "ACTION_NO_KILL",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "FAST_WEAPON_SWITCH",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 8691,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "DIED_WITH_SHOT_IN_FLIGHT",
+      "sources": [
+        "frag_shapes_v1"
+      ],
+      "candidates": 7836,
+      "kind": "SHAPE",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "ECONOMY_KILL",
+      "sources": [
+        "frag_shapes_v1"
+      ],
+      "candidates": 6924,
+      "kind": "SHAPE",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "ROUND_WINNING_FRAG",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 6726,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "KILL_THEN_DEATH_FAST",
+      "sources": [
+        "funny_candidates_v1"
+      ],
+      "candidates": 6139,
+      "kind": "BLOOPER",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "VERTICAL_ACTION",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 5991,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "FIRST_BLOOD",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 5848,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "POINT_BLANK",
+      "sources": [
+        "frag_shapes_v1"
+      ],
+      "candidates": 5709,
+      "kind": "SHAPE",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "LAST_MAN_STANDING",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 5463,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "OUTNUMBERED_FRAG",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 4654,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "REVENGE_FRAG",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 4651,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "SHOT_DENIED",
+      "sources": [
+        "frag_shapes_v1"
+      ],
+      "candidates": 3733,
+      "kind": "SHAPE",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "HIGH_SPEED_FRAG",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 3502,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "CLUTCH_1VN",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 3311,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "DIRECT_ROCKET",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 3258,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "ROUND_OPENING_FRAG",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 2683,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "ESCAPE_TURNAROUND",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 2625,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "SPEED_TARGET_FRAG",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 2361,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "FLICK_SHOT",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 2312,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "MULTIKILL_DOUBLE",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 2247,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "CHAT_REACTION_NEARBY",
+      "sources": [
+        "funny_candidates_v1"
+      ],
+      "candidates": 2218,
+      "kind": "BLOOPER",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "CLUTCH_ROUND_WIN",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 2152,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "TRADE_KILL",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 2097,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "LOW_HEALTH_WIN",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 1846,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "STRAFE_CHAIN_FRAG",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 1581,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "TELEFRAG",
+      "sources": [
+        "funny_candidates_v1"
+      ],
+      "candidates": 1443,
+      "kind": "BLOOPER",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "ENVIRONMENTAL_DEATH",
+      "sources": [
+        "funny_candidates_v1"
+      ],
+      "candidates": 1424,
+      "kind": "BLOOPER",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "HIGH_SPEED_MOVEMENT",
+      "sources": [
+        "movement_moments_v1"
+      ],
+      "candidates": 1333,
+      "kind": "MOVEMENT",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "SELF_DAMAGE_DEATH",
+      "sources": [
+        "funny_candidates_v1"
+      ],
+      "candidates": 1307,
+      "kind": "BLOOPER",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "LAST_HP_FRAG",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 1253,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "LG_HIGH_ACCURACY",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 1165,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "UPSHOT_KILL",
+      "sources": [
+        "frag_shapes_v1"
+      ],
+      "candidates": 1084,
+      "kind": "SHAPE",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "MULTI_WEAPON_CHAIN",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 1073,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "LG_TRACKING",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 1064,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "PLUNGE_KILL",
+      "sources": [
+        "frag_shapes_v1"
+      ],
+      "candidates": 972,
+      "kind": "SHAPE",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "DODGE_TO_KILL",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 963,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "INSTANT_TRADE",
+      "sources": [
+        "funny_candidates_v1"
+      ],
+      "candidates": 920,
+      "kind": "BLOOPER",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "GAUNTLET_KILL",
+      "sources": [
+        "funny_candidates_v1"
+      ],
+      "candidates": 904,
+      "kind": "BLOOPER",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "RAIL_CONSECUTIVE",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 856,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "NEAR_MISS_ROCKET",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 743,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "RAIL_AIR",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 702,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "HIGH_SPEED_AIR_FRAG",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 629,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "FROM_THE_GRAVE",
+      "sources": [
+        "frag_shapes_v1"
+      ],
+      "candidates": 621,
+      "kind": "SHAPE",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "NEAR_MISS_RAIL",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 571,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "SNAP_ON_ARRIVAL",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 542,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "WEAPON_COMBO",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 507,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "RING_OUT",
+      "sources": [
+        "frag_shapes_v1"
+      ],
+      "candidates": 454,
+      "kind": "SHAPE",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "DIRECT_CONFIRMED_GEO",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 387,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "WEAPON_SWITCH_FINISH",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 362,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "MID_TELEPORT_DENIAL",
+      "sources": [
+        "frag_shapes_v1"
+      ],
+      "candidates": 347,
+      "kind": "SHAPE",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "COMBO_KILL",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 329,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "GAUNTLET_INTERRUPT",
+      "sources": [
+        "frag_shapes_v1"
+      ],
+      "candidates": 316,
+      "kind": "SHAPE",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "ROCKET_JUMP_ENTRY",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 296,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "ROCKET_JUMP_FRAG",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 270,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "AIR_ROCKET",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 246,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "RAPID_MULTIKILL",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 201,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "HEAVY_DAMAGE_SURVIVED",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 191,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "SPLIT_TICK_DOUBLE",
+      "sources": [
+        "frag_shapes_v1"
+      ],
+      "candidates": 151,
+      "kind": "SHAPE",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "AIR_ROCKET_GEO",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 146,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "MULTIKILL_TRIPLE",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 144,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "POPUP_COMBO",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 128,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "DODGE_STRAFE",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 124,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "TARGET_TRANSFER",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 109,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "LOW_HP_FRAG",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 94,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "RAIL_FLICK",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 69,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "CLEAN_FLICK",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 64,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "CLUTCH_1V2",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 61,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "COLLATERAL_DAMAGE",
+      "sources": [
+        "frag_shapes_v1"
+      ],
+      "candidates": 55,
+      "kind": "SHAPE",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "VERY_FAST_FRAG",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 53,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "PREDICTION_TEMPORAL",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 41,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "REACTION_SHOT_CANDIDATE",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 41,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 40,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "CRITICAL_HP_FRAG",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 39,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 39,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "EXTREME_SPEED",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 35,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 35,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "CLUTCH_1V3",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 33,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 33,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "NEAR_MISS_GRENADE",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 32,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 32,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "WEAPON_TRIPTYCH",
+      "sources": [
+        "frag_shapes_v1"
+      ],
+      "candidates": 30,
+      "kind": "SHAPE",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "EXTREME_FLICK",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 29,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 29,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "REACTION_SHOT",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 27,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 27,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "AIR_GRENADE",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 26,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 26,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "HIGH_SPEED_MULTIKILL",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 25,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 25,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "LG_HIGH_PRESSURE",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 25,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 25,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "PROJECTILE_DODGE_HERO",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 25,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 25,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "LAST_HP_CANDIDATE",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 23,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 23,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "NEAR_DIRECT",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 23,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 23,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "RAIL_DODGE_HERO",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 23,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 23,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "LG_TRANSFER",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 22,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 22,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "SHOTGUN_SNIPE",
+      "sources": [
+        "frag_shapes_v1"
+      ],
+      "candidates": 22,
+      "kind": "SHAPE",
+      "note": "candidates exist but are not linked to a recognized frag, so no clip window can be derived yet",
+      "examples_available": 0,
+      "has_clip": false,
+      "status": "NOT_READY"
+    },
+    {
+      "trait": "LG_DODGE_MASTER",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 21,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 21,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "CORNER_PREFIRE_CONFIRMED",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 19,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 19,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "PREDICTION_CANDIDATE",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 18,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 18,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "DAMAGE_BURST",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 16,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 16,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "AGGRESSIVE_TRACKING_SWEEP",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 14,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 14,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "HIGH_SPEED_AIM_TRANSITION",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 11,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 11,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "PIXEL_SHOT_GEO",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 11,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 11,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "DODGE_HERO",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 9,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 9,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "MULTIKILL_QUAD",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 7,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 7,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "TINY_GAP_SHOT",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 7,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 7,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    },
+    {
+      "trait": "CLUTCH_1V4_PLUS",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 4,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 4,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "LARGE_AIM_TRANSITION",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 2,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 2,
+      "has_clip": false,
+      "status": "PENDING_CAPTURE"
+    },
+    {
+      "trait": "MULTIKILL_PENTA",
+      "sources": [
+        "recognition_class"
+      ],
+      "candidates": 1,
+      "kind": "FRAG_TRAIT",
+      "note": "",
+      "examples_available": 1,
+      "has_clip": true,
+      "status": "HAS_EXAMPLE"
+    }
+  ]
+}
