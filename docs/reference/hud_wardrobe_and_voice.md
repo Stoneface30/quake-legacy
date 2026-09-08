@@ -389,7 +389,37 @@ The mechanism is not disproven; the test was incapable of answering. With the
 cvar surface now exposed (§0) the right test is `cg_drawRewards 0` against
 `cg_drawRewards 1`, which changes exactly one element and nothing else.
 
-## REFUSED — the supersampling canary
+## THE REMAINING HALF — the engine writes 30 fps when asked for 60
+
+77 frames over 2,500 ms is **32.5 ms per written frame**. 60 fps is 16.67 ms;
+30 fps is 33.3 ms. The capture is writing at almost exactly half the rate the
+configuration asks for.
+
+Ruled out by measurement, not by argument:
+
+- `cl_aviFrameRate` is **60**, registered, in the runtime census.
+- `cl_aviFrameRateDivider` is 1 — and unregistered, so it is a silent no-op
+  anyway.
+- `mme_blurFrames` is **0**, so there is no accumulation halving the output.
+- The REVIEW visual profile sets no capture-rate cvar at all.
+- The written cfg execs `wolfcam_tr4sh_master_capture.cfg`, which sets 60.
+
+So every knob that could explain it says 60, and the file says 30. This is a
+separate defect from the timeout, it is still open, and it is the reason a
+clip is half length rather than full even when the engine is allowed to finish.
+
+## NOT ANSWERABLE TODAY — the supersampling canary
+
+Blocked first by another session holding the capture lock. But there is a
+better reason not to run it now: **while capture is on softpipe, the canary
+would measure what Mesa allows, not what the hardware allows.** A software
+rasteriser will happily allocate a 5760×3240 framebuffer. The question worth
+answering is whether the NVIDIA path grants one, and that path currently
+crashes wolfcam during `R_Init`.
+
+The canary is therefore blocked on the same NVIDIA blocker as everything else
+in this section, and running it under softpipe would produce a reassuring
+number that means nothing.
 
 `MASTER_RASTER` at 5760×3240 was blocked: another session held
 `output/demo_v2/_capture.lock` for a legitimate clip regeneration run. The lock
