@@ -53,6 +53,10 @@ from dataclasses import dataclass, field
 from typing import Any, Sequence
 
 import frag_classify as fc
+try:
+    from engine.parser import round_context as rc
+except ImportError:                                         # flat import
+    import round_context as rc
 from frag_classify import (  # noqa: F401  (re-exported for callers)
     GRENADE, RAIL, ROCKET, SHAFT, Timeline,
     W_GRENADE, W_GRENADE_SPLASH, W_RAILGUN, W_ROCKET, W_ROCKET_SPLASH,
@@ -60,7 +64,11 @@ from frag_classify import (  # noqa: F401  (re-exported for callers)
 )
 
 # Bump on any taxonomy/scoring change so the corpus scan recomputes.
-RECOGNITION_VERSION = 2
+# v3: round/team context traits. Rounds reconstructed from the round
+# configstrings (the native counter over-reports), round windows run one
+# snapshot past the end command (the round-winning frag lands 25ms after
+# it), and Clan Arena alive-counts come from the round's own obituaries.
+RECOGNITION_VERSION = 3
 
 # ── confidence ladder ───────────────────────────────────────────────────────
 CONFIRMED = "CONFIRMED"
@@ -639,6 +647,9 @@ def recognize(parsed: dict, player: int | None = None,
     acc = fc.Accuracy(parsed.get("accuracy", []))
 
     chains = multikill_chains(tagged)
+    # Round/team context. Empty when the demo carries no team field --
+    # a missing team stays missing rather than becoming a guess.
+    ctxs = rc.build_context(parsed, player)
     times = [f.time_ms for f in tagged]
     missile_hits = _event_times(parsed, "missile_hit")
     prov = " [provisional]"   # appended when no norms table backed a label
@@ -1093,6 +1104,65 @@ def recognize(parsed: dict, player: int | None = None,
                 r.add_penalty(1.0,
                               f"- stationary victim ({vic_speed:.0f} ups, "
                               "no recent pain events) (-1.0)")
+
+        # ---- round and team context (v3) -----------------------------------
+        # Clan Arena has no respawn inside a round, so the round's own
+        # obituaries give an exact alive count. Everything below is a counted
+        # fact, not an impression -- but only because the round window now
+        # ends one snapshot AFTER the end command.
+        ctx = ctxs.get(f.time_ms)
+        if ctx:
+            attrs.update(ctx)
+            mates = ctx["alive_teammates_at_kill"]
+            foes = ctx["alive_opponents_at_kill"]
+
+            if ctx["is_round_winning_frag"]:
+                r.add_class("ROUND_WINNING_FRAG", CONFIRMED,
+                            f"last opponent alive in round "
+                            f"{ctx['round_index']} ({ctx['round_end_basis']})")
+                r.add_score("round_score", 2.0, "+ closed the round")
+
+            if ctx["is_last_alive"] and foes >= 1:
+                r.add_class("LAST_MAN_STANDING", CONFIRMED,
+                            f"only survivor on {ctx['team']} vs {foes}")
+                if foes >= 2:
+                    r.add_class("CLUTCH_1VN", CONFIRMED,
+                                f"1v{foes} while last alive")
+                    r.add_score("round_score", 1.0 + min(foes, 4),
+                                f"+ 1v{foes} clutch")
+                if ctx["is_round_winning_frag"]:
+                    r.add_class("CLUTCH_ROUND_WIN", CONFIRMED,
+                                f"won the round 1v{foes} as the last alive")
+                    r.add_score("round_score", 3.0, "+ clutch round win")
+
+            elif ctx["outnumbered_by"] >= 1:
+                r.add_class("OUTNUMBERED_FRAG", HIGH,
+                            f"{mates}v{foes} at the kill")
+                r.add_score("round_score", 0.5 * ctx["outnumbered_by"],
+                            f"+ killed while {mates}v{foes}")
+
+            if ctx["is_first_blood"]:
+                r.add_class("FIRST_BLOOD", CONFIRMED,
+                            f"first kill of round {ctx['round_index']}")
+
+            if ctx["is_trade_kill"]:
+                r.add_class("TRADE_KILL", HIGH,
+                            "the victim had killed a teammate within "
+                            f"{rc.TRADE_WINDOW_MS} ms")
+
+            if ctx["is_revenge"]:
+                r.add_class("REVENGE_FRAG", MEDIUM,
+                            "killed the opponent who killed him in the "
+                            "previous round")
+
+            # An opponent who entered the recorder's snapshot moments before
+            # dying was never tracked -- the shot resolved on first sight.
+            # This is only meaningful now that presence is exported: before,
+            # an absent state row could equally mean "present and unchanged".
+            if vis is not None and vis <= rc.AMBUSH_MAX_VISIBLE_MS:
+                r.add_class("SNAP_ON_ARRIVAL", HIGH,
+                            f"opponent observable for only {vis} ms before "
+                            "the kill")
 
         out.append(r)
     return out
