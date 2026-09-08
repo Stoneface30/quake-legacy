@@ -43,18 +43,37 @@ PAK = Path("C:/Program Files (x86)/Steam/steamapps/common/Quake Live/baseq3/pak0
 # disk, outside any worktree. Its location is explicit rather than guessed,
 # and whichever file is used is recorded with its hash in the manifest, so a
 # frame that claims "photoreal" can be checked.
-_PHOTOREAL_REL = Path("creative_suite/comfy/photoreal/pipelines/upscale_only/pak00")
+_PIPELINES_REL = Path("creative_suite/comfy/photoreal/pipelines")
+
+# Phase 5 generated ELEVEN families over the game's own art, not one. 14,413
+# renders in assets.db, of which only `upscale_only` (5,776) has ever been
+# packed into a pk3 -- 8,637 stylised renders of Quake have never been in a
+# picture. They are a look library: the same texture as neon, as painterly,
+# as chromatic, as edge chrome. A material names the family it wants.
+STYLES = ("upscale_only", "depth_realism", "photoreal", "pixel_art",
+          "chromatic", "dreamlike", "edge_chrome", "isometric", "neon",
+          "painterly", "zavy_depth")
+DEFAULT_STYLE = "upscale_only"
 
 
-def photoreal_root() -> Path:
+def pipelines_root() -> Path:
     """$PANTHEON_PHOTOREAL_ROOT, else this checkout, else the project store."""
     env = os.environ.get("PANTHEON_PHOTOREAL_ROOT")
     if env:
         return Path(env)
-    here = Path(__file__).resolve().parents[2] / _PHOTOREAL_REL
+    here = Path(__file__).resolve().parents[2] / _PIPELINES_REL
     if here.exists():
         return here
-    return Path("G:/QUAKE_LEGACY") / _PHOTOREAL_REL
+    return Path("G:/QUAKE_LEGACY") / _PIPELINES_REL
+
+
+def style_root(style: str = DEFAULT_STYLE) -> Path:
+    return pipelines_root() / style / "pak00"
+
+
+def photoreal_root() -> Path:
+    """Kept: the upscale family, which is what callers meant before styles."""
+    return style_root(DEFAULT_STYLE)
 
 
 PHOTOREAL = photoreal_root()
@@ -75,6 +94,10 @@ class Material:
     external: Path | None = None
     kind: str = SURFACE
     halo: float = 0.10              # EMISSIVE only: additive amplitude
+    # which generated family to wear: "neon", "painterly", "edge_chrome"...
+    # Falls back to the plain upscale, then to the pak original, and the
+    # manifest records which one actually answered.
+    style: str = DEFAULT_STYLE
     resolved: dict = field(default_factory=dict)
 
     @property
@@ -100,7 +123,7 @@ def _from_pak(source: str, pak: Path) -> tuple[str, bytes] | None:
     return None
 
 
-def resolve(m: Material, *, pak: Path = PAK, photoreal_root: Path = PHOTOREAL) -> Material:
+def resolve(m: Material, *, pak: Path = PAK, photoreal_root=PHOTOREAL) -> Material:
     """Pick the best available image and record WHICH, with a hash."""
     if m.external is not None:
         ext = Path(m.external)
@@ -109,13 +132,19 @@ def resolve(m: Material, *, pak: Path = PAK, photoreal_root: Path = PHOTOREAL) -
                       "ext": ext.suffix.lower(), "bytes": len(data),
                       "sha256": hashlib.sha256(data).hexdigest()[:16]}
         return m
-    hi = _photoreal(m.source, photoreal_root)
-    if hi is not None:
-        data = hi.read_bytes()
-        m.resolved = {"origin": "PHOTOREAL_UPSCALE_4X", "path": str(hi),
-                      "ext": ".png", "bytes": len(data),
-                      "sha256": hashlib.sha256(data).hexdigest()[:16]}
-        return m
+    # the asked-for family first, then the plain upscale, then the pak
+    for style in dict.fromkeys((m.style, DEFAULT_STYLE)):
+        root = (photoreal_root if style == DEFAULT_STYLE else style_root(style))
+        root = root() if callable(root) else root
+        hi = _photoreal(m.source, root)
+        if hi is not None:
+            data = hi.read_bytes()
+            m.resolved = {
+                "origin": ("PHOTOREAL_UPSCALE_4X" if style == DEFAULT_STYLE
+                           else f"STYLE_{style.upper()}"),
+                "style": style, "path": str(hi), "ext": ".png",
+                "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()[:16]}
+            return m
     got = _from_pak(m.source, pak)
     if got is None:
         raise FileNotFoundError(f"{m.source}: not in the photoreal set and not in {pak}")
@@ -155,14 +184,14 @@ def shader_text(materials: Sequence[Material]) -> str:
 
 
 def build(materials: Sequence[Material], out_dir: Path, *, pak: Path = PAK,
-          photoreal_root: Path = PHOTOREAL) -> dict:
+          photoreal_root=PHOTOREAL) -> dict:
     """Stage images + shader script into a pk3 source directory."""
     out_dir = Path(out_dir)
     resolved = [resolve(m, pak=pak, photoreal_root=photoreal_root) for m in materials]
     for m in resolved:
         dst = out_dir / "textures" / f"{m.name}{m.resolved['ext']}"
         dst.parent.mkdir(parents=True, exist_ok=True)
-        if m.resolved["origin"] in ("PHOTOREAL_UPSCALE_4X", "EXTERNAL_CC0"):
+        if m.resolved["origin"] != "PAK00_ORIGINAL":
             dst.write_bytes(Path(m.resolved["path"]).read_bytes())
         else:
             src, ext = m.source, m.resolved["ext"]
@@ -176,6 +205,8 @@ def build(materials: Sequence[Material], out_dir: Path, *, pak: Path = PAK,
                                "kind": m.kind, **m.resolved} for m in resolved],
                 "photoreal_used": sum(1 for m in resolved
                                       if m.resolved["origin"] == "PHOTOREAL_UPSCALE_4X"),
+                "styled_used": sum(1 for m in resolved
+                                   if m.resolved["origin"].startswith("STYLE_")),
                 "count": len(resolved)}
     (out_dir / "pantheon_materials.json").write_text(json.dumps(manifest, indent=1),
                                                      encoding="utf-8")

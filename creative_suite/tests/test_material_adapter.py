@@ -58,3 +58,30 @@ def test_a_real_texture_resolves_and_stages(tmp_path):
     staged = list((tmp_path / "textures" / "pantheon").glob("door_body.*"))
     assert staged and staged[0].stat().st_size > 1000
     assert (tmp_path / "scripts" / "pantheon_materials.shader").exists()
+
+
+def test_a_style_falls_back_and_says_which_family_answered(tmp_path):
+    """The eleven Phase 5 families are PLAYER SKINS, 800 each -- measured, not
+    assumed: pipelines/<style>/pak00 contains models/players and nothing else.
+    Asking for a styled world texture therefore falls back, and the manifest
+    has to say so rather than implying the style was used."""
+    from engine.pantheon.material_adapter import DEFAULT_STYLE, STYLES
+    assert DEFAULT_STYLE in STYLES and len(STYLES) == 11
+    root = tmp_path / "pipelines"
+    (root / f"{DEFAULT_STYLE}/pak00/textures/x").mkdir(parents=True)
+    (root / f"{DEFAULT_STYLE}/pak00/textures/x/y.png").write_bytes(b"\x89PNG-upscale")
+    (root / "neon/pak00/models/players/keel").mkdir(parents=True)
+    (root / "neon/pak00/models/players/keel/keel.png").write_bytes(b"\x89PNG-neon")
+    import engine.pantheon.material_adapter as ma
+    old = ma.pipelines_root
+    ma.pipelines_root = lambda: root
+    try:
+        m = resolve(Material("pantheon/a", "textures/x/y", style="neon"),
+                    pak=tmp_path / "none.pk3", photoreal_root=root / f"{DEFAULT_STYLE}/pak00")
+        assert m.resolved["origin"] == "PHOTOREAL_UPSCALE_4X"     # fell back
+        assert m.resolved["style"] == DEFAULT_STYLE
+        skin = resolve(Material("pantheon/keel", "models/players/keel/keel", style="neon"),
+                       pak=tmp_path / "none.pk3", photoreal_root=root / f"{DEFAULT_STYLE}/pak00")
+        assert skin.resolved["origin"] == "STYLE_NEON"
+    finally:
+        ma.pipelines_root = old
