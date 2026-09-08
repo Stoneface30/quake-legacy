@@ -1,0 +1,46 @@
+[
+ {
+  "asked_ms": 1000,
+  "expected_frames_at_60": 60,
+  "ok": true,
+  "seconds_wall": 121.5,
+  "detail": "",
+  "got_frames": 0,
+  "got_ms": 0,
+  "delivered_fraction": 0.0,
+  "bytes": 14336
+ },
+ {
+  "asked_ms": 2500,
+  "expected_frames_at_60": 150,
+  "ok": false,
+  "seconds_wall": 223.4,
+  "detail": "timeout after 223s",
+  "got_frames": 42,
+  "got_ms": 700,
+  "delivered_fraction": 0.28,
+  "bytes": 28093564
+ },
+ {
+  "asked_ms": 5000,
+  "expected_frames_at_60": 300,
+  "ok": false,
+  "seconds_wall": 248.7,
+  "detail": "timeout after 248s",
+  "got_frames": 74,
+  "got_ms": 1233,
+  "delivered_fraction": 0.247,
+  "bytes": 37960680
+ },
+ {
+  "asked_ms": 10000,
+  "expected_frames_at_60": 600,
+  "ok": false,
+  "seconds_wall": 298.1,
+  "detail": "timeout after 297s",
+  "got_frames": 84,
+  "got_ms": 1400,
+  "delivered_fraction": 0.14,
+  "bytes": 34969350
+ }
+]

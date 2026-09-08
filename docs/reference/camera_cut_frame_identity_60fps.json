@@ -1,0 +1,53 @@
+{
+  "fps": 60,
+  "k": 30,
+  "m": 24,
+  "tail": 30,
+  "delivered_frames": 84,
+  "expected_frames": 84,
+  "method": "nearest 32x18 grayscale thumbnail, with a margin check so a near-tie is never called a match",
+  "checks": [
+    {
+      "identity": "A_last_outgoing_source",
+      "output_frame": 29,
+      "expected_index": 29,
+      "identified_index": 29,
+      "distance": 0.212,
+      "margin": 8.917,
+      "pool": "source",
+      "match": true
+    },
+    {
+      "identity": "B_first_inserted",
+      "output_frame": 30,
+      "expected_index": 0,
+      "identified_index": 0,
+      "distance": 0.083,
+      "margin": 11.665,
+      "pool": "insert",
+      "match": true
+    },
+    {
+      "identity": "C_last_inserted",
+      "output_frame": 53,
+      "expected_index": 23,
+      "identified_index": 23,
+      "distance": 0.141,
+      "margin": 11.488,
+      "pool": "insert",
+      "match": true
+    },
+    {
+      "identity": "D_first_returning_source",
+      "output_frame": 54,
+      "expected_index": 30,
+      "identified_index": 30,
+      "distance": 0.165,
+      "margin": 8.667,
+      "pool": "source",
+      "match": true
+    }
+  ],
+  "all_four_agree": true,
+  "duration_exact": true
+}

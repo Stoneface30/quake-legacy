@@ -1,0 +1,21 @@
+{
+ "element": "Status",
+ "cvar": "cg_drawStatus",
+ "only_variable": "one cvar",
+ "legs": {
+  "status_on": {
+   "frames": 14,
+   "hud_region_ink": 0.86171,
+   "whole_frame_ink": 0.57339
+  },
+  "status_off": {
+   "frames": 14,
+   "hud_region_ink": 0.85962,
+   "whole_frame_ink": 0.57586
+  }
+ },
+ "region_delta": 0.00209,
+ "whole_frame_delta": -0.00247,
+ "region_moved_more_than_scene": false,
+ "verdict": "PENDING_HUMAN"
+}

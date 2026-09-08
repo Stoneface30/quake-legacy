@@ -1,0 +1,33 @@
+{
+  "file": "fov105.avi",
+  "container": "mjpeg,60/1,599",
+  "windows": [
+    {
+      "label": "moving",
+      "frames": 120,
+      "diffs": 119,
+      "median_diff": 14.31,
+      "near_zero_pairs": 0,
+      "near_zero_share": 0.0,
+      "median_even": 14.501,
+      "median_odd": 14.239,
+      "verdict": "TRUE_60_UNIQUE",
+      "meaning": "adjacent frames differ throughout (median 14.31), with no alternating flat phase",
+      "start_frame": 134
+    },
+    {
+      "label": "static control",
+      "frames": 120,
+      "diffs": 119,
+      "median_diff": 7.673,
+      "near_zero_pairs": 0,
+      "near_zero_share": 0.0,
+      "median_even": 7.768,
+      "median_odd": 7.612,
+      "verdict": "TRUE_60_UNIQUE",
+      "meaning": "adjacent frames differ throughout (median 7.673), with no alternating flat phase",
+      "start_frame": 243
+    }
+  ],
+  "cadence": "TRUE_60_UNIQUE"
+}

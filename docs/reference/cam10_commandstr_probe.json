@@ -1,0 +1,8 @@
+{
+  "probe": "camera point commandStr -> echo",
+  "result": "PORT_FIRES",
+  "evidence": "all three marks appeared in qconsole.log: FIRST, MID, LAST",
+  "status": "ENGINE_TRIGGER_PORT",
+  "not_yet": "delivery offset unmeasured: r_gamma fired from a point produced 0.10 grey change against 88.8 when set directly, so execution is confirmed but visual manifestation timing is not",
+  "gate_note": "cg_cameraQue>1 gates the non-playcamera branch only (cg_view.c:2964); the /playcamera branch at :3049 has no such gate"
+}

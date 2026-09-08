@@ -1,0 +1,191 @@
+<title>PANTHEON — Identity Review</title>
+<style>
+  :root{ --bg:#0b0b0f; --fg:#e8e8ec; --dim:#8a8a96; --line:#22222c;
+         --gold:#c9a227; --blue:#3266fe; --yes:#2f7d4f; --no:#7d2f2f;
+         --maybe:#6a6a2f; }
+  *{ box-sizing:border-box }
+  body{ margin:0; background:var(--bg); color:var(--fg);
+        font:14px/1.5 "Segoe UI",system-ui,sans-serif }
+  header{ padding:14px 20px; border-bottom:1px solid var(--line);
+          display:flex; gap:20px; align-items:baseline; flex-wrap:wrap }
+  h1{ font-size:15px; margin:0; letter-spacing:.14em; text-transform:uppercase }
+  .sub{ color:var(--dim); font-size:12px }
+  .wrap{ padding:16px 20px; max-width:1180px }
+  .tabs{ display:flex; gap:8px; margin-bottom:14px }
+  .tab{ padding:6px 14px; border:1px solid var(--line); background:#12121a;
+        color:var(--dim); cursor:pointer; border-radius:3px; font-size:12px;
+        letter-spacing:.08em; text-transform:uppercase }
+  .tab.on{ color:var(--fg); border-color:var(--gold) }
+  .note{ color:var(--dim); font-size:12px; margin:0 0 14px;
+         border-left:2px solid var(--line); padding-left:12px; max-width:820px }
+  table{ border-collapse:collapse; width:100% }
+  th{ text-align:left; font-size:11px; letter-spacing:.1em; color:var(--dim);
+      text-transform:uppercase; border-bottom:1px solid var(--line);
+      padding:8px 10px; font-weight:500 }
+  td{ padding:9px 10px; border-bottom:1px solid #16161e; vertical-align:top }
+  tr:hover td{ background:#101018 }
+  .n{ text-align:right; font-variant-numeric:tabular-nums }
+  .name{ font-weight:600 }
+  .raw{ color:var(--dim); font-size:11px; word-break:break-all }
+  .maps{ color:var(--dim); font-size:11px }
+  .st{ font-size:11px; letter-spacing:.06em; padding:2px 7px; border-radius:2px;
+       border:1px solid var(--line); color:var(--dim); white-space:nowrap }
+  .st.CONFIRMED_USER,.st.PTN_CONFIRMED_MEMBER{ color:#8fd6a8; border-color:var(--yes) }
+  .st.NOT_USER,.st.NOT_PTN{ color:#d69090; border-color:var(--no) }
+  .st.PTN_CANDIDATE{ color:#d6cf90; border-color:var(--maybe) }
+  .btns{ display:flex; gap:5px; flex-wrap:wrap }
+  button{ background:#15151f; color:var(--fg); border:1px solid var(--line);
+          padding:4px 9px; font-size:11px; cursor:pointer; border-radius:2px;
+          letter-spacing:.05em; white-space:nowrap }
+  button:hover{ border-color:var(--gold) }
+  button.me:hover{ border-color:var(--yes) }
+  button.not:hover{ border-color:var(--no) }
+  .primary{ color:var(--gold) }
+  #toast{ position:fixed; bottom:22px; left:50%; transform:translateX(-50%);
+          background:#15151f; border:1px solid var(--gold); padding:8px 18px;
+          border-radius:3px; opacity:0; transition:opacity .2s; font-size:12px }
+  #toast.on{ opacity:1 }
+</style>
+<header>
+  <h1>Identity Review</h1>
+  <span class="sub" id="status">loading…</span>
+  <span class="sub"><a href="/api/review/ui" style="color:var(--dim)">&larr; creative review</a></span>
+</header>
+<div class="wrap">
+  <div class="tabs">
+    <div class="tab on" id="t-rec">Is this recorder me?</div>
+    <div class="tab" id="t-ptn">Is this player pTn?</div>
+  </div>
+  <p class="note" id="note"></p>
+  <table><thead id="head"></thead><tbody id="rows"></tbody></table>
+</div>
+<div id="toast"></div>
+<script>
+// Built with createElement/textContent throughout -- names here are raw
+// player strings from the archive and never touch innerHTML.
+const API = "/api/review/identity";
+let tab = "rec", data = [];
+const $ = id => document.getElementById(id);
+
+function el(t, cls, txt){
+  const n = document.createElement(t);
+  if (cls) n.className = cls;
+  if (txt !== undefined && txt !== null) n.textContent = String(txt);
+  return n;
+}
+function toast(m){
+  const t = $("toast"); t.textContent = m; t.classList.add("on");
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 1500);
+}
+
+async function decide(name, patch){
+  const r = await fetch(API + "/decide", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(Object.assign({name_norm: name}, patch))});
+  if (!r.ok){ toast("failed"); return; }
+  toast(name + " → " + (patch.user_state || patch.ptn_state));
+  await load();          // totals move as answers land
+}
+
+function headRow(cols){
+  const tr = document.createElement("tr");
+  cols.forEach(c => tr.appendChild(el("th", null, c)));
+  $("head").replaceChildren(tr);
+}
+
+function recorders(){
+  headRow(["identity", "demos", "kills", "played", "maps", "pTn lines",
+           "state", "is this you?"]);
+  $("note").textContent =
+    "The archive is not all your demos. is_recorder_killer means the killer "
+    + "recorded that demo, and 172 demos were recorded by other people. "
+    + "Answering here decides what CONFIRMED USER FRAGS contains. Nothing is "
+    + "merged on a similar spelling — a date range is usually the tell.";
+  const rows = data.map(c => {
+    const tr = document.createElement("tr");
+    const nm = el("td");
+    nm.appendChild(el("div", "name" + (c.is_primary ? " primary" : ""),
+                      c.name_norm + (c.is_primary ? "  (primary)" : "")));
+    if (c.raw_spellings && c.raw_spellings.length)
+      nm.appendChild(el("div", "raw", c.raw_spellings.slice(0, 3).join("  ")));
+    tr.appendChild(nm);
+    tr.appendChild(el("td", "n", c.demos_recorded.toLocaleString()));
+    tr.appendChild(el("td", "n", c.recorder_own_kills.toLocaleString()));
+    tr.appendChild(el("td", "maps",
+      c.first_played ? c.first_played + " → " + c.last_played : "—"));
+    tr.appendChild(el("td", "maps", (c.maps || []).slice(0, 3).join(", ")));
+    tr.appendChild(el("td", "n", (c.ptn_tag_lines || 0).toLocaleString()));
+    const st = el("td");
+    st.appendChild(el("span", "st " + c.user_state, c.user_state));
+    tr.appendChild(st);
+    const act = el("td");
+    const box = el("div", "btns");
+    [["ME / MY ALIAS", "CONFIRMED_USER", "me"],
+     ["NOT ME", "NOT_USER", "not"],
+     ["UNSURE", "UNRESOLVED", ""]].forEach(([lab, val, cls]) => {
+      const b = el("button", cls, lab);
+      b.onclick = () => decide(c.name_norm, {user_state: val});
+      box.appendChild(b);
+    });
+    act.appendChild(box);
+    tr.appendChild(act);
+    return tr;
+  });
+  $("rows").replaceChildren(...rows);
+}
+
+function ptn(){
+  headRow(["identity", "pTn tag lines", "kills", "demos", "source",
+           "state", "is this pTn?"]);
+  $("note").textContent =
+    "Wearing the tag is evidence, not membership — a tag is a costume. The "
+    + "roster is yours and does not grow on its own. Names you supplied are "
+    + "marked; everything else is a candidate waiting for your answer.";
+  const rows = data.map(c => {
+    const tr = document.createElement("tr");
+    tr.appendChild(el("td", "name", c.name_norm));
+    tr.appendChild(el("td", "n", c.ptn_tag_lines.toLocaleString()));
+    tr.appendChild(el("td", "n", c.kills.toLocaleString()));
+    tr.appendChild(el("td", "n", c.demos.toLocaleString()));
+    tr.appendChild(el("td", "maps",
+      c.user_supplied ? "you named them" : "tag evidence only"));
+    const st = el("td");
+    st.appendChild(el("span", "st " + c.ptn_state, c.ptn_state));
+    tr.appendChild(st);
+    const act = el("td");
+    const box = el("div", "btns");
+    [["MEMBER", "PTN_CONFIRMED_MEMBER", "me"],
+     ["NOT MEMBER", "NOT_PTN", "not"],
+     ["UNSURE", "PTN_UNKNOWN", ""]].forEach(([lab, val, cls]) => {
+      const b = el("button", cls, lab);
+      b.onclick = () => decide(c.name_norm, {ptn_state: val});
+      box.appendChild(b);
+    });
+    act.appendChild(box);
+    tr.appendChild(act);
+    return tr;
+  });
+  $("rows").replaceChildren(...rows);
+}
+
+async function load(){
+  const st = await (await fetch(API + "/status")).json();
+  $("status").textContent =
+    "confirmed as you: " + st.user_confirmed.join(", ")
+    + "   ·   unanswered recorder identities: " + st.unanswered
+    + "   ·   confirmed pTn: " + st.ptn_confirmed.length;
+  if (tab === "rec"){
+    data = (await (await fetch(API + "/recorders?limit=200")).json()).candidates;
+    recorders();
+  } else {
+    data = (await (await fetch(API + "/ptn")).json()).candidates;
+    ptn();
+  }
+}
+
+$("t-rec").onclick = () => { tab = "rec"; $("t-rec").classList.add("on");
+                             $("t-ptn").classList.remove("on"); load(); };
+$("t-ptn").onclick = () => { tab = "ptn"; $("t-ptn").classList.add("on");
+                             $("t-rec").classList.remove("on"); load(); };
+load();
+</script>

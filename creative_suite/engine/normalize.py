@@ -139,10 +139,14 @@ def normalize_clip(
         "-b:a", "192k",
         "-movflags", "+faststart",
     ]
-    if speedup and cfg.speed_change_audio_natural:
-        # Stop output at shortest stream = video (which is now shorter than
-        # the natural-rate audio). This is the "natural audio, truncated"
-        # behavior user asked for.
+    if (speedup or slow) and cfg.speed_change_audio_natural:
+        # Stop output at the shortest stream — which is always the (finite)
+        # video, because both speed branches leave audio unbounded:
+        #   speedup -> natural-rate audio outlives the compressed video
+        #   slow    -> `apad` pads audio INDEFINITELY (see _audio_filter)
+        # Without this, a slow normalize never reaches EOF and ffmpeg encodes
+        # silence until the disk fills (observed: 6.3 s clip -> 700+ CPU-s,
+        # 69 MB .partial and still growing).
         cmd.append("-shortest")
 
     # L156: ffmpeg cannot infer the muxer from the L154 `.partial` sentinel

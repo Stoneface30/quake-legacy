@@ -1,0 +1,817 @@
+"""Taxonomy v2 as a RECLASSIFICATION pass over cached recognition rows.
+
+Hard rule (user, 2026-08-30): never full-rescan the corpus for taxonomy
+changes. This pass derives every v2 label computable from persisted v1
+attributes + existing databases/CSVs, updates rows in place, and exports
+mode-weighted top lists. Runtime: seconds-to-minutes, zero demo IO.
+
+Adds from cache:
+  attacker/victim speed percentiles + FAST/VERY_FAST/EXTREME_SPEED labels
+  SPEED_TARGET_FRAG · RAPID_MULTIKILL (chain kills/s) · stationary penalty
+  CLUTCH_1V2/1V3/1V4_PLUS (clutch_recorder.csv join by hash + time window)
+  mode split MAIN_CA / SIDE_DUEL / SIDE_OTHER (demos.gametype join)
+Genuinely missing (needs targeted extraction, NOT here): recorder
+health/armor, view-angle timeseries, LG tick series, projectile paths,
+LOS/visibility geometry (stage-2 handles candidates).
+"""
+from __future__ import annotations
+
+import csv
+import json
+import re
+import sqlite3
+from bisect import bisect_left
+from pathlib import Path
+
+# DATA, not code: under a worktree these differ, and opening a
+# database beneath the wrong one silently CREATES an empty file
+# rather than failing. See engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
+RECOG_DB = REPO_ROOT / "creative_suite" / "database" / "frag_recognition.db"
+FRAGS_DB = REPO_ROOT / "creative_suite" / "database" / "frags_rebuilt.db"
+CLUTCH_CSV = REPO_ROOT / "output" / "clutch_recorder.csv"
+NORMS = REPO_ROOT / "output" / "demo_v2" / "recognition" / "norms.json"
+OUT_DIR = REPO_ROOT / "output" / "demo_v2" / "recognition"
+
+CHAIN_GAP_MS = 3000
+RECLASS_MARK = "db_reclass_v2"
+
+# DODGE_TO_KILL money-shot pacing: matches frag_classify.COMBO_WINDOW_MS
+# (weapon-switch combo window) exactly, per the existing WEAPON_COMBO
+# convention already established for "two notable things this close = one
+# cinematic beat".
+DODGE_TO_KILL_WINDOW_MS = 2000
+DODGE_STRAFE_PCTILE = 90.0   # top-decile recorder velocity swing at a near-miss
+
+# ── DODGE QUALITY SCORE (hero tier) ─────────────────────────────────────────
+# The broad NEAR_MISS_*/DODGE_TO_KILL labels above are DISCOVERY evidence:
+# "a threat weapon passed inside its near-miss threshold and I lived". At
+# corpus scale that fires on ~38% of recognized recorder frags, which is far
+# too common to mean "hero-quality cinematic dodge" — a CA player is nearly
+# always moving and is nearly always being shot at, so mere proximity plus
+# mere motion is the base rate, not a highlight. This block scores the
+# UNDERLYING per-event rows in recognition_dodge_events (DB-only, no demo IO)
+# to separate genuine evasive movement from coincidental proximity.
+#
+# Score = weighted blend of three percentile-normalised components, times a
+# per-method geometric-confidence factor. Percentile-normalised for the same
+# reason the speed/flick labels are: absolute unit thresholds do not transfer
+# across weapons (a 120u rail near-miss and a 120u rocket near-miss are not
+# the same event), while "closer than 90% of this weapon's near-misses" does.
+#
+#   proximity  how close the threat actually came, ranked WITHIN its own
+#              threat_type pool (rail threshold is 120u, splash is 160u).
+#   evasion    percentile of recorder_velocity_change — the vector-difference
+#              magnitude of the recorder's own horizontal velocity sampled
+#              +/-450ms around the shot. This is the component that answers
+#              the actual question: a player travelling in an unrelated
+#              straight line when a shot happens near them has a LOW velocity
+#              delta; a player who genuinely broke trajectory has a high one.
+#   immediacy  how tightly the near-miss leads into the kill (the user's
+#              cinematic brief: "jumping a rail and hitting something after").
+#
+# HONEST LIMIT, stated rather than hidden: velocity change proves the recorder
+# changed trajectory around the shot, NOT that the change was CAUSED by the
+# shot. A player who happened to turn a corner at that instant scores the same
+# as one who reacted. Resolving intent needs the view-angle/threat-bearing
+# correlation this DB does not carry. The gates below suppress the bulk of
+# the coincidental cases; they do not eliminate them.
+DODGE_WEIGHT_PROXIMITY = 0.40
+DODGE_WEIGHT_EVASION = 0.40
+DODGE_WEIGHT_IMMEDIACY = 0.20
+
+# Geometric confidence per extractor `method`. NOT a tuning knob — it encodes
+# how much of each path is MEASURED vs RECONSTRUCTED, per that module's own
+# docstring:
+#   segment       real rail beam: observed fire_weapon origin -> observed
+#                 railtrail endpoint. closest_approach_units is then the true
+#                 orthogonal displacement of the recorder from the actual
+#                 beam. Nothing is simulated. Full confidence.
+#   sim_straight  rocket: launch point and time are OBSERVED directly, and a
+#                 rocket really does fly straight at constant speed, but no
+#                 BSP is consulted, so the sim can pass through a wall that
+#                 would have stopped the real rocket.
+#   ray_angle     rail fallback: no railtrail matched, so the beam direction
+#                 is reconstructed from the shooter's view angles sampled
+#                 within +/-200ms. Direction is inferred, not observed.
+#   sim_ballistic grenade: gravity-only, bounces NOT simulated, and the fuse
+#                 constant is provisional. Weakest of the four.
+DODGE_GEOM_CONFIDENCE = {
+    "segment": 1.00,
+    "sim_straight": 0.80,
+    "ray_angle": 0.70,
+    "sim_ballistic": 0.60,
+}
+DODGE_UNKNOWN_METHOD_CONFIDENCE = 0.50   # a future method scores conservatively
+
+# Gates. An event must clear ALL of these before it is hero-ELIGIBLE. They are
+# a conjunction on purpose: the failure mode being removed is "one component
+# carried a row on its own" (very close but stone-still = not a dodge; wild
+# strafing but the shot was 150u away = not a dodge).
+DODGE_GATE_PROXIMITY_PCTILE = 50.0   # closer than the median for its weapon
+DODGE_GATE_EVASION_PCTILE = 60.0     # demonstrably broke trajectory
+DODGE_GATE_PROJECTILE_FLIGHT_MS = 100
+# ^ a projectile whose closest approach is essentially at the muzzle was
+# point-blank: there was no flight time in which a dodge could exist. Rail is
+# exempt because it is hitscan (flight is always 0) — a rail is dodged
+# PRE-emptively, which is exactly what the evasion component already measures.
+
+# Cuts. Ranked within each weapon pool, not globally, because the confidence
+# factor deliberately depresses projectile scores — a single global cut made
+# DODGE_HERO a pure duplicate of RAIL_DODGE_HERO (measured: 191/191 rows),
+# which would have been a renaming, not a tier.
+DODGE_WEAPON_HERO_PCTILE = 90.0   # top decile of its own weapon pool
+DODGE_ELITE_HERO_PCTILE = 98.0    # top 2% — DODGE_HERO, cross-weapon by
+                                  # construction since each pool is ranked
+                                  # against itself
+# Label contract (mirrors CLEAN_FLICK/EXTREME_FLICK below): DODGE_HERO is a
+# strict SUBSET of RAIL_DODGE_HERO | PROJECTILE_DODGE_HERO — it is never
+# applied without the weapon-specific label that qualified it.
+
+# Reasons this module appends (stripped before every recompute so the pass
+# is IDEMPOTENT — running twice must not double scores; the original
+# implementation double-added on rerun, repaired 2026-08-30).
+_REASON_RE = re.compile(
+    r"^([+-] (extreme-speed p|very-fast p|high-speed p|fast target p|"
+    r"stationary target|rapid chain |1v\d clutch |near-death |critical |"
+    r"low hp |survived \d+dmg burst|true flick |extreme flick |clean flick |"
+    r"tracking sweep |aim transition |clean snap|geo direct |geo near-direct |"
+    r"air rocket geo |temporal prediction |rarity|pixel shot |tiny gap |"
+    r"reaction |corner prefire |"
+    r"lg pressure |lg dodge |damage burst |"
+    r"near miss |dodge strafe p|dodge to kill |"
+    r"rail dodge hero |projectile dodge hero |dodge hero ))")
+
+# Legacy weights of the two buggy runs (for the one-time score repair).
+_OLD_HEALTH = {"near": 10, "crit": 6, "low": 3, "ctx": 0.5, "burst": 2}
+
+
+def pctile(sorted_vals: list[float], v: float) -> float:
+    if not sorted_vals:
+        return 0.0
+    return round(100.0 * bisect_left(sorted_vals, v) / len(sorted_vals), 1)
+
+
+def score_dodge_event(ev: dict, prox_pools: dict[str, list[float]],
+                      vel_pool: list[float]) -> dict:
+    """Quality score (0-100) for ONE recognition_dodge_events row.
+
+    Pure: takes the row plus the two percentile bases, returns the score and
+    every component that produced it (so the evidence is inspectable in
+    /frags and in the manual-validation sample, not a black box).
+    """
+    threat = ev.get("threat_type")
+    dist = ev.get("closest_approach_units")
+    prox_p = (100.0 - pctile(prox_pools.get(threat) or [], float(dist))
+              if dist is not None else 0.0)
+
+    vc = ev.get("recorder_velocity_change")
+    ev_p = pctile(vel_pool, float(vc)) if vc is not None else 0.0
+
+    gap = (ev.get("kill_anchor_ms") or 0) - (ev.get("closest_time_ms") or 0)
+    imm = (100.0 * (1.0 - gap / DODGE_TO_KILL_WINDOW_MS)
+           if 0 <= gap <= DODGE_TO_KILL_WINDOW_MS else 0.0)
+
+    flight = (ev.get("closest_time_ms") or 0) - (ev.get("server_time_ms") or 0)
+    conf = DODGE_GEOM_CONFIDENCE.get(ev.get("method"),
+                                     DODGE_UNKNOWN_METHOD_CONFIDENCE)
+    raw = (DODGE_WEIGHT_PROXIMITY * prox_p + DODGE_WEIGHT_EVASION * ev_p
+           + DODGE_WEIGHT_IMMEDIACY * imm)
+
+    gated = bool(
+        ev.get("survived") == 1
+        and prox_p >= DODGE_GATE_PROXIMITY_PCTILE
+        and ev_p >= DODGE_GATE_EVASION_PCTILE
+        and (threat == "RAIL" or flight >= DODGE_GATE_PROJECTILE_FLIGHT_MS))
+
+    return {"score": round(raw * conf, 1), "proximity_pctile": round(prox_p, 1),
+            "evasion_pctile": round(ev_p, 1), "immediacy": round(imm, 1),
+            "flight_ms": flight, "geom_confidence": conf, "gated": gated,
+            "threat_type": threat, "method": ev.get("method"),
+            "closest_approach_units": dist, "recorder_velocity_change": vc,
+            "kill_to_dodge_gap_ms": gap}
+
+
+def _pool_cut(pool: list[float], p: float) -> float:
+    """Value at percentile p of an already-sorted pool (inf if empty, so an
+    empty pool can never award a label)."""
+    if not pool:
+        return float("inf")
+    return pool[min(len(pool) - 1, int(len(pool) * p / 100.0))]
+
+
+def load_dodge_quality(conn) -> tuple[dict[tuple, dict], dict]:
+    """(demo_name, kill_anchor_ms) -> best-scoring near-miss for that kill,
+    plus the percentile cuts derived from the corpus itself.
+
+    One SELECT over recognition_dodge_events (~36k rows) + two sorts. No
+    demo IO — the DB-only performance contract in this module's docstring
+    holds. Missing table (fresh/synthetic DB) degrades to "no hero labels".
+    """
+    try:
+        cur = conn.execute(
+            "SELECT demo_name, server_time_ms, kill_anchor_ms, threat_type,"
+            " closest_approach_units, closest_time_ms,"
+            " recorder_velocity_change, survived, method"
+            " FROM recognition_dodge_events")
+    except sqlite3.OperationalError:
+        return {}, {}
+    cols = [c[0] for c in cur.description]
+    events = [dict(zip(cols, row)) for row in cur.fetchall()]
+    if not events:
+        return {}, {}
+
+    prox_pools: dict[str, list[float]] = {}
+    vel_pool: list[float] = []
+    for e in events:
+        if e.get("closest_approach_units") is not None:
+            prox_pools.setdefault(e.get("threat_type"), []).append(
+                float(e["closest_approach_units"]))
+        if e.get("recorder_velocity_change") is not None:
+            vel_pool.append(float(e["recorder_velocity_change"]))
+    for v in prox_pools.values():
+        v.sort()
+    vel_pool.sort()
+
+    scored = [dict(e, **score_dodge_event(e, prox_pools, vel_pool))
+              for e in events]
+
+    # weapon pools: only GATED events rank, so the cut is "top decile of the
+    # plausible dodges", not "top decile of everything including the noise".
+    # ray_angle rail rows are excluded from the rail pool entirely — the rail
+    # hero tier is reserved for measured beam geometry (23 such rows corpus-
+    # wide, so nothing meaningful is lost).
+    rail_pool = sorted(s["score"] for s in scored if s["gated"]
+                       and s["threat_type"] == "RAIL"
+                       and s["method"] == "segment")
+    proj_pool = sorted(s["score"] for s in scored if s["gated"]
+                       and s["threat_type"] in ("ROCKET", "GRENADE"))
+    cuts = {
+        "rail_hero": _pool_cut(rail_pool, DODGE_WEAPON_HERO_PCTILE),
+        "rail_elite": _pool_cut(rail_pool, DODGE_ELITE_HERO_PCTILE),
+        "proj_hero": _pool_cut(proj_pool, DODGE_WEAPON_HERO_PCTILE),
+        "proj_elite": _pool_cut(proj_pool, DODGE_ELITE_HERO_PCTILE),
+        "rail_pool_n": len(rail_pool), "proj_pool_n": len(proj_pool),
+        "events": len(scored),
+    }
+
+    for s in scored:
+        s["rail_hero"] = bool(
+            s["gated"] and s["threat_type"] == "RAIL"
+            and s["method"] == "segment" and s["score"] >= cuts["rail_hero"])
+        s["proj_hero"] = bool(
+            s["gated"] and s["threat_type"] in ("ROCKET", "GRENADE")
+            and s["score"] >= cuts["proj_hero"])
+        s["elite"] = bool(
+            (s["rail_hero"] and s["score"] >= cuts["rail_elite"])
+            or (s["proj_hero"] and s["score"] >= cuts["proj_elite"]))
+
+    # one anchor can carry several near-misses (different weapons/shooters).
+    # Keep the best-scoring one for the score/attributes, but OR the label
+    # flags across all of them: a kill preceded by a hero rail dodge AND a
+    # weaker rocket near-miss is still a hero rail dodge.
+    best: dict[tuple, dict] = {}
+    for s in scored:
+        key = (s["demo_name"], s["kill_anchor_ms"])
+        cur_best = best.get(key)
+        if cur_best is None or s["score"] > cur_best["score"]:
+            merged = dict(s)
+            if cur_best is not None:
+                for flag in ("rail_hero", "proj_hero", "elite"):
+                    merged[flag] = merged[flag] or cur_best[flag]
+            best[key] = merged
+        else:
+            for flag in ("rail_hero", "proj_hero", "elite"):
+                cur_best[flag] = cur_best[flag] or s[flag]
+    return best, cuts
+
+
+def load_norm_samples(conn) -> dict[str, list[float]]:
+    """Percentile bases from the cached rows themselves (sorted samples)."""
+    ks, vs, dv = [], [], []
+    for (attrs,) in conn.execute("SELECT attributes FROM recognized_frags"):
+        a = json.loads(attrs or "{}")
+        if a.get("killer_speed") is not None:
+            ks.append(float(a["killer_speed"]))
+        if a.get("victim_speed") is not None:
+            vs.append(float(a["victim_speed"]))
+        if a.get("dodge_max_velocity_change") is not None:
+            dv.append(float(a["dodge_max_velocity_change"]))
+    return {"killer_speed": sorted(ks), "victim_speed": sorted(vs),
+            "dodge_velocity_change": sorted(dv)}
+
+
+def mode_of(gametype: str | None) -> str:
+    g = (gametype or "").upper()
+    if "CLAN" in g or g == "CA":
+        return "MAIN_CA"
+    if "DUEL" in g:
+        return "SIDE_DUEL"
+    return "SIDE_OTHER"
+
+
+def run() -> dict:
+    conn = sqlite3.connect(RECOG_DB)
+    conn.row_factory = sqlite3.Row
+
+    fconn = sqlite3.connect(f"file:{FRAGS_DB}?mode=ro", uri=True)
+    demo_meta = {name: (gt, dup or h) for name, gt, h, dup in fconn.execute(
+        "SELECT name, gametype, content_hash, duplicate_of FROM demos")}
+    fconn.close()
+
+    clutches: dict[str, list[dict]] = {}
+    with open(CLUTCH_CSV, newline="", encoding="utf-8") as f:
+        for c in csv.DictReader(f):
+            clutches.setdefault(c["canonical_demo_hash"], []).append(c)
+
+    samples = load_norm_samples(conn)
+    dodge_best, dodge_cuts = load_dodge_quality(conn)
+
+    # stage-2 geometric visibility (own table; merged into attributes here)
+    stage2: dict[tuple, dict] = {}
+    try:
+        for row in conn.execute("SELECT * FROM stage2_visibility"):
+            d = dict(zip([c[0] for c in conn.execute(
+                "SELECT * FROM stage2_visibility LIMIT 0").description], row))
+            key = (d.get("demo_name"), d.get("server_time_ms"))
+            stage2[key] = d
+    except sqlite3.OperationalError:
+        pass  # table not built yet
+
+    # label archive frequencies for rarity (first pass, read-only)
+    from collections import Counter
+    label_freq: Counter = Counter()
+    total_rows = 0
+    for (cl,) in conn.execute("SELECT classes FROM recognized_frags"):
+        total_rows += 1
+        for x in json.loads(cl or "[]"):
+            label_freq[x["name"] if isinstance(x, dict) else x] += 1
+    rows = [dict(r) for r in conn.execute(
+        "SELECT id, demo_name, server_time_ms, classes, attributes, reasons,"
+        " speed_score, movement_score, clutch_score, drama_score,"
+        " penalty_score, highlight_score, multikill_score"
+        " FROM recognized_frags")]
+
+    # chain grouping per demo for kills/s
+    by_demo: dict[str, list[dict]] = {}
+    for r in rows:
+        by_demo.setdefault(r["demo_name"], []).append(r)
+    chain_kps: dict[int, float] = {}
+    chain_len: dict[int, int] = {}
+    for demo, rs in by_demo.items():
+        rs.sort(key=lambda r: r["server_time_ms"])
+        i = 0
+        while i < len(rs):
+            j = i
+            while (j + 1 < len(rs) and
+                   rs[j + 1]["server_time_ms"] - rs[j]["server_time_ms"]
+                   <= CHAIN_GAP_MS):
+                j += 1
+            n = j - i + 1
+            dur_s = max(0.5, (rs[j]["server_time_ms"]
+                              - rs[i]["server_time_ms"]) / 1000.0)
+            for k in range(i, j + 1):
+                chain_len[rs[k]["id"]] = n
+                chain_kps[rs[k]["id"]] = n / dur_s if n > 1 else 0.0
+            i = j + 1
+
+    stats = {"reused": len(rows), "labels_added": 0, "ca": 0, "duel": 0,
+             "other": 0, "clutch_labeled": 0, "repaired_legacy": 0,
+             "dodge_hero": 0, "rail_dodge_hero": 0, "projectile_dodge_hero": 0,
+             "dodge_cuts": {k: (round(v, 1) if isinstance(v, float) else v)
+                            for k, v in dodge_cuts.items()}}
+    up = []
+    for r in rows:
+        a = json.loads(r["attributes"] or "{}")
+        classes = json.loads(r["classes"] or "[]")
+        reasons = json.loads(r["reasons"] or "[]")
+
+        # ── idempotency: remove everything this module added previously ──
+        classes = [c for c in classes
+                   if not (isinstance(c, dict)
+                           and c.get("source") == RECLASS_MARK)]
+        reasons = [x for x in reasons if not _REASON_RE.match(x)]
+        prev = a.pop("_reclass_delta", None)
+        if prev is not None:
+            r["speed_score"] = (r["speed_score"] or 0) - prev.get("speed", 0)
+            r["movement_score"] = (r["movement_score"] or 0) - prev.get("move", 0)
+            r["clutch_score"] = (r["clutch_score"] or 0) - prev.get("clutch", 0)
+            r["drama_score"] = (r["drama_score"] or 0) - prev.get("drama", 0)
+            r["penalty_score"] = (r["penalty_score"] or 0) - prev.get("pen", 0)
+            r["highlight_score"] = (r["highlight_score"] or 0) - prev.get("total", 0)
+
+        have = {c["name"] if isinstance(c, dict) else c for c in classes}
+        add_speed = add_move = add_clutch = add_drama = 0.0
+        add_pen = 0.0
+
+        def add(name, conf, detail=""):
+            if name in have:
+                return
+            classes.append({"name": name, "confidence": conf,
+                            "detail": detail, "source": RECLASS_MARK})
+            have.add(name)
+            stats["labels_added"] += 1
+
+        gt, h = demo_meta.get(r["demo_name"], (None, None))
+        mode = mode_of(gt)
+        a["mode_pool"] = mode
+        stats[{"MAIN_CA": "ca", "SIDE_DUEL": "duel",
+               "SIDE_OTHER": "other"}[mode]] += 1
+
+        ks = a.get("killer_speed")
+        if ks is not None:
+            p = pctile(samples["killer_speed"], float(ks))
+            a["attacker_speed_percentile"] = p
+            if p >= 99:
+                add("EXTREME_SPEED", "CONFIRMED", f"p{p}")
+                add_speed += 14
+                reasons.append(f"+ extreme-speed p{p} (+14)")
+            elif p >= 97:
+                add("VERY_FAST_FRAG", "CONFIRMED", f"p{p}")
+                add_speed += 8
+                reasons.append(f"+ very-fast p{p} (+8)")
+            elif p >= 90:
+                add("HIGH_SPEED_FRAG", "CONFIRMED", f"p{p}")
+                add_speed += 4
+                reasons.append(f"+ high-speed p{p} (+4)")
+        vs = a.get("victim_speed")
+        if vs is not None:
+            pv = pctile(samples["victim_speed"], float(vs))
+            a["victim_speed_percentile"] = pv
+            if pv >= 97:
+                add("SPEED_TARGET_FRAG", "CONFIRMED", f"victim p{pv}")
+                add_move += 5
+                reasons.append(f"+ fast target p{pv} (+5)")
+            elif float(vs) < 40:
+                add_pen -= 3
+                reasons.append("- stationary target (-3)")
+
+        kps = chain_kps.get(r["id"], 0.0)
+        if kps >= 1.5 and chain_len.get(r["id"], 1) >= 3:
+            add("RAPID_MULTIKILL", "CONFIRMED",
+                f"{chain_len[r['id']]} kills @ {kps:.1f}/s")
+            add_move += 6
+            reasons.append(f"+ rapid chain {kps:.1f} kills/s (+6)")
+
+        if h and h in clutches:
+            t = r["server_time_ms"]
+            for c in clutches[h]:
+                if int(c["clutch_start_ms"]) <= t <= int(c["clutch_end_ms"]):
+                    n = int(c["enemies_alive_at_start"])
+                    label = ("CLUTCH_1V4_PLUS" if n >= 4 else
+                             "CLUTCH_1V3" if n == 3 else
+                             "CLUTCH_1V2" if n == 2 else None)
+                    if label:
+                        add(label, "CONFIRMED", f"1v{n} {c['outcome']}")
+                        add_clutch += 6 + 4 * (n - 2)
+                        add_drama += 3
+                        reasons.append(f"+ 1v{n} clutch (+{6 + 4*(n-2)})")
+                        stats["clutch_labeled"] += 1
+                    break
+
+        # true-aim quality (targeted view timeseries; complete movement curve)
+        fd = a.get("flick_deg_v2", a.get("flick_true_deg"))
+        if fd is not None:
+            fms = a.get("flick_ms_v2", a.get("flick_true_ms")) or 0
+            dps = a.get("flick_dps_v2", a.get("flick_peak_dps")) or 0
+            settle = a.get("settle_deg")
+            rev = a.get("flick_reversals")
+            # a flick ENDS at the shot, so final-100ms stillness is the wrong
+            # cleanliness test; low reversal count = clean snap
+            clean = rev is not None and rev <= 1
+            # physical sanity: >2500 deg/s smoothed or >250deg net is a
+            # teleport/respawn view snap, not aim
+            humanly = (dps or 0) <= 2500 and fd <= 250
+            clean = clean and humanly
+            # label contract: EXTREME_FLICK is a strict SUBSET of
+            # CLEAN_FLICK (both always applied together).
+            if fd >= 90 and fms <= 350 and dps >= 350 and clean:
+                add("CLEAN_FLICK", "CONFIRMED", f"{fd}deg/{fms}ms")
+                add("EXTREME_FLICK", "CONFIRMED",
+                    f"{fd}deg/{fms}ms peak {dps}dps rev {rev}")
+                add_move += 9
+                reasons.append(f"+ extreme flick {fd}deg @ {dps}dps (+9)")
+            elif fd >= 50 and fms <= 300 and clean:
+                add("CLEAN_FLICK", "CONFIRMED",
+                    f"{fd}deg/{fms}ms rev {rev}")
+                add_move += 4
+                reasons.append(f"+ clean flick {fd}deg/{fms}ms (+4)")
+            elif fd >= 80 and fms >= 400 and humanly and (rev or 0) <= 3:
+                # impressive aim that is NOT a snap: sustained engaged sweep
+                # (the honest home of the downgraded 106deg event)
+                add("AGGRESSIVE_TRACKING_SWEEP", "CONFIRMED",
+                    f"{fd}deg over {fms}ms, rev {rev}")
+                add_move += 4
+                reasons.append(f"+ tracking sweep {fd}deg/{fms}ms (+4)")
+            elif fd >= 120 and humanly:
+                add("LARGE_AIM_TRANSITION", "HIGH", f"{fd}deg/{fms}ms")
+                add_move += 2
+                reasons.append(f"+ aim transition {fd}deg (+2)")
+            if fd >= 80 and humanly and                     (a.get("attacker_speed_percentile") or 0) >= 90:
+                add("HIGH_SPEED_AIM_TRANSITION", "CONFIRMED",
+                    f"{fd}deg at p{a.get('attacker_speed_percentile')}")
+            if clean and (rev == 0) and fd >= 40:
+                add_move += 2
+                reasons.append("+ clean snap (+2)")
+
+        # LG engagement labels (targeted LG extraction; damage-flow model)
+        cr = a.get("lg_contact_rate")
+        if cr is not None:
+            if cr >= 2.0:
+                add("LG_HIGH_PRESSURE", "CONFIRMED", f"{cr}/s contact")
+                add_move += 5
+                reasons.append(f"+ lg pressure {cr}/s (+5)")
+            dr = a.get("lg_dodge_rating") or 0
+            inr = a.get("lg_incoming_hit_ratio")
+            ticks = a.get("lg_incoming_fire_ticks") or 0
+            if dr >= 20 and ticks >= 60 and (inr is not None and inr <= 0.10):
+                add("LG_DODGE_MASTER", "CONFIRMED",
+                    f"rating {dr}, ate {inr:.0%} of {ticks} ticks")
+                add_move += 7
+                reasons.append(f"+ lg dodge {inr:.0%}/{ticks}t (+7)")
+            burst = a.get("lg_damage_burst_3s") or 0
+            if burst >= 100:   # ~p99 of bucket-floor distribution
+                add("DAMAGE_BURST", "CONFIRMED", f"{burst}dmg/3s")
+                add_move += 4
+                reasons.append(f"+ damage burst {burst}/3s (+4)")
+
+        # projectile geometry labels (targeted reconstruction cache)
+        pg = a.get("projectile_direct_geometry")
+        if pg == "DIRECT_CONFIRMED":
+            add("DIRECT_CONFIRMED_GEO", "CONFIRMED",
+                f"expansion {a.get('projectile_direct_expansion_u')}u")
+            add_move += 6
+            reasons.append("+ geo direct (body hit) (+6)")
+        elif pg in ("DIRECT_LIKELY", "NEAR_DIRECT"):
+            add("NEAR_DIRECT", "HIGH",
+                f"expansion {a.get('projectile_direct_expansion_u')}u")
+            add_move += 3
+            reasons.append("+ geo near-direct (+3)")
+        if (a.get("projectile_victim_airborne")
+                and abs(a.get("projectile_victim_vertical_speed") or 0) >= 250):
+            add("AIR_ROCKET_GEO", "CONFIRMED",
+                f"victim vz {a.get('projectile_victim_vertical_speed')}")
+            add_move += 5
+            reasons.append(
+                f"+ air rocket geo (vz {a.get('projectile_victim_vertical_speed')}) (+5)")
+        if ((a.get("victim_travel_during_flight") or 0) >= 300
+                and (a.get("projectile_flight_ms") or 0) >= 600):
+            add("PREDICTION_TEMPORAL", "HIGH",
+                f"{a.get('victim_travel_during_flight')}u during "
+                f"{a.get('projectile_flight_ms')}ms flight")
+            add_move += 4
+            reasons.append("+ temporal prediction (+4)")
+
+        # dodge / near-miss labels (targeted extract_dodge_events.py cache;
+        # the anchor row's attributes already carry the BEST — i.e. closest
+        # approach — near-miss found in its pre-kill window, if any. A kill
+        # anchor with more than one near-miss of different weapon types only
+        # ever surfaces the single closest one here; the full set is still
+        # available in recognition_dodge_events for anyone who needs it.)
+        dodge_scored_this_row = False
+        nm_count = a.get("dodge_near_miss_count") or 0
+        nm_type = a.get("dodge_best_threat_type")
+        nm_dist = a.get("dodge_min_closest_approach_units")
+        if nm_count and nm_type and nm_dist is not None:
+            label = {"RAIL": "NEAR_MISS_RAIL", "ROCKET": "NEAR_MISS_ROCKET",
+                     "GRENADE": "NEAR_MISS_GRENADE"}.get(nm_type)
+            if label:
+                # the extractor only ever writes near-misses under its own
+                # weapon-specific threshold, so any row that reaches here
+                # already qualifies; a tighter-than-usual approach earns a
+                # small extra bonus (a graze reads better than a wide miss).
+                tight = nm_dist <= 40.0
+                bonus = 6.0 if tight else 3.0
+                add(label, "CONFIRMED", f"{nm_dist}u {nm_type.lower()}")
+                add_move += bonus
+                dodge_scored_this_row = True
+                reasons.append(f"+ near miss {nm_dist}u {nm_type.lower()}"
+                               f" (+{bonus})")
+
+        dv = a.get("dodge_max_velocity_change")
+        if dv is not None and samples["dodge_velocity_change"]:
+            pdv = pctile(samples["dodge_velocity_change"], float(dv))
+            if pdv >= DODGE_STRAFE_PCTILE:
+                add("DODGE_STRAFE", "CONFIRMED", f"p{pdv} vel swing")
+                add_move += 4
+                dodge_scored_this_row = True
+                reasons.append(f"+ dodge strafe p{pdv} (+4)")
+
+        gap = a.get("dodge_to_kill_gap_ms")
+        if (dodge_scored_this_row and gap is not None
+                and 0 <= gap <= DODGE_TO_KILL_WINDOW_MS):
+            add("DODGE_TO_KILL", "CONFIRMED", f"{gap}ms to kill")
+            add_move += 8
+            add_drama += 2
+            reasons.append(f"+ dodge to kill {gap}ms (+8)")
+
+        # ── dodge QUALITY tier (hero) — see the DODGE QUALITY SCORE block at
+        # the top of this module. Scored off the per-event rows rather than
+        # the anchor's flattened summary, because the summary keeps only the
+        # closest near-miss and drops the geometry method + timing that
+        # decide whether the proximity was evidence of anything.
+        dq = dodge_best.get((r["demo_name"], r["server_time_ms"]))
+        if dq is not None:
+            a["dodge_quality_score"] = dq["score"]
+            a["dodge_quality_threat"] = dq["threat_type"]
+            a["dodge_quality_method"] = dq["method"]
+            a["dodge_proximity_pctile"] = dq["proximity_pctile"]
+            a["dodge_evasion_pctile"] = dq["evasion_pctile"]
+            a["dodge_immediacy"] = dq["immediacy"]
+            a["dodge_geom_confidence"] = dq["geom_confidence"]
+            if dq["rail_hero"]:
+                add("RAIL_DODGE_HERO", "CONFIRMED",
+                    f"{dq['closest_approach_units']}u off a measured beam,"
+                    f" q{dq['score']}")
+                add_move += 9
+                stats["rail_dodge_hero"] += 1
+                reasons.append(f"+ rail dodge hero q{dq['score']} (+9)")
+            if dq["proj_hero"]:
+                # HIGH not CONFIRMED: the path was forward-simulated, so the
+                # proximity is a physics estimate, not a measurement.
+                add("PROJECTILE_DODGE_HERO", "HIGH",
+                    f"{dq['threat_type'].lower()} {dq['closest_approach_units']}u"
+                    f" simulated, q{dq['score']}")
+                add_move += 6
+                stats["projectile_dodge_hero"] += 1
+                reasons.append(f"+ projectile dodge hero q{dq['score']} (+6)")
+            if dq["elite"]:
+                add("DODGE_HERO", "CONFIRMED",
+                    f"top-{100 - DODGE_ELITE_HERO_PCTILE:.0f}% dodge evidence,"
+                    f" q{dq['score']}")
+                add_move += 5
+                add_drama += 3
+                stats["dodge_hero"] += 1
+                reasons.append(f"+ dodge hero q{dq['score']} (+5)")
+
+        # stage-2 pixel/visibility evidence
+        s2 = stage2.get((r["demo_name"], r["server_time_ms"]))
+        if s2:
+            for k in ("visible_fraction", "los_open_duration_ms",
+                      "angular_size_deg", "corner_prefire"):
+                if s2.get(k) is not None:
+                    a["los_" + k if not k.startswith("los") else k] = s2[k]
+            vf = s2.get("visible_fraction")
+            ang = s2.get("angular_size_deg")
+            los = s2.get("los_open_duration_ms")
+            if vf is not None and 0 < vf <= 0.25 and (ang or 99) <= 3.0:
+                add("PIXEL_SHOT_GEO", "HIGH",   # render proof upgrades to CONFIRMED
+                    f"visible {vf:.0%}, {ang}deg target")
+                add_move += 8
+                reasons.append(f"+ pixel shot {vf:.0%} exposure (+8)")
+                if vf <= 0.12:
+                    add("TINY_GAP_SHOT", "CONFIRMED", f"visible {vf:.0%}")
+                    add_move += 3
+                    reasons.append(f"+ tiny gap {vf:.0%} (+3)")
+            if (los is not None and los <= 250 and (vf or 0) >= 0.5):
+                add("REACTION_SHOT", "CONFIRMED", f"LOS open {los}ms")
+                add_move += 5
+                reasons.append(f"+ reaction {los}ms LOS (+5)")
+            if s2.get("corner_prefire"):
+                add("CORNER_PREFIRE_CONFIRMED", "CONFIRMED",
+                    "hidden at t-200ms, visible at kill")
+                add_move += 4
+                reasons.append("+ corner prefire (+4)")
+
+        # rarity: multi-dimensional archive-relative scarcity (small,
+        # additive; never replaces skill evidence)
+        rare = sum(1 for x in have
+                   if 0 < label_freq.get(x, 0) <= total_rows * 0.002)
+        semi = sum(1 for x in have
+                   if total_rows * 0.002 < label_freq.get(x, 0)
+                   <= total_rows * 0.01)
+        rarity = min(8.0, rare * 3.0 + semi * 1.0)
+        if rarity >= 3.0:
+            add_move += rarity
+            reasons.append(f"+ rarity({rare}x ultra,{semi}x rare) (+{rarity})")
+
+        # health drama (targeted extraction; context-weighted: the same HP
+        # means more with more enemies alive — mandate: 20HP cleanup != 20HP 1v3)
+        h = a.get("health_at_frag")
+        if h is not None:
+            enemies = 1
+            if "CLUTCH_1V4_PLUS" in have:
+                enemies = 4
+            elif "CLUTCH_1V3" in have:
+                enemies = 3
+            elif "CLUTCH_1V2" in have:
+                enemies = 2
+            ctx = 1.0 + 0.25 * (enemies - 1)
+            if h <= 5:
+                add("LAST_HP_CANDIDATE", "CONFIRMED", f"{h}hp")
+                bonus = round(5 * ctx, 1)
+                add_drama += bonus
+                reasons.append(f"+ near-death {h}hp x1v{enemies} (+{bonus})")
+            elif h <= 15:
+                add("CRITICAL_HP_FRAG", "CONFIRMED", f"{h}hp")
+                bonus = round(1.5 * ctx, 1)
+                add_drama += bonus
+                reasons.append(f"+ critical {h}hp x1v{enemies} (+{bonus})")
+            elif h <= 35:
+                add("LOW_HP_FRAG", "CONFIRMED", f"{h}hp")
+                bonus = round(1.5 * ctx, 1)
+                add_drama += bonus
+                reasons.append(f"+ low hp {h} x1v{enemies} (+{bonus})")
+            drop = a.get("biggest_drop_10s") or 0
+            if drop >= 60:
+                add("HEAVY_DAMAGE_SURVIVED", "CONFIRMED", f"-{drop}hp burst")
+                add_drama += 1
+                reasons.append(f"+ survived {drop}dmg burst (+1)")
+
+        # ── one-time legacy repair: the first two (non-idempotent) runs
+        # added the non-health delta TWICE and the old-weight health delta
+        # once, with nothing recorded. Reconstruct deterministically from
+        # the same attributes and subtract, recovering the v1 base. ──
+        if prev is None:
+            legacy_h = 0.0
+            hh = a.get("health_at_frag")
+            if hh is not None:
+                en = (4 if "CLUTCH_1V4_PLUS" in have else
+                      3 if "CLUTCH_1V3" in have else
+                      2 if "CLUTCH_1V2" in have else 1)
+                octx = 1.0 + _OLD_HEALTH["ctx"] * (en - 1)
+                if hh <= 5:
+                    legacy_h += round(_OLD_HEALTH["near"] * octx, 1)
+                elif hh <= 15:
+                    legacy_h += round(_OLD_HEALTH["crit"] * octx, 1)
+                elif hh <= 35:
+                    legacy_h += round(_OLD_HEALTH["low"] * octx, 1)
+                if (a.get("biggest_drop_10s") or 0) >= 60:
+                    legacy_h += _OLD_HEALTH["burst"]
+            nonhealth = add_speed + add_move + add_clutch + add_pen                 + (3.0 if (add_clutch > 0) else 0.0)  # old clutch drama +3
+            r["speed_score"] = (r["speed_score"] or 0) - 2 * add_speed
+            r["movement_score"] = (r["movement_score"] or 0) - 2 * add_move
+            r["clutch_score"] = (r["clutch_score"] or 0) - 2 * add_clutch
+            r["drama_score"] = ((r["drama_score"] or 0)
+                                - 2 * (3.0 if add_clutch > 0 else 0.0)
+                                - (0.0 if hh is None else legacy_h))
+            r["penalty_score"] = (r["penalty_score"] or 0) - 2 * add_pen
+            r["highlight_score"] = ((r["highlight_score"] or 0)
+                                    - 2 * nonhealth - legacy_h)
+            stats["repaired_legacy"] += 1
+
+        delta = add_speed + add_move + add_clutch + add_drama + add_pen
+        a["_reclass_delta"] = {"speed": add_speed, "move": add_move,
+                               "clutch": add_clutch, "drama": add_drama,
+                               "pen": add_pen, "total": delta}
+        up.append((json.dumps(classes), json.dumps(a), json.dumps(reasons),
+                   (r["speed_score"] or 0) + add_speed,
+                   (r["movement_score"] or 0) + add_move,
+                   (r["clutch_score"] or 0) + add_clutch,
+                   (r["drama_score"] or 0) + add_drama,
+                   (r["penalty_score"] or 0) + add_pen,
+                   (r["highlight_score"] or 0) + delta,
+                   2, r["id"]))
+
+    conn.executemany(
+        "UPDATE recognized_frags SET classes=?, attributes=?, reasons=?,"
+        " speed_score=?, movement_score=?, clutch_score=?, drama_score=?,"
+        " penalty_score=?, highlight_score=?, recognition_version=?"
+        " WHERE id=?", up)
+    conn.commit()
+
+    # mode-weighted top lists (match-group dedup via canonical hash grouping)
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    conn.row_factory = sqlite3.Row
+    all_rows = [dict(r) for r in conn.execute(
+        "SELECT demo_name, server_time_ms, weapon_name, classes, attributes,"
+        " highlight_score, reasons FROM recognized_frags"
+        " ORDER BY highlight_score DESC")]
+    pools = {"top_overall_ca": [], "top_duel": [], "top_other": []}
+    seen_moments = set()
+    for r in all_rows:
+        a = json.loads(r["attributes"] or "{}")
+        gt, h = demo_meta.get(r["demo_name"], (None, None))
+        key = (h, r["server_time_ms"])
+        if key in seen_moments:
+            continue
+        seen_moments.add(key)
+        pool = {"MAIN_CA": "top_overall_ca", "SIDE_DUEL": "top_duel",
+                "SIDE_OTHER": "top_other"}[a.get("mode_pool", "SIDE_OTHER")]
+        if len(pools[pool]) < 100:
+            pools[pool].append(r)
+    for name, rs in pools.items():
+        with open(OUT_DIR / f"{name}.csv", "w", newline="",
+                  encoding="utf-8") as f:
+            w = csv.writer(f)
+            w.writerow(["rank", "score", "demo", "server_time_ms", "weapon",
+                        "classes", "reasons"])
+            for i, r in enumerate(rs, 1):
+                cl = [c["name"] if isinstance(c, dict) else c
+                      for c in json.loads(r["classes"] or "[]")]
+                w.writerow([i, r["highlight_score"], r["demo_name"],
+                            r["server_time_ms"], r["weapon_name"],
+                            "|".join(cl),
+                            " ".join(json.loads(r["reasons"] or "[]"))])
+    conn.close()
+    stats["pools"] = {k: len(v) for k, v in pools.items()}
+    return stats
+
+
+if __name__ == "__main__":
+    import time
+    t0 = time.time()
+    s = run()
+    print(json.dumps(s, indent=1))
+    print(f"elapsed {time.time() - t0:.1f}s")

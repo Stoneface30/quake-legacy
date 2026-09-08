@@ -1,0 +1,68 @@
+{
+ "demo_hash": "e4bd2a36495928d0",
+ "t_ms": 579825,
+ "profile": "REVIEW",
+ "only_variable": "asset_set",
+ "stamps": [
+  0.2,
+  0.4,
+  0.6,
+  0.8
+ ],
+ "legs": {
+  "STOCK": {
+   "avi": "G:\\QUAKE_LEGACY\\output\\demo_v2\\_wolfcam_staging\\wolfcam-ql\\videos\\look_STOCK-0000.avi",
+   "bytes": 11197614,
+   "per_frame": [
+    {
+     "mean_saturation": 0.0786,
+     "strong_colour_share": 0.0025,
+     "sampled": 296229
+    },
+    {
+     "mean_saturation": 0.099,
+     "strong_colour_share": 0.0016,
+     "sampled": 296229
+    },
+    {
+     "mean_saturation": 0.088,
+     "strong_colour_share": 0.0125,
+     "sampled": 296229
+    }
+   ],
+   "mean_saturation": 0.0885,
+   "strong_colour_share": 0.0055,
+   "visible_windows": [],
+   "stole_focus": false
+  },
+  "NEON": {
+   "avi": "G:\\QUAKE_LEGACY\\output\\demo_v2\\_wolfcam_staging\\wolfcam-ql\\videos\\look_NEON-0000.avi",
+   "bytes": 30517762,
+   "per_frame": [
+    {
+     "mean_saturation": 0.2384,
+     "strong_colour_share": 0.0925,
+     "sampled": 296229
+    },
+    {
+     "mean_saturation": 0.1948,
+     "strong_colour_share": 0.0362,
+     "sampled": 296229
+    },
+    {
+     "mean_saturation": 0.1724,
+     "strong_colour_share": 0.0025,
+     "sampled": 296229
+    }
+   ],
+   "mean_saturation": 0.2019,
+   "strong_colour_share": 0.0437,
+   "visible_windows": [],
+   "stole_focus": false
+  }
+ },
+ "saturation_ratio": 2.281,
+ "strong_colour_ratio": 7.945,
+ "verdict": "PENDING_HUMAN",
+ "note": "Numbers say the art reached the frame. Whether it looks good is a human judgement and is not recorded here."
+}

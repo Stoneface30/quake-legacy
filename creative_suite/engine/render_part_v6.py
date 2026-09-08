@@ -131,6 +131,27 @@ def _resolve_part_backdrop_override(part: int) -> Optional[list[Path]]:
     return None
 
 
+def _chunk_is_valid(path: Path, cfg: Config) -> bool:
+    """True if a cached chunk is readable and non-trivial.
+
+    Mirrors the L154 guard in normalize.py. A chunk left behind by a killed
+    render is truncated but non-empty, so `chunk.exists()` cache-hits it and the
+    later _probe_duration() blows up the whole Part with a CalledProcessError.
+    """
+    try:
+        if not path.exists() or path.stat().st_size < 1024:
+            return False
+        out = subprocess.run(
+            [str(cfg.ffprobe_bin), "-v", "error",
+             "-show_entries", "format=duration",
+             "-of", "csv=p=0", str(path)],
+            capture_output=True, text=True, timeout=30,
+        )
+        return out.returncode == 0 and float(out.stdout.strip() or "0") > 0.05
+    except Exception:
+        return False
+
+
 def _probe_duration(path: Path, cfg: Config) -> float:
     out = subprocess.check_output(
         [str(cfg.ffprobe_bin), "-v", "error",
@@ -348,7 +369,14 @@ def build_body_chunks(
         chunk = chunks_dir / f"chunk_{i:04d}.mp4"
         chunks.append(chunk)
         if chunk.exists():
-            continue
+            if _chunk_is_valid(chunk, cfg):
+                continue
+            # Corrupt cache entry (killed render) — drop it and rebuild.
+            print(f"  [cache] chunk_{i:04d}.mp4 unreadable — rebuilding")
+            try:
+                chunk.unlink()
+            except OSError:
+                pass
         head, tail, ov = _trims_for(src)
         dur_full = _probe_duration(src, cfg)
         trim_dur = max(0.5, dur_full - head - tail)

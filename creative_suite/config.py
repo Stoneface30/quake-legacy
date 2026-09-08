@@ -21,7 +21,7 @@ class Config:
     md3viewer_port: int = 8766
     comfyui_url: str = "http://127.0.0.1:8188"
     ollama_url: str = "http://127.0.0.1:11434"
-    pre_content_offset_s: float = 15.0  # Rule P1-N: PANTHEON 7s + title card 8s
+    pre_content_offset_s: float = 13.0  # Rule P1-N: PANTHEON 5s + title card 8s
 
     @property
     def storage_root(self) -> Path:
@@ -81,6 +81,10 @@ class Config:
     @property
     def wolfcam_baseq3(self) -> Path:
         return TOOLS_ROOT / "wolfcamql" / "baseq3"
+
+    @property
+    def ffprobe_bin(self) -> Path:
+        return CS_ROOT / "tools" / "ffmpeg" / "ffprobe.exe"
 
     def ensure_dirs(self) -> None:
         for p in (

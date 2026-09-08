@@ -1,0 +1,17 @@
+{
+ "ok": true,
+ "frames_expected": 150,
+ "frames_written": 147,
+ "capture_fps": 58.8,
+ "played_too_fast_by": 1.02,
+ "retimed": [],
+ "under_sampled": false,
+ "visible_windows": [],
+ "stole_focus": false,
+ "asset_set": "UHD",
+ "seconds_wall": 66.2,
+ "softpipe_was": {
+  "seconds": 303.4,
+  "frames": 77
+ }
+}

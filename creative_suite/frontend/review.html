@@ -1,0 +1,1848 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<!-- Without this a phone lays the page out at ~980px and scales it down, so
+     every control is tiny and the page scrolls sideways. It was missing. -->
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0d0d10">
+<title>PANTHEON REVIEW</title>
+<style>
+  /* Mobile first. The phone layout is the base and the desktop layout is the
+     enhancement, because the loop -- watch, decide, next -- is the same on
+     both, and the small screen is the one with no room for anything else. */
+  :root{
+    --bg:#0d0d10; --panel:#16161c; --line:#26262f; --dim:#7d7d8a; --fg:#e8e8ee;
+    --t1:#e0b341; --t2:#4c9f70; --t3:#5b8fd6; --t4:#8a8a96; --t5:#6b5560;
+    --gold:#c9a227;
+    --safe: env(safe-area-inset-bottom, 0px);
+  }
+  *{box-sizing:border-box}
+  html,body{max-width:100%;overflow-x:hidden}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;
+       -webkit-text-size-adjust:100%}
+
+  header{position:sticky;top:0;z-index:30;background:var(--bg);
+         border-bottom:1px solid var(--line);padding:8px 12px;
+         display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .brand{font-weight:700;letter-spacing:.16em;font-size:13px;white-space:nowrap}
+  .brand span{color:var(--gold)}
+  #corpus{background:#12121a;color:var(--fg);border:1px solid var(--line);
+          border-radius:4px;padding:5px 6px;font:inherit;font-size:12px;
+          flex:1 1 150px;min-width:0;max-width:100%}
+  .counts{display:flex;gap:10px;flex-wrap:wrap;font-size:11px;color:var(--dim);
+          width:100%;order:5}
+  .counts b{color:var(--fg)}
+  #order{color:var(--dim);font-size:11px;white-space:nowrap}
+  .hbtn{background:#15151f;color:var(--fg);border:1px solid var(--line);
+        border-radius:4px;padding:6px 10px;font-size:11px;letter-spacing:.08em;
+        cursor:pointer;min-height:34px}
+  .hbtn:hover{border-color:var(--gold)}
+
+  #fdrawer{display:none;background:#0e0e14;border-bottom:1px solid var(--line);
+           padding:10px 12px}
+  #fdrawer.open{display:block}
+  .frow{display:grid;grid-template-columns:1fr;gap:8px 10px;
+        font-size:11px;letter-spacing:.05em;color:var(--dim)}
+  .frow label{text-transform:uppercase;display:block}
+  .frow select{background:#12121a;color:var(--fg);border:1px solid var(--line);
+               padding:7px 6px;font-size:12px;border-radius:4px;width:100%;
+               min-width:0;min-height:38px;margin-top:3px}
+  .frow button{background:#15151f;color:var(--dim);border:1px solid var(--line);
+               padding:9px;font-size:11px;cursor:pointer;border-radius:4px;
+               letter-spacing:.08em;min-height:40px}
+  #filtercount{color:var(--gold);font-size:12px}
+  .fnote{color:#55555f;font-size:11px;margin-top:8px}
+
+  main{padding:0 0 8px}
+  .stage{position:relative;width:100%;aspect-ratio:16/9;background:#000;
+         overflow:hidden}
+  .stage video{width:100%;height:100%;object-fit:contain;display:block;
+               background:#000}
+  .placeholder{position:absolute;inset:0;display:flex;flex-direction:column;
+               align-items:center;justify-content:center;gap:6px;
+               color:var(--dim);font-size:12px;text-align:center;padding:16px}
+  .placeholder .big{font-size:15px;color:var(--fg)}
+  .track{position:relative;height:4px;background:#1c1c24}
+  .played{position:absolute;left:0;top:0;bottom:0;background:#3a3a4a;width:0}
+  .mark{position:absolute;top:-3px;width:2px;height:10px;background:var(--gold)}
+
+  .buttons{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px}
+  .buttons button{display:flex;flex-direction:column;align-items:flex-start;
+                  gap:2px;background:var(--panel);color:var(--fg);
+                  border:1px solid var(--line);border-radius:6px;
+                  padding:11px 12px;cursor:pointer;text-align:left;
+                  min-height:58px;font:inherit;touch-action:manipulation}
+  .buttons button:nth-child(5){grid-column:1/-1}
+  /* Deliberately not styled as a sixth verdict. T1-T5 is directing truth
+     the film reads; this is housekeeping the film must never see. */
+  .buttons button.danger{grid-column:1/-1;background:#1a1113;
+    border-color:#5a2630}
+  .buttons button.danger .n{color:#ff8a9b}
+  .buttons button.golden{grid-column:1/-1;background:#171308;
+    border-color:#6b551a}
+  .buttons button.golden .n{color:#ffcc55}
+  .buttons button.golden.on{background:#2a2109;border-color:#c9a227}
+  .buttons button.workshop{grid-column:1/-1;background:#0e1620;
+    border-color:#274a6b}
+  .buttons button.workshop .n{color:#7fc4ff}
+  .buttons button.workshop.on{background:#122436;border-color:#4d8fd0}
+  /* Tags must cost one thumb-tap. They wrap, they scroll if they must, and
+     they never push the verdict buttons off a 390px screen. */
+  #tagrail{display:flex;flex-wrap:wrap;gap:6px;padding:8px 12px 0}
+  #tagrail button{background:#14141b;color:var(--dim);border:1px solid
+    var(--line);border-radius:14px;padding:6px 10px;font-size:12px;
+    font-family:inherit;letter-spacing:.04em}
+  #tagrail button.on{background:#1d2b1d;border-color:#3f7a3f;color:#bfe6bf}
+  #tagrail button .tk{color:#666;font-size:10px;margin-right:5px}
+  #tagrail button.on .tk{color:#8fbf8f}
+  #tagrail .tgroup{width:100%;font-size:10px;color:#555;letter-spacing:.12em;
+    margin-top:4px}
+  .dgrid .v.nd{color:#8a8a93;letter-spacing:.06em;font-size:11px}
+  .dgrid .v.range{color:#e8c46a}
+  .buttons button:active{transform:scale(.985)}
+  .buttons .k{font-size:10px;color:var(--dim);letter-spacing:.1em}
+  .buttons .n{font-size:13px;font-weight:600;letter-spacing:.03em;
+              line-height:1.25}
+  /* The tier explanation is on the button's title attribute now: it is
+     what a new reviewer needs and what an experienced one is reading
+     past on every single clip. */
+  .buttons .h{display:none}
+  .buttons .h--unused{display:none}
+  #b1{border-left:3px solid var(--t1)} #b2{border-left:3px solid var(--t2)}
+  #b3{border-left:3px solid var(--t3)} #b4{border-left:3px solid var(--t4)}
+  #b5{border-left:3px solid var(--t5)}
+
+  aside{padding:0 12px 24px}
+  aside h3{font-size:11px;letter-spacing:.14em;text-transform:uppercase;
+           color:var(--dim);margin:14px 0 8px;font-weight:500}
+  details{border-top:1px solid var(--line)}
+  details>summary{list-style:none;cursor:pointer;padding:12px 0;
+                  font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+                  color:var(--dim);display:flex;justify-content:space-between;
+                  align-items:center;min-height:44px}
+  details>summary::-webkit-details-marker{display:none}
+  details>summary::after{content:"+";color:var(--gold);font-size:14px}
+  details[open]>summary::after{content:"\2212"}
+  #meta .row{display:flex;justify-content:space-between;gap:12px;
+             padding:3px 0;font-size:12px;border-bottom:1px solid #14141a}
+  #meta .k{color:var(--dim)} #meta .val{text-align:right;word-break:break-word}
+  .why{color:var(--gold);font-size:12px;margin:10px 0 4px}
+  .verdict{display:none;color:#8fd6a8;font-size:12px;margin:6px 0}
+  #note{width:100%;background:#12121a;color:var(--fg);
+        border:1px solid var(--line);border-radius:6px;padding:10px;
+        font:inherit;font-size:14px;min-height:64px;resize:vertical}
+  .keys{color:#4a4a54;font-size:11px;line-height:1.9;margin-top:12px}
+  kbd{background:#15151f;border:1px solid var(--line);border-radius:3px;
+      padding:1px 5px;font-size:10px}
+
+  #usage{margin:6px 0;font-size:12px;letter-spacing:.04em}
+  #usage .claimed{color:#e0b050;border:1px solid #6a5320;padding:4px 9px;
+                  border-radius:3px;display:inline-block}
+  #usage .free{color:#5f5f6b}
+  #roundbox h3{margin-top:0}
+  .story{color:var(--gold);font-size:12px;margin-bottom:8px}
+  .tl{position:relative;height:34px;margin:6px 0 10px;
+      border-left:1px solid var(--line);border-right:1px solid var(--line)}
+  .tl .bar{position:absolute;top:15px;left:0;right:0;height:1px;
+           background:var(--line)}
+  .tl .ev{position:absolute;top:8px;width:11px;height:11px;margin-left:-5px;
+          border-radius:50%;background:#3a3a46}
+  .tl .ev.user{background:var(--gold)} .tl .ev.team{background:#3266fe}
+  .tl .ev.here{box-shadow:0 0 0 3px rgba(201,162,39,.30);background:#fff}
+  .tl .ev.rev{border:1px solid #8fd6a8}
+  .rlist{font-size:12px;line-height:1.7}
+  .rlist div{display:flex;gap:8px;color:var(--dim);flex-wrap:wrap}
+  .rlist .t{min-width:46px;color:#5a5a66;font-variant-numeric:tabular-nums}
+  .rlist .me{color:var(--gold)} .rlist .tm{color:#7f9ffe}
+  .rlist .cur{color:#fff} .rlist .tag{color:#8fd6a8;font-size:11px}
+  .rlist .use{color:#e0b050;font-size:11px}
+  #watchround{margin-top:8px;background:#15151f;color:var(--fg);
+              border:1px solid var(--line);padding:11px 14px;font-size:11px;
+              letter-spacing:.08em;cursor:pointer;border-radius:5px;
+              width:100%;min-height:44px}
+  #watchround:hover{border-color:var(--gold)}
+
+  .toast{position:fixed;left:50%;transform:translateX(-50%);
+         bottom:calc(18px + var(--safe));background:#15151f;
+         border:1px solid var(--gold);padding:9px 18px;border-radius:4px;
+         opacity:0;transition:opacity .2s;font-size:12px;z-index:60;
+         pointer-events:none}
+  .toast.on{opacity:1}
+
+  /* Phone: the decisions ride at the bottom, clear of the home indicator. */
+  @media (max-width:719px){
+    .buttons{position:sticky;bottom:0;z-index:20;background:var(--bg);
+             border-top:1px solid var(--line);
+             padding:8px 12px calc(8px + var(--safe))}
+  }
+  /* Landscape phone: give the video the room, keep decisions reachable. */
+  @media (max-height:520px) and (orientation:landscape){
+    .stage{aspect-ratio:auto;height:54vh}
+    .buttons button{min-height:46px}
+    .buttons .n{font-size:12px}
+  }
+
+  @media (min-width:720px){
+    body{font-size:14px}
+    .counts{width:auto;order:0;margin-left:auto}
+    #corpus{flex:0 0 auto;max-width:280px}
+    #togglefilters{display:none}
+    /* The wide layout used to force the filter drawer open, so eight
+       dropdowns and a block of explanatory text sat above the video on
+       every single clip. The FILTERS button opens it when wanted. */
+    #fdrawer{display:none}
+    #fdrawer.open{display:block}
+    .frow{grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+          align-items:end}
+    #filtercount{grid-column:1/-1;text-align:right}
+    main{display:grid;grid-template-columns:minmax(0,1fr) 340px;
+         gap:0 20px;padding:14px 18px;align-items:start}
+    .stage{border-radius:6px;max-height:70vh}
+    .buttons{grid-template-columns:repeat(5,1fr);padding:12px 0 0}
+    .buttons button:nth-child(5){grid-column:auto}
+    /* The tier explanation is on the button's title attribute now: it is
+     what a new reviewer needs and what an experienced one is reading
+     past on every single clip. */
+  .buttons .h{display:none}
+  .buttons .h--unused{display:block;font-size:10px;color:var(--dim);line-height:1.3}
+    .buttons button{min-height:72px}
+    aside{padding:0;max-height:calc(100vh - 96px);overflow-y:auto}
+    details>summary{padding:8px 0;min-height:32px}
+  }
+  @media (min-width:1280px){
+    main{grid-template-columns:minmax(0,1fr) 400px}
+  }
+
+  .vhint{color:#55555f;font-size:11px;margin-top:6px;line-height:1.6}
+  .vhint b{color:var(--gold);font-weight:600}
+  .ralabel{display:block;color:var(--dim);font-size:11px;letter-spacing:.1em;
+           text-transform:uppercase;margin:14px 0 6px}
+  #rnote{width:100%;background:#12121a;color:var(--fg);
+         border:1px solid var(--line);border-radius:6px;padding:10px;
+         font:inherit;font-size:13px;min-height:56px;resize:vertical}
+
+  /* Director dossier. The video shows the game; this explains the action. */
+  #dossier{ margin-top:10px }
+  .dsec{ margin-bottom:12px }
+  .dsec h4{ font-size:10px; letter-spacing:.16em; text-transform:uppercase;
+            color:#6a6a76; margin:0 0 5px; font-weight:600 }
+  .dhead{ font-size:15px; font-weight:600; line-height:1.3 }
+  .dhead .op{ color:var(--gold) }
+  .dsub{ color:var(--dim); font-size:12px; margin-top:2px }
+  .dgrid{ display:grid; grid-template-columns:auto 1fr; gap:2px 12px;
+          font-size:12px }
+  .dgrid .k{ color:var(--dim) }
+  .dgrid .v{ text-align:right; font-variant-numeric:tabular-nums }
+  .unk{ color:#55555f; font-style:italic }
+  .stackrow{ display:grid; grid-template-columns:52px 1fr 1fr; gap:4px 8px;
+             font-size:12px; font-variant-numeric:tabular-nums }
+  .stackrow .lbl{ color:var(--dim); font-size:11px }
+  .hpv{ color:#e06a5a } .apv{ color:#5a9be0 }
+  .chips{ display:flex; flex-wrap:wrap; gap:4px }
+  .chip{ font-size:10px; letter-spacing:.06em; padding:3px 7px;
+         border:1px solid var(--line); border-radius:3px; color:#9a9aa6 }
+  .chip.hot{ border-color:#6a5320; color:#e0b050 }
+  .chip.danger{ border-color:#6a2f2a; color:#e08a7a }
+  .conf{ font-size:10px; color:#55555f; margin-top:3px; line-height:1.4 }
+  #sceneNote{ width:100%; background:#12121a; color:var(--fg);
+              border:1px solid var(--line); border-radius:6px; padding:9px;
+              font:inherit; font-size:13px; min-height:54px }
+  /* Scene rail: ONE media asset, every event seekable inside it. */
+  #rail{ display:none; overflow-x:auto; -webkit-overflow-scrolling:touch;
+         border-bottom:1px solid var(--line); background:#0e0e14 }
+  #rail.on{ display:block }
+  .railrow{ display:flex; gap:6px; padding:8px 12px; min-width:min-content }
+  .rev{ flex:0 0 auto; background:#15151f; border:1px solid var(--line);
+        border-radius:5px; padding:7px 10px; cursor:pointer; text-align:left;
+        min-height:46px; color:var(--fg); font:inherit; white-space:nowrap }
+  .rev:hover{ border-color:var(--gold) }
+  .rev.sel{ border-color:var(--gold); background:#1d1a12 }
+  .rev.noteonly{ border-style:dashed; color:#9a9aa6 }
+  .rev .t{ display:block; font-size:10px; color:#5a5a66;
+           font-variant-numeric:tabular-nums }
+  .rev .l{ display:block; font-size:12px; font-weight:600 }
+  .rev .r{ display:block; font-size:9px; color:#8fd6a8; letter-spacing:.06em }
+
+  [hidden]{display:none!important}
+  /* Review workspace: the picture and the decision form one visible unit. */
+  :root{--panel:#1b1e23;--line:#373b43;--dim:#a3a7af;--fg:#eceef2}
+  header{gap:8px;position:relative}
+  #reviewview{background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:5px;padding:8px;font:inherit;font-size:12px;min-height:40px}
+  #corpus{min-height:40px}
+  .counts span:not(:first-child){display:none}
+  .counts{width:auto;margin-left:auto}
+  .transport{display:flex;align-items:center;gap:8px;padding:10px 12px;flex-wrap:wrap}
+  .transport button{min-height:44px;letter-spacing:0;font-size:13px}
+  #review-summary{font-size:12px;color:var(--dim);flex-basis:100%}
+  #effect-tags{margin:0 12px 10px}
+  #technical{margin-top:16px}
+  details>summary{text-transform:none;letter-spacing:0}
+  summary{cursor:pointer;min-height:40px;padding:9px 0;font-size:13px;color:var(--dim)}
+  #decision-panel{background:var(--bg)}
+  #decision-panel h2{font-size:15px;margin:0 0 8px;font-weight:600}
+  .buttons{padding:0;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+  .buttons button{min-height:44px;padding:9px 10px;flex-direction:row;align-items:center;gap:8px}
+  /* The tier explanation is on the button's title attribute now: it is
+     what a new reviewer needs and what an experienced one is reading
+     past on every single clip. */
+  .buttons .h{display:none}
+  .buttons .h--unused{display:none}
+  .buttons .n{font-size:12px;letter-spacing:0;text-transform:none}
+  .buttons .k{font-size:11px}
+  .buttons button:nth-child(5){grid-column:auto}
+  .buttons button.workshop,.buttons button.golden,.buttons button.danger{grid-column:auto}
+  #d-note{margin-top:12px}
+  #note{min-height:66px;font-size:14px}
+  #d-note .keys,#vhint{display:none}
+  #decision-panel .verdict{font-size:12px;margin:8px 0}
+  button:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:2px solid #e0b341;outline-offset:3px}
+  @media(min-width:1000px){
+    main{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:20px;padding:18px;max-width:1800px;margin:auto;align-items:start}
+    main>div:first-child{position:sticky;top:12px}
+    .stage{max-height:calc(100dvh - 200px)}
+    aside{padding:0;min-width:0}
+    #decision-panel{position:sticky;top:12px}
+  }
+  @media(max-width:999px){
+    main{display:flex;flex-direction:column;padding:0}
+    main>div:first-child{width:100%}
+    aside{width:100%;padding:0 12px 20px}
+    .stage{max-height:48dvh}
+    #decision-panel{margin-top:4px}
+    .buttons{grid-template-columns:repeat(3,minmax(0,1fr))}
+    .buttons button{padding:8px 6px;gap:4px}
+    .buttons .n{font-size:11px}
+    header .brand{font-size:11px}
+    .counts{display:none}
+  }
+
+</style>
+
+<header>
+  <div class="brand">PANTHEON <span>REVIEW</span></div>
+  <select id="corpus"></select>
+  <button class="hbtn" id="order" title="Change score order"></button>
+  <select id="reviewview" aria-label="Review unit"><option value="frags">Moments (round context)</option><option value="rounds">Whole rounds</option></select>
+  <button class="hbtn" id="togglefilters">FILTERS</button>
+  <div class="counts" id="counts"></div>
+</header>
+
+<div id="fdrawer">
+  <div class="frow">
+    <label>weapon<select id="f-weapon"></select></label>
+    <label>map<select id="f-map"></select></label>
+    <label>trait<select id="f-trait"></select></label>
+    <label>cause<select id="f-death_cause"></select></label>
+    <label>round kills &ge;<select id="f-min_round_kills"></select></label>
+    <label>camera<select id="f-pov"></select></label>
+    <label>funny / weird<select id="f-funny"></select></label>
+    <label>situation<select id="f-situation"></select></label>
+    <button id="f-clear">CLEAR FILTERS</button>
+    <span id="filtercount"></span>
+  </div>
+  <div class="fnote" id="fnote"></div>
+</div>
+
+<main>
+  <div>
+    <div class="stage">
+      <video id="v" controls playsinline webkit-playsinline muted></video>
+      <div class="placeholder" id="ph" hidden></div>
+    </div>
+    <div class="track"><div class="played" id="played"></div>
+      <div class="mark" id="mark"></div></div>
+    <div class="buttons">
+      <button id="b1" data-role="T1_FEATURE_FX" title="hero, cinematic, big effect"><span class="k">1</span>
+        <span class="n">FEATURE / FX</span>
+        <span class="h">hero, cinematic, big effect</span></button>
+      <button id="b2" data-role="T2_TRANSITION" title="connects two scenes"><span class="k">2</span>
+        <span class="n">TRANSITION</span>
+        <span class="h">connects two scenes</span></button>
+      <button id="b3" data-role="T3_RHYTHM_MONTAGE" title="one of many, cut to music"><span class="k">3</span>
+        <span class="n">RHYTHM / MONTAGE</span>
+        <span class="h">one of many, cut to music</span></button>
+      <button id="b4" data-role="T4_KEEP_NORMAL" title="good, plain gameplay"><span class="k">4</span>
+        <span class="n">KEEP / NORMAL</span>
+        <span class="h">good, plain gameplay</span></button>
+      <button id="b5" data-role="T5_PASS_FILLER" title="kept forever, never primary"><span class="k">5</span>
+        <span class="n">PASS / FILLER</span>
+        <span class="h">kept forever, never primary</span></button>
+      <button id="bwork" class="workshop"><span class="k">B</span>
+        <span class="n">SEND TO WORKSHOP</span>
+        <span class="h">we cannot see it - rebuild it</span></button>
+      <button id="bgold" class="golden"><span class="k">G</span>
+        <span class="n">GOLDEN</span>
+        <span class="h">documentary anchor - never hide this</span></button>
+      <button id="bdel" class="danger"><span class="k">X</span>
+        <span class="n">DELETE</span>
+        <span class="h">never show me this again</span></button>
+    </div>
+    <div id="rail"></div>
+    <div class="transport"><button id="prev" class="hbtn">Previous</button><button id="replay" class="hbtn">Replay</button><button id="next" class="hbtn">Next</button><span id="review-summary" aria-live="polite"></span><span id="roundctx" class="conf"></span></div>
+    <details id="effect-tags"><summary>Effect tags</summary><div id="tagrail"></div></details>
+  </div>
+
+  <aside>
+    <details id="technical"><summary>Analysis and camera details</summary><div id="dossier"></div>
+    <div id="dloc"></div>
+    <div class="why" id="why"></div>
+    <div id="usage"></div>
+    <div id="povs"></div></details>
+    <div class="verdict" id="verdict"></div>
+    <details id="d-round">
+      <summary>Round</summary>
+      <div id="roundbox"></div>
+      <label class="ralabel" for="rnote">Annotate the whole round</label>
+      <textarea id="rnote" list="vocab"
+        placeholder="e.g. ClanWar story - start top map, 4v4 count, pTn morph, finish on the win"></textarea>
+    </details>
+    <details id="d-details">
+      <summary>Details</summary>
+      <div id="meta"></div>
+    </details>
+    <details id="d-note" open>
+      <summary>Effect note</summary>
+      <textarea id="note" list="vocab"
+        placeholder="Your edit idea: slow motion into the rail, stutter on impact…"></textarea>
+      <datalist id="vocab"></datalist>
+      <div class="vhint" id="vhint"></div>
+      <div class="keys">
+        <kbd>1</kbd>-<kbd>5</kbd> verdict, auto-advance<br>
+        <kbd>Space</kbd> pause &middot; <kbd>R</kbd> replay<br>
+        <kbd>&larr;</kbd> previous &middot; <kbd>&rarr;</kbd> skip, no verdict<br>
+        <kbd>N</kbd> note &middot; <kbd>U</kbd> undo last
+      </div>
+    </details>
+  </aside>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+// Rule UI-1: nothing reaches the DOM as markup. Notes are the user's own
+// text and machine strings come from the database; both are inserted as
+// text nodes. Demo names are deliberately never displayed at all -- Quake
+// Live demo filenames embed opponent nicknames, and this is a public repo.
+const API = "/api/review";
+let items = [], idx = 0, offset = 0, order = "BEST_FIRST", cur = null;
+let itemType = "ALL_KILL", corpus = "USER_AND_PTN", filters = {};
+let reviewView = "frags";   // TARGET is a frag; see roundIsWorthWatching
+let savingVerdict = false, mediaGeneration = 0;
+const MEDIA_TIMEOUT_MS = 180000;
+const $ = id => document.getElementById(id);
+const v = $("v");
+// One definition of "small", used for media selection only. Layout is CSS.
+const isSmallScreen = () =>
+  Math.min(window.innerWidth, window.innerHeight) <= 820
+  || /Android|iPhone|iPad|Mobile/i.test(navigator.userAgent);
+
+function el(tag, cls, text){
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined && text !== null) n.textContent = String(text);
+  return n;
+}
+
+function toast(msg){
+  const t = $("toast");
+  if (!t) return;                    // never let a notice break the page
+  t.textContent = msg;
+  t.classList.add("on");
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove("on"), 1400);
+}
+
+
+const decisionPanel = el("section");
+decisionPanel.id = "decision-panel";
+decisionPanel.appendChild(el("h2", null, "How would you use this?"));
+decisionPanel.appendChild(document.querySelector(".buttons"));
+decisionPanel.appendChild($("d-note"));
+decisionPanel.appendChild($("verdict"));
+document.querySelector("aside").prepend(decisionPanel);
+$("technical").ontoggle = () => { if ($("technical").open && cur) { renderUsage(cur); renderDossier(cur); renderPovs(cur); } };
+decisionPanel.after($("rail"), $("effect-tags"));
+$("order").onclick = () => { order = order === "BEST_FIRST" ? "WORST_FIRST" : "BEST_FIRST"; loadQueue(0); };
+const simpleLabels = {b1:"Feature / FX",b2:"Transition",b3:"Montage",b4:"Keep",b5:"Filler",bwork:"Rebuild",bgold:"Favourite",bdel:"Hide"};
+Object.entries(simpleLabels).forEach(([id,label]) => $(id).querySelector(".n").textContent=label);
+$("prev").onclick = () => navigate(-1);
+$("next").onclick = () => navigate(1);
+$("replay").onclick = () => { v.currentTime=0; v.play().catch(()=>{}); };
+$("reviewview").onchange = () => {reviewView=$("reviewview").value; loadQueue(0);};
+
+
+async function navigate(delta){
+  if (savingVerdict || !cur || (delta < 0 && idx === 0)) return;
+  const mine=cur, note=$("note").value.trim();
+  savingVerdict=true;
+  try {
+    if (note !== (mine.note || "")) {
+      const r=await fetch(API+(mine.review_unit === "round" ? "/note/round" : "/note"), {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({item_id:mine.item_id,note})});
+      if (!r.ok) throw new Error("Note not saved — try again");
+      mine.note=note;
+    }
+    if (cur === mine) {idx+=delta; await show();}
+  } catch(e){toast(e.message);}
+  finally {savingVerdict=false;}
+}
+
+async function loadQueue(off){
+  const qs = Object.entries(filters)
+    .filter(([, v]) => v !== "" && v != null)
+    .map(([k, v]) => "&" + k + "=" + encodeURIComponent(v)).join("");
+  const r = await fetch(API + "/queue?order=" + order + "&offset=" + off +
+                       "&limit=30&view=" + reviewView + "&item_type=" + itemType +
+                       (corpus ? "&corpus=" + corpus : "") + qs);
+  const d = await r.json();
+  if (!r.ok) throw new Error(d.detail || "Queue unavailable");
+  items = d.items; offset = d.offset; idx = 0;
+  if (reviewView === "rounds") $("counts").textContent = d.total.toLocaleString() + " candidates";
+  const fc = $("filtercount");
+  if (fc) fc.textContent = d.total.toLocaleString() + " match"
+    + (Object.keys(filters).length ? " this filter" : "");
+  $("order").textContent = order === "WORST_FIRST" ? "worst → best"
+                                                   : "best → worst";
+  if (items.length) await show(); else {
+    cur = null; ++mediaGeneration; clearTimeout(show._p);
+    v.pause(); v.removeAttribute("src"); v.load(); v.hidden = true;
+    $("ph").hidden = false;
+    $("ph").replaceChildren(el("div", "big", "queue exhausted"));
+    toast("queue exhausted");
+  }
+}
+
+async function progress(){
+  if (reviewView === "rounds") { $("counts").replaceChildren(); return; }
+  const p = await (await fetch(API + "/progress?item_type=" + itemType +
+                    (corpus ? "&corpus=" + corpus : ""))).json();
+  const r = p.roles;
+  const box = $("counts");
+  const parts = [
+    ["reviewed", p.reviewed.toLocaleString() + " / " + p.total.toLocaleString()],
+    ["FEATURE", r.T1_FEATURE_FX], ["TRANS", r.T2_TRANSITION],
+    ["RHYTHM", r.T3_RHYTHM_MONTAGE], ["KEEP", r.T4_KEEP_NORMAL],
+    ["PASS", r.T5_PASS_FILLER],
+  ];
+  box.replaceChildren(...parts.map(([k, val]) => {
+    const s = el("span", null, k + " ");
+    s.appendChild(el("b", null, val));
+    return s;
+  }));
+}
+
+function meta(it){
+  const rows = [
+    ["item", it.item_id],
+    ["machine rank", it.machine_rank.toLocaleString() + " / " +
+                     it.total_items.toLocaleString()],
+    // An unscored moment says so. Every feature behind the recogniser's
+    // score comes from the recorder's own player state, so a frag by
+    // somebody else has no comparable number -- and showing a placeholder
+    // digit would invite the user to compare it anyway.
+    ["machine score", it.scored === false ? "unscored (not the recorder)"
+                                          : it.machine_score],
+    ["weapon", it.weapon || "—"],
+    ["round", it.round_no === null ? "—" : it.round_no],
+    ["victim slot", it.victim === null ? "—" : it.victim],
+    ["clip", it.duration_s.toFixed(1) + "s, frag at +" +
+             it.frag_offset_s.toFixed(1) + "s"],
+  ];
+  // Who did it, and whose camera this is. A clanmate's frag inside somebody
+  // else's demo is that frag observed from outside -- never their own view.
+  if (it.actor_name) rows.splice(1, 0, ["actor", it.actor_name]);
+  if (it.is_actor_pov === false)
+    rows.splice(2, 0, ["camera", "another player's demo — not the actor's view"]);
+  // One historical kill, several demos that recorded it. The review shows
+  // the best one and says the others exist rather than asking for a second
+  // verdict on the same moment.
+  if (it.n_observations > 1)
+    rows.push(["observations", it.n_observations + " demos recorded this kill; "
+               + "showing " + (it.observation_pov || "best") ]);
+  if (it.merge_confidence && it.merge_confidence !== "SINGLE_OBSERVATION"
+      && it.merge_confidence !== "HIGH_CONFIDENCE_SAME")
+    rows.push(["merge", it.merge_confidence + " — kept separate"]);
+  if (it.death_cause && it.death_cause !== "PLAYER_KILL")
+    rows.push(["cause", it.death_cause]);
+  $("meta").replaceChildren(...rows.map(([k, val]) => {
+    const row = el("div", "row");
+    row.appendChild(el("span", "k", k));
+    row.appendChild(el("span", "val", val));
+    return row;
+  }));
+  $("why").textContent = it.why || "no class detected";
+  if ($("technical").open) {renderUsage(it); renderDossier(it); renderPovs(it);}
+  if (it.review_unit !== "round") renderRail(it);
+  else { $("rail").replaceChildren(); $("rail").classList.remove("on"); }
+  renderRound(it);
+  if (it.review_unit !== "round") {loadTags(it); loadWorkshop(it);}
+  if (window.loadRoundNote) window.loadRoundNote(it);
+  ["bwork", "bgold", "bdel"].forEach(id => $(id).hidden = it.review_unit === "round");
+  $("effect-tags").hidden = it.review_unit === "round";
+  $("review-summary").textContent = it.review_unit === "round"
+    ? "Round " + it.round_no + " · " + it.round_frag_count + " frags · " + (it.round_score == null ? "Unscored" : "Score " + it.round_score)
+    : (it.item_type === "ACTION" ? "Damage potential · unscored" : "Individual moment");
+  const vd = $("verdict");
+  if (it.human_role){
+    vd.style.display = "block";
+    vd.textContent = "already reviewed: " + it.human_role;
+  } else {
+    vd.style.display = "none";
+    vd.textContent = "";
+  }
+  $("note").value = it.note || "";
+}
+
+function placeholder(state, error){
+  const ph = $("ph");
+  const failed = ["ERROR", "FAILED", "TIMEOUT"].includes(state);
+  const kids = [el("div", "big", failed ? "RENDER FAILED" : "Rendering this clip…")];
+  if (error) kids.push(el("div", null, error));
+  if (failed){
+    const retry = el("button", null, "RETRY");
+    retry.onclick = async () => {
+      const mine = cur;
+      retry.disabled = true;
+      try {
+        const r = await fetch(API + "/media_retry/" + mine.item_id, {method: "POST"});
+        if (!r.ok) throw new Error("retry request failed");
+        if (cur === mine) await show(mine);
+      } catch(e){ retry.disabled = false; toast(e.message); }
+    };
+    kids.push(retry);
+  } else kids.push(el("div", null, "state: " + state));
+  ph.replaceChildren(...kids);
+}
+
+async function mediaJSON(url){
+  const r = await fetch(url, {signal: AbortSignal.timeout(15000)});
+  if (!r.ok) throw new Error("media status HTTP " + r.status);
+  return r.json();
+}
+
+// Duplicate safety, made visible. The canonical occurrence layer makes a
+// repeat detectable; this is what makes it obvious BEFORE the user judges.
+async function renderUsage(it){
+  const box = $("usage");
+  box.replaceChildren();
+  if (it.item_type === "FRAG"){ return; }   // archive set has no occurrence id
+  try{
+    const u = await (await fetch(API + "/usage/" + it.source_id)).json();
+    if (cur !== it) return;
+    if (u.state && u.state !== "AVAILABLE"){
+      const s = el("span", "claimed", u.state
+                   + (u.detail ? " — " + u.detail : ""));
+      box.appendChild(s);
+    } else {
+      box.appendChild(el("span", "free", "available — not used anywhere"));
+    }
+  }catch(e){ /* usage is context, never blocks a verdict */ }
+}
+
+
+function roundUnavailable(it){
+  if (cur !== it) return;
+  const fallback = el("button", "hbtn", "Watch individual moment");
+  fallback.onclick = () => {reviewView="frags"; $("reviewview").value="frags"; show({...it,review_unit:"frag"});};
+  $("ph").hidden=false;
+  $("ph").replaceChildren(el("div", "big", "Full round boundaries unavailable"), fallback);
+}
+
+async function renderRound(it){
+  const box = $("roundbox");
+  box.replaceChildren();
+  let d;
+  try{ d = await (await fetch(API + "/round/" + it.item_id)).json(); }
+  catch(e){ if (it.review_unit === "round") roundUnavailable(it); return; }
+  if (cur !== it) return;
+  if (!d.available || !d.round) {
+    if (it.review_unit === "round") roundUnavailable(it);
+    return;
+  }
+  const r = d.round;
+  box.appendChild(el("h3", null, "this round — " + (r.map_name || "?")
+    + " · round " + r.round_no + " · " + (r.duration_ms/1000).toFixed(1) + "s"));
+  if (r.is_story_candidate)
+    box.appendChild(el("div", "story",
+      "★ ROUND STORY CANDIDATE — " + r.story_reasons.join(" · ")));
+
+  // Timeline. One dot per observed event, the current frag highlighted.
+  const tl = el("div", "tl");
+  tl.appendChild(el("div", "bar"));
+  const span = Math.max(1, r.duration_ms);
+  r.events.forEach(e => {
+    const dot = el("div", "ev");
+    if (e.is_user) dot.classList.add("user");
+    if (e.is_team) dot.classList.add("team");
+    if (e.occurrence_id === it.source_id) dot.classList.add("here");
+    if (e.human_role) dot.classList.add("rev");
+    dot.style.left = (e.offset_ms / span * 100) + "%";
+    dot.title = (e.offset_ms/1000).toFixed(1) + "s  " + (e.actor || "")
+      + (e.victim ? " → " + e.victim : "") + (e.weapon ? "  " + e.weapon : "");
+    tl.appendChild(dot);
+  });
+  box.appendChild(tl);
+
+  // The related events themselves, with any verdict already given. The user
+  // must never later find they judged three moments of one fight blind.
+  const list = el("div", "rlist");
+  r.events.forEach(e => {
+    const row = el("div");
+    row.appendChild(el("span", "t", "+" + (e.offset_ms/1000).toFixed(1) + "s"));
+    const who = el("span", e.is_user ? "me" : (e.is_team ? "tm" : null),
+                   (e.actor || e.kind) + (e.victim ? " → " + e.victim : ""));
+    if (e.occurrence_id === it.source_id) who.classList.add("cur");
+    row.appendChild(who);
+    if (e.weapon) row.appendChild(el("span", null, e.weapon));
+    if (e.human_role) row.appendChild(el("span", "tag", e.human_role));
+    if (e.usage_state && e.usage_state !== "AVAILABLE")
+      row.appendChild(el("span", "use", e.usage_state));
+    list.appendChild(row);
+  });
+  box.appendChild(list);
+
+  // NEVER OFFER A ROUND WHOSE LENGTH IS NOT KNOWN.
+  //
+  // This is the exact button the user pressed. It advertised "WATCH FULL
+  // ROUND (0.0s)" -- because round duration used to be the span between the
+  // first and last observed kill, and 51.2% of rounds contain one kill -- and
+  // then pointed <video> straight at media that had never been rendered. The
+  // working clip went black and the button said "still rendering, try
+  // again". Both halves are fixed: the offer is gated on a credible
+  // duration, and the media is polled instead of assumed.
+  if (d.full_round_available === false){
+    const note = el("div", "conf", "full round length not observable here"
+      + (d.duration_note ? " — " + d.duration_note : ""));
+    box.appendChild(note);
+    if (it.review_unit === "round") roundUnavailable(it);
+    return;
+  }
+  const b = el("button", null, "WATCH FULL ROUND ("
+                + d.media_duration_s + "s)");
+  b.id = "watchround";
+  let failed = false;
+  b.onclick = async () => {
+    const mine = cur, generation = mediaGeneration;
+    b.disabled = true;
+    try {
+      if (failed) {
+        const retry = await fetch(API + "/media_retry/round/" + mine.item_id, {method:"POST"});
+        if (!retry.ok) throw new Error("Could not retry this round");
+        failed = false;
+      }
+      const started = Date.now();
+      while (cur === mine && generation === mediaGeneration) {
+        const st = await mediaJSON(API + "/media_state/round/" + mine.item_id);
+        if (cur !== mine || generation !== mediaGeneration) return;
+        if (st.ready) {
+          v.hidden = false; $("ph").hidden = true;
+          v.src = API + "/media/round/" + mine.item_id + (isSmallScreen() ? "?v=mobile" : "");
+          v.loop = false; v.play().catch(() => {});
+          b.textContent = "Replay full round";
+          b.disabled = false;
+          b.onclick = () => {v.currentTime=0; v.play().catch(()=>{});};
+          return;
+        }
+        if (["FAILED", "ERROR"].includes(st.state)) {failed = true; throw new Error("Round render failed");}
+        if (Date.now() - started >= MEDIA_TIMEOUT_MS) throw new Error("Round still preparing");
+        b.textContent = "Preparing full round…";
+        if (mine.review_unit === "round") {
+          $("ph").hidden = false;
+          $("ph").replaceChildren(el("div", "big", st.state === "DEFERRED" ? "Waiting for capture to become available" : "Preparing this round…"));
+        }
+        await new Promise(resolve => setTimeout(resolve, 2000));
+      }
+    } catch(e) {
+      if (cur !== mine || generation !== mediaGeneration) return;
+      b.disabled = false; b.textContent = e.message + " — Retry";
+      if (mine.review_unit === "round") {
+        const retry = el("button", "hbtn", "Retry round");
+        retry.onclick=()=>b.click();
+        $("ph").replaceChildren(el("div", "big", e.message), retry);
+      }
+    }
+  };
+  box.appendChild(b);
+  if (it.review_unit === "round") b.click();
+}
+
+// ── option A: when is the round worth watching? ─────────────────────────────
+//
+// TWO OR MORE OF YOUR OWN FRAGS. That is the whole rule. One frag in a round
+// is 79.5% of rounds and playing the round around it is mostly dead air;
+// two or more is a passage of play you can direct as one scene -- "build
+// through the four frags, freeze after F2, stutter into F4" -- which is the
+// thing that cannot be said through a six second keyhole.
+//
+// It changes PLAYBACK only. The verdict still posts against the frag.
+const ROUND_CONTEXT_MIN_FRAGS = 2;
+
+function userFragsInScene(scene){
+  if (!scene || !scene.events) return 0;
+  return scene.events.filter(e => e.takes_verdict && e.is_user).length;
+}
+
+function roundIsWorthWatching(scene){
+  return userFragsInScene(scene) >= ROUND_CONTEXT_MIN_FRAGS;
+}
+
+async function show(item = items[idx]){
+  clearTimeout(show._p);
+  const generation = ++mediaGeneration;
+  if (!item){ await loadQueue(offset + items.length); return; }
+  cur = item;
+  const mine = cur;
+  if (!sceneState?.events.some(e => e.occurrence_id === mine.source_id)){
+    sceneState = null; delete v.dataset.sceneId;
+  }
+  const inQueue = items.findIndex(x => x.item_id === mine.item_id);
+  if (inQueue >= 0) idx = inQueue;
+  saveSession();
+  if (mine.review_unit === "round") {
+    sceneState = null; delete v.dataset.sceneId;
+    v.pause(); v.removeAttribute("src"); v.load(); v.hidden=true;
+    $("ph").hidden=false;
+    $("ph").replaceChildren(el("div", "big", "Loading round…"));
+  }
+  meta(mine);
+  if (mine.review_unit === "round") return;
+  $("mark").style.left = (mine.frag_offset_s / mine.duration_s * 100) + "%";
+  $("played").style.width = "0";
+  const started = Date.now();
+  async function poll(){
+    if (generation !== mediaGeneration || cur !== mine) return;
+    try {
+      const st = await mediaJSON(API + "/media_state/" + mine.item_id);
+      if (generation !== mediaGeneration || cur !== mine) return;
+      if (st.ready){
+        $("ph").hidden = true; v.hidden = false;
+        // A ready scene owns this video until navigation leaves that scene.
+        if (!sceneState || v.dataset.sceneId !== sceneState.scene_id){
+          delete v.dataset.sceneId;
+          v.src = API + "/media/" + mine.item_id + (isSmallScreen() ? "?v=mobile" : "");
+          v.loop = true; v.play().catch(() => {});
+        } else {
+          // ROUND CONTEXT IS ALREADY LOADED. Moving F1 -> F2 inside one round
+          // must MOVE THE PLAYHEAD, not fetch anything: the media is the same
+          // media, and re-rendering it per frag is the keyhole all over again.
+          seekToEvent(sceneState, mine.source_id);
+          v.play().catch(() => {});
+        }
+        return;
+      }
+      if (v.dataset.sceneId && sceneState?.scene_id === v.dataset.sceneId) return;
+      v.hidden = true; v.removeAttribute("src"); v.load();
+      $("ph").hidden = false;
+      const timedOut = Date.now() - started >= MEDIA_TIMEOUT_MS;
+      placeholder(timedOut ? "TIMEOUT" : st.state, st.error);
+      if (timedOut || ["FAILED", "ERROR"].includes(st.state)) return;
+      show._p = setTimeout(poll, 2000);
+    } catch(e){
+      if (generation === mediaGeneration && cur === mine){
+        $("ph").hidden = false; placeholder("FAILED", e.message);
+      }
+    }
+  }
+  await poll();
+  // Fill beyond the initial server prefetch window as the reviewer advances.
+  items.slice(idx + 1, idx + 3).forEach(it => {
+    fetch(API + "/media_state/" + it.item_id).catch(() => {});
+  });
+}
+
+v.addEventListener("timeupdate", () => {
+  if (v.duration) $("played").style.width = (v.currentTime / v.duration * 100) + "%";
+});
+
+async function verdict(role){
+  if (!cur || savingVerdict) return;
+  const mine = cur;
+  const note = $("note").value.trim();
+  savingVerdict = true;
+  document.querySelectorAll(".buttons button").forEach(b => b.disabled = true);
+  try {
+    // ROUND IS CONTEXT, NOT VERDICT IDENTITY. A round-level
+    // classification may earn its place later; it is not the
+    // human contract, and four frags must not collapse into one.
+    const response = await fetch(API + "/verdict", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({item_id: mine.item_id, role, note: note || null}),
+      signal: AbortSignal.timeout(15000)
+    });
+    if (!response.ok) throw new Error("verdict NOT saved (HTTP " + response.status + ")");
+    mine.human_role = role; mine.note = note;
+    toast(role.replace(/^T\d_/, "").replace(/_/g, " "));
+    progress().catch(() => {});
+    if (cur !== mine) return;
+    const events = sceneState?.events || [];
+    const current = events.findIndex(e => e.occurrence_id === mine.source_id);
+    if (current >= 0) events[current].human_role = role;
+    const next = mine.review_unit === "round" || current < 0 ? null : events.slice(current + 1).find(e =>
+      e.takes_verdict && !e.human_role);
+    if (next) await selectSceneEvent(next, sceneState);
+    else {
+      do { idx++; } while (items[idx]?.human_role);
+      await show();
+    }
+  } catch(e){ toast(e.message || "verdict NOT saved"); }
+  finally {
+    savingVerdict = false;
+    document.querySelectorAll(".buttons button").forEach(b => b.disabled = false);
+  }
+}
+
+// ── tags ────────────────────────────────────────────────────────────────────
+//
+// QUALITY IS THE VERDICT; PURPOSE IS THE TAGS. They never collapse into each
+// other: a T3 can be the most useful clip in the film because it is the one
+// clean demonstration of a mechanic, and a T4 tagged ALT_POV is an
+// instruction to go and find a better camera rather than a lower score.
+//
+// One keystroke each, because a tag that costs a menu will not be used at
+// review number four hundred.
+const TAG_KEY = {
+  RAIL: "q", LG: "l", ROCKET: "o", GRENADE: "e",
+  AIM: "a", PREDICTION: "p", MOVEMENT: "m", TEAMPLAY: "t",
+  CLUTCH: "c", MULTIKILL: "k", FUNNY: "f", VOICE: "v",
+  LEGACY: "y", ICONIC_PLAYER: "i",
+  CLEAN_POV: "z", ALT_POV: "w",
+  KEEP_CONTEXT: "s", GOLDEN: "g",
+};
+const TAG_BY_KEY = Object.fromEntries(
+  Object.entries(TAG_KEY).map(([t, k]) => [k, t]));
+let tagVocab = null, curTags = new Set();
+
+async function loadVocabulary(){
+  try { tagVocab = await (await fetch(API + "/tags/vocabulary")).json(); }
+  catch(e){ return; }
+  const rail = $("tagrail");
+  rail.replaceChildren();
+  tagVocab.groups.forEach(g => {
+    // GOLDEN and KEEP_CONTEXT carry behaviour rather than description.
+    // GOLDEN has its own button next to the verdicts; KEEP_CONTEXT stays on
+    // the rail because it is a property of the moment, not a command.
+    const tags = g.tags.filter(t => t !== "GOLDEN");
+    if (!tags.length) return;
+    rail.appendChild(el("div", "tgroup", g.name.toUpperCase()));
+    tags.forEach(t => {
+      const b = el("button");
+      b.dataset.tag = t;
+      b.appendChild(el("span", "tk", (TAG_KEY[t] || "").toUpperCase()));
+      b.appendChild(document.createTextNode(t.replace(/_/g, " ")));
+      b.onclick = () => toggleTag(t);
+      rail.appendChild(b);
+    });
+  });
+}
+
+function paintTags(){
+  document.querySelectorAll("#tagrail button").forEach(b => {
+    b.classList.toggle("on", curTags.has(b.dataset.tag));
+  });
+  $("bgold").classList.toggle("on", curTags.has("GOLDEN"));
+}
+
+// A LATE RESPONSE MUST NOT OVERWRITE A LIVE THUMB.
+//
+// `cur !== item` is not enough: re-showing the SAME item (a RETRY, a scene
+// seek) starts a second load, and if the reviewer tags something while that
+// request is in flight the stale reply lands afterwards and silently wipes
+// it. Tagging is the one action here with no confirmation of its own, so a
+// tag that vanishes is a tag the reviewer believes they made.
+let tagGeneration = 0;
+
+async function loadTags(item){
+  const gen = ++tagGeneration;
+  curTags = new Set();
+  paintTags();
+  try {
+    const d = await (await fetch(API + "/tags/" + encodeURIComponent(item.item_id))).json();
+    if (gen !== tagGeneration || cur !== item) return;
+    curTags = new Set(d.tags || []);
+    paintTags();
+  } catch(e){ /* a tag panel that fails must not block judging */ }
+}
+
+async function toggleTag(tag){
+  if (!cur) return;
+  const mine = cur, on = !curTags.has(tag);
+  tagGeneration++;          // any load still in flight is now out of date
+  // Painted immediately. The write is confirmed after, and reverted if it
+  // fails -- at one keystroke per tag, waiting for a round trip would make
+  // the rail feel broken.
+  if (on) curTags.add(tag); else curTags.delete(tag);
+  paintTags();
+  try {
+    const r = await fetch(API + "/tag", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({item_id: mine.item_id, tag, on})});
+    if (!r.ok) throw new Error("tag NOT saved");
+  } catch(e){
+    if (cur === mine){
+      if (on) curTags.delete(tag); else curTags.add(tag);
+      paintTags();
+    }
+    toast(e.message || "tag NOT saved");
+  }
+}
+
+$("bgold").addEventListener("click", () => toggleTag("GOLDEN"));
+
+// ── alternate cameras ───────────────────────────────────────────────────────
+async function renderPovs(item){
+  const box = $("povs");
+  if (!box) return;
+  box.replaceChildren();
+  let d;
+  try { d = await (await fetch(API + "/povs/" + encodeURIComponent(item.item_id))).json(); }
+  catch(e){ return; }
+  if (cur !== item || !d.available) return;
+  const line = el("div", "conf", d.summary);
+  box.appendChild(line);
+  if (d.has_alternative){
+    // The "wrong" recorder for the kill is often the right camera for the
+    // film, so the alternatives are named rather than merely counted.
+    const list = el("div", "chips");
+    d.povs.forEach(p => list.appendChild(
+      el("span", "chip" + (p.is_best ? " danger" : ""),
+         p.pov.replace(/_/g, " ").toLowerCase())));
+    box.appendChild(list);
+  }
+}
+
+// ── unfilmed moments ────────────────────────────────────────────────────────
+//
+// An obituary is a server fact; whether any CAMERA saw it is a separate
+// question. About three quarters of the archive is somebody else's demo
+// pointed somewhere else. Those are not bad frags, they are unfilmed ones --
+// so the reviewer gets a third answer beside "judge it" and "delete it".
+let workshopOn = false;
+
+async function toggleWorkshop(){
+  if (!cur) return;
+  const mine = cur, on = !workshopOn;
+  workshopGeneration++;
+  workshopOn = on;
+  $("bwork").classList.toggle("on", on);
+  try {
+    const url = API + (on ? "/reconstruct" : "/reconstruct/withdraw");
+    const r = await fetch(url, {method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({item_id: mine.item_id,
+                            reason: "UNSPECIFIED", note: ""})});
+    if (!r.ok) throw new Error("workshop request NOT saved");
+    toast(on ? "sent to workshop for reconstruction" : "withdrawn");
+  } catch(e){
+    if (cur === mine){ workshopOn = !on; $("bwork").classList.toggle("on", !on); }
+    toast(e.message || "workshop request NOT saved");
+  }
+}
+
+let workshopGeneration = 0;
+
+async function loadWorkshop(item){
+  const gen = ++workshopGeneration;
+  workshopOn = false;
+  $("bwork").classList.remove("on");
+  try {
+    const d = await (await fetch(API + "/reconstruct/"
+      + encodeURIComponent(item.item_id))).json();
+    if (gen !== workshopGeneration || cur !== item) return;
+    workshopOn = !!(d && d.request);
+    $("bwork").classList.toggle("on", workshopOn);
+  } catch(e){ /* never block judging */ }
+}
+
+$("bwork").addEventListener("click", toggleWorkshop);
+
+let lastDeleted = null;
+
+async function dismissCurrent(){
+  if (!cur || savingVerdict) return;
+  const mine = cur;
+  // A deletion destroys nothing -- but it makes the moment invisible to the
+  // film pipeline, and nobody goes looking through the deleted list for the
+  // only teleporter shot in the archive. So warn, and let the human decide.
+  try {
+    const risk = await (await fetch(API + "/dismiss_risk/"
+      + encodeURIComponent(mine.item_id))).json();
+    if (risk && !risk.safe &&
+        !confirm("Delete anyway?" + String.fromCharCode(10, 10)
+                 + risk.reasons.join(String.fromCharCode(10)))) return;
+  } catch(e){ /* the guard must never be the reason a delete cannot happen */ }
+  if (cur !== mine) return;
+  savingVerdict = true;
+  document.querySelectorAll(".buttons button").forEach(b => b.disabled = true);
+  try {
+    const r = await fetch(API + "/dismiss", {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({item_id: mine.item_id, reason: ""}),
+      signal: AbortSignal.timeout(15000)});
+    if (!r.ok) throw new Error("NOT deleted (HTTP " + r.status + ")");
+    // Undo has to be reachable without hunting for it: a deletion made by a
+    // mistaken thumb is exactly the case this needs to survive.
+    toast("deleted — press U to undo");
+    lastDeleted = mine.item_id;
+    items = items.filter(x => x.item_id !== mine.item_id);
+    if (idx >= items.length) idx = Math.max(0, items.length - 1);
+    if (cur === mine) await show(items[idx]);
+  } catch(e){ toast(e.message || "NOT deleted"); }
+  finally {
+    savingVerdict = false;
+    document.querySelectorAll(".buttons button").forEach(b => b.disabled = false);
+  }
+}
+
+$("bdel").addEventListener("click", dismissCurrent);
+
+document.querySelectorAll(".buttons button[data-role]").forEach(b => {
+  b.onclick = () => verdict(b.dataset.role);
+});
+
+document.addEventListener("keydown", async e => {
+  if (["TEXTAREA", "INPUT", "SELECT"].includes(e.target.tagName)){
+    if (e.key === "Escape") e.target.blur();
+    return;
+  }
+  if (savingVerdict) return;
+  const k = e.key.toLowerCase();
+  if ("12345".indexOf(e.key) !== -1){
+    e.preventDefault();
+    verdict($("b" + e.key).dataset.role);
+  } else if (e.code === "Space"){
+    e.preventDefault();
+    if (v.paused) v.play().catch(() => {}); else v.pause();
+  } else if (k === "r"){
+    v.currentTime = 0; v.play().catch(() => {});
+  } else if (e.key === "ArrowRight"){
+    navigate(1);
+  } else if (e.key === "ArrowLeft"){
+    navigate(-1);
+  } else if (k === "n"){
+    e.preventDefault(); $("d-note").open = true; $("note").focus();
+  } else if (k === "b" && cur?.review_unit !== "round"){
+    e.preventDefault(); toggleWorkshop();
+  } else if (k === "x" && cur?.review_unit !== "round"){
+    e.preventDefault(); dismissCurrent();
+  } else if (TAG_BY_KEY[k] && cur?.review_unit !== "round"){
+    // Checked AFTER the fixed bindings, so a tag key can never take a
+    // keystroke away from replay, note, delete or undo.
+    e.preventDefault(); toggleTag(TAG_BY_KEY[k]);
+  } else if (k === "u"){
+    if (lastDeleted){
+      const rr = await fetch(API + "/restore", {method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({item_id: lastDeleted})});
+      if (rr.ok){ toast("restored " + lastDeleted); lastDeleted = null;
+                  await loadQueue(offset); return; }
+    }
+    const r = await fetch(API + "/undo", {method: "POST"});
+    if (r.ok){
+      const d = await r.json();
+      toast("undid " + d.undone);
+      progress();
+    } else {
+      toast("nothing to undo");
+    }
+  }
+});
+
+$("note").addEventListener("blur", async () => {
+  if (!cur || savingVerdict) return;
+  const mine = cur, note = $("note").value.trim();
+  if (note === (mine.note || "")) return;
+  try {
+    const r = await fetch(API + (mine.review_unit === "round" ? "/note/round" : "/note"), {
+      method: "POST", headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({item_id: mine.item_id, note})
+    });
+    if (!r.ok) throw new Error("note NOT saved");
+    mine.note = note;
+    toast("note saved");
+  } catch(e){ toast(e.message || "note NOT saved"); }
+});
+
+async function corpora(){
+  const d = await (await fetch(API + "/corpora")).json();
+  const sel = $("corpus");
+  const groups = [];
+  // WHOSE moments first, then WHAT happened. They are different questions
+  // and the selector should not blur them into one flat list.
+  const g1 = document.createElement("optgroup");
+  g1.label = "whose frags";
+  const preferred = ["USER_AND_PTN", "USER_FRAGS", "PTN_FRAGS", "OTHER_PLAYERS"];
+  g1.append(...d.corpora.filter(c => preferred.includes(c.corpus)).sort((a,b)=>preferred.indexOf(a.corpus)-preferred.indexOf(b.corpus)).map(c => {
+    const o = document.createElement("option");
+    o.value = "corpus:" + c.corpus;
+    // The LABEL, not the constant. Three different datasets were once all
+    // called "my frags"; a denominator the user cannot name is worse than
+    // no denominator.
+    const lab = ({USER_AND_PTN:"Me + clan",USER_FRAGS:"My moments",PTN_FRAGS:"Clan",OTHER_PLAYERS:"Other players"})[c.corpus] || c.label || c.corpus;
+    o.textContent = c.available
+      ? lab + " (" + c.total.toLocaleString() + ")"
+      : lab + " — " + (c.blocked_by || "unavailable");
+    o.disabled = !c.available;
+    return o;
+  }));
+  groups.push(g1);
+  const g2 = document.createElement("optgroup");
+  g2.label = "what happened";
+  // MOVEMENT FAMILIES ARE NOT REVIEW QUEUES. Selecting one is how a jump-pad
+  // run whose nearest kill was a telefrag between two strangers became the
+  // first thing the reviewer saw. Movement still appears where it belongs --
+  // on the scene rail and in the dossier, as context for a frag.
+  const NOT_A_QUEUE = ["HIGH_SPEED", "JUMPPAD", "TELEPORT", "DODGE",
+                       "LG_TRACKING", "PROJECTILE"];
+  g2.append(...d.item_types.filter(t => t.item_type === "ACTION")
+                           .map(t => {
+    const o = document.createElement("option");
+    o.value = "type:" + t.item_type;
+    o.textContent = t.available
+      ? "Damage potential (" + t.total.toLocaleString() + ")"
+      : t.item_type + " — " + (t.withheld_because ? "not a review moment"
+                                                  : "not derived yet");
+    if (t.withheld_because) o.title = t.withheld_because;
+    o.disabled = !t.available;
+    return o;
+  }));
+  groups.push(g2);
+  sel.replaceChildren(...groups);
+  sel.value = corpus ? "corpus:" + corpus : "type:" + itemType;
+  sel.onchange = () => {
+    const [kind, val] = sel.value.split(":");
+    if (kind === "corpus"){ corpus = val; itemType = ""; }
+    else { corpus = null; itemType = val; reviewView = "frags"; $("reviewview").value="frags"; }
+    progress(); loadQueue(0);
+  };
+}
+
+
+// The filter drawer is populated FROM THE DATA. A filter offered for a value
+// nobody has produces an empty result that reads as "this never happened".
+async function facets(){
+  const d = await (await fetch(API + "/facets?corpus=" + (corpus || "ALL_PLAYERS"))).json();
+  const fill = (id, vals, blank) => {
+    const sel = $(id);
+    if (!sel) return;
+    const opts = [Object.assign(document.createElement("option"),
+                                {value: "", textContent: blank})];
+    vals.forEach(v => {
+      const o = document.createElement("option");
+      o.value = String(v.value !== undefined ? v.value : v);
+      o.textContent = String(v.label !== undefined ? v.label : v);
+      opts.push(o);
+    });
+    sel.replaceChildren(...opts);
+    sel.onchange = () => {
+      const key = id.slice(2);
+      if (sel.value) filters[key] = sel.value; else delete filters[key];
+      progress(); loadQueue(0);
+    };
+  };
+  fill("f-weapon", d.weapons, "any");
+  fill("f-map", d.maps, "any");
+  fill("f-trait", d.traits.map(t => ({value: t.trait,
+        label: t.trait + "  (" + t.count.toLocaleString() + ")"})), "any");
+  fill("f-death_cause", d.death_causes, "any");
+  fill("f-min_round_kills", [2, 3, 4, 5, 6].map(n => ({value: n, label: n})), "any");
+  fill("f-pov", ["ACTOR_POV", "VICTIM_POV", "OTHER_POV"], "any");
+  fill("f-funny", d.funny_signals || [], "any");
+  // Named combinations, because "the gauntlet jump pad is really funny" is
+  // not a weapon filter and not a trait filter, and scrolling 201,876 rows
+  // is not a way to find the next one.
+  try {
+    const sit = await (await fetch(API + "/situations")).json();
+    fill("f-situation", (sit.situations || []).map(x => (
+      {value: x.situation, label: x.label})), "any");
+  } catch(e){ /* the drawer is help; it must never block the queue */ }
+  // Defensive: a filter control that is not on the page must never stop
+  // the queue from loading. The reviewer is the point; the drawer is help.
+  const note = $("fnote");
+  if (note) note.textContent = (d.trait_note || "") + "  "
+    + (d.funny_note || "");
+  const clr = $("f-clear");
+  if (clr) clr.onclick = () => {
+    filters = {};
+    ["weapon", "map", "trait", "death_cause", "min_round_kills", "pov",
+     "funny"]
+      .forEach(k => { const e = $("f-" + k); if (e) e.value = ""; });
+    progress(); loadQueue(0);
+  };
+}
+
+// Where the user was, restored from the server rather than the browser --
+// the point is to survive a refresh, a restart and a different machine.
+async function saveSession(){
+  try{
+    await fetch(API + "/session", {method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({corpus, item_type: itemType, order,
+                            filters, offset,
+                            last_item_id: cur ? cur.item_id : null})});
+  }catch(e){ /* losing a bookmark must never break a verdict */ }
+}
+
+async function restoreSession(){
+  let d;
+  try{ d = await (await fetch(API + "/session")).json(); }
+  catch(e){ return; }
+  if (!d || !d.found) return;
+  // A SAVED SESSION MUST NOT RESURRECT A QUEUE THAT NO LONGER EXISTS.
+  //
+  // The stored position was HIGH_SPEED -- a movement family that is no
+  // longer offered as a review queue. Restoring it blindly would drop the
+  // reviewer straight back into the thing they asked to have removed, and
+  // the fix would look like it had not worked.
+  const RETIRED = ["HIGH_SPEED", "JUMPPAD", "TELEPORT", "DODGE",
+                   "LG_TRACKING", "PROJECTILE"];
+  if (RETIRED.includes(d.item_type)){
+    toast("that queue was retired - starting from your own frags");
+    return;
+  }
+  if (d.corpus === "USER_AND_PTN" || d.corpus === "USER_FRAGS" || d.corpus === "PTN_FRAGS" || d.corpus === "OTHER_PLAYERS") corpus = d.corpus;
+  itemType = "";
+  order = "BEST_FIRST";
+  if (d.filters) filters = d.filters;
+  offset = 0;
+  toast("Best rounds first");
+}
+
+// Startup, step by step, with each step allowed to fail on its own.
+//
+// The drawer and the resume are conveniences; the QUEUE is the product. A
+// rejection anywhere in a single await chain used to abort the rest of it
+// silently -- an unhandled rejection in the console and, on a bad day, no
+// clips. Each step is now isolated and any failure is said out loud rather
+// than swallowed, because a reviewer staring at an empty page deserves to
+// know which part broke.
+(async () => {
+  for (const [name, step] of [["resume", restoreSession], ["filters", facets],
+                              ["corpora", corpora], ["tags", loadVocabulary],
+                              ["progress", progress]]) {
+    try { await step(); }
+    catch (e) { console.error("startup step failed:", name, e);
+                toast(name + " unavailable"); }
+  }
+  try { await loadQueue(offset || 0); }
+  catch (e) {
+    console.error("startup step failed: queue", e);
+    toast("could not load the queue — see console");
+  }
+})();
+
+// The drawer is a bottom sheet on a phone and a strip on a desktop. Filters
+// are secondary: they must never sit between the user and the next verdict.
+(function wireFilterToggle(){
+  const b = document.getElementById("togglefilters");
+  const d = document.getElementById("fdrawer");
+  if (!b || !d) return;
+  b.onclick = () => {
+    d.classList.toggle("open");
+    b.textContent = d.classList.contains("open") ? "CLOSE" : "FILTERS";
+  };
+})();
+
+// ── annotation ──────────────────────────────────────────────────────────────
+// The verdict says where a moment belongs; the note says what to do with it.
+// The raw wording is the truth and is never rewritten -- the vocabulary is a
+// suggestion list so common ideas spell themselves the same way twice, which
+// is what makes them findable later. Anything not on it is still valid.
+(async function annotations(){
+  try{
+    const d = await (await fetch(API + "/annotation/vocabulary")).json();
+    const dl = document.getElementById("vocab");
+    if (dl) dl.replaceChildren(...d.vocabulary.map(v => {
+      const o = document.createElement("option"); o.value = v; return o;
+    }));
+    const h = document.getElementById("vhint");
+    if (h){
+      h.replaceChildren(document.createTextNode("freeform — "));
+      const b = document.createElement("b");
+      b.textContent = d.vocabulary.slice(0, 8).join("  ");
+      h.appendChild(b);
+      h.appendChild(document.createTextNode("  … and anything else you mean."));
+    }
+  }catch(e){ /* the field works without suggestions */ }
+
+  // Round notes are a different object from the moment's own note, saved on
+  // blur so a thought is never lost to navigation.
+  const rn = document.getElementById("rnote");
+  if (!rn) return;
+  rn.addEventListener("blur", async () => {
+    if (!cur || rn.dataset.saved === rn.value) return;
+    const mine = cur, text = rn.value;
+    try{
+      const response = await fetch(API + "/annotation/round", {method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({item_id: mine.item_id, annotation: text})});
+      if (!response.ok) throw new Error("round note not saved");
+      if (cur === mine) rn.dataset.saved = text;
+      toast("round note saved");
+    }catch(e){ toast("round note not saved"); }
+  });
+  window.loadRoundNote = async (item) => {
+    try{
+      const g = await (await fetch(API + "/annotation/round/" + item.item_id)).json();
+      if (cur !== item) return;
+      rn.value = g.annotation || "";
+      rn.dataset.saved = rn.value;
+    }catch(e){ rn.value = ""; }
+  };
+})();
+
+// ── where it happened ───────────────────────────────────────────────────────
+// Learned from every position anyone was ever recorded standing in on this
+// map -- not from a map file, and never from a community callout we were
+// not told. Two rows, in the dossier only: the mobile strip stays the strip.
+//
+// A generation counter guards against the slow answer for the PREVIOUS clip
+// landing on the current one; the same pattern the tag rail uses.
+let locationGeneration = 0;
+async function renderLocation(it, box){
+  const gen = ++locationGeneration;
+  box = document.getElementById("dloc") || box;
+  box.replaceChildren();
+  let d = null;
+  try { d = await (await fetch(API + "/location/"
+                               + encodeURIComponent(it.item_id))).json(); }
+  catch (e) { return; }
+  if (gen !== locationGeneration || !cur || cur.item_id !== it.item_id) return;
+  if (!d || !d.available || (!d.location && !d.approach)) return;
+
+  const sec = el("div", "dsec");
+  sec.appendChild(el("h4", null, "location"));
+  const g = el("div", "dgrid");
+  if (d.location){
+    g.append(...drow("where", d.location.label));
+    g.append(...drow("layer", d.location.layer_word.toLowerCase()
+                              + " of " + d.map));
+  }
+  if (d.approach) g.append(...drow("approach", d.approach.label));
+  sec.appendChild(g);
+  // No pruning here: every row this block emits is an answer, and the block
+  // is simply not built when there is nothing to say.
+  box.replaceChildren(sec);
+}
+
+// ── director dossier ────────────────────────────────────────────────────────
+// Partial truth is fine; false certainty is not. Every value is measured or
+// shown as UNKNOWN. Nothing is defaulted to zero.
+function drow(k, v){
+  const a = el("div", "k", k), b = el("div", "v");
+  if (v === null || v === undefined || v === "") {
+    b.appendChild(el("span", "unk", "UNKNOWN"));
+    a.dataset.unk = b.dataset.unk = "1";
+  } else { b.textContent = String(v); }
+  return [a, b];
+}
+
+// UNKNOWN IS TRUE AND MOSTLY NOT WORTH READING.
+//
+// On an observed frag -- somebody else's camera -- almost every measured
+// field is unavailable by construction, and the panel became eleven rows of
+// the word UNKNOWN with the two real facts lost among them. The absence
+// still has to be visible, because a blank would read as zero, so a section
+// with nothing in it collapses to one line saying what is missing and why,
+// and a section that has SOME data drops only its empty rows.
+// The identity block is a grid without its own wrapper, so it prunes rows
+// in place and always keeps at least the occurrence id -- which is never
+// unknown, and is the one thing that lets a moment be found again.
+function pruneUnknownIds(section){
+  const grid = section.querySelector(".dgrid");
+  if (!grid) return;
+  [...grid.children].forEach(n => { if (n.dataset.unk) n.remove(); });
+}
+
+function pruneUnknown(section, grid, reason){
+  const kids = [...grid.children];
+  // A row marked `keep` is an answer even when it has no number -- the
+  // accuracy row saying NOT DERIVABLE is the case that matters, and pruning
+  // it was how the reviewer ended up with no accuracy information at all.
+  const known = kids.filter(n => n.classList.contains("v")
+                                 && (!n.dataset.unk || n.dataset.keep));
+  if (!known.length){
+    const note = el("div", "conf", reason || "nothing measurable here");
+    grid.replaceChildren();
+    if (reason) section.appendChild(note);
+    return false;
+  }
+  kids.forEach(n => { if (n.dataset.unk && !n.dataset.keep) n.remove(); });
+  return true;
+}
+
+function hpap(label, o){
+  const h = el("div", "hpv"), a = el("div", "apv");
+  h.textContent = (o && o.health !== null && o.health !== undefined)
+    ? o.health + " HP" : "--";
+  a.textContent = (o && o.armor !== null && o.armor !== undefined)
+    ? o.armor + " AP" : "--";
+  return [el("div", "lbl", label), h, a];
+}
+
+async function renderDossier(it){
+  const box = $("dossier");
+  if (!box) return;
+  box.replaceChildren();
+  renderLocation(it, box);          // independent; never blocks the dossier
+  let d;
+  try { d = await (await fetch(API + "/dossier/" + it.item_id)).json(); }
+  catch(e){ return; }
+  if (cur !== it || !d || !d.available) return;
+  const e = d.event, kids = [];
+
+  const head = el("div", "dsec");
+  const h1 = el("div", "dhead");
+  h1.appendChild(document.createTextNode((e.actor || "?") + "  \u2192  "));
+  h1.appendChild(el("span", "op", e.opponent || "?"));
+  head.appendChild(h1);
+  head.appendChild(el("div", "dsub", [e.weapon, e.map, "round " + e.round,
+    e.time_in_round_ms !== null && e.time_in_round_ms !== undefined
+      ? "+" + (e.time_in_round_ms / 1000).toFixed(2) + "s" : null]
+    .filter(Boolean).join("  \u00b7  ")));
+  head.appendChild(el("div", "dsub", e.camera));
+  kids.push(head);
+
+  const idsec = el("div", "dsec");
+  const g1 = el("div", "dgrid");
+  g1.append(...drow("occurrence", "#" + e.occurrence_id));
+  g1.append(...drow("machine score", e.machine_score));
+  g1.append(...drow("career rank", e.career_rank
+    ? e.career_rank.toLocaleString() + " / " + e.career_total.toLocaleString()
+    : null));
+  g1.append(...drow("usage", d.usage.state));
+  if (e.n_observations > 1)
+    g1.append(...drow("cameras", e.n_observations + " demos saw this"));
+  idsec.appendChild(g1);
+  pruneUnknownIds(idsec);
+  kids.push(idsec);
+
+  const st = el("div", "dsec");
+  st.appendChild(el("h4", null, "stack"));
+  if (d.stack.available){
+    const sg = el("div", "stackrow");
+    sg.append(...hpap("start", d.stack.start));
+    sg.append(...hpap("min", d.stack.min));
+    sg.append(...hpap("frag", d.stack.at_frag));
+    st.appendChild(sg);
+    if (d.stack.tags && d.stack.tags.length){
+      const c = el("div", "chips");
+      d.stack.tags.forEach(t => c.appendChild(el("span", "chip danger", t)));
+      st.appendChild(c);
+    }
+  } else {
+    st.appendChild(el("div", "unk", "UNKNOWN"));
+    st.appendChild(el("div", "conf", d.stack.reason || ""));
+  }
+  kids.push(st);
+
+  // ACCURACY IS ALWAYS SHOWN, even when the answer is that it cannot be
+  // derived. Asked for directly, and it is the right call: silence reads as
+  // "nobody measured this", while NOT DERIVABLE with a reason says which
+  // weapons the pain stream can and cannot answer for.
+  const a = d.action, act = el("div", "dsec");
+  act.appendChild(el("h4", null, a.weapon || "action"));
+  const ag = el("div", "dgrid");
+  ag.append(...drow(a.unit, a.shots));
+
+  const accRow = (label, value, cls) => {
+    const k = el("div", "k", label), val = el("div", "v " + (cls || ""));
+    val.textContent = value;
+    // Protected from the UNKNOWN pruner: this row is the answer, not a gap.
+    k.dataset.keep = val.dataset.keep = "1";
+    ag.append(k, val);
+  };
+
+  if (a.accuracy_pct !== null && a.accuracy_pct !== undefined){
+    if (a.accuracy_upper_pct && a.accuracy_upper_pct !== a.accuracy_pct){
+      // A RANGE, NOT A NUMBER. Somebody else was shooting the same target,
+      // so the true value lies between "only the confirmed kill" and "every
+      // pain event in the window was mine".
+      accRow("accuracy", a.accuracy_pct + "–" + a.accuracy_upper_pct + "%",
+             "range");
+      ag.append(...drow("hits", a.hits_confirmed + " confirmed, "
+        + a.hits_ambiguous + " ambiguous"));
+    } else {
+      accRow("accuracy", a.accuracy_pct + "%");
+      if (a.hits_confirmed !== null && a.hits_confirmed !== undefined)
+        ag.append(...drow("hits", String(a.hits_confirmed)));
+    }
+  } else {
+    accRow("accuracy", "NOT DERIVABLE", "nd");
+  }
+  if (a.engagement_ms)
+    ag.append(...drow("engagement", (a.engagement_ms / 1000).toFixed(2) + "s"));
+  act.appendChild(ag);
+  pruneUnknown(act, ag, "");
+  // Why, in the weapon's own terms. For the lightning gun this is the whole
+  // story: the server throttles pain events to about three a second and the
+  // gun fires twenty, so its hits cannot be counted from them at all.
+  const why = a.note || (a.accuracy_pct === null || a.accuracy_pct === undefined
+    ? "this weapon fires faster than the server reports damage, so hits "
+      + "cannot be counted from the pain stream"
+    : "");
+  if (why) act.appendChild(el("div", "conf", why));
+  kids.push(act);
+
+  const gm = el("div", "dsec"), G = d.geometry, M = d.movement;
+  gm.appendChild(el("h4", null, "geometry and movement"));
+  const gg = el("div", "dgrid");
+  gg.append(...drow("distance",
+    G.distance_units ? Math.round(G.distance_units) + " u" : null));
+  gg.append(...drow("flick", G.flick_degrees
+    ? G.flick_degrees + "\u00b0 in " + G.flick_duration_ms + "ms" : null));
+  gg.append(...drow("target visible",
+    G.target_visible_ms ? G.target_visible_ms + "ms" : null));
+  gg.append(...drow("your speed", M.speed_at_frag
+    ? Math.round(M.speed_at_frag) + " ups"
+      + (M.percentile ? "  p" + Math.round(M.percentile) : "") : null));
+  if (M.moment)
+    gg.append(...drow("movement", M.moment.kind + "  peak "
+      + Math.round(M.moment.peak || 0) + " ups"));
+  gm.appendChild(gg);
+  pruneUnknown(gm, gg, "aim and distance come from the recorder's own view, "
+                       + "and this is another player's demo");
+  kids.push(gm);
+
+  if (d.round){
+    const r = d.round, rs = el("div", "dsec");
+    rs.appendChild(el("h4", null, "this round"));
+    const rg = el("div", "dgrid");
+    rg.append(...drow("your frags", r.user_kills));
+    rg.append(...drow("clan frags", r.team_kills));
+    rg.append(...drow("enemy frags", r.enemy_kills));
+    rg.append(...drow("you died", r.user_died ? "yes" : "no"));
+    rg.append(...drow("duration", (r.duration_ms / 1000).toFixed(1) + "s"));
+    if (r.alive_curve && r.alive_curve.length){
+      const fmt = o => Object.keys(o).filter(k => k !== "offset_ms")
+        .map(k => o[k]).join("v");
+      rg.append(...drow("alive (derived)",
+        fmt(r.alive_curve[0]) + " \u2192 "
+        + fmt(r.alive_curve[r.alive_curve.length - 1])));
+    }
+    rs.appendChild(rg);
+    kids.push(rs);
+  }
+
+  // How the scene builds. Gaps matter more than events for music and pacing.
+  if (d.timing && d.timing.available){
+    const T = d.timing, ts = el("div", "dsec");
+    ts.appendChild(el("h4", null, "sequence"));
+    const tg = el("div", "dgrid");
+    if (T.frag_index)
+      tg.append(...drow("this frag", "F" + T.frag_index + " of "
+        + T.frags_in_scene));
+    tg.append(...drow("since previous frag", T.ms_since_previous_user_frag
+      ? (T.ms_since_previous_user_frag / 1000).toFixed(2) + "s" : null));
+    tg.append(...drow("to next frag", T.ms_to_next_user_frag
+      ? (T.ms_to_next_user_frag / 1000).toFixed(2) + "s" : null));
+    if (T.nearest_scene_event)
+      tg.append(...drow(T.nearest_scene_event.label,
+        (T.nearest_scene_event.delta_ms > 0 ? "+" : "")
+        + (T.nearest_scene_event.delta_ms / 1000).toFixed(2) + "s"));
+    tg.append(...drow("scene length", (T.scene_duration_ms / 1000).toFixed(1) + "s"));
+    ts.appendChild(tg);
+    pruneUnknown(ts, tg, "a single action, with nothing else in this round");
+    kids.push(ts);
+  }
+
+  if (d.traits && d.traits.length){
+    const t = el("div", "dsec");
+    t.appendChild(el("h4", null, "machine traits"));
+    const c = el("div", "chips");
+    d.traits.forEach(x => c.appendChild(el("span", "chip hot", x)));
+    t.appendChild(c);
+    kids.push(t);
+  }
+  box.replaceChildren(...kids);
+}
+
+// ── scene rail ──────────────────────────────────────────────────────────────
+// ONE media asset for the whole round. The rail seeks inside it rather than
+// loading a separate clip per frag -- F1..F4 plus a full round would be five
+// wolfcam runs of the same thirty seconds.
+let sceneState = null;
+
+// Swap the short proxy for the whole round, if and when the round is ready.
+// Called after the scene is known; never blocks, never blanks.
+async function offerRoundContext(it, scene){
+  if (!roundIsWorthWatching(scene)) return;
+  // ALREADY WATCHING THIS ROUND. Every frag in it asks again, and each ask
+  // carries a different item id in the URL -- so re-fetching here reloaded
+  // the identical footage under a new name on every advance. That is the
+  // reload this whole feature exists to remove: seek instead.
+  if (v.dataset.sceneId === scene.scene_id && v.getAttribute("src")){
+    seekToEvent(scene, it.source_id);
+    v.play().catch(() => {});
+    return;
+  }
+  const mine = cur, generation = mediaGeneration;
+  const note = $("roundctx");
+  if (note) note.textContent = "round context preparing…";
+  const started = Date.now();
+  while (cur === mine && generation === mediaGeneration){
+    let st;
+    try { st = await mediaJSON(API + "/media_state/round/" + mine.item_id); }
+    catch(e){ if (note) note.textContent = ""; return; }
+    if (cur !== mine || generation !== mediaGeneration) return;
+    if (st.ready){
+      // Only now does anything touch the <video>.
+      v.hidden = false; $("ph").hidden = true;
+      v.src = API + "/media/round/" + mine.item_id
+              + (isSmallScreen() ? "?v=mobile" : "");
+      v.loop = false;
+      v.dataset.sceneId = scene.scene_id;
+      seekToEvent(scene, mine.source_id);
+      v.play().catch(() => {});
+      if (note) note.textContent = "round context · "
+        + userFragsInScene(scene) + " of your frags";
+      return;
+    }
+    if (["FAILED", "ERROR"].includes(st.state)){
+      if (note) note.textContent = "round context unavailable — showing the frag";
+      return;
+    }
+    if (st.render_deferred || st.state === "DEFERRED"){
+      if (note) note.textContent = "round render deferred — showing the frag";
+      return;
+    }
+    if (Date.now() - started >= MEDIA_TIMEOUT_MS){
+      if (note) note.textContent = "round context still preparing — showing the frag";
+      return;
+    }
+    await new Promise(r => setTimeout(r, 2000));
+  }
+}
+
+// Move the playhead to one event inside the round already loaded. No reload,
+// no re-render: the same media element, a different second.
+function seekToEvent(scene, occurrenceId){
+  const ev = (scene.events || []).find(e => e.occurrence_id === occurrenceId);
+  if (!ev || scene.media_start_ms == null) return false;
+  const t = (ev.t_ms - scene.media_start_ms) / 1000;
+  if (!isFinite(t) || t < 0) return false;
+  // A currentTime set before the browser has metadata is SILENTLY DROPPED.
+  // That is how the round could load, the url stay stable, and the playhead
+  // sit at zero anyway -- the keyhole with extra steps. Wait for the
+  // element to be seekable, then jump.
+  const jump = () => { try { v.currentTime = t; } catch(e){} };
+  if (v.readyState >= 1) jump();
+  else v.addEventListener("loadedmetadata", jump, {once: true});
+  return true;
+}
+
+async function renderRail(it){
+  const rail = $("rail");
+  if (!rail) return;
+  rail.replaceChildren();
+  rail.classList.remove("on");
+  let s;
+  try { s = await (await fetch(API + "/scene/" + it.item_id)).json(); }
+  catch(e){ return; }
+  if (cur !== it) return;
+  if (!s.available || s.mode !== "SCENE_MODE") { delete v.dataset.sceneId; return; }
+  sceneState = s;
+  offerRoundContext(it, s);      // playback only; never blocks
+  const rowEl = el("div", "railrow");
+  s.events.forEach(ev => {
+    const b = el("button", "rev" + (ev.takes_verdict ? "" : " noteonly"));
+    if (ev.occurrence_id === it.source_id) b.classList.add("sel");
+    b.appendChild(el("span", "t", "+" + (ev.offset_ms / 1000).toFixed(2) + "s"));
+    b.appendChild(el("span", "l", ev.label));
+    if (ev.human_role) b.appendChild(el("span", "r", ev.human_role));
+    else if (!ev.takes_verdict) b.appendChild(el("span", "r", "note only"));
+    b.onclick = () => selectSceneEvent(ev, s, b);
+    rowEl.appendChild(b);
+  });
+  rail.appendChild(rowEl);
+  rail.classList.add("on");
+  const status = el("div", "conf", "Scene context rendering…");
+  rail.appendChild(status);
+  const started = Date.now();
+  async function pollScene(){
+    if (cur !== it || sceneState !== s) return;
+    try {
+      const st = await mediaJSON(API + "/media_state/scene/" + it.item_id);
+      if (cur !== it || sceneState !== s) return;
+      if (st.ready){
+        status.textContent = "Scene context ready";
+        $("ph").hidden = true; v.hidden = false;
+        const ev = s.events.find(e => e.occurrence_id === cur.source_id);
+        const seek = () => { if (cur === it && ev) v.currentTime = Math.max(0, (ev.t_ms - s.media_start_ms) / 1000); };
+        if (v.dataset.sceneId !== s.scene_id){
+          v.dataset.sceneId = s.scene_id;
+          v.src = API + "/media/scene/" + it.item_id + (isSmallScreen() ? "?v=mobile" : "");
+          v.addEventListener("loadedmetadata", seek, {once:true});
+        } else seek();
+        v.loop = false; v.play().catch(() => {});
+        return;
+      }
+      if (["FAILED", "ERROR"].includes(st.state) || Date.now() - started >= MEDIA_TIMEOUT_MS)
+        throw new Error(st.error || "Scene render timed out");
+      status.textContent = "Scene context rendering… " + st.state;
+      setTimeout(pollScene, 2000);
+    } catch(e){
+      if (cur !== it || sceneState !== s) return;
+      const retry = el("button", null, "RETRY");
+      status.replaceChildren(el("span", null, "RENDER FAILED · " + e.message + " "), retry);
+      retry.onclick = async () => {
+        retry.disabled = true;
+        try {
+          const r = await fetch(API + "/media_retry/scene/" + it.item_id, {method:"POST"});
+          if (!r.ok) throw new Error("retry failed");
+          if (cur === it) renderRail(it);
+        } catch(e){ retry.disabled = false; toast(e.message); }
+      };
+    }
+  }
+  pollScene();
+}
+
+async function selectSceneEvent(ev, s, btn){
+  if (savingVerdict && !ev.takes_verdict) return;
+  if (ev.occurrence_id){
+    const mine = cur;
+    try {
+      const r = await fetch(API + "/item/" + (ev.item_id || "USER_FRAG:" + ev.occurrence_id));
+      if (!r.ok) throw new Error("could not load next event");
+      const x = await r.json();
+      if (cur !== mine) return;
+      await show(x);
+    } catch(e){ toast(e.message); }
+  } else {
+    const t = (ev.t_ms - s.media_start_ms) / 1000;
+    if (v.dataset.sceneId === s.scene_id && isFinite(t) && t >= 0){
+      v.currentTime = t; v.play().catch(() => {});
+    }
+    loadSceneNote(ev.event_id, ev.label);
+  }
+}
+
+// A movement run or a jump pad takes a directing note and NO verdict.
+async function loadSceneNote(eventId, label){
+  const box = $("dossier");
+  if (!box) return;
+  const wrap = el("div", "dsec");
+  wrap.appendChild(el("h4", null, "note on " + (label || "this event")));
+  wrap.appendChild(el("div", "conf",
+    "a scene event takes a directing note and no T1-T5 verdict"));
+  const ta = document.createElement("textarea");
+  ta.id = "sceneNote";
+  ta.setAttribute("list", "vocab");
+  ta.placeholder = "e.g. music builds here / camera leaves FPV / heartbeat starts";
+  try {
+    const g = await (await fetch(API + "/scene_note/"
+      + encodeURIComponent(eventId))).json();
+    ta.value = g.annotation || "";
+  } catch(e){}
+  ta.addEventListener("blur", async () => {
+    try {
+      await fetch(API + "/scene_note", {method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({event_id: eventId, annotation: ta.value})});
+      toast("event note saved");
+    } catch(e){ toast("event note NOT saved"); }
+  });
+  wrap.appendChild(ta);
+  box.replaceChildren(wrap);
+}
+</script>

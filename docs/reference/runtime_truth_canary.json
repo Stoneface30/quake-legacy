@@ -1,0 +1,52 @@
+{
+  "ran_at": "2026-09-03",
+  "pipeline": "director_preview._real_capture -> wolfcamql-11.3, 1920x1080@60 MJPEG",
+  "gap1_latch_application": "encoded from master_profile.LAUNCH_SETS: see render_profile.application_report()",
+  "gap2_gamma": {
+    "frames_compared": 240,
+    "mean_luma_a": 99.27,
+    "mean_luma_b": 188.06,
+    "delta": 88.79,
+    "rank_correlation": 0.9564,
+    "verdict": "CAPTURE_VISIBLE",
+    "meaning": "gamma changed the captured pixels while the picture stayed the same",
+    "gamma_a": "1.0",
+    "gamma_b": "1.8",
+    "engine_rc": [
+      0,
+      0
+    ]
+  },
+  "gap3_camera": {
+    "frames_compared": 900,
+    "mean_difference_orbit_vs_fpv_control": 45.01,
+    "orbit_self_motion": 0.823,
+    "fpv_self_motion": 10.993,
+    "orbit_flow_strided": {
+      "samples": 13,
+      "sign_consistency": 0.538,
+      "median_abs": 1.0
+    },
+    "fpv_flow_strided": {
+      "samples": 45,
+      "sign_consistency": 0.111,
+      "median_abs": 3.0
+    },
+    "verdict": "CAMERA_PATH_PROVEN",
+    "meaning": "the plan's camera changed the delivered frames: the orbit capture differs from the first-person control of the identical window by 45.0 grey levels, far above re-encode noise",
+    "cam10_hash": "600cd4baae9558505d343c9de115c3d0c00fb223043481c10d4c4f67ccd04be2",
+    "points": "509/509",
+    "engine_rc": 0
+  },
+  "crash_root_cause": {
+    "symptom": "engine rc=1 ~7s after launch, mingw backtrace through Cbuf_Execute -> cgamex86.dll",
+    "bisect": {
+      "freecam": "rc=0 captured",
+      "freecam+loadcamera": "rc=1 crash",
+      "freecam+loadcamera+playcamera": "rc=1 crash"
+    },
+    "cause": "cam10_writer clamped to MAX_CAMERAPOINTS=512; CG_UpdateCameraInfoExt (cg_consolecmds.c:2855) walks numCameraPoints+3 and CG_LoadCamera_f calls it after reading; the interactive add path guards at MAX-3",
+    "fix": "CAM10_USABLE_POINTS = MAX_CAMERAPOINTS - 3 = 509",
+    "verified": "same three lines, 509 points: rc=0, VALID 509/509, captured"
+  }
+}

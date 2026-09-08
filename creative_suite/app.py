@@ -37,6 +37,19 @@ def create_app() -> FastAPI:
             return response
 
     app.add_middleware(NoCacheStaticMiddleware)
+    # Cloudflare Access, enforced at the origin as well as the edge. The
+    # window this closes is a hostname that exists before its Access
+    # application does -- during which the edge has no policy and forwards
+    # everything. Default closed: no token, no answer. Loopback is exempt so
+    # local use is unchanged.
+    # Order matters. Starlette runs the LAST added middleware outermost, so
+    # the Access guard must be added after the host router: authenticate
+    # first, then decide what this hostname is allowed to serve. An
+    # unauthenticated request never learns which routes exist.
+    from creative_suite.api.review_host import ReviewHostMiddleware
+    app.add_middleware(ReviewHostMiddleware)
+    from creative_suite.api.access_guard import CloudflareAccessMiddleware
+    app.add_middleware(CloudflareAccessMiddleware)
 
     from creative_suite.api._render_worker import JobQueue
 
@@ -45,6 +58,25 @@ def create_app() -> FastAPI:
     @app.on_event("startup")  # pyright: ignore[reportDeprecated]
     async def _cinema_startup() -> None:  # pyright: ignore[reportUnusedFunction]
         await app.state.job_queue.start()
+        # Review proxy jobs are queued in memory and recorded in SQLite, so a
+        # restart leaves rows marked QUEUED that no worker knows about. They
+        # cannot recover on their own: request_proxy sees QUEUED and returns
+        # early, BEFORE it would start a worker, so every later request
+        # short-circuits and the page renders forever with no Retry to press.
+        #
+        # This is the controlled scheduler pass -- once per process, at
+        # startup. Status reads still never move a job.
+        try:
+            from creative_suite.engine import review_proxy
+            # _ensure_worker both STARTS the drain thread and reclaims. Doing
+            # only the reclaim would put jobs on a queue nothing is reading:
+            # the worker is created lazily by request_proxy, and a request
+            # for an already-QUEUED row returns before it gets there.
+            review_proxy._ensure_worker()
+        except Exception as exc:                               # noqa: BLE001
+            # Never block startup for this. The reviewer works without it;
+            # it just has to be asked again.
+            print(f"[review] job reclaim skipped: {exc!r}", flush=True)
 
     @app.on_event("shutdown")  # pyright: ignore[reportDeprecated]
     async def _cinema_shutdown() -> None:  # pyright: ignore[reportUnusedFunction]
@@ -56,14 +88,19 @@ def create_app() -> FastAPI:
         capture,
         clips,
         comfy,
+        director,
+        director_draft,
         editor,
         engine,
         forge,
+        frags,
         md3,
         ollama,
         packs,
         parts,
         phase1,
+        review,
+        scene_editor,
         studio,
         variants,
     )
@@ -82,6 +119,11 @@ def create_app() -> FastAPI:
     app.include_router(studio.router)
     app.include_router(forge.router)
     app.include_router(engine.router)
+    app.include_router(frags.router)
+    app.include_router(director.router)
+    app.include_router(director_draft.router)
+    app.include_router(scene_editor.router)
+    app.include_router(review.router)
 
     # Spec §11.3 mitigation: check img2img workflow placeholders at boot.
     # This only logs — it never aborts startup, so a ComfyUI update that
@@ -129,6 +171,18 @@ def create_app() -> FastAPI:
     def studio_page() -> FileResponse:  # pyright: ignore[reportUnusedFunction]
         return FileResponse(FRONTEND_ROOT / "studio.html")
 
+    @app.get("/frags")
+    def frags_page() -> FileResponse:  # pyright: ignore[reportUnusedFunction]
+        return FileResponse(FRONTEND_ROOT / "frags.html")
+
+    @app.get("/scene-editor/{scene_key}")
+    def scene_editor_page(scene_key: str) -> FileResponse:  # pyright: ignore[reportUnusedFunction]
+        # scene_key is stable IDENTITY only ("frag-5979" / "recipe-<sha>") —
+        # the page fetches its own state, so no editor state ever rides in
+        # the URL. The parameter is read by the client, not the server.
+        del scene_key
+        return FileResponse(FRONTEND_ROOT / "scene-editor.html")
+
     PHOTOREAL_DIR = Path(__file__).parent / "comfy" / "photoreal"
 
     @app.get("/gallery")
@@ -141,6 +195,12 @@ def create_app() -> FastAPI:
     if WEB_ROOT.exists():
         app.mount("/web", StaticFiles(directory=str(WEB_ROOT)), name="web")
     if cfg.phase1_output_dir.exists():
+        # Specific mounts precede /media: Starlette uses the first match.
+        preview_dir = cfg.phase1_output_dir.parent / "creative_suite" / "generated" / "preview"
+        app.mount("/media/preview", StaticFiles(directory=str(preview_dir), check_dir=False),
+                  name="media-preview")
+        app.mount("/media/phase1", StaticFiles(directory=str(cfg.phase1_output_dir)),
+                  name="media-phase1")
         app.mount(
             "/media",
             StaticFiles(directory=str(cfg.phase1_output_dir)),
@@ -154,8 +214,6 @@ def create_app() -> FastAPI:
         vendor_dir = FRONTEND_ROOT / "vendor"
         if vendor_dir.exists():
             app.mount("/vendor", StaticFiles(directory=str(vendor_dir)), name="vendor")
-    if cfg.phase1_output_dir.exists():
-        app.mount("/media/phase1", StaticFiles(directory=str(cfg.phase1_output_dir)), name="media-phase1")
 
     _engine_graph = _ENGINE_GRAPH_DIR
     if _engine_graph.exists():

@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>PANTHEON</title>
+  <link rel="icon" href="/static/icons/pantheon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/studio.css">
   <link rel="stylesheet" href="/static/css/tokens.css">
 </head>
@@ -50,7 +51,8 @@
   </div>
 
   <!-- vendor libs (unchanged order) -->
-  <script src="/vendor/wavesurfer.js"></script>
+  <!-- wavesurfer.js is an ES module (no IIFE global) and multitrack bundles its own
+       copy — loading it as a classic script only throws "Unexpected token export". -->
   <script src="/vendor/wavesurfer-multitrack.js"></script>
   <script src="/vendor/animation-timeline.js"></script>
   <script src="/vendor/litegraph.js"></script>
@@ -61,6 +63,21 @@
   </script>
   <script src="/vendor/mp4box.js"></script>
   <script src="/vendor/theatre-core-studio.js"></script>
+  <!-- The bundle logs an error on every load unless studio.initialize() is called.
+       Nothing in the app consumes Theatre yet, so initialize it headless (UI hidden)
+       purely to keep the console clean. See CLAUDE.md AGPL exception before shipping. -->
+  <script>
+    (function () {
+      try {
+        var t = window.Theatre || window.TheatreStudio;
+        var studio = (t && t.studio) || window.TheatreStudio;
+        if (studio && typeof studio.initialize === 'function') {
+          studio.initialize();
+          if (studio.ui && typeof studio.ui.hide === 'function') { studio.ui.hide(); }
+        }
+      } catch (e) { /* non-fatal: Theatre is not on any critical path */ }
+    })();
+  </script>
 
   <!-- Icon utility -->
   <script src="/static/js/icon.js"></script>

@@ -17,6 +17,8 @@ package-lock.json
 # Database with personal gameplay data
 database/frags.db
 database/*.db
+creative_suite/database/*.db
+creative_suite/database/*.png
 
 # Archives
 *.zip
@@ -90,6 +92,8 @@ docs/visual-record/*/gameplay-frames/*.png
 docs/visual-record/*/render-frames/*.jpg
 docs/visual-record/*/render-frames/*.png
 creative_suite/engine/music/library/
+engine/music/library/
+engine/music/downloaded/
 # Copyrighted music — kept local, never committed to public repo (Rule P1-R assets)
 creative_suite/engine/music/*.mp3
 creative_suite/engine/music/*.ogg
@@ -103,6 +107,8 @@ storage/
 
 # Generated pk3 style packs — large binary files, regenerable, not for public repo
 creative_suite/generated/packs/
+creative_suite/generated/pantheon/
+creative_suite/generated/preview/
 
 # 2026-04-19 video tooling upgrade — downloaded binaries stay local, never committed
 tools/ffmpeg-7/
@@ -156,16 +162,16 @@ engine/engines/yamagi-quake2/
 
 # ComfyUI photoreal pipeline — generated output and proprietary game assets.
 # gallery.html (the viewer) IS committed; all binary output is not.
-creative_suite/comfy/photoreal/assets/          # pak00 PNGs extracted from Steam (986 MB, proprietary)
-creative_suite/comfy/photoreal/pipelines/       # full_overnight.py batch output (large, regenerable)
-creative_suite/comfy/photoreal/pass1/           # legacy first-pass output
-creative_suite/comfy/photoreal/e2e/             # generated E2E test images (regenerable)
-creative_suite/comfy/photoreal/assets.db        # runtime SQLite DB (regenerable)
+creative_suite/comfy/photoreal/assets/
+creative_suite/comfy/photoreal/pipelines/
+creative_suite/comfy/photoreal/pass1/
+creative_suite/comfy/photoreal/e2e/
+creative_suite/comfy/photoreal/assets.db
 creative_suite/comfy/photoreal/run.log
 creative_suite/comfy/photoreal/run_err.log
 # gallery.html IS tracked — it is the visual viewer, not generated output
 !creative_suite/comfy/photoreal/gallery.html
-creative_suite/comfy/photoreal/compare/         # old comparison UI
+creative_suite/comfy/photoreal/compare/
 
 # Private nickname map — sha8(nick) -> real nickname. NEVER commit.
 .nickname_map.json
@@ -199,6 +205,12 @@ celshade_wild.py
 creative_suite/comfy/photoreal/celshade_wild/
 creative_suite/comfy/photoreal/twopass_test/
 creative_suite/comfy/photoreal/*.log
+creative_suite/comfy/photoreal/*.err
+creative_suite/comfy/photoreal/check_progress.py
+creative_suite/comfy/photoreal/check_sizes.py
+creative_suite/comfy/photoreal/find_samples.py
+creative_suite/comfy/photoreal/patch_steps.py
+creative_suite/comfy/photoreal/launch.bat
 creative_suite/comfy/batch_overnight.py
 creative_suite/comfy/check_nodes.py
 
@@ -218,3 +230,22 @@ engine/ghidra/_staging_extract/
 !engine/ghidra/symbols/
 !engine/ghidra/README.md
 
+# Parser output — contains player names from demo parses (PII)
+engine/parser/stream.json
+engine/parser/*.json
+
+.mcp.json
+
+# THE_PANTHEON exchange -- exported public clips + manifest.
+# Media and player names leave the repo through here and must never enter it.
+exchange/
+
+# Runtime SQLite stores and journals can contain private gameplay data.
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+
+# Local review experiments and verification artifacts
+.tmp/
+tmp/

@@ -98,18 +98,18 @@ def test_resolves_to_covering_clip(
         "Demo (22) - 195.avi": 5.0,
         "Demo (46) - 565.avi": 7.0,
     })
-    # offset=15s + first clip 8s ends at 23s → time=20s is inside clip 0.
+    # offset=13s + first clip 8s ends at 21s → time=20s is inside clip 0.
     b = client.get("/api/clips/resolve?part=4&time=20").json()
     assert b["clip_index"] == 0
     assert b["clip_filename"] == "Demo (37) - 446.avi"
     assert b["demo_hint"] == "37"
-    assert abs(b["clip_offset"] - 5.0) < 1e-6  # 20 - 15 - 0
+    assert abs(b["clip_offset"] - 7.0) < 1e-6  # 20 - 13 - 0
 
-    # time=25s is 10s into content = 2s into clip 1 (after clip 0's 8s).
+    # time=25s is 12s into content = 4s into clip 1 (after clip 0's 8s).
     b = client.get("/api/clips/resolve?part=4&time=25").json()
     assert b["clip_index"] == 1
     assert b["clip_filename"] == "Demo (22) - 195.avi"
-    assert abs(b["clip_offset"] - 2.0) < 1e-6
+    assert abs(b["clip_offset"] - 4.0) < 1e-6
 
 
 def test_uses_manifest_over_styleb(

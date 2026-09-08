@@ -1,0 +1,9 @@
+{
+ "asked_ms": 2500,
+ "frames_expected": 150,
+ "frames_written": 77,
+ "truncated": true,
+ "ok": true,
+ "seconds_wall": 303.4,
+ "before_fix_frames": 42
+}

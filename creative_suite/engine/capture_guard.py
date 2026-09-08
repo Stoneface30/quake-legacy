@@ -1,0 +1,261 @@
+"""Never take the screen away from someone who is playing.
+
+THE DEFECT, IN THE USER'S WORDS: "its fucking alt tabing my game everytime
+you start a session."
+
+Capture is not a background job. WolfcamQL is a full game client: starting
+one creates a window, and Windows gives a newly created top-level window the
+foreground. If the user is mid-round in Quake Live, that is a lost round.
+
+The review proxy makes this worse by design. `reclaim_orphaned_jobs()` runs
+at server startup so a restart does not leave the reviewer spinning forever
+on jobs no worker owns -- which means every single server start can spawn a
+capture, unprompted, at whatever moment the server happens to come up.
+
+TWO INDEPENDENT PROTECTIONS, because either alone still loses a round:
+
+1. DEFER WHILE A GAME IS RUNNING. A queued capture is not urgent; the round
+   the user is playing is. The worker parks the job and tries again later.
+   Nothing is dropped and nothing is failed -- the job stays QUEUED and runs
+   the moment the game closes.
+
+2. LAUNCH WITHOUT ACTIVATION. When a capture does run, the window is asked
+   for minimized-and-not-activated (SW_SHOWMINNOACTIVE). Windows honours
+   this for the initial show, so the capture no longer yanks the foreground
+   from whatever the user is doing.
+
+Protection 1 is the one that matters, and it is deliberately conservative:
+if the process list cannot be read at all, we assume a game IS running and
+wait, because a delayed clip costs nothing and a stolen foreground costs a
+round.
+"""
+from __future__ import annotations
+
+import ctypes
+import os
+import sys
+from ctypes import wintypes
+import subprocess
+import sys
+
+# Processes whose presence means "the user is playing, do not touch the
+# screen". Lower-cased, matched exactly against the executable name.
+DEFAULT_GAMES = (
+    "quakelive_steam.exe",
+    "quakelive.exe",
+    "quakelive_steam_x64.exe",
+    "quakelive_x64.exe",
+)
+
+# CS_CAPTURE_GAMES overrides the watch list (comma separated). It changes
+# WHICH processes count as "playing", never whether playing matters.
+_ENV_GAMES = "CS_CAPTURE_GAMES"
+
+# CS_CAPTURE_ANYTIME is GONE, deliberately and without a fallback. It meant
+# "capture even while a game is running", which is the one thing the render
+# permit forbids outright, and a second switch for the same decision is how
+# the user ends up hunting for the one that is actually in effect. The single
+# authority is engine.pantheon.render_permit; PANTHEON_RENDER=off is the way
+# to turn rendering off, and nothing turns the running-game rule off.
+#
+# This function now answers ONLY "is a game on screen". Whether that means
+# anything is the permit's decision, not this module's.
+
+
+def watched_games() -> tuple[str, ...]:
+    raw = os.getenv(_ENV_GAMES)
+    if not raw:
+        return DEFAULT_GAMES
+    return tuple(p.strip().lower() for p in raw.split(",") if p.strip())
+
+
+# A MAXIMISED CHAT WINDOW IS NOT A MATCH.
+#
+# The shape signal alone is too eager: on 2026-09-07 it deferred every render
+# because Discord was full-screen. These are the things that routinely fill a
+# monitor and are not somebody playing. The list is a convenience, not the
+# safety net -- a grabbed pointer is, and that is checked separately and
+# unconditionally.
+NOT_A_GAME = {
+    "explorer.exe", "searchhost.exe", "dwm.exe", "shellexperiencehost.exe",
+    "wolfcamql.exe",                       # our own renderer
+    "discord.exe", "slack.exe", "teams.exe", "zoom.exe",
+    "chrome.exe", "firefox.exe", "msedge.exe", "brave.exe", "opera.exe",
+    "code.exe", "devenv.exe", "pycharm64.exe", "idea64.exe",
+    "windowsterminal.exe", "powershell.exe", "pwsh.exe", "cmd.exe",
+    "claude.exe", "notepad.exe", "notepad++.exe",
+    "vlc.exe", "mpv.exe", "mpc-hc64.exe", "spotify.exe",
+    "obs64.exe", "snippingtool.exe", "photos.exe",
+}
+
+
+def foreground_is_fullscreen() -> bool:
+    """Is a full-screen application in front of the operator right now?
+
+    A NAMED LIST IS NOT ENOUGH, and 2026-09-07 proved it: the list held four
+    Quake Live executables, the operator was playing OVERWATCH, and the permit
+    granted every capture of the evening. A list can only ever know the games
+    someone remembered to add.
+
+    So the shape of the thing is checked too -- a window covering its whole
+    monitor, belonging to a process that is not obviously not a game. That
+    exclusion matters: the first version of this deferred everything because
+    Discord was full-screen.
+    """
+    if sys.platform != "win32":
+        return False
+    try:
+        u = ctypes.WinDLL("user32", use_last_error=True)
+        hwnd = u.GetForegroundWindow()
+        if not hwnd:
+            return False
+        rect = wintypes.RECT()
+        u.GetWindowRect(wintypes.HWND(hwnd), ctypes.byref(rect))
+
+        class MONITORINFO(ctypes.Structure):
+            _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT),
+                        ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD)]
+
+        mon = u.MonitorFromWindow(wintypes.HWND(hwnd), 2)   # NEAREST
+        info = MONITORINFO()
+        info.cbSize = ctypes.sizeof(MONITORINFO)
+        u.GetMonitorInfoW(mon, ctypes.byref(info))
+        m = info.rcMonitor
+        win_area = max(rect.right - rect.left, 0) * max(rect.bottom - rect.top, 0)
+        mon_area = max(m.right - m.left, 1) * max(m.bottom - m.top, 1)
+        if win_area < mon_area * 0.98:
+            return False
+        # The desktop itself covers the monitor and is not a game.
+        pid = wintypes.DWORD()
+        u.GetWindowThreadProcessId(wintypes.HWND(hwnd), ctypes.byref(pid))
+        if pid.value in (0, os.getpid()):
+            return False
+        try:
+            import psutil
+            name = (psutil.Process(pid.value).name() or "").lower()
+        except Exception:                                      # noqa: BLE001
+            return True                                        # unreadable: defer
+        return name not in NOT_A_GAME
+    except Exception:                                          # noqa: BLE001
+        return True            # cannot tell: fail towards the operator
+
+
+def pointer_is_grabbed() -> bool:
+    """Has some application confined the mouse to a rectangle?
+
+    A game holding the pointer is a game being played. This is the same
+    measurement the offscreen watcher takes, read here for the opposite
+    reason: not to check our own behaviour, but to notice someone else's.
+    """
+    if sys.platform != "win32":
+        return False
+    try:
+        u = ctypes.WinDLL("user32", use_last_error=True)
+        r = wintypes.RECT()
+        u.GetClipCursor(ctypes.byref(r))
+        w = u.GetSystemMetrics(78)         # SM_CXVIRTUALSCREEN
+        h = u.GetSystemMetrics(79)         # SM_CYVIRTUALSCREEN
+        if not (w and h):
+            return False
+        return (r.right - r.left) < w or (r.bottom - r.top) < h
+    except Exception:                                          # noqa: BLE001
+        return False
+
+
+def game_is_running() -> bool:
+    """Is something we must not interrupt on screen right now?
+
+    FAILS TOWARDS THE USER. An unreadable process list returns True: we
+    would rather delay a capture we could have run than steal the screen
+    from a game we could not see.
+
+    Two signals, either of which is enough: a pointer some application has
+    grabbed, or a named process.
+
+    FULL-SCREEN SHAPE IS NOT ONE OF THEM, and that is a correction. The first
+    version of this deferred on any window covering its monitor, which on
+    2026-09-07 meant Discord, and then qBittorrent, within ten minutes -- two
+    false alarms and no true one that the pointer had not already caught. An
+    exclusion list only moves the problem to the next app nobody enumerated.
+
+    A GRABBED POINTER NEEDS NO LIST. Overwatch was caught by it: the clip
+    rectangle was 1920x1080 on a 3000x1440 desktop. Only an application that
+    captures the mouse does that, and that is what being played looks like.
+    `foreground_is_fullscreen()` remains available and is reported, because it
+    is worth SEEING in a diagnosis; it just does not decide anything.
+    """
+    if pointer_is_grabbed():
+        return True
+    names = watched_games()
+    try:
+        import psutil
+    except ImportError:
+        return _game_is_running_fallback(names)
+    try:
+        for p in psutil.process_iter(["name"]):
+            n = (p.info.get("name") or "").lower()
+            if n in names:
+                return True
+    except Exception:                                          # noqa: BLE001
+        return True
+    return False
+
+
+def _game_is_running_fallback(names: tuple[str, ...]) -> bool:
+    """Without psutil: a Win32 toolhelp snapshot through ctypes.
+
+    Never `tasklist`, never a shell -- a console window popping up on the
+    user's game is the fault this module exists to prevent, and a guard that
+    causes it would be the joke of the year. Fails towards the user: an
+    unreadable snapshot means "assume a game is running".
+    """
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+        from ctypes import wintypes
+        TH32CS_SNAPPROCESS = 0x00000002
+
+        class PROCESSENTRY32W(ctypes.Structure):
+            _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD),
+                        ("th32ProcessID", wintypes.DWORD),
+                        ("th32DefaultHeapID", ctypes.POINTER(ctypes.c_ulong)),
+                        ("th32ModuleID", wintypes.DWORD), ("cntThreads", wintypes.DWORD),
+                        ("th32ParentProcessID", wintypes.DWORD),
+                        ("pcPriClassBase", ctypes.c_long), ("dwFlags", wintypes.DWORD),
+                        ("szExeFile", ctypes.c_wchar * 260)]
+
+        k32 = ctypes.windll.kernel32
+        snap = k32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+        if snap == wintypes.HANDLE(-1).value:
+            return True
+        try:
+            e = PROCESSENTRY32W()
+            e.dwSize = ctypes.sizeof(PROCESSENTRY32W)
+            if not k32.Process32FirstW(snap, ctypes.byref(e)):
+                return True
+            while True:
+                if e.szExeFile.lower() in names:
+                    return True
+                if not k32.Process32NextW(snap, ctypes.byref(e)):
+                    break
+        finally:
+            k32.CloseHandle(snap)
+        return False
+    except Exception:                                          # noqa: BLE001
+        return True
+
+
+def quiet_startup_info() -> object | None:
+    """Show a capture window minimized, and do not give it the foreground.
+
+    Returns a STARTUPINFO on Windows and None elsewhere, so callers can pass
+    it straight to Popen(startupinfo=...) on every platform.
+    """
+    if sys.platform != "win32":
+        return None
+    si = subprocess.STARTUPINFO()                # type: ignore[attr-defined]
+    si.dwFlags |= subprocess.STARTF_USESHOWWINDOW  # type: ignore[attr-defined]
+    # 7 == SW_SHOWMINNOACTIVE: appear minimized, leave the foreground alone.
+    si.wShowWindow = 7
+    return si
