@@ -38,7 +38,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: in a worktree these differ, and opening a database
+# under the wrong one silently creates an empty file. See
+# engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 EDITORIAL_DB = REPO_ROOT / "creative_suite" / "database" / "editorial.db"
 
 TAG_VERSION = "review-tags-v1"

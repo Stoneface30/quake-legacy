@@ -15,7 +15,11 @@ from pathlib import Path
 
 from creative_suite.database import demo_v2_db
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: under a worktree these differ, and opening a
+# database beneath the wrong one silently CREATES an empty file
+# rather than failing. See engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 DEFAULT_OUT_PATH = REPO_ROOT / "output" / "demo_v2" / "part01" / "scene_beat_anchors.json"
 
 # Ledger rows eligible for planning — the promoted pool plus already-captured

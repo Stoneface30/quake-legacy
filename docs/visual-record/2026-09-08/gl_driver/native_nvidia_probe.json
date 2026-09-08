@@ -1,0 +1,14 @@
+{
+ "seconds": 9.3,
+ "log_bytes": 3856,
+ "GL_VENDOR": null,
+ "GL_RENDERER": "GL_RENDERER: NVIDIA GeForce RTX 5060 Ti/PCIe/SSE2",
+ "GL_VERSION": null,
+ "reached_renderer_init": true,
+ "got_a_context": true,
+ "pixel_format_failure": false,
+ "gl_subsystem_failure": false,
+ "visible_windows": [],
+ "stole_focus": false,
+ "returncode": 1
+}

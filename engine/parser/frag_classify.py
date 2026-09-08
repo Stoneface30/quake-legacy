@@ -45,10 +45,23 @@ import math
 from dataclasses import dataclass, field
 from typing import Any, Iterable, Sequence
 
-# ── Quake Live MOD_* weapon ids seen in the obituary stream ──────────────────
-W_GAUNTLET = 1
-W_MACHINEGUN = 2
-W_SHOTGUN = 3
+# ── Quake Live MOD_* ids as they appear in the obituary stream ──────────────
+#
+# THESE ARE MOD_*, NOT WP_*. Quake carries two different weapon enums and the
+# first three entries disagree:
+#
+#     MOD_*  (obituary / means of death)  1 SHOTGUN  2 GAUNTLET  3 MACHINEGUN
+#     WP_*   (the weapon a player holds)  1 GAUNTLET 2 MACHINEGUN 3 SHOTGUN
+#
+# This block carried the WP_ order under a comment naming the obituary stream.
+# The values are compared against kill_events_v1.mod, which is MOD_, so
+# W_SHOTGUN=3 matched MACHINEGUN: the shotgun arm of the REACTION_SHOT
+# gate in frag_recognition.py never admitted a single one of the corpus's
+# 7,846 shotgun kills, and every REACTION_SHOT_CANDIDATE on record is a rail.
+# Verified against bg_public.h and against the stored mod -> mod_name map.
+W_SHOTGUN = 1
+W_GAUNTLET = 2
+W_MACHINEGUN = 3
 W_GRENADE = 4
 W_GRENADE_SPLASH = 5
 W_ROCKET = 6

@@ -68,6 +68,8 @@ import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
+
+from engine.pantheon import render_permit
 from pathlib import Path
 from typing import Any
 
@@ -81,7 +83,11 @@ from creative_suite.engine.scene_recipe import (DemoRef, EventAnchor,
                                                 EvidenceRef, MusicPlacement,
                                                 SceneRecipeV2, TimeSegment)
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: under a worktree these differ, and opening a
+# database beneath the wrong one silently CREATES an empty file
+# rather than failing. See engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 
 # Bump when anything in THIS module changes the resulting pixels. It is part
 # of preview_key, so a bump invalidates every cached artifact by construction
@@ -1803,6 +1809,13 @@ def _worker_loop() -> None:
                 _generate(job)
             finally:
                 review_proxy._release_lock()
+        except render_permit.RenderNotPermitted as rd:
+            # off, or a protected game is running: the job is DEFERRED, not
+            # failed, and is offered again later
+            _set_state(job["preview_key"], STATE_QUEUED,
+                       error=f"RENDER DEFERRED: {rd.decision.reason}")
+            time.sleep(review_proxy._PERMIT_WAIT_S)
+            _queue.put(job)
         except Exception as exc:      # the worker must never die
             _set_state(job["preview_key"], STATE_FAILED, error=str(exc)[:500])
         finally:
@@ -2002,10 +2015,12 @@ def _real_capture(job: dict[str, Any], plan: PreviewPlan, tmp_mp4: Path,
         # ASK THE ONE AUTHORITY. A preview is user-triggered, so unlike the
         # review queue it has nothing to defer INTO -- it fails fast and
         # says why, rather than opening a window over a live game.
-        from engine.pantheon import render_permit
-        decision = render_permit.check(purpose="director preview")
+        # It DOES have a queue to defer into (this worker), so a refusal is
+        # RenderNotPermitted, which _worker_loop turns into QUEUED + RENDER
+        # DEFERRED rather than a failed preview.
+        decision = render_permit.check(purpose=f"director preview {key}")
         if not decision.may_render:
-            raise PreviewBuildError(decision.reason)
+            raise render_permit.RenderNotPermitted(decision)
         # And when it does run: minimized, not activated.
         from creative_suite.engine.capture_guard import (
             quiet_startup_info)

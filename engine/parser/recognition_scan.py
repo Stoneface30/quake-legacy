@@ -26,8 +26,17 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-REPO = HERE.parents[1]
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parents[1]))
+
+# DATA, not code. HERE.parents[1] is the CODE root, which is correct in the
+# main checkout only by coincidence: in a worktree the databases live with
+# the project, and SQLite CREATES whatever you open -- so pointing at the
+# wrong root does not fail, it makes an empty frags_rebuilt.db and scans
+# nothing while reporting success. Rule HL-9. The reviewer session fixed
+# fifteen modules and this was not one of them.
+from engine.pantheon.store import data_root as _data_root  # noqa: E402
+REPO = _data_root()
 
 import frag_recognition as _fr        # noqa: E402  (after sys.path insert)
 

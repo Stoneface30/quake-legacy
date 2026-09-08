@@ -139,6 +139,15 @@ _MOD_NAMES = {
 # ---------------------------------------------------------------------------
 # EntityState NETF field indices (from qldemo EntityStateNETF.update())
 # ---------------------------------------------------------------------------
+# THE TRAJECTORY IS NOT JUST A POINT. pos.trBase alone is meaningless for a
+# moving entity: a Q3 missile sets trBase/trDelta/trTime once at spawn and
+# never changes them, so trBase repeats identically across snapshots while the
+# missile crosses the map. Reading it as a position is the classic mistake.
+# Indices from the protocol-73 entityState field table (docs/reference/
+# dm73-format-deep-dive.md, confirmed against qldemo EntityStateNETF).
+_F_POS_TIME = 0   # pos.trTime — 32 bits, the trajectory's own start time
+_F_POS_TRTYPE = 17  # pos.trType — 8 bits (TR_STATIONARY/TR_LINEAR/TR_GRAVITY…)
+_F_POS_TRDUR = 23  # pos.trDuration — 32 bits
 _F_POS_X   =  1   # pos.trBase[0] — float
 _F_POS_Y   =  2   # pos.trBase[1] — float
 _F_VEL_X   =  3   # pos.trDelta[0] — float
@@ -147,6 +156,11 @@ _F_POS_Z   =  5   # pos.trBase[2] — float
 _F_YAW     =  6   # apos.trBase[1] — float
 _F_VEL_Z   =  7   # pos.trDelta[2] — float
 _F_PITCH   =  8   # apos.trBase[0] — float
+# angles2[YAW] on a player is NOT an angle: it is the 0-7 movement
+# direction index cgame uses to offset the legs from the view
+# (CG_PlayerAngles movementOffsets). Without it a strafing player's
+# legs face his aim instead of his travel.
+_F_ANGLES2_YAW = 11
 _F_EVENT   = 10   # event (10 bits)
 _F_ETYPE   = 12   # eType (8 bits)
 _F_EVPARM  = 14   # eventParm (8 bits)
@@ -182,6 +196,21 @@ _PS_EVPARM1   = 39   # eventParms[1] (8 bits)
 _MAX_PS_EVENTS = 2
 _PS_GROUND    = 20   # groundEntityNum (10 bits); 1023 = airborne
 _PS_WEAPON    = 41   # weapon slot (5 bits)
+# From the GENERATED schema (engine/parser/netfields_generated.py,
+# playerStateFieldsQ3, which msg.c selects for protocol 73). Not transcribed
+# by hand: a test regenerates the table from the engine source and fails on
+# drift. The previous hand audit skipped the one entry whose bit width is a
+# macro and concluded, wrongly, that protocol 73 used a different table.
+_PS_MOVEDIR    = 15  # movementDir (4 bits): 0-7 octant, own-POV
+_PS_LEGSTIMER  = 11  # legsTimer
+_PS_PM_FLAGS   = 19  # pm_flags
+_PS_VIEWHEIGHT = 28  # viewheight (signed 8) -- NOT always 26
+_PS_DMG_EVENT  = 29  # damageEvent
+_PS_DMG_YAW    = 30  # damageYaw
+_PS_DMG_PITCH  = 31  # damagePitch
+_PS_DMG_COUNT  = 32  # damageCount
+_PS_PM_TYPE    = 34  # pm_type: PM_NORMAL / PM_DEAD / PM_SPECTATOR / ...
+_PS_TORSOTIMER = 37  # torsoTimer
 
 # ---------------------------------------------------------------------------
 # Q3A msg_hData[256] frequency table (from engine/_canonical/src/qcommon/msg.c)
@@ -439,9 +468,25 @@ class _Bits:
         return sym
 
     def readshort(self) -> int:
+        """MSG_ReadShort. SIGNED, like the engine.
+
+        msg.c does `c = (short)MSG_ReadBits(msg, 16)` -- an explicit cast to a
+        signed short -- and readlong() below already sign-extends. This one did
+        not, and the STAT_ array is read through it (see the playerstate
+        decode), so a dead player's negative health came back as its unsigned
+        complement: 23 stored health_at_frag values sat between 65,459 and
+        65,535, which are -77 to -1. Those are exactly the interesting ones,
+        the heavy overkill deaths.
+
+        Sign-extending is safe for the other callers: the configstring index
+        is bounded well below 32,767, and the stats/persistant bitmasks are
+        used with `&`, where Python's arbitrary-precision -1 behaves as
+        all-ones exactly as the 16-bit mask intends.
+        """
         lo, self._bit = self._h.receive(self._data, self._bit)
         hi, self._bit = self._h.receive(self._data, self._bit)
-        return lo | (hi << 8)
+        v = lo | (hi << 8)
+        return v - 0x10000 if v >= 0x8000 else v
 
     def readlong(self) -> int:
         b0, self._bit = self._h.receive(self._data, self._bit)
@@ -525,6 +570,17 @@ class DM73Parser:
         self._map: str      = ''
         self._gametype: str = ''
         # Delta-accumulation state
+        # Snapshot history for delta references: messageNum -> (playerstate,
+        # entity states) AFTER that snapshot was applied. PACKET_BACKUP is 32
+        # in the engine; anything older cannot be referenced.
+        # ENTITY LIFETIMES. One span per continuous occupancy of a slot, so a
+        # slot that is removed and later reused yields two spans and never one
+        # merged history of two different occupants.
+        self._ent_lifetime: list[dict] = []
+        self._ent_open: dict[int, dict] = {}
+        self._snapshot_presence: list[dict] = []
+        self._snap_history: dict[int, tuple] = {}
+        self._missing_delta_refs = 0
         self._ps_state: dict   = {}           # accumulated playerstate fields
         self._entity_states: dict[int, dict] = {}   # entity_num → accumulated fields
         # Initialised here, NOT in parse(): callers (and tests) drive _dispatch()
@@ -560,7 +616,7 @@ class DM73Parser:
                 if len(payload) < length:
                     break
                 try:
-                    self._dispatch(payload, events, snapshots)
+                    self._dispatch(payload, events, snapshots, seq)
                 except Exception as exc:
                     # COUNT failures. A silent `pass` here hid a NameError that
                     # dropped every obituary packet and produced a completely
@@ -573,6 +629,12 @@ class DM73Parser:
         if self._cur_round > 0:
             if self._rounds and self._rounds[-1].get('end_ms') is None:
                 self._rounds[-1]['end_ms'] = self._last_server_time
+
+        # Spans still open at EOF ended because the RECORDING ended, which is
+        # not the same fact as the entity being removed. Label it as such.
+        for entity_num in list(self._ent_open):
+            self._close_span(entity_num, self._last_server_time,
+                             'RECORDING_ENDED')
 
         # Compute per-player stats from events
         stats = _compute_player_stats(events, self._players)
@@ -588,6 +650,8 @@ class DM73Parser:
             'snapshot_count': len(snapshots),
             'snapshots':    snapshots,
             'entities':     self._ent_track,
+            'entity_lifetimes': self._ent_lifetime,
+            'snapshot_presence': self._snapshot_presence,
             'server_text':  self._server_text,
             'round_results': self._round_results,
             'missiles':     self._missile_track,
@@ -601,7 +665,8 @@ class DM73Parser:
 
     # ── packet dispatcher ─────────────────────────────────────────────────────
 
-    def _dispatch(self, payload: bytes, events: list, snapshots: list):
+    def _dispatch(self, payload: bytes, events: list, snapshots: list,
+                  message_num: int = 0):
         """Read EVERY message in the packet, not just the first.
 
         A packet carries an ack sequence then a SEQUENCE of messages terminated
@@ -626,7 +691,7 @@ class DM73Parser:
             elif cmd == _SVC_SERVERCOMMAND:
                 self._parse_servercommand(s)
             elif cmd == _SVC_SNAPSHOT:
-                self._parse_snapshot(s, events, snapshots)
+                self._parse_snapshot(s, events, snapshots, message_num)
             else:
                 # Unknown/unhandled opcode: the bit position is no longer
                 # trustworthy, so stop rather than decode garbage.
@@ -778,7 +843,9 @@ class DM73Parser:
             except (ValueError, IndexError):
                 continue
 
-    def _parse_snapshot(self, s: _Bits, events: list, snapshots: list):
+    def _parse_snapshot(self, s: _Bits, events: list, snapshots: list,
+                        message_num: int = 0):
+        """Decode one snapshot against its declared reference."""
         server_time           = s.readlong()
         self._last_server_time = server_time
         delta_num             = s.readbyte()
@@ -789,6 +856,23 @@ class DM73Parser:
             self._entity_states = {k: dict(v) for k, v in self._baseline_entities.items()}
             self._entity_prev_etype.clear()
             self._entity_prev_ev.clear()
+        else:
+            # THE DELTA REFERENCE. The engine decodes against the snapshot at
+            # messageNum - deltaNum, not against whatever state happens to be
+            # accumulated. Those differ whenever deltaNum > 1, which is 19.34%
+            # of snapshots measured over 12 demos: a field changed in a
+            # skipped snapshot and then omitted from this delta must revert to
+            # the older reference value, and accumulating keeps the skipped one.
+            ref = self._snap_history.get(message_num - delta_num)
+            if ref is not None:
+                self._ps_state = dict(ref[0])
+                self._entity_states = {k: dict(v) for k, v in ref[1].items()}
+            # A reference we no longer hold (older than the history, or a lost
+            # packet) leaves the accumulated state in place. That is the same
+            # fallback the client has, and it is recorded rather than hidden.
+            elif delta_num:
+                self._missing_delta_refs += 1
+
         area_len              = s.readbyte()
         # Exactly areamaskLen bytes -- see docs/reference/dm73-format-deep-dive.md
         # line 348 ("areamask byte[areamaskLen]") and Q3 CL_ParseSnapshot, which
@@ -809,6 +893,20 @@ class DM73Parser:
         snap['server_time_ms'] = server_time
         snap['round_num']      = self._cur_round
         snapshots.append(snap)
+
+        # Record the state AFTER this snapshot so a later delta can reference
+        # it. Both streams are complete at this point: entities were decoded
+        # above and the playerstate immediately before this.
+        #
+        # PACKET_BACKUP is 32 in the engine, so a reference older than that
+        # cannot exist; keeping a little more than that costs nothing and
+        # avoids evicting an entry a valid delta still wants.
+        self._snap_history[message_num] = (
+            dict(self._ps_state),
+            {k: dict(v) for k, v in self._entity_states.items()})
+        if len(self._snap_history) > 64:
+            for old_num in sorted(self._snap_history)[:-64]:
+                del self._snap_history[old_num]
         if self._ps_events:
             for pe in self._ps_events:
                 code = pe['event_code']
@@ -826,6 +924,7 @@ class DM73Parser:
             self._ps_events = []
 
         # Read all entity deltas
+        changed_this_snapshot: set[int] = set()
         while True:
             entity_num = s.readbits(_GENTITYNUM_BITS)
             if entity_num == _SENTINEL:
@@ -843,6 +942,7 @@ class DM73Parser:
                 self._entity_states.pop(entity_num, None)
                 self._entity_prev_etype.pop(entity_num, None)
                 self._entity_prev_ev.pop(entity_num, None)
+                self._close_span(entity_num, server_time, 'EXPLICIT_REMOVAL')
                 continue
 
             if not delta:
@@ -854,6 +954,7 @@ class DM73Parser:
                 self._entity_states[entity_num] = {}
             self._entity_states[entity_num].update(delta)
             accumulated = self._entity_states[entity_num]
+            changed_this_snapshot.add(entity_num)
 
             # Record every PLAYER entity's state this snapshot. Entity numbers
             # below MAX_CLIENTS are players. The playerstate stream only covers
@@ -876,27 +977,13 @@ class DM73Parser:
                     'vel_x': accumulated.get(_F_VEL_X),
                     'vel_y': accumulated.get(_F_VEL_Y),
                     'vel_z': accumulated.get(_F_VEL_Z),
+                    # Without trTime the base and delta cannot be evaluated at
+                    # any instant, which is the whole point of a trajectory.
+                    'tr_time': accumulated.get(_F_POS_TIME),
+                    'tr_type': accumulated.get(_F_POS_TRTYPE),
+                    'tr_duration': accumulated.get(_F_POS_TRDUR),
                     'eflags': accumulated.get(_F_EFLAGS),
                     'removed': False,
-                })
-            if entity_num < _MAX_CLIENTS:
-                g = accumulated.get(_F_GROUND)
-                self._ent_track.append({
-                    'server_time_ms': server_time,
-                    'entity_num':     entity_num,
-                    'client_num':     accumulated.get(_F_CLIENT, entity_num),
-                    'origin_x':       accumulated.get(_F_POS_X),
-                    'origin_y':       accumulated.get(_F_POS_Y),
-                    'origin_z':       accumulated.get(_F_POS_Z),
-                    'vel_x':          accumulated.get(_F_VEL_X),
-                    'vel_y':          accumulated.get(_F_VEL_Y),
-                    'vel_z':          accumulated.get(_F_VEL_Z),
-                    'angle_yaw':      accumulated.get(_F_YAW),
-                    'angle_pitch':    accumulated.get(_F_PITCH),
-                    'weapon':         accumulated.get(_F_WEAPON),
-                    'ground_entity':  g,
-                    # None = field never sent = standing on world (default 0).
-                    'airborne':       (g == _ENTITYNUM_NONE),
                 })
 
             # ── event detection: only fire on fields present in this delta ──
@@ -935,6 +1022,70 @@ class DM73Parser:
             if ev:
                 events.append(ev)
 
+        # ── PRESENCE. _entity_states now holds exactly the entities in this
+        # snapshot: entries arrive on a delta and leave only on an explicit
+        # removal bit, and the engine writes nothing at all for an entity that
+        # did not change (msg.c MSG_WriteDeltaEntity, force=qfalse, !lc). So a
+        # player present and motionless is real presence with no bytes, and it
+        # gets a row here labelled DELTA_INHERITED rather than vanishing.
+        n_present = 0
+        for entity_num in sorted(self._entity_states):
+            if entity_num >= _MAX_CLIENTS:
+                continue
+            accumulated = self._entity_states[entity_num]
+            n_present += 1
+            recorded = entity_num in changed_this_snapshot
+            span = self._ent_open.get(entity_num)
+            if span is None:
+                span = {'entity_num': entity_num, 'first_ms': server_time,
+                        'last_ms': server_time, 'samples': 0,
+                        'client_num': accumulated.get(_F_CLIENT, entity_num),
+                        'end_reason': None}
+                self._ent_open[entity_num] = span
+                self._ent_lifetime.append(span)
+            span['last_ms'] = server_time
+            span['samples'] += 1
+            g = accumulated.get(_F_GROUND)
+            self._ent_track.append({
+                'server_time_ms': server_time,
+                'entity_num':     entity_num,
+                'client_num':     accumulated.get(_F_CLIENT, entity_num),
+                'origin_x':       accumulated.get(_F_POS_X),
+                'origin_y':       accumulated.get(_F_POS_Y),
+                'origin_z':       accumulated.get(_F_POS_Z),
+                'vel_x':          accumulated.get(_F_VEL_X),
+                'vel_y':          accumulated.get(_F_VEL_Y),
+                'vel_z':          accumulated.get(_F_VEL_Z),
+                'angle_yaw':      accumulated.get(_F_YAW),
+                'angle_pitch':    accumulated.get(_F_PITCH),
+                'move_dir':       accumulated.get(_F_ANGLES2_YAW),
+                'weapon':         accumulated.get(_F_WEAPON),
+                'ground_entity':  g,
+                # None = field never sent = standing on world (default 0).
+                'airborne':       (g == _ENTITYNUM_NONE),
+                # HOW this row came to exist. RECORDED means this snapshot's
+                # delta carried at least one field for the entity;
+                # DELTA_INHERITED means every value is carried forward from the
+                # delta reference and the entity simply did not change.
+                'state_provenance': 'RECORDED' if recorded else 'DELTA_INHERITED',
+            })
+        self._snapshot_presence.append({
+            'server_time_ms': server_time,
+            'players_present': n_present,
+            'players_recorded': len(
+                [e for e in changed_this_snapshot if e < _MAX_CLIENTS]),
+            'entities_present': len(self._entity_states),
+        })
+
+    def _close_span(self, entity_num: int, server_time: int, reason: str):
+        """End a lifetime span. A later re-add opens a NEW span, which is what
+        makes entity slot reuse visible instead of silently splicing two
+        occupants into one history."""
+        span = self._ent_open.pop(entity_num, None)
+        if span is not None:
+            span['end_ms'] = server_time
+            span['end_reason'] = reason
+
     # ── event record builder ──────────────────────────────────────────────────
 
     def _build_event(
@@ -960,7 +1111,21 @@ class DM73Parser:
             'entity_num':     entity_num,
             'server_time_ms': server_time,
             'round':          round_num,
-            'client_num':     accumulated.get(_F_CLIENT),
+            # A PLAYER ENTITY'S NUMBER IS ITS CLIENT NUMBER. Entity slots
+            # 0..MAX_CLIENTS-1 are the players (bg_public.h; verified against
+            # the corpus, where pain and death match entity_num == client_num
+            # 100% of the time). The clientNum FIELD is delta-compressed and
+            # usually absent, so reading only that left client_num null on
+            # most events -- fire_weapon resolved a client on 38.9% of rows,
+            # and every per-player attribution built on it silently lost the
+            # rest. Entities at or above MAX_CLIENTS stay null: those are
+            # missiles, movers and freestanding ET_EVENTS, which have no
+            # client by construction.
+            'client_num':     (accumulated.get(_F_CLIENT)
+                               if accumulated.get(_F_CLIENT) is not None
+                               else (entity_num if entity_num is not None
+                                     and 0 <= entity_num < _MAX_CLIENTS
+                                     else None)),
             'pos_x':          round(px, 2) if px is not None else None,
             'pos_y':          round(py, 2) if py is not None else None,
             'pos_z':          round(pz, 2) if pz is not None else None,
@@ -1086,6 +1251,26 @@ class DM73Parser:
             'speed':       speed,
             'health':      ps.get('s0'),   # STAT_HEALTH
             'armor':       ps.get('s4'),   # STAT_ARMOR
+
+            # DAMAGE TAKEN BY THE POV PLAYER, straight out of the playerstate.
+            # g_active.c::P_DamageFeedback:
+            #     count = client->damage_blood + client->damage_armor;
+            #     if (count > 255) count = 255;
+            #     G_AddEvent(player, EV_PAIN, player->health);
+            #     client->ps.damageCount = count;
+            #
+            # So EV_PAIN's parm is HEALTH AFTER, not damage -- a pain event is
+            # not a per-hit damage ledger. damageCount is the damage number,
+            # and it is AGGREGATED (blood + armour, possibly several hits in
+            # one server frame) and CLAMPED AT 255. It says how much the POV
+            # player was hurt, never how much they dealt.
+            #
+            # damageYaw/damagePitch give the direction it came from, which is
+            # evidence toward an attacker but not an identity.
+            'damage_count': ps.get(_PS_DMG_COUNT),
+            'damage_event': ps.get(_PS_DMG_EVENT),
+            'damage_yaw':   ps.get(_PS_DMG_YAW),
+            'damage_pitch': ps.get(_PS_DMG_PITCH),
         }
 
     # ── entity delta reader ───────────────────────────────────────────────────

@@ -1,0 +1,22 @@
+{
+ "t_ms": 579825,
+ "asset_set": "UHD",
+ "only_variable": "hud pack",
+ "region": "bottom 14% of frame, screen space",
+ "legs": {
+  "HUD_STOCK": {
+   "avi": "G:\\QUAKE_LEGACY\\output\\demo_v2\\_wolfcam_staging\\wolfcam-ql\\videos\\hud_HUD_STOCK-0000.avi",
+   "frames": 13,
+   "hud_ink_mean": 0.01887,
+   "hud_ink_max": 0.08606
+  },
+  "HUD_CLEAN": {
+   "avi": "G:\\QUAKE_LEGACY\\output\\demo_v2\\_wolfcam_staging\\wolfcam-ql\\videos\\hud_HUD_CLEAN-0000.avi",
+   "frames": 12,
+   "hud_ink_mean": 0.53673,
+   "hud_ink_max": 0.87534
+  }
+ },
+ "ink_ratio_clean_over_stock": 28.4436,
+ "verdict": "PENDING_HUMAN"
+}

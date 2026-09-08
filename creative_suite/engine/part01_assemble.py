@@ -19,7 +19,11 @@ import re
 import subprocess
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: under a worktree these differ, and opening a
+# database beneath the wrong one silently CREATES an empty file
+# rather than failing. See engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 DEFAULT_FFMPEG = REPO_ROOT / "creative_suite" / "tools" / "ffmpeg" / "ffmpeg.exe"
 PART01_DIR = REPO_ROOT / "output" / "demo_v2" / "part01"
 

@@ -42,7 +42,11 @@ from creative_suite.engine import event_truth as et
 DEMO_TRUTH_VERSION = "demo-truth-v1.0.0"
 PROTOCOL = "dm_73"
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: under a worktree these differ, and opening a
+# database beneath the wrong one silently CREATES an empty file
+# rather than failing. See engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 RECOGNITION_DB = REPO_ROOT / "creative_suite" / "database" / "frag_recognition.db"
 
 # ── evidence classes ────────────────────────────────────────────────────────
@@ -510,7 +514,9 @@ ROUND_UNKNOWN = "UNKNOWN"
 
 CS_SCORES_RED = 6
 CS_SCORES_BLUE = 7
-CS_ROUND_TIME = 662
+from engine.parser.protocol import ConfigString as _CS
+
+CS_ROUND_TIME = int(_CS.ROUND_TIME)
 
 
 @dataclass(frozen=True)

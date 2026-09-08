@@ -30,12 +30,18 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: in a worktree these differ, and opening a database
+# under the wrong one silently creates an empty file. See
+# engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 RECOGNITION_DB = REPO_ROOT / "creative_suite" / "database" / "frag_recognition.db"
 
 # `\time\<ms>\round\<n>` inside configstring 661.
 _CS_ROUND = re.compile(r"\\time\\(-?\d+)\\round\\(\d+)")
-CS_ROUND_INDEX = 661
+from engine.parser.protocol import ConfigString as _CS
+
+CS_ROUND_INDEX = int(_CS.ROUND_STATUS)
 
 OBSERVED = "OBSERVED"        # the server announced this round's start
 BOUNDED = "BOUNDED"          # constrained by the neighbouring rounds

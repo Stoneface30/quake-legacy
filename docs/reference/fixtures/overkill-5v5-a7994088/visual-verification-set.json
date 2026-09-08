@@ -1,0 +1,102 @@
+{
+  "fixture_sha256": "a79940882e30b337f2d436207cabbe7cdb2542bec5688450c312823c3e428067",
+  "moments": [
+    {
+      "type": "TERMINAL_KILL_AFTER_END_COMMAND",
+      "claim": "round 1's end command is logged at 1:52.225, and the kill that decided it lands 25ms later. A cut at the command removes the frag.",
+      "kill_id": "K007",
+      "server_time_ms": 112250,
+      "killer": "P13",
+      "victim": "P15",
+      "mod": "LIGHTNING",
+      "falsified_if": "the kill notification does not appear after the round-over state on screen",
+      "window_ms": [
+        107250,
+        117250
+      ],
+      "server_time": "1:52.250",
+      "status": "NOT_YET_VISUALLY_CHECKED"
+    },
+    {
+      "type": "WORLD_KILL",
+      "claim": "entity 1022 is ENTITYNUM_WORLD, so this death has no player killer and must not be credited to anyone.",
+      "kill_id": "K075",
+      "server_time_ms": 463175,
+      "killer": "WORLD",
+      "victim": "P05",
+      "mod": "TRIGGER_HURT",
+      "falsified_if": "the obituary names a player as the killer",
+      "window_ms": [
+        458175,
+        468175
+      ],
+      "server_time": "7:43.175",
+      "status": "NOT_YET_VISUALLY_CHECKED"
+    },
+    {
+      "type": "LOW_HP_FRAG",
+      "claim": "the recorder's own playerstate reads health 40 armour 0 at this kill.",
+      "kill_id": "K066",
+      "server_time_ms": 411325,
+      "killer": "P00",
+      "victim": "P10",
+      "mod": "RAILGUN",
+      "falsified_if": "the HUD health at the kill differs from 40",
+      "window_ms": [
+        406325,
+        416325
+      ],
+      "server_time": "6:51.325",
+      "status": "NOT_YET_VISUALLY_CHECKED"
+    },
+    {
+      "type": "MULTI_KILL_ROUND",
+      "claim": "round 3 contains 3 kills by the recorder at 2:31.900, 2:44.375, 3:01.600. The round is one review item with several effect anchors, not several unrelated clips.",
+      "kill_id": "K016,K020,K021",
+      "server_time_ms": 151900,
+      "window_ms": [
+        144600,
+        181575
+      ],
+      "falsified_if": "fewer than 3 kill notifications for the recorder appear inside the round",
+      "server_time": "2:31.900",
+      "status": "NOT_YET_VISUALLY_CHECKED"
+    },
+    {
+      "type": "POV_SUBJECT_CHANGE",
+      "claim": "the playerstate subject moves from the recorder to P12 for 3.5s. Any health or position read here belongs to P12.",
+      "server_time_ms": 108725,
+      "window_ms": [
+        106725,
+        114275
+      ],
+      "falsified_if": "the view does not change to a spectated player",
+      "server_time": "1:48.725",
+      "status": "NOT_YET_VISUALLY_CHECKED"
+    },
+    {
+      "type": "UNOBSERVED_SPAN_AND_REENTRY",
+      "claim": "P10 leaves the recorder's snapshot for 46.4s and re-enters at 5:59.825. Nothing interpolates across that span; it is UNOBSERVED.",
+      "server_time_ms": 359825,
+      "window_ms": [
+        311475,
+        362825
+      ],
+      "falsified_if": "P10 is visible on screen during the gap",
+      "server_time": "5:59.825",
+      "status": "NOT_YET_VISUALLY_CHECKED"
+    },
+    {
+      "type": "DAMAGE_TAKEN_EXACT",
+      "claim": "ps.damageCount is 80 and the recorder loses 27 health and 53 armour across the same pair. This is damage TAKEN, never damage dealt.",
+      "server_time_ms": 164250,
+      "window_ms": [
+        161250,
+        166250
+      ],
+      "falsified_if": "the HUD does not drop by 80 combined",
+      "server_time": "2:44.250",
+      "status": "NOT_YET_VISUALLY_CHECKED"
+    }
+  ]
+}

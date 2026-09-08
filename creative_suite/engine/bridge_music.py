@@ -31,7 +31,11 @@ from creative_suite.engine.music_intelligence_v2 import (
 from creative_suite.engine.scene_recipe import MusicPlacement
 from creative_suite.engine import transition_recipe as tr
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: under a worktree these differ, and opening a
+# database beneath the wrong one silently CREATES an empty file
+# rather than failing. See engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 MUSIC_DB = REPO_ROOT / "creative_suite" / "database" / "music_features_v2.db"
 
 # How close a music change has to land to a phrase/section estimate before

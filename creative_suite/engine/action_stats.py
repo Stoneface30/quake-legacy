@@ -49,7 +49,11 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: in a worktree these differ, and opening a database
+# under the wrong one silently creates an empty file. See
+# engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 RECOGNITION_DB = REPO_ROOT / "creative_suite" / "database" / "frag_recognition.db"
 
 # WP_ launcher space, from bg_public.h via demo_parse._WP_NAMES. NOT MOD_.

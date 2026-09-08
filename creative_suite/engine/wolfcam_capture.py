@@ -25,7 +25,11 @@ import subprocess
 import time
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: under a worktree these differ, and opening a
+# database beneath the wrong one silently CREATES an empty file
+# rather than failing. See engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 BIN_DIR = REPO_ROOT / "engine" / "engines" / "ghidra" / "binaries"
 CANONICAL_GAMEDIR = (REPO_ROOT / "engine" / "engines" / "_canonical"
                      / "package-files" / "wolfcam-ql")
@@ -35,6 +39,7 @@ CLIPS_DIR = Path(os.getenv("QL_MASTERS_DIR",
                            r"D:\QUAKE_LEGACY_MASTERS\generated_clips"))
 QL_DIR = Path(r"C:\Program Files (x86)\Steam\steamapps\common\Quake Live")
 FFMPEG = REPO_ROOT / "creative_suite" / "tools" / "ffmpeg" / "ffmpeg.exe"
+FFPROBE = FFMPEG.parent / "ffprobe.exe"
 
 WOLFCAM_VERSION = "wolfcamql-11.3"
 FPS = 60
@@ -43,6 +48,22 @@ SEEK_SETTLE_MS = 600        # let renderer settle between seek and record
 INTER_WINDOW_MS = 300       # gap between stopvideo and next seek
 LAUNCH_OVERHEAD_S = 150     # engine start + demo load + seeks
 CAPTURE_SLOWDOWN = 10       # worst-case capture seconds per window second
+
+# THE SAME NUMBER, FOR A RENDERER A HUNDRED TIMES SLOWER.
+#
+# This process forces Mesa softpipe (see capture_demo) because the NVIDIA
+# driver kills wolfcam during R_Init on this machine. Softpipe is a CPU
+# rasteriser: measured on 2026-09-08 it wrote about HALF A FRAME PER SECOND of
+# wall clock at 1920x1080, i.e. ~120 wall-seconds per second of 60 fps footage.
+#
+# `CAPTURE_SLOWDOWN = 10` was calibrated against hardware GL, so every capture
+# was being terminated at its own deadline part-way through. Measured against
+# the probe in docs/visual-record/2026-09-08/capture_length/: budgets of
+# 223 / 248 / 298 s predicted the observed wall times of 223.4 / 248.7 /
+# 298.1 s exactly. The clips were not short because the engine stopped early;
+# they were short because WE killed it.
+SOFTWARE_CAPTURE_SLOWDOWN = 150     # measured ~120, plus margin
+CAPTURE_FPS = 60                    # what the master cfg records at
 
 
 class CfgInjectionError(ValueError):
@@ -215,7 +236,7 @@ def wolfcam_cmd(safe_demo: str, staging: Path = STAGING,
         merged.update(extra_sets or {})
         extra_sets = merged
     cmd = [
-        str(staging / "wolfcamql.exe"),
+        str(engine_exe(staging)),
         "+set", "fs_homepath", str(staging),
         "+set", "fs_basepath", str(staging),
         "+set", "fs_quakelivedir", str(QL_DIR),
@@ -239,12 +260,172 @@ def _mock_capture(windows: list[dict], staging: Path) -> None:
         dur = max(0.5, (int(w["end_ms"]) - int(w["start_ms"])) / 1000.0)
         subprocess.run(
             [str(FFMPEG), "-y", "-loglevel", "error",
-             "-f", "lavfi", "-i", f"testsrc=size=320x180:rate=30",
+             # AT THE CAPTURE RATE. A mock that writes half the frames of a
+             # real capture is a mock of a BROKEN capture, and the truncation
+             # check correctly flags it.
+             "-f", "lavfi", "-i", f"testsrc=size=320x180:rate={CAPTURE_FPS}",
              "-f", "lavfi", "-i", "sine=frequency=440",
              "-t", f"{dur:.3f}", "-c:v", "mjpeg", "-c:a", "pcm_s16le",
              str(videos / f"{w['clip_name']}.avi")],
             check=True, timeout=120,
             creationflags=subprocess.CREATE_NO_WINDOW)
+
+
+# THE TWO FILES THAT DECIDE WHICH RENDERER RUNS.
+#
+# Windows resolves `opengl32.dll` from the executable's own directory before
+# anywhere else. Mesa is staged beside `wolfcamql.exe`, so the engine has been
+# getting Mesa -- and, with llvmpipe absent from this MinGW x86 build, the
+# softpipe reference rasteriser at about half a frame per second.
+#
+# Running the SAME executable from a directory without these two files gets
+# the system NVIDIA ICD instead. Measured 2026-09-08 on one 2,500 ms window:
+#
+#     softpipe   303.4 s   77 frames   30.8 fps captured
+#     NVIDIA      22.4 s  150 frames   60.0 fps captured
+#
+# 13.5x faster, the full frame count, and the "capture writes 30 fps when the
+# cfg asks for 60" defect turns out to have been softpipe dropping frames it
+# could not render in time. It was never an engine bug.
+MESA_DLLS = ("opengl32.dll", "libgallium_wgl.dll")
+
+#: `native` uses the GPU. `software` reinstates Mesa, which is how this ran
+#: until the NVIDIA path was actually tried.
+GL_MODE_ENV = "PANTHEON_GL"
+
+
+def gl_mode() -> str:
+    mode = os.getenv(GL_MODE_ENV, "native").strip().lower()
+    if mode not in ("native", "software"):
+        raise ValueError(f"{GL_MODE_ENV} must be native or software, "
+                         f"not {mode!r}")
+    return mode
+
+
+def software_gl() -> bool:
+    """Whether this capture will run on the CPU rasteriser."""
+    return gl_mode() == "software"
+
+
+def native_gl_dir(staging: Path = STAGING) -> Path:
+    """A view of the engine with Mesa left out, built by hard link.
+
+    Not a second install: every file is a link to the one in staging, so there
+    is no copy to keep in step and no gigabytes duplicated. The engine still
+    reads all its assets from staging through fs_basepath -- the only thing
+    this directory changes is which `opengl32.dll` Windows finds first.
+    """
+    staging = Path(staging)
+    d = staging / "_native_gl"
+    d.mkdir(parents=True, exist_ok=True)
+    skip = {n.lower() for n in MESA_DLLS}
+    for src in list(staging.glob("*.dll")) + [staging / "wolfcamql.exe"]:
+        if not src.is_file() or src.name.lower() in skip:
+            continue
+        dst = d / src.name
+        if dst.exists():
+            if dst.stat().st_size == src.stat().st_size:
+                continue
+            dst.unlink()
+        try:
+            os.link(src, dst)
+        except OSError:
+            import shutil
+            shutil.copy2(src, dst)
+    for name in MESA_DLLS:                # never let one linger here
+        (d / name).unlink(missing_ok=True)
+    return d
+
+
+def engine_exe(staging: Path = STAGING) -> Path:
+    """The executable to launch, for the renderer this run wants."""
+    if software_gl():
+        return Path(staging) / "wolfcamql.exe"
+    return native_gl_dir(staging) / "wolfcamql.exe"
+
+
+def frames_expected(windows: list[dict], fps: int = CAPTURE_FPS) -> int:
+    return sum(int(round((int(w["end_ms"]) - int(w["start_ms"])) / 1000.0 * fps))
+               for w in windows)
+
+
+def count_frames(avi: Path) -> int:
+    """Frames in the video stream, counted rather than trusted.
+
+    A truncated capture is a well-formed AVI: it opens, it plays, and its
+    header says 60 fps. Nothing about the file announces that it holds a
+    quarter of the action, which is why this has to be counted.
+    """
+    import re as _re
+    try:
+        r = subprocess.run(
+            [str(FFPROBE), "-v", "error", "-count_frames",
+             "-select_streams", "v:0", "-show_entries", "stream=nb_read_frames",
+             "-of", "default=nw=1:nk=1", str(avi)],
+            capture_output=True, text=True, timeout=600,
+            creationflags=subprocess.CREATE_NO_WINDOW)
+    except (OSError, subprocess.SubprocessError):
+        return 0
+    nums = [int(x) for x in _re.findall(r"\d+", r.stdout)]
+    return nums[0] if nums else 0
+
+
+#: Below this share of the requested frames the clip is not what was asked for.
+#: Not 1.0: a capture legitimately loses a frame or two at the seam.
+COMPLETE_ENOUGH = 0.95
+
+
+def true_frame_rate(windows: list[dict], frames: int) -> float:
+    """The rate the engine ACTUALLY captured at, from the window it covered.
+
+    THE HEADER CAN BE HONEST AND STILL WRONG. `cl_aviFrameRate` is frames
+    written per second of DEMO time -- it decides temporal resolution, not how
+    much of the action is covered. The engine writes that number into the AVI
+    header (`afd.frameRate = cl_aviFrameRate->integer`). If it then writes
+    fewer frames than the rate implies while still covering the whole window,
+    the file is COMPLETE but plays too fast.
+
+    Measured 2026-09-08: a 2,500 ms window produced 77 frames in a file
+    declaring 60 fps -- 1.28 s of playback for 2.5 s of action, i.e. double
+    speed. Checked by eye: the first frame is the jump pad at the start of the
+    window and the last frame is the kill at the end of it. Nothing was
+    missing; the clock was wrong.
+    """
+    span_s = sum((int(w["end_ms"]) - int(w["start_ms"])) / 1000.0
+                 for w in windows)
+    return frames / span_s if span_s > 0 else 0.0
+
+
+def playback_error(windows: list[dict], frames: int,
+                   declared_fps: int = CAPTURE_FPS) -> float:
+    """How many times too fast the clip plays. 1.0 is correct.
+
+    2.0 means the action runs at double speed, which is a sync defect an
+    editor cannot see in a thumbnail and will not notice until the cut is on
+    a beat.
+    """
+    actual = true_frame_rate(windows, frames)
+    return declared_fps / actual if actual > 0 else 0.0
+
+
+def retime(avi: Path, fps: float, dest: Path | None = None) -> Path:
+    """Rewrite the container so the declared rate matches what was captured.
+
+    The frames are untouched -- this is a remux, not a re-encode. A clip
+    captured at 30 fps and labelled 60 becomes a 30 fps clip that plays at the
+    right speed, with 30 fps of smoothness, which is the truth about it.
+    """
+    dest = Path(dest) if dest else avi
+    tmp = avi.with_suffix(".retimed.avi")
+    r = subprocess.run(
+        [str(FFMPEG), "-v", "error", "-y", "-r", f"{fps:.6f}", "-i", str(avi),
+         "-c", "copy", str(tmp)],
+        capture_output=True, timeout=900,
+        creationflags=subprocess.CREATE_NO_WINDOW)
+    if r.returncode != 0 or not tmp.exists():
+        raise RuntimeError(f"retime failed: {r.stderr.decode('utf-8','replace')[:200]}")
+    tmp.replace(dest)
+    return dest
 
 
 def capture_demo(safe_demo: str, windows: list[dict],
@@ -264,7 +445,11 @@ def capture_demo(safe_demo: str, windows: list[dict],
         (int(w["end_ms"]) - int(w["start_ms"])) / 1000.0 for w in windows)
     # Seeks fast-forward-parse the demo (~50x realtime measured; budget 25x).
     max_seek_s = max(int(w["start_ms"]) for w in windows) / 1000.0
-    timeout = (LAUNCH_OVERHEAD_S + total_capture_s * CAPTURE_SLOWDOWN
+    # Budget for the renderer we are ACTUALLY going to use, not the one the
+    # constant was calibrated against.
+    slowdown = (SOFTWARE_CAPTURE_SLOWDOWN if software_gl() else
+                CAPTURE_SLOWDOWN)
+    timeout = (LAUNCH_OVERHEAD_S + total_capture_s * slowdown
                + max_seek_s / 12.0)   # /25 timed out a slow-parsing demo (330)
     t0 = time.time()
 
@@ -282,17 +467,22 @@ def capture_demo(safe_demo: str, windows: list[dict],
         # that into QUEUED + RENDER DEFERRED, never FAILED.
         from engine.pantheon import render_permit
         render_permit.require(f"capture_demo:{safe_demo}")
-        # SOFTWARE GL. This driver kills wolfcam during R_Init -- the same
-        # NVIDIA 32-bit blocker documented for PANTHEON's own renderer, on the
-        # same GPU. Mesa is staged BESIDE wolfcamql.exe (Windows resolves
-        # opengl32.dll from the executable's own directory first), so this
-        # process gets softpipe and every other process on the machine is
-        # untouched. Nothing in System32 was modified and no driver setting
-        # was changed. GALLIUM_DRIVER must be set explicitly: the default
-        # Zink probe crashes before it can fall back.
-        env = dict(os.environ, GALLIUM_DRIVER="softpipe")
+        # WHICH RENDERER. The belief that the NVIDIA driver kills wolfcam
+        # during R_Init was inherited from a CUSTOM HOST's crash and was never
+        # tested against this engine. It is wrong: wolfcamql gets a real
+        # hardware context on the hidden desktop and captures 13.5x faster
+        # with the full frame count. Mesa softpipe remains reachable through
+        # PANTHEON_GL=software, and only then is GALLIUM_DRIVER forced --
+        # the default Zink probe crashes before it can fall back.
+        env = dict(os.environ)
+        if software_gl():
+            env["GALLIUM_DRIVER"] = "softpipe"
+        argv = wolfcam_cmd(safe_demo, staging, profile=profile)
+        # LAUNCH FROM THE ENGINE'S OWN DIRECTORY. Windows resolves
+        # opengl32.dll from there first, and the current directory is in the
+        # search order too -- running from staging would let Mesa back in.
         proc = subprocess.Popen(
-            wolfcam_cmd(safe_demo, staging, profile=profile), cwd=staging,
+            argv, cwd=Path(argv[0]).parent,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
             env=env, startupinfo=quiet_startup_info())
         try:
@@ -311,8 +501,30 @@ def capture_demo(safe_demo: str, windows: list[dict],
         cand = sorted(videos.glob(f"{w['clip_name']}*.avi"))
         if cand:
             avis[w["clip_name"]] = cand[0]
+
+    # THE FILE CAN BE COMPLETE AND STILL WRONG. Count the frames, work out the
+    # rate that actually implies, and RETIME the container so the declared
+    # rate is the truth. The frames are not touched.
+    want = frames_expected(windows)
+    got = sum(count_frames(a) for a in avis.values())
+    speed = playback_error(windows, got) if got else 0.0
+    retimed = []
+    if got and abs(speed - 1.0) > 0.05:
+        actual = true_frame_rate(windows, got)
+        for a in avis.values():
+            try:
+                retime(Path(a), actual)
+                retimed.append(str(a))
+            except (RuntimeError, OSError):
+                pass
+    short = bool(avis) and want > 0 and got < want * COMPLETE_ENOUGH
     return {"ok": len(avis) == len(windows), "returncode": rc,
             "elapsed_s": time.time() - t0, "avis": avis,
+            "frames_expected": want, "frames_written": got,
+            "capture_fps": round(true_frame_rate(windows, got), 2) if got else 0,
+            "played_too_fast_by": round(speed, 2),
+            "retimed": retimed,
+            "under_sampled": short,
             "error": None if len(avis) == len(windows)
             else f"missing {len(windows) - len(avis)} AVIs"}
 

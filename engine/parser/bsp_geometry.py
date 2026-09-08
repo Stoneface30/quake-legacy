@@ -52,8 +52,25 @@ from pathlib import Path
 
 # ── constants ────────────────────────────────────────────────────────────────
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_PK3 = REPO_ROOT / "output" / "demo_v2" / "_wolfcam_staging" / "baseq3" / "pak00.pk3"
+# DATA, not code: under a worktree these differ, and opening a
+# database beneath the wrong one silently CREATES an empty file
+# rather than failing. See engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
+
+
+def _pk3_root() -> Path:
+    """The checkout that owns the data. The staged pak is gitignored, so it
+    exists once; a git worktree of the CODE has no staging under it and every
+    map load failed there with a bare FileNotFoundError."""
+    try:
+        from engine.pantheon.store import PROJECT_ROOT
+        return PROJECT_ROOT
+    except Exception:
+        return REPO_ROOT
+
+
+DEFAULT_PK3 = _pk3_root() / "output" / "demo_v2" / "_wolfcam_staging" / "baseq3" / "pak00.pk3"
 
 CONTENTS_SOLID = 0x1
 

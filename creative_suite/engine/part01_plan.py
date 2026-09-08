@@ -27,7 +27,11 @@ from pathlib import Path
 from creative_suite.engine import part_rhythm
 from creative_suite.engine.hit_to_beat import place_clip
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: under a worktree these differ, and opening a
+# database beneath the wrong one silently CREATES an empty file
+# rather than failing. See engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 PART01_DIR = REPO_ROOT / "output" / "demo_v2" / "part01"
 DEFAULT_MUSIC_DB = REPO_ROOT / "creative_suite" / "database" / "music_analysis.db"
 DEFAULT_CINEMATIC_DB = REPO_ROOT / "creative_suite" / "database" / "cinematic.db"

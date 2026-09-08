@@ -32,7 +32,11 @@ from typing import Any
 
 from creative_suite.engine.quake_names import display_name
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: in a worktree these differ, and opening a database
+# under the wrong one silently creates an empty file. See
+# engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 RECOGNITION_DB = REPO_ROOT / "creative_suite" / "database" / "frag_recognition.db"
 
 DERIVED = "DERIVED"
@@ -253,7 +257,121 @@ def round_context(content_hash: str, round_no: int,
                        "here is not proof it did not happen"))
 
 
-def round_window(ctx: RoundContext, pre_ms: int = 4000,
-                 post_ms: int = 4000) -> tuple[int, int]:
-    """Media bounds for WATCH FULL ROUND. Padded, and clamped at zero."""
-    return max(0, ctx.start_ms - pre_ms), ctx.end_ms + post_ms
+from creative_suite.engine import round_bounds as rb
+
+# A lead-in is only meaningful when the window's start is a KILL, not the
+# round's own beginning. Even then it may not cross into the round before.
+KILL_SPAN_LEAD_MS = 3000
+
+
+
+# ── how much work the round contained ──────────────────────────────────────
+
+def round_health_lost(content_hash: str, start_ms: int, end_ms: int,
+                      recorder_client: int | None = None,
+                      db: Path | None = None) -> dict[str, Any]:
+    """Health lost by every player in a window, split by who lost it.
+
+    A FLOOR ON DAMAGE, not a damage total: armour absorbs a share that never
+    shows in health. Reported for the ROUND rather than credited to the
+    user, because in Clan Arena several people are shooting the same target
+    -- `attribution` says so plainly rather than implying a number is theirs.
+    """
+    from creative_suite.engine import action_stats as ast
+    src = db or RECOGNITION_DB
+    with sqlite3.connect(f"file:{Path(src).as_posix()}?mode=ro",
+                         uri=True) as c:
+        c.row_factory = sqlite3.Row
+        clients = [r[0] for r in c.execute(
+            "SELECT DISTINCT client_num FROM semantic_events_v1 WHERE "
+            "content_hash=? AND type='pain' AND client_num IS NOT NULL AND "
+            "server_time_ms BETWEEN ? AND ?",
+            (content_hash, start_ms, end_ms))]
+        shooters = [r[0] for r in c.execute(
+            "SELECT DISTINCT client_num FROM semantic_events_v1 WHERE "
+            "content_hash=? AND type='fire_weapon' AND client_num IS NOT NULL"
+            " AND server_time_ms BETWEEN ? AND ?",
+            (content_hash, start_ms, end_ms))]
+
+    per: dict[int, int] = {}
+    for cl in clients:
+        lost, _first, _last = ast.health_lost_in_window(
+            content_hash, cl, start_ms, end_ms, src)
+        if lost:
+            per[int(cl)] = lost
+
+    total = sum(per.values())
+    taken = per.get(int(recorder_client), 0) if recorder_client is not None \
+        else None
+    dealt_to_others = total - (taken or 0)
+    others_shooting = [s for s in shooters
+                       if recorder_client is None or int(s) != int(recorder_client)]
+    return {
+        "available": bool(per),
+        "total_health_lost": total,
+        "health_lost_by_recorder": taken,
+        "health_lost_by_others": dealt_to_others,
+        "attribution": ("SOLE_SHOOTER" if not others_shooting
+                        else "SHARED" if others_shooting else "UNKNOWN"),
+        "shooters_in_window": len(shooters),
+        "note": ("health only -- armour absorbs a share that never appears "
+                 "here, so this is a floor on damage, not a damage total"),
+    }
+
+def round_window(ctx: RoundContext, pre_ms: int = 0,
+                 post_ms: int = 0) -> tuple[int, int]:
+    """Media bounds for WATCH FULL ROUND. THE ROUND IS A HARD LIMIT.
+
+    This used to pad four seconds either side. Four seconds before a round
+    starts is the previous round and four seconds after it ends is the next
+    one, and in Clan Arena the gap between them is short enough that the
+    padding crossed it nearly every time -- the user watched "one round" and
+    saw the previous round's death followed by two kills from the round
+    after.
+
+    Padding is therefore not applied to a round whose start we actually
+    know. Where the start is only the first observed KILL (`KILL_SPAN`), a
+    short lead-in is allowed so the approach is visible, clamped to the
+    previous round's end so it still cannot cross.
+
+    `pre_ms` and `post_ms` remain as explicit overrides for a caller that
+    genuinely wants context, and they are clamped the same way.
+    """
+    start, end = ctx.start_ms, ctx.end_ms
+
+    lead = pre_ms
+    if not lead and ctx.duration_provenance == rb.KILL_SPAN:
+        lead = KILL_SPAN_LEAD_MS
+
+    if lead or post_ms:
+        prev_end, next_start = _neighbour_edges(ctx)
+        if lead:
+            floor = prev_end if prev_end is not None else 0
+            start = max(0, floor, start - lead)
+        if post_ms:
+            ceiling = next_start if next_start is not None else end + post_ms
+            end = min(ceiling, end + post_ms)
+    return max(0, start), end
+
+
+def _neighbour_edges(ctx: RoundContext) -> tuple[int | None, int | None]:
+    """(end of the previous round, start of the next), where observed.
+
+    None means "not known", and an unknown edge never licenses a crossing --
+    the caller falls back to the round's own bound.
+    """
+    try:
+        starts = rb.announced_starts(ctx.content_hash)
+        spans = rb.kill_spans(ctx.content_hash)
+    except Exception:                                          # noqa: BLE001
+        return None, None
+    prev_end = None
+    nxt = starts.get(ctx.round_no + 1)
+    if nxt is None and (ctx.round_no + 1) in spans:
+        nxt = spans[ctx.round_no + 1][0]
+    if (ctx.round_no - 1) in spans:
+        prev_end = spans[ctx.round_no - 1][1]
+    if starts.get(ctx.round_no) is not None:
+        # Our own announced start is itself a hard floor.
+        prev_end = max(prev_end or 0, starts[ctx.round_no])
+    return prev_end, nxt

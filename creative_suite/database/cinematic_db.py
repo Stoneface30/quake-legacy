@@ -14,7 +14,11 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: under a worktree these differ, and opening a
+# database beneath the wrong one silently CREATES an empty file
+# rather than failing. See engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 DEFAULT_DB_PATH = Path(__file__).resolve().parent / "cinematic.db"
 
 SCHEMA = """
