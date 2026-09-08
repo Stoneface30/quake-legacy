@@ -375,38 +375,32 @@ as `engine_ok`.
 The real fix remains hardware GL, which is the NVIDIA blocker and is not
 addressed here.
 
-## INCONCLUSIVE — the HUD shader proof could not discriminate
+## PROVEN — the HUD control surface works
 
-`HUD_STOCK` against `HUD_CLEAN`, art fixed. The measured difference ran the
-wrong way (clean showed *more* ink) for two reasons, both mine:
+`cg_drawStatus 1` against `cg_drawStatus 0`, everything else identical. One
+cvar, one element:
 
-1. The REVIEW profile already turns off names, FPS, gun, speed and team
-   overlay, so there was almost no HUD art left for a shader pack to hide.
-2. The bottom-band measure caught the floor, not just the HUD, so it measured
-   scene brightness across two different camera phases.
+![status on over off](../visual-record/2026-09-08/hud_cvar/status_on_over_off.png)
 
-The mechanism is not disproven; the test was incapable of answering. With the
-cvar surface now exposed (§0) the right test is `cg_drawRewards 0` against
-`cg_drawRewards 1`, which changes exactly one element and nothing else.
+Top: the health readout "58", the cross icon and the HUD bar. Bottom: gone.
 
-## THE REMAINING HALF — the engine writes 30 fps when asked for 60
+**My measurement failed and the eye did not.** The region metric returned
++0.002 against a whole-frame -0.002 and declared no effect, because 86% of the
+lower-left quadrant is bright scene and the HUD is a small overlay on top of
+it. Averaging a region dominated by content cannot see a small element. For
+screen-space elements the honest test is to crop the two frames and look --
+which is what the visual record above is.
 
-77 frames over 2,500 ms is **32.5 ms per written frame**. 60 fps is 16.67 ms;
-30 fps is 33.3 ms. The capture is writing at almost exactly half the rate the
-configuration asks for.
+Recorded because it is the second measurement I built for this that could not
+discriminate, and both failed the same way: a statistic over a region, where
+the thing being measured occupies a few percent of it.
 
-Ruled out by measurement, not by argument:
+## SUPERSEDED — the earlier HUD shader proof
 
-- `cl_aviFrameRate` is **60**, registered, in the runtime census.
-- `cl_aviFrameRateDivider` is 1 — and unregistered, so it is a silent no-op
-  anyway.
-- `mme_blurFrames` is **0**, so there is no accumulation halving the output.
-- The REVIEW visual profile sets no capture-rate cvar at all.
-- The written cfg execs `wolfcam_tr4sh_master_capture.cfg`, which sets 60.
-
-So every knob that could explain it says 60, and the file says 30. This is a
-separate defect from the timeout, it is still open, and it is the reason a
-clip is half length rather than full even when the engine is allowed to finish.
+The first attempt used a shader pack and could not discriminate either: the
+REVIEW profile already strips names, FPS, gun, speed and team overlay, so the
+pack was hiding an almost empty surface. That test is superseded by the cvar
+proof above, which changes exactly one element.
 
 ## NOT ANSWERABLE TODAY — the supersampling canary
 
