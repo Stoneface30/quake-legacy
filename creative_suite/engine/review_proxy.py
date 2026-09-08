@@ -41,6 +41,7 @@ from pathlib import Path
 from typing import Any
 
 from engine.pantheon import render_permit
+from engine.pantheon import disk_policy
 from engine.pantheon import store as _store
 from creative_suite.engine.process_liveness import process_alive
 
@@ -669,7 +670,20 @@ def put_review(
     notes: str | None = None,
 ) -> dict[str, Any]:
     """Upsert editorial fields — only the ones provided. Machine scores are
-    never touched (they live in frag_recognition.db, which we never write)."""
+    never touched (they live in frag_recognition.db, which we never write).
+
+    Asks the SMALLEST of the three disk thresholds. A verdict is a few bytes,
+    and holding a human's judgement to the space a capture needs would throw
+    away the one thing in this system that cannot be regenerated. The other
+    two thresholds exist precisely so this one can be this permissive.
+    """
+    verdict_disk = disk_policy.review_db_write_safe(EDITORIAL_DB_PATH.parent)
+    if not verdict_disk.ok:
+        raise RuntimeError(
+            f"refusing to write a verdict: {verdict_disk.free_bytes:,} bytes "
+            f"free at {verdict_disk.path}, "
+            f"need {verdict_disk.required_bytes:,}. "
+            f"A truncated write loses the review, not the render.")
     conn = editorial_conn()
     try:
         existing = conn.execute(

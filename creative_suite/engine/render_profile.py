@@ -1286,3 +1286,88 @@ def separation_report() -> dict[str, Any]:
             "was not done"),
         "modern_raster_estimate": REQUIRES_INTEGRATION_SPIKE,
     }
+
+
+# ── supersampling: the offline answer to "can we render in DLSS" ───────────
+#
+# We cannot. DLSS reconstructs a cheap frame into an expensive-looking one so
+# an interactive game hits a frame budget. It needs per-pixel motion vectors,
+# a depth buffer and sub-pixel jitter, and it has never supported OpenGL in
+# any generation. The capture renderer is fixed-function OpenGL 1.x with no
+# motion vectors and no jitter, so no DLSS generation applies and no wrapper
+# can add one.
+#
+# It is also the wrong goal. This pipeline renders offline, from recorded
+# demos, once. There is no frame budget to buy back. The technique that
+# matches the situation is the OPPOSITE of DLSS: render ABOVE the delivery
+# size and filter down, spending time to buy image quality.
+#
+# `internal_scale` has described that since it was written and NOTHING READ
+# IT. The functions below are what read it.
+
+#: The engine has no supersampling switch. The only way to render larger is to
+#: ask for a larger custom mode and downsample outside the engine.
+SUPERSAMPLE_MECHANISM = (
+    "custom render size above delivery size, downsampled after capture; the "
+    "engine has no supersampling control of its own")
+
+
+def capture_geometry(profile: RenderProfile) -> dict[str, Any]:
+    """The size to CAPTURE at, and what must happen afterwards.
+
+    A profile's width/height is what it DELIVERS. When `internal_scale` is
+    above 1 the capture is larger and a downsample is mandatory -- skip it and
+    the delivered file is simply the wrong size, which is a failure that looks
+    like a success until somebody opens the file.
+    """
+    cw, ch = profile.internal_size
+    supersampled = (cw, ch) != (profile.width, profile.height)
+    return {
+        "profile": profile.name,
+        "capture_width": cw,
+        "capture_height": ch,
+        "deliver_width": profile.width,
+        "deliver_height": profile.height,
+        "supersampled": supersampled,
+        "scale": profile.internal_scale,
+        "downsample_required": supersampled,
+        # Linear-light Lanczos. The bundled ffmpeg carries libzimg, so this is
+        # available; plain `scale` filters in gamma space and loses the very
+        # contrast the extra pixels were rendered to capture.
+        "downsample_filter": ("zscale=w=%d:h=%d:filter=lanczos"
+                              % (profile.width, profile.height))
+        if supersampled else None,
+        "megapixels_per_frame": round(cw * ch / 1e6, 2),
+        "cost_vs_delivery": round((cw * ch) / (profile.width * profile.height),
+                                  2),
+        "verified": profile.verified,
+        "mechanism": SUPERSAMPLE_MECHANISM,
+    }
+
+
+def supersample_blockers(profile: RenderProfile) -> list[str]:
+    """What stands between this profile and a trustworthy capture.
+
+    Returns empty only when the profile has actually been run end to end. A
+    supersampled profile that has never been captured is a plan, and the
+    honest failure modes are named rather than discovered at 3am.
+    """
+    geo = capture_geometry(profile)
+    if not geo["supersampled"]:
+        return []
+    out = []
+    if not profile.verified:
+        out.append(
+            f"{profile.name} has never been captured end to end at "
+            f"{geo['capture_width']}x{geo['capture_height']}; framebuffer "
+            f"limits, depth precision, stability and disk throughput are "
+            f"unproven until one canary runs")
+    out.append(
+        "the capture window is smaller than the requested render size, so "
+        "whether the platform layer grants an oversized framebuffer is a "
+        "question for a frame grab, not for the source")
+    if profile.intermediate == "mjpeg":
+        out.append(
+            "a lossy intermediate discards the detail the extra pixels were "
+            "rendered to capture; use a lossless one when supersampling")
+    return out

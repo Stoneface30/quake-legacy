@@ -47,6 +47,7 @@ HEADLESS = {
     "creative_intent",  # a human note, kept as written
     "review_moment",    # the one object the reviewer reads
     "backend_planner",  # which backend does which pass; plans, never launches
+    "morph",            # one moment, several takes, the art as the variable
     "defaults",         # versioned project profiles; values, not behaviour
     "maturity",         # how finished each subsystem is, by measurement
     "choreography",     # recipe + moment -> plan; traces the map, films nothing
@@ -83,6 +84,8 @@ BACKEND_ALLOWED = {
     "engine_census",    # asks the running binary what it has; one session
     "engine_inventory", # the raw inventory and its grades; reads files only
     "assets",           # which asset packs the picture uses; links files
+    "asset_library",    # assets.db -> installable looks; reads a db, writes packs
+    "hud",              # the HUD shader surface; writes a pack, films nothing
     "capture_lock",     # one engine at a time; a pid file, no processes
     "conformance",      # the 10-case backend A/B: it films both legs
     "cast_proof", "presenter_proof", "instruction_proof", "proofs",
@@ -104,6 +107,7 @@ BACKEND_ALLOWED = {
 # proof that cannot say what it was filmed on is not evidence.
 NAMES_BACKENDS_AS_DATA = {
     "backend_planner",  # its whole job is choosing one
+    "morph",            # names the asset sets a plan varies; launches nothing
     "effect_recipes",   # each recipe says which backend would suit it
     "visual_proof",     # a proof is only valid for the backend it was taken on
     "ideas",            # the director's own words, and they name backends

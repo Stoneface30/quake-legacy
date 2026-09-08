@@ -124,6 +124,9 @@ class Doctor:
             self.run("TRACE_CACHE", self._trace_cache)
             self.run("ENGINE_INVENTORY", self._engine_inventory)
             self.run("ASSETS", self._assets)
+            self.run("WARDROBE", self._wardrobe)
+            self.run("HUD", self._hud)
+            self.run("MORPH", self._morph)
             self.run("RECIPES", self._recipes)
             self.run("VISUAL_PROOF", self._visual_proof_registry)
             self.run("IDEAS", self._ideas)
@@ -385,6 +388,71 @@ class Doctor:
         note = "" if active == O.DEFAULT_ASSET_SET else             f"; gamedir currently holds {active}, and every capture installs "            f"{O.DEFAULT_ASSET_SET} before it films"
         return OK, (f"{cov['files']:,} upscaled files, all replacing a stock "
                     f"path at the same extension{note}"), rep
+
+    def _wardrobe(self):
+        """Eleven looks were generated and one was ever packed.
+
+        8,637 finished renders of the game's own art had never been in a
+        picture. This check keeps that number visible rather than letting the
+        wardrobe quietly rot back to a single texture pack.
+        """
+        from engine.pantheon import asset_library as L
+        from engine.pantheon import assets as A
+        try:
+            fams = L.families()
+        except FileNotFoundError as exc:
+            return SKIP, str(exc), {}
+        if not fams:
+            return FAIL, "the asset database reports no render families", {}
+        L.register()
+        styled = {n: f for n, f in fams.items() if not f.is_fidelity}
+        unpacked = sum(f.renders for f in styled.values())
+        installable = sorted(L.look_name(n) for n in styled
+                             if L.look_name(n) in A.SETS)
+        rep = {"families": len(fams), "installable_looks": installable,
+               "renders_never_packed": unpacked}
+        if not installable:
+            return FAIL, "no look could be registered from the database", rep
+        return OK, (f"{len(fams)} render families, {unpacked:,} renders "
+                    f"outside the shipped pack, "
+                    f"{len(installable)} looks installable"), rep
+
+    def _hud(self):
+        """The HUD is a film surface and the writer must be faithful.
+
+        If the identity effect cannot reproduce the shipped file exactly, then
+        every diff the module produces is contaminated by its own formatting
+        and no HUD treatment can be trusted.
+        """
+        from engine.pantheon import hud
+        try:
+            text = hud.stock_text()
+        except FileNotFoundError as exc:
+            return SKIP, str(exc), {}
+        same, changed = hud.apply("HUD_STOCK", text)
+        if same != text or changed:
+            return FAIL, ("the shader writer does not round-trip the shipped "
+                          "file; every HUD diff would be untrustworthy"), {}
+        rep = hud.report()
+        return OK, (f"{rep['shaders']} shaders, {len(rep['cueable'])} cueable "
+                    f"treatments and {len(rep['free_running'])} free-running"
+                    ), {"families": rep["film_families"]}
+
+    def _morph(self):
+        """A blend is never offered while frame alignment is unproven.
+
+        Two runs of the engine do not start on the same tick. A cut survives
+        that; a dissolve shows the world ghosting against itself.
+        """
+        from engine.pantheon import morph as M
+        bad = [n for n, p in M.RECIPES.items()
+               if p.alignment_required and p.ready]
+        if bad:
+            return FAIL, (f"these plans offer a blend without proven "
+                          f"alignment: {bad}"), {}
+        return OK, (f"{len(M.ready_now())} plans shootable now, "
+                    f"{len(M.blocked())} waiting on frame alignment"), {
+            "ready": list(M.ready_now()), "blocked": list(M.blocked())}
 
     def _engine_inventory(self):
         """Every raw engine name is graded, and nothing is merely absent.

@@ -26,7 +26,17 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 REPO = Path(__file__).resolve().parents[2]
-FFMPEG = Path("G:/QUAKE_LEGACY/creative_suite/tools/ffmpeg/ffmpeg.exe")
+
+# Resolve tools from the checkout that OWNS THE DATA, not from the code. A git
+# worktree of this repository has no `tools/` under it, which is how every
+# review proxy once failed on a missing ffmpeg.
+from engine.pantheon import store as _S           # noqa: E402
+FFMPEG = _S.PROJECT_ROOT / "creative_suite" / "tools" / "ffmpeg" / "ffmpeg.exe"
+
+# The interpreter that has Kokoro. Not this one: the engine runs on the system
+# Python and the speech stack lives in the ComfyUI virtualenv.
+TTS_PYTHON = Path("E:/PersonalAI/venv/Scripts/python.exe")
+TTS_SAMPLE_RATE = 24000          # what Kokoro emits; ffmpeg resamples later
 
 
 class SourceKind(Enum):
@@ -218,6 +228,110 @@ def align_words(path: Path, *, model: str = "base.en") -> tuple[str, list[dict]]
             words.append({"w": w.word.strip(), "s": round(w.start, 3),
                           "e": round(w.end, 3)})
     return " ".join(text).strip(), words
+
+
+# ── synthesis: the line the game never recorded ────────────────────────────
+#
+# WHY THIS IS A SUBPROCESS AND WHY IT STUBS A CUDA CALL.
+#
+# Kokoro lives in the ComfyUI virtualenv, not in the interpreter that runs the
+# engine, so it is reached out-of-process.
+#
+# Importing it CRASHES on this machine -- an access violation, not an
+# exception, so nothing catchable happens and the interpreter simply dies with
+# exit 139. The fault is `torch.cuda.device_count()` called at import time by
+# `thinc/compat.py` (spaCy's backend, pulled in through misaki's g2p). It is
+# the same driver that already segfaults this machine's OpenGL on `glColor4f`.
+# Setting CUDA_VISIBLE_DEVICES does NOT avoid it: the enumeration still runs.
+# Replacing the probe before the import does, and speech synthesis needs no
+# GPU at this length anyway.
+#
+# The recipe lives here, in the repository, because it previously lived only
+# in a session shell -- which is why four synthesised wavs existed that nobody
+# could reproduce.
+
+_TTS_RUNNER = r'''
+import sys, torch
+torch.cuda.device_count = lambda: 0        # see voice.py: import-time SIGSEGV
+torch.cuda.is_available = lambda: False
+from kokoro import KPipeline
+import soundfile as sf, numpy as np
+text, voice, lang, dest = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+chunks = [o.audio.numpy() if hasattr(o.audio, "numpy") else o.audio
+          for o in KPipeline(lang_code=lang)(text, voice=voice)]
+if not chunks:
+    raise SystemExit("kokoro produced no audio for that text")
+sf.write(dest, np.concatenate(chunks), %d)
+''' % TTS_SAMPLE_RATE
+
+
+def tts_available() -> tuple[bool, str]:
+    """Whether a line can be synthesised right now, and why not if not.
+
+    Answers by importing, because the failure mode here is a crash rather than
+    an ImportError and a presence check on the file would report success.
+    """
+    if not TTS_PYTHON.exists():
+        return False, f"no interpreter with Kokoro at {TTS_PYTHON}"
+    probe = subprocess.run(
+        [str(TTS_PYTHON), "-c",
+         "import torch\n"
+         "torch.cuda.device_count = lambda: 0\n"
+         "torch.cuda.is_available = lambda: False\n"
+         "from kokoro import KPipeline"],
+        capture_output=True, timeout=300)
+    if probe.returncode == 0:
+        return True, "kokoro imports with the cuda probe replaced"
+    if probe.returncode < 0 or probe.returncode == 139:
+        return False, ("kokoro crashed on import even with the cuda probe "
+                       "replaced; the workaround has stopped working")
+    return False, (probe.stderr.decode("utf-8", "replace").strip().splitlines()
+                   or ["kokoro import failed"])[-1]
+
+
+def synthesize(text: str, dest: Path, profile: CharacterVoiceProfile, *,
+               lang: str = "b", timeout: int = 600) -> Path:
+    """Make speech for a line the game never recorded.
+
+    Raw synthesis only: the result is untreated, at Kokoro's own sample rate.
+    Pass it through `render_line` to pull it toward the character. `speak()`
+    does both, which is what a caller usually wants.
+    """
+    if not text.strip():
+        raise ValueError("nothing to say")
+    dest = Path(dest)
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    proc = subprocess.run(
+        [str(TTS_PYTHON), "-c", _TTS_RUNNER, text, profile.tts_voice, lang,
+         str(dest)], capture_output=True, timeout=timeout)
+    if proc.returncode != 0 or not dest.exists():
+        detail = proc.stderr.decode("utf-8", "replace").strip()
+        if proc.returncode in (139, -11):
+            detail = ("crashed on import; see tts_available() and the note "
+                      "above _TTS_RUNNER")
+        raise RuntimeError(
+            f"synthesis failed for {profile.role} ({profile.tts_voice}): "
+            f"{detail or f'exit {proc.returncode}'}")
+    return dest
+
+
+def speak(text: str, dest: Path, profile: CharacterVoiceProfile, *,
+          pan: float = 0.0, distance: float = 0.0, lang: str = "b",
+          keep_raw: bool = False) -> Path:
+    """A finished line in a character's voice: synthesise, then treat.
+
+    This is the function whose absence meant `tts_voice` had no consumer. Every
+    field of the profile now reaches audio: `tts_voice` chooses the speaker and
+    `ffmpeg_chain` shapes it toward the character's real barks.
+    """
+    dest = Path(dest)
+    raw = dest.with_name(dest.stem + "__raw.wav")
+    synthesize(text, raw, profile, lang=lang)
+    try:
+        return render_line(raw, dest, profile, pan=pan, distance=distance)
+    finally:
+        if not keep_raw:
+            raw.unlink(missing_ok=True)
 
 
 def render_line(src: Path, dest: Path, profile: CharacterVoiceProfile, *,
