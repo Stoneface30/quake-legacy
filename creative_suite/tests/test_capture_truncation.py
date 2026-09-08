@@ -77,3 +77,19 @@ def test_truncation_is_reported_by_both_capture_paths():
         src = inspect.getsource(fn)
         assert "truncated" in src, f"{fn.__name__} does not report truncation"
         assert "frames_written" in src, f"{fn.__name__} does not count frames"
+
+
+def test_the_computed_verdict_is_not_overwritten_by_the_process_result():
+    """`**run.as_dict()` carries its own "ok" and was spread LAST, so the
+    verdict computed from windows, quiet and truncation never survived. A
+    capture that wrote a quarter of its frames reported ok=True."""
+    import inspect
+    from engine.pantheon import offscreen as O
+    src = inspect.getsource(O._capture_locked)
+    spread = src.index("run.as_dict()")
+    verdict = src.index('"ok": bool(avis)')
+    assert spread < verdict, (
+        "the process dict must be spread BEFORE the computed verdict, or it "
+        "overwrites it")
+    assert "engine_ok" in src, "the process-level result should still be "\
+                               "available, under a name that says what it is"

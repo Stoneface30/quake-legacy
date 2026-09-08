@@ -346,6 +346,31 @@ engine never releases its cursor clip, which is why `ok` was False as well:
   clip filmed before today was short and nothing said so.
 - `ok` is False when the file is short, in both paths.
 
+### The retest: better, and still not right
+
+Same 2.5 s window, corrected budget:
+
+| | before | after |
+|---|---|---|
+| frames written | 42 / 150 | **77 / 150** |
+| wall time | 223.4 s (killed at 223 s budget) | 303.4 s (finished on its own, 573 s budget) |
+
+So the timeout was real and fixing it nearly doubled the delivered footage —
+but **the clip is still half length**, and this time the engine was not killed:
+it reached `quit` by itself. 77 frames over 2,500 ms is ~30.8 fps, against the
+60 the master cfg asks for. Something is halving the capture rate, and that is
+a separate defect still open.
+
+### A latent bug the retest exposed
+
+The retest came back `truncated: true, ok: true`. `ok` was never actually
+computed: `**run.as_dict()` was spread LAST in the return dict and carries its
+own process-level `"ok"`, so it silently overwrote the verdict built from
+windows, quiet and truncation. **That was true before this change too** — a
+capture that opened a visible window would still have reported the engine's
+exit status as `ok`. The spread now goes first and the process result is kept
+as `engine_ok`.
+
 **This affected every review proxy and every A/B leg ever filmed offscreen.**
 The real fix remains hardware GL, which is the NVIDIA blocker and is not
 addressed here.

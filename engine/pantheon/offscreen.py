@@ -752,10 +752,18 @@ def _capture_locked(safe_demo: str, windows: list[dict], *, staging: Path,
     want = wc.frames_expected(windows)
     got = sum(wc.count_frames(Path(a)) for a in avis.values())
     truncated = bool(avis) and want > 0 and got < want * wc.COMPLETE_ENOUGH
-    return {"ok": bool(avis) and quiet and not truncated,
-            "frames_expected": want, "frames_written": got,
-            "truncated": truncated,
-            "desktop": desktop or "interactive",
-            "asset_set": asset_state["set"] if asset_state else None,
-            "avis": avis, "missing": [k for k, v in made.items() if not v],
-            **{k: v for k, v in run.as_dict().items() if k != "log_tail"}}
+    # THE SPREAD GOES FIRST. `run.as_dict()` carries its own "ok" -- the
+    # process-level one -- and spreading it last silently overwrote the verdict
+    # computed here. It did so before this change too, which is why a capture
+    # with a visible window would still have reported the engine's own ok.
+    out = {k: v for k, v in run.as_dict().items() if k != "log_tail"}
+    out.update({
+        "engine_ok": run.ok,          # kept, under a name that says what it is
+        "ok": bool(avis) and quiet and not truncated,
+        "frames_expected": want, "frames_written": got,
+        "truncated": truncated,
+        "desktop": desktop or "interactive",
+        "asset_set": asset_state["set"] if asset_state else None,
+        "avis": avis, "missing": [k for k, v in made.items() if not v],
+    })
+    return out
