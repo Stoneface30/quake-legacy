@@ -292,11 +292,12 @@ def _norms(metric="attacker_speed", scale=10.0):
 
 
 def test_version_bump():
+    # v4 added ROUND_OPENING_FRAG and the countdown window.
     # v3 added the round/team context traits. The number is pinned on purpose:
     # the corpus scan skips any demo already scanned at the current version, so
     # a taxonomy change that forgets the bump silently scans nothing.
-    assert fr.RECOGNITION_VERSION == 3
-    assert rs.RECOGNITION_VERSION == 3
+    assert fr.RECOGNITION_VERSION == 4
+    assert rs.RECOGNITION_VERSION == 4
 
 
 # ── recognition_norms: grid math + persistence ──────────────────────────────

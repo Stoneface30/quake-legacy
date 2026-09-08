@@ -40,6 +40,19 @@ WORLD = 1022
 TRADE_WINDOW_MS = 3000
 AMBUSH_MAX_VISIBLE_MS = 1000
 
+# ── the round countdown ────────────────────────────────────────────────────
+# CS_ROUND_STATUS announces a round BEFORE it goes live: the value carries
+# a scheduled start time, and the interval between the announcement and that
+# is the pre-round freeze -- players locked in place, the countdown on screen,
+# then GO. It is the one moment in Clan Arena with a known, repeatable shape,
+# which makes it the natural anchor for an entry transition.
+#
+# A frag in the opening seconds of a round is unwatchable without it: the clip
+# opens mid-sprint with no idea why everyone is where they are. Starting on the
+# countdown gives the cut somewhere to come from.
+COUNTDOWN_LEAD_MS = 4000        # how much countdown to keep before the start
+EARLY_ROUND_MS = 5000           # "the first seconds" of a round
+
 
 def _norm(v: str | None) -> str:
     """Configstring values keep a closing quote and a newline.
@@ -162,9 +175,22 @@ def build_context(parsed: dict, player: int | None) -> dict[int, dict]:
                     d["victim"] in mates and d["killer"] == v
                     and 0 <= t - d["t"] <= TRADE_WINDOW_MS
                     for d in prev_deaths)
+                into_round = t - rd["start_ms"]
+                early = 0 <= into_round <= EARLY_ROUND_MS
                 ctx = {
                     "round_index": rd["round"],
                     "round_start_ms": rd["start_ms"],
+                    "round_announced_ms": rd["announced_ms"],
+                    "ms_into_round": into_round,
+                    "is_round_opening_frag": early,
+                    # Where a clip should START so it opens on the countdown
+                    # rather than mid-action. None unless the frag is early
+                    # enough that the countdown is worth carrying.
+                    "countdown_start_ms": (rd["start_ms"] - COUNTDOWN_LEAD_MS
+                                           if early else None),
+                    "countdown_available_ms": (
+                        rd["start_ms"] - rd["announced_ms"]
+                        if rd["announced_ms"] is not None else None),
                     "round_end_ms": rd["end_ms"],
                     "round_end_basis": rd["end_basis"],
                     "team": my_team,

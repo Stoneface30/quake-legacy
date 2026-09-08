@@ -63,9 +63,59 @@ LOCK_PATH = REPO_ROOT / "output" / "demo_v2" / "_capture.lock"
 # same way the databases do.
 FFMPEG = (_store.PROJECT_ROOT / "creative_suite" / "tools" / "ffmpeg" / "ffmpeg.exe")
 
-# Window when the frag has no master capture: 4s before, 3s after the kill.
-WINDOW_PRE_MS = 4000
-WINDOW_POST_MS = 3000
+# Window when the frag has no master capture: SYMMETRIC around the kill.
+#
+# 4s/3s put the kill near the end of the clip and swept in whatever preceded
+# it. In a Clan Arena teamfight that is several other people's frags, and the
+# reviewer could not tell which kill the card was actually about -- reported
+# directly: "extracted frag seems to stop before the frag actually happen and
+# we also see all the previous frag".
+#
+# A symmetric window puts the kill in the middle. The window is anchored on the
+# KILL's own timestamp, never on a round boundary: the round-end command is
+# logged against the previous snapshot, so the frag that decides a round lands
+# 25ms after it (13 of 13 rounds in the audited fixture).
+WINDOW_PRE_MS = 5000
+WINDOW_POST_MS = 5000
+
+# Countdown lead-in. A frag in the opening seconds of a round has no readable
+# lead-up: the clip starts mid-sprint and the viewer never sees why anyone is
+# where they are. The pre-round freeze -- players locked, countdown on screen,
+# then GO -- is the natural entry, and it is the one moment in Clan Arena with
+# a fixed, repeatable shape, which makes it usable as a transition anchor.
+COUNTDOWN_LEAD_MS = 4000
+# "the opening seconds": how far into a round a kill can be and still get the
+# countdown in front of it. Matches round_context.EARLY_ROUND_MS.
+EARLY_ROUND_MS = 5000
+
+
+def capture_window(server_time_ms: int, round_start_ms: int | None = None,
+                   master: dict | None = None) -> dict[str, int]:
+    """The ONE definition of a proxy's capture window.
+
+    Two callers computed this independently and drifted; a change to the
+    window then applied to the single-frag route and not the batch one.
+    """
+    if master and master.get("capture_start_ms") is not None:
+        return {"start_ms": int(master["capture_start_ms"]),
+                "end_ms": int(master["capture_end_ms"]),
+                "basis": "MASTER_CAPTURE"}
+
+    t = int(server_time_ms)
+    start, end = t - WINDOW_PRE_MS, t + WINDOW_POST_MS
+    basis = "SYMMETRIC_AROUND_KILL"
+
+    # Open on the countdown when the kill lands early enough that the normal
+    # pre-roll would begin before the round did. Extends the window; never
+    # shortens it, so a clip cannot lose action to gain a countdown.
+    if round_start_ms is not None:
+        into_round = t - int(round_start_ms)
+        if 0 <= into_round <= EARLY_ROUND_MS:
+            countdown_start = int(round_start_ms) - COUNTDOWN_LEAD_MS
+            if countdown_start < start:
+                start = countdown_start
+                basis = "COUNTDOWN_LEAD_IN"
+    return {"start_ms": start, "end_ms": end, "basis": basis}
 
 _LOCK_RETRY_S = 5.0        # requeue delay while another writer holds the lock
 _MAX_LOCK_WAITS = 240      # give up after ~20 min of a held lock
