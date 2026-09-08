@@ -159,3 +159,76 @@ now wired and awaits one canary.
 - Baseline at HEAD failed 114; the branch introduced **no new failure**.
 - Nothing belonging to the concurrent session was committed
   (`relink_frags.py`, `round_model.py`, `demo_parse.py`, `frag_classify.py`).
+
+
+---
+
+# Addendum — the greenlit session
+
+## Newly PROVEN
+
+| Claim | Evidence |
+|---|---|
+| **The HUD control surface works** | `cg_drawStatus` 1 vs 0: the health readout, cross icon and HUD bar present in one frame, absent in the other. `docs/visual-record/2026-09-08/hud_cvar/` |
+| **The wardrobe reaches the picture** | NEON (388 MB, 800/800 renders) vs STOCK, filmed offscreen. Visibly different art, 30.5 MB vs 11.2 MB |
+| **Voice reaches the mux** | −1.8 dBTP with and without the third leg, −14.2 LUFS both |
+
+## The defect: diagnosed, half fixed, half still open
+
+Captures were short because **we were killing the engine**. Every offscreen
+capture runs on Mesa **softpipe** — deliberate, because the NVIDIA driver kills
+wolfcam during `R_Init` on this machine — and softpipe writes ~0.5 frames per
+second at 1080p against a `CAPTURE_SLOWDOWN` calibrated for hardware GL. The
+predicted budgets matched the observed wall times to within a second.
+
+Fixed: the budget is now sized for the renderer in use, both capture paths
+count the frames they wrote, and `ok` is False when a file is short.
+
+Also fixed, found on the way: **`ok` was never computed at all.**
+`**run.as_dict()` was spread last and carries its own process-level `"ok"`,
+overwriting the verdict. True before this change too.
+
+**Still open:** the engine writes **30 fps when the cfg asks for 60** (32.5 ms
+per frame). `cl_aviFrameRate` is 60 and registered, the divider is 1 and
+unregistered, `mme_blurFrames` is 0, and the profile sets no rate. Every knob
+says 60; the file says 30. A 2.5 s window now delivers 77/150 frames instead of
+42/150.
+
+## What I got wrong, and what it cost
+
+- **I measured the wardrobe at matched timestamps.** Two engine runs never
+  start on the same tick, so that compared different content. The ratios are
+  withdrawn; the visual difference stands.
+- **I built two HUD metrics that could not discriminate**, both by averaging a
+  region where the subject occupies a few percent of the pixels. The eye
+  answered in one look.
+- **I built the HUD on the shader surface first** when the engine had 383
+  dedicated switches, 341 of them ingested and never offered.
+
+The pattern in all three: I reached for a derived number when a direct look
+was available, and for a new mechanism when the engine already had one.
+
+## The canary is not answerable today
+
+Not merely blocked by the lock. **Under softpipe it would measure what Mesa
+allows, not what the hardware allows** — a software rasteriser grants a
+5760×3240 framebuffer happily. The question is whether the NVIDIA path does,
+and that path crashes.
+
+## Next, in order
+
+1. **The 30 fps halving.** It is the difference between half-length and
+   full-length clips on every capture.
+2. **The NVIDIA `R_Init` crash.** It is upstream of the capture speed, the
+   supersampling canary, and the native renderer. Everything slow or unproven
+   in this section traces back to it.
+3. Frame-lock two takes — unblocks the blend plans and an uncontaminated
+   measurement of every look.
+4. Listen to a narrated episode and set `VOICE_VOLUME` by ear.
+
+## Suite
+
+40 failed / 3178 passed, against a baseline of 114 / 3011 — but that baseline
+ran while another session was rebuilding databases, so most of the improvement
+is environmental rather than mine. Every suite covering code touched here
+passes when run explicitly.
