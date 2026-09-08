@@ -39,6 +39,7 @@ CLIPS_DIR = Path(os.getenv("QL_MASTERS_DIR",
                            r"D:\QUAKE_LEGACY_MASTERS\generated_clips"))
 QL_DIR = Path(r"C:\Program Files (x86)\Steam\steamapps\common\Quake Live")
 FFMPEG = REPO_ROOT / "creative_suite" / "tools" / "ffmpeg" / "ffmpeg.exe"
+FFPROBE = FFMPEG.parent / "ffprobe.exe"
 
 WOLFCAM_VERSION = "wolfcamql-11.3"
 FPS = 60
@@ -47,6 +48,22 @@ SEEK_SETTLE_MS = 600        # let renderer settle between seek and record
 INTER_WINDOW_MS = 300       # gap between stopvideo and next seek
 LAUNCH_OVERHEAD_S = 150     # engine start + demo load + seeks
 CAPTURE_SLOWDOWN = 10       # worst-case capture seconds per window second
+
+# THE SAME NUMBER, FOR A RENDERER A HUNDRED TIMES SLOWER.
+#
+# This process forces Mesa softpipe (see capture_demo) because the NVIDIA
+# driver kills wolfcam during R_Init on this machine. Softpipe is a CPU
+# rasteriser: measured on 2026-09-08 it wrote about HALF A FRAME PER SECOND of
+# wall clock at 1920x1080, i.e. ~120 wall-seconds per second of 60 fps footage.
+#
+# `CAPTURE_SLOWDOWN = 10` was calibrated against hardware GL, so every capture
+# was being terminated at its own deadline part-way through. Measured against
+# the probe in docs/visual-record/2026-09-08/capture_length/: budgets of
+# 223 / 248 / 298 s predicted the observed wall times of 223.4 / 248.7 /
+# 298.1 s exactly. The clips were not short because the engine stopped early;
+# they were short because WE killed it.
+SOFTWARE_CAPTURE_SLOWDOWN = 150     # measured ~120, plus margin
+CAPTURE_FPS = 60                    # what the master cfg records at
 
 
 class CfgInjectionError(ValueError):
@@ -243,12 +260,55 @@ def _mock_capture(windows: list[dict], staging: Path) -> None:
         dur = max(0.5, (int(w["end_ms"]) - int(w["start_ms"])) / 1000.0)
         subprocess.run(
             [str(FFMPEG), "-y", "-loglevel", "error",
-             "-f", "lavfi", "-i", f"testsrc=size=320x180:rate=30",
+             # AT THE CAPTURE RATE. A mock that writes half the frames of a
+             # real capture is a mock of a BROKEN capture, and the truncation
+             # check correctly flags it.
+             "-f", "lavfi", "-i", f"testsrc=size=320x180:rate={CAPTURE_FPS}",
              "-f", "lavfi", "-i", "sine=frequency=440",
              "-t", f"{dur:.3f}", "-c:v", "mjpeg", "-c:a", "pcm_s16le",
              str(videos / f"{w['clip_name']}.avi")],
             check=True, timeout=120,
             creationflags=subprocess.CREATE_NO_WINDOW)
+
+
+def software_gl() -> bool:
+    """Whether this capture will run on the CPU rasteriser.
+
+    We force it ourselves, so we can answer without asking the engine -- and
+    the code that forces software GL is the code that must budget for it.
+    """
+    return os.getenv("PANTHEON_FORCE_HARDWARE_GL") != "1"
+
+
+def frames_expected(windows: list[dict], fps: int = CAPTURE_FPS) -> int:
+    return sum(int(round((int(w["end_ms"]) - int(w["start_ms"])) / 1000.0 * fps))
+               for w in windows)
+
+
+def count_frames(avi: Path) -> int:
+    """Frames in the video stream, counted rather than trusted.
+
+    A truncated capture is a well-formed AVI: it opens, it plays, and its
+    header says 60 fps. Nothing about the file announces that it holds a
+    quarter of the action, which is why this has to be counted.
+    """
+    import re as _re
+    try:
+        r = subprocess.run(
+            [str(FFPROBE), "-v", "error", "-count_frames",
+             "-select_streams", "v:0", "-show_entries", "stream=nb_read_frames",
+             "-of", "default=nw=1:nk=1", str(avi)],
+            capture_output=True, text=True, timeout=600,
+            creationflags=subprocess.CREATE_NO_WINDOW)
+    except (OSError, subprocess.SubprocessError):
+        return 0
+    nums = [int(x) for x in _re.findall(r"\d+", r.stdout)]
+    return nums[0] if nums else 0
+
+
+#: Below this share of the requested frames a clip is reported TRUNCATED.
+#: Not 1.0: a capture legitimately loses a frame or two at the seam.
+COMPLETE_ENOUGH = 0.95
 
 
 def capture_demo(safe_demo: str, windows: list[dict],
@@ -268,7 +328,11 @@ def capture_demo(safe_demo: str, windows: list[dict],
         (int(w["end_ms"]) - int(w["start_ms"])) / 1000.0 for w in windows)
     # Seeks fast-forward-parse the demo (~50x realtime measured; budget 25x).
     max_seek_s = max(int(w["start_ms"]) for w in windows) / 1000.0
-    timeout = (LAUNCH_OVERHEAD_S + total_capture_s * CAPTURE_SLOWDOWN
+    # Budget for the renderer we are ACTUALLY going to use, not the one the
+    # constant was calibrated against.
+    slowdown = (SOFTWARE_CAPTURE_SLOWDOWN if software_gl() else
+                CAPTURE_SLOWDOWN)
+    timeout = (LAUNCH_OVERHEAD_S + total_capture_s * slowdown
                + max_seek_s / 12.0)   # /25 timed out a slow-parsing demo (330)
     t0 = time.time()
 
@@ -315,9 +379,23 @@ def capture_demo(safe_demo: str, windows: list[dict],
         cand = sorted(videos.glob(f"{w['clip_name']}*.avi"))
         if cand:
             avis[w["clip_name"]] = cand[0]
-    return {"ok": len(avis) == len(windows), "returncode": rc,
+
+    # A TRUNCATED CAPTURE IS A WELL-FORMED FILE. It opens, it plays, and its
+    # header claims 60 fps -- nothing about it says it holds a quarter of the
+    # action. Every clip filmed before 2026-09-08 was short and nothing said
+    # so, because success was "an AVI exists".
+    want = frames_expected(windows)
+    got = sum(count_frames(a) for a in avis.values())
+    truncated = bool(avis) and want > 0 and got < want * COMPLETE_ENOUGH
+    return {"ok": len(avis) == len(windows) and not truncated,
+            "returncode": rc,
             "elapsed_s": time.time() - t0, "avis": avis,
-            "error": None if len(avis) == len(windows)
+            "frames_expected": want, "frames_written": got,
+            "truncated": truncated,
+            "error": (f"TRUNCATED: {got}/{want} frames "
+                      f"({got / max(want, 1):.0%}); the engine was cut off "
+                      f"before it finished writing")
+            if truncated else None if len(avis) == len(windows)
             else f"missing {len(windows) - len(avis)} AVIs"}
 
 

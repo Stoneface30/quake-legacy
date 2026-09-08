@@ -724,7 +724,13 @@ def _capture_locked(safe_demo: str, windows: list[dict], *, staging: Path,
     if timeout is None:
         span = sum((int(w["end_ms"]) - int(w["start_ms"])) / 1000.0 for w in windows)
         seek = max(int(w["start_ms"]) for w in windows) / 1000.0
-        timeout = wc.LAUNCH_OVERHEAD_S + span * wc.CAPTURE_SLOWDOWN + seek / 12.0
+        # Budget for the renderer that will actually run. This process forces
+        # Mesa softpipe, which writes about half a frame per second at 1080p;
+        # the hardware constant killed every capture part-way through and left
+        # a well-formed AVI holding a quarter of the action.
+        slowdown = (wc.SOFTWARE_CAPTURE_SLOWDOWN if wc.software_gl()
+                    else wc.CAPTURE_SLOWDOWN)
+        timeout = wc.LAUNCH_OVERHEAD_S + span * slowdown + seek / 12.0
 
     # The profile also decides the LATCHED launch cvars (the review exposure
     # among them), which only apply from the command line -- so it has to be
@@ -741,7 +747,15 @@ def _capture_locked(safe_demo: str, windows: list[dict], *, staging: Path,
     # the behaviour being replaced. Only the hidden leg is judged on it.
     quiet = desktop is None or (not run.visible_windows and not run.stole_focus
                                 and not run.pointer_left_confined)
-    return {"ok": bool(avis) and quiet, "desktop": desktop or "interactive",
+    # COUNT WHAT WAS WRITTEN. A capture cut off at its deadline produces a
+    # file that opens and plays; only the frame count says it is short.
+    want = wc.frames_expected(windows)
+    got = sum(wc.count_frames(Path(a)) for a in avis.values())
+    truncated = bool(avis) and want > 0 and got < want * wc.COMPLETE_ENOUGH
+    return {"ok": bool(avis) and quiet and not truncated,
+            "frames_expected": want, "frames_written": got,
+            "truncated": truncated,
+            "desktop": desktop or "interactive",
             "asset_set": asset_state["set"] if asset_state else None,
             "avis": avis, "missing": [k for k, v in made.items() if not v],
             **{k: v for k, v in run.as_dict().items() if k != "log_tail"}}

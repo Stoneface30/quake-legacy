@@ -299,14 +299,56 @@ trap this repository documents in `morph.py`, walked into while proving
 clean magnitude needs frame-locked takes, which is the same unproven alignment
 step the blend plans are waiting on.
 
-## DEFECT FOUND — captures are truncated
+## DEFECT FOUND, DIAGNOSED AND FIXED — captures were being killed mid-write
 
-Both legs asked for a 2,500 ms window and produced **44 frames, 0.73 s**, with
-`ok=False`. Same for every capture attempted today. The clip is roughly 30% of
-the requested length. Not caused by any change here — it reproduces on the
-plain path — but it silently shortens every review proxy and every A/B leg, and
-it is why frame sampling past ~0.7 s returned nothing. **This is the highest
-value thing to fix next.**
+Both legs asked for 2,500 ms and produced **44 frames, 0.73 s**, with
+`ok=False`. A probe across four window lengths found the shape:
+
+| asked | expected @60 | delivered | wall time | predicted budget |
+|---|---|---|---|---|
+| 1,000 ms | 60 | **0** | 121.5 s | 208 s (finished early, wrote nothing) |
+| 2,500 ms | 150 | 42 | 223.4 s | **223 s** |
+| 5,000 ms | 300 | 74 | 248.7 s | **248 s** |
+| 10,000 ms | 600 | 84 | 298.1 s | **298 s** |
+
+The wall times match the computed timeouts to within a second. **The clips
+were not short because the engine stopped; they were short because we killed
+it.**
+
+### The root cause is the NVIDIA blocker, one layer down
+
+The console says it plainly:
+
+    GL_VENDOR:   Mesa
+    GL_RENDERER: softpipe
+    GL_VERSION:  3.3 (Compatibility Profile) Mesa 24.3.3
+
+Every offscreen capture runs on a **CPU rasteriser**. That is deliberate and
+documented — the NVIDIA driver kills wolfcam during `R_Init` on this machine,
+the same blocker recorded for PANTHEON's own renderer, so Mesa is staged beside
+`wolfcamql.exe` and only this process is affected.
+
+What nobody had connected is the cost. Softpipe writes about **half a frame per
+second** at 1920×1080, i.e. ~120 wall-seconds per second of 60 fps footage.
+`CAPTURE_SLOWDOWN = 10` was calibrated against hardware GL. Every capture was
+therefore terminated at its own deadline part-way through — and a terminated
+engine never releases its cursor clip, which is why `ok` was False as well:
+`pointer_left_confined` and the short clip are the same event.
+
+### What was fixed
+
+- `SOFTWARE_CAPTURE_SLOWDOWN = 150` (measured ~120, plus margin), selected by
+  `software_gl()`. A 2.5 s window now budgets 573 s instead of 223 s.
+- Both capture paths now **count the frames they wrote** and report
+  `truncated`, `frames_expected`, `frames_written`. A truncated capture is a
+  well-formed AVI whose header claims 60 fps — nothing about the file
+  announces that it holds a quarter of the action, which is exactly why every
+  clip filmed before today was short and nothing said so.
+- `ok` is False when the file is short, in both paths.
+
+**This affected every review proxy and every A/B leg ever filmed offscreen.**
+The real fix remains hardware GL, which is the NVIDIA blocker and is not
+addressed here.
 
 ## INCONCLUSIVE — the HUD shader proof could not discriminate
 
