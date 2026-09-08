@@ -54,6 +54,42 @@ static char cg_cmds[PANTHEON_CMD_RING][BIG_INFO_STRING];
 static int  cg_cmd_seq;          /* highest sequence queued */
 
 
+/*
+ * WHAT A WHOLE-FILE PRE-SCAN KNOWS.
+ *
+ * Wolfcam reads a .dm_73 from end to end before it plays a frame, so cgame can
+ * ask it questions about the WHOLE recording: when the game started, when it
+ * ended, the first and last server time. A feed cannot answer those from the
+ * snapshots it has been handed -- the future has not been pushed yet.
+ *
+ * So the host declares them. A parsed demo knows its own bounds; a composed
+ * scenario knows the window it was built for. Left unset, every field is 0 and
+ * the map name is empty, which is what cgame sees during a LIVE game and a
+ * path it already handles. The one thing never done here is a guess: a
+ * game-start time that is merely plausible shifts every clock cgame draws and
+ * looks completely correct while doing it.
+ */
+typedef struct {
+    int  gameStartTime, gameEndTime, firstServerTime, lastServerTime;
+    char mapName[MAX_QPATH];
+} pantheonDemoInfo_t;
+
+static pantheonDemoInfo_t cg_di;
+
+void PANTHEON_CG_SetDemoInfo(int gameStart, int gameEnd,
+                             int firstServerTime, int lastServerTime,
+                             const char *mapName)
+{
+    cg_di.gameStartTime   = gameStart;
+    cg_di.gameEndTime     = gameEnd;
+    cg_di.firstServerTime = firstServerTime;
+    cg_di.lastServerTime  = lastServerTime;
+    Q_strncpyz(cg_di.mapName, mapName ? mapName : "", sizeof(cg_di.mapName));
+}
+
+const pantheonDemoInfo_t *PANTHEON_CG_DemoInfo(void) { return &cg_di; }
+
+
 void PANTHEON_CG_SetGameState(const gameState_t *gs)
 {
     if (!gs) return;
@@ -96,6 +132,7 @@ void PANTHEON_CG_Reset(void)
     cg_latest = 0;
     cg_cmd_seq = 0;
     cg_gs_set = qfalse;
+    memset(&cg_di, 0, sizeof(cg_di));
 }
 
 

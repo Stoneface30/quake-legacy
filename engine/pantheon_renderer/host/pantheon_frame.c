@@ -34,7 +34,34 @@
 #include "pantheon_actor.h"
 
 void PANTHEON_SetInstallPath(const char *p);
+#include "../wolfcamql-11.3-src/wolfcamql-src/code/game/bg_public.h"
+#include "../wolfcamql-11.3-src/wolfcamql-src/code/cgame/cg_public.h"
+
 refexport_t *GetRefAPI(int apiVersion, refimport_t *rimp);
+
+/* cgame, linked statically. See host/pantheon_cg_syscall.c for the seam and
+ * host/pantheon_cg_feed.c for where its view of the world comes from. */
+void PANTHEON_CG_BindRenderer(refexport_t *re, const glconfig_t *cfg);
+void PANTHEON_CG_BuildGameState(gameState_t *gs, const char *mapname, int gametype);
+void PANTHEON_CG_SetGameState(const gameState_t *gs);
+void PANTHEON_CG_PushSnapshot(int number, const snapshot_t *snap);
+void PANTHEON_CG_Frame(int serverTime, qboolean firstFrame);
+void PANTHEON_CG_Init(void);
+void PANTHEON_CG_Report(void);
+void PANTHEON_CG_ComposeSnapshot(snapshot_t *snap, int serverTime, int number,
+                                 const vec3_t origin, const vec3_t angles);
+void PANTHEON_CG_AddRocket(snapshot_t *snap, int number, const vec3_t origin,
+                           const vec3_t velocity, int trTime);
+void PANTHEON_CG_AddExplosion(snapshot_t *snap, int number,
+                              const vec3_t origin, const vec3_t normal);
+static int s_cgame;
+/* A rocket and an explosion the host can put in the snapshot. Not a feature of
+ * the renderer -- a PROOF that a composed snapshot reaches every effect cgame
+ * owns, and the shape FrameTruth fills in for real. */
+static int    cliRocket, cliBoom;
+static vec3_t cliRocketOrg, cliRocketVel, cliBoomOrg;
+static vec3_t cliBoomNormal = {0, 0, 1};
+static glconfig_t s_glconfig;
 void CON_Init(void);
 extern CRITICAL_SECTION printCriticalSection;
 
@@ -344,6 +371,22 @@ int main(int argc, char **argv)
             cliW = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--height") && i + 1 < argc)
             cliH = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--cgame"))
+            s_cgame = 1;
+        else if (!strcmp(argv[i], "--rocket") && i + 6 < argc) {
+            cliRocket = 1;
+            cliRocketOrg[0] = (float)atof(argv[++i]);
+            cliRocketOrg[1] = (float)atof(argv[++i]);
+            cliRocketOrg[2] = (float)atof(argv[++i]);
+            cliRocketVel[0] = (float)atof(argv[++i]);
+            cliRocketVel[1] = (float)atof(argv[++i]);
+            cliRocketVel[2] = (float)atof(argv[++i]);
+        } else if (!strcmp(argv[i], "--explosion") && i + 3 < argc) {
+            cliBoom = 1;
+            cliBoomOrg[0] = (float)atof(argv[++i]);
+            cliBoomOrg[1] = (float)atof(argv[++i]);
+            cliBoomOrg[2] = (float)atof(argv[++i]);
+        }
         else if (!strcmp(argv[i], "--no-world"))
             s_noWorld = qtrue;
         /* A cvar set BEFORE Com_Init, which is the only time some of them
@@ -463,15 +506,20 @@ int main(int argc, char **argv)
     PANTHEON_ActorInit(re);
 
     {   /* BeginRegistration creates the GL context via GLimp_Init. */
-        glconfig_t cfg;
-        memset(&cfg, 0, sizeof(cfg));
-        re->BeginRegistration(&cfg);
+        memset(&s_glconfig, 0, sizeof(s_glconfig));
+        re->BeginRegistration(&s_glconfig);
     }
 
     /* Models and skins must register BEFORE EndRegistration closes the pass,
-     * or a handle comes back 0 and the actor silently is not drawn. */
-    re->LoadWorld(va("maps/%s.bsp",
-                     shotPath ? s_shot.map : cliMap));
+     * or a handle comes back 0 and the actor silently is not drawn.
+     *
+     * With --cgame the world is loaded by CG_Init instead. cgame owns that
+     * call -- it loads the collision model alongside it and keeps its own
+     * record of which map it is in -- and the renderer refuses a second load
+     * outright rather than quietly doing it twice. */
+    if (!s_cgame)
+        re->LoadWorld(va("maps/%s.bsp",
+                         shotPath ? s_shot.map : cliMap));
 
     if (shotPath) {
         for (i = 0; i < s_shot.numModels; i++) {
@@ -493,7 +541,93 @@ int main(int argc, char **argv)
             Com_Error(ERR_FATAL, "PANTHEON: actor '%s' would not register",
                       cliModel);
     }
+    if (s_cgame) {
+        /* Feed cgame BEFORE CG_Init: it reads the gamestate for the map and
+         * gametype, and needs a snapshot pair to have a world at all. */
+        gameState_t gs;
+        snapshot_t  snap;
+        int n;
+
+        PANTHEON_CG_BindRenderer(re, &s_glconfig);
+        PANTHEON_CG_BuildGameState(&gs, shotPath ? s_shot.map : cliMap, 0);
+        PANTHEON_CG_SetGameState(&gs);
+
+        /* A pair 50 ms apart, both holding the requested view. cgame
+         * interpolates between them; identical poses mean a still camera,
+         * which is what a single frame wants. The CONTENT is not identical:
+         * the rocket moves between them, because a rocket at the same place
+         * in both snapshots is a rocket with no velocity, and cgame draws
+         * that as a stationary ball with no trail. */
+        for (n = 1; n <= 2; n++) {
+            int t = 1000 + (n - 1) * 50;
+            PANTHEON_CG_ComposeSnapshot(&snap, t, n, cliOrigin, cliAngles);
+            if (cliRocket) {
+                vec3_t org;
+                VectorMA(cliRocketOrg, (t - 1000) / 1000.0f, cliRocketVel, org);
+                PANTHEON_CG_AddRocket(&snap, 20, org, cliRocketVel, 1000);
+            }
+            /* The explosion is fed ONLY in the second snapshot. A temp event
+             * fires on the transition INTO the snapshot that carries it; put
+             * it in both and cgame sees one event, not two, and fires it at
+             * whichever transition it happens to process. */
+            if (cliBoom && n == 2)
+                PANTHEON_CG_AddExplosion(&snap, 21, cliBoomOrg, cliBoomNormal);
+            PANTHEON_CG_PushSnapshot(n, &snap);
+        }
+        PANTHEON_CG_Init();
+        /* CG_Init DRAWS. It paints a loading screen and calls
+         * trap_UpdateScreen after every asset, and those 2D commands queue up
+         * in the renderer command list. Nothing presented them, because
+         * PANTHEON has no screen to update -- so without this they are still
+         * queued when the real frame is flushed, and the finished image comes
+         * out with the loading screen composited on top of the world. Drained
+         * here into a buffer nobody reads.
+         *
+         * TWICE, because a swap moves the problem rather than solving it: one
+         * EndFrame pushes the loading screen from back to front, where the
+         * next swap brings it straight back under the readback. Two drains
+         * leave both buffers clean, and only then does GL_BACK hold nothing
+         * but the frame that was asked for. */
+        re->EndFrame(NULL, NULL);
+        re->BeginFrame(STEREO_CENTER, qfalse);
+        re->EndFrame(NULL, NULL);
+    }
+
     re->EndRegistration();
+
+    /*
+     * THE SIZE WE ASKED FOR IS NOT NECESSARILY THE SIZE WE GOT.
+     *
+     * r_customwidth/r_customheight are a REQUEST. The window manager, the
+     * pixel format and r_mode all get a say, and glConfig reports what was
+     * actually created. Reading a 1280x720 rectangle out of a drawable that
+     * is not 1280x720 succeeds -- glReadPixels does not object to a rectangle
+     * larger than the buffer -- and fills the surplus with whatever happens to
+     * be in that memory, which in a renderer that has just uploaded a few
+     * thousand textures is texture data.
+     *
+     * That is the "corner artefact" this project has been looking at: not a
+     * corner, and not an artefact, but the frame plus a margin of somebody
+     * else's memory. A shrunken world inside a black band is the same fault
+     * seen from the other side.
+     *
+     * So the drawable is the authority. A mismatch is reported rather than
+     * silently accepted, because a frame that is quietly not the resolution it
+     * claims will be composited against ones that are.
+     */
+    if (s_glconfig.vidWidth > 0 && s_glconfig.vidHeight > 0) {
+        int reqW = shotPath ? s_shot.width  : cliW;
+        int reqH = shotPath ? s_shot.height : cliH;
+        if (s_glconfig.vidWidth != reqW || s_glconfig.vidHeight != reqH) {
+            Com_Printf("^3PANTHEON: asked for %dx%d, the drawable is %dx%d; "
+                       "rendering and reading back at the drawable size\n",
+                       reqW, reqH, s_glconfig.vidWidth, s_glconfig.vidHeight);
+            if (shotPath) { s_shot.width = s_glconfig.vidWidth;
+                            s_shot.height = s_glconfig.vidHeight; }
+            else          { cliW = s_glconfig.vidWidth;
+                            cliH = s_glconfig.vidHeight; }
+        }
+    }
 
     pixels = malloc((size_t)(shotPath ? s_shot.width : cliW) *
                     (size_t)(shotPath ? s_shot.height : cliH) * 3);
@@ -526,6 +660,33 @@ int main(int argc, char **argv)
         rd.rdflags = s_noWorld ? RDF_NOWORLDMODEL : 0;
 
         re->BeginFrame(STEREO_CENTER, qfalse);
+
+        /* CLEAR WHAT THE FRAME DOES NOT COVER.
+         *
+         * The 3D view is not guaranteed to fill the buffer: cgame sizes it
+         * from cg_viewsize and the HUD layout, and the renderer only clears
+         * inside the viewport it is given. Whatever the frame does not draw
+         * keeps the PREVIOUS contents of that buffer -- which, on the first
+         * frame, is the loading screen cgame painted during CG_Init.
+         *
+         * This is the whole of the "corner artefact": a correct world with a
+         * margin of the last thing that was on screen. It is an immediate GL
+         * call rather than a render command because the renderer's command
+         * list is not flushed until EndFrame, so this lands underneath the
+         * frame instead of on top of it. */
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        if (s_cgame) {
+            /* cgame owns the scene: it clears it, adds every entity and
+             * effect, and calls RenderScene itself. The camera comes from the
+             * snapshot's playerState, not from rd -- which is the whole
+             * point, because a snapshot is something we compose. */
+            PANTHEON_CG_Frame(time_ms, fi == 0);
+            re->EndFrame(NULL, NULL);
+            goto pantheon_readback;
+        }
+
         re->ClearScene();
 
         if (shotPath) {
@@ -566,6 +727,32 @@ int main(int argc, char **argv)
         re->RenderScene(&rd);
         re->EndFrame(NULL, NULL);
 
+pantheon_readback:
+        /* READ THE BUFFER THAT WAS JUST PRESENTED, NOT THE ONE BEHIND IT.
+         *
+         * EndFrame ends in SwapBuffers. After the swap the finished image is
+         * in the FRONT buffer and GL_BACK holds whatever was on screen before
+         * -- undefined by the spec, and on this driver the previous contents,
+         * which during startup is the loading screen cgame painted.
+         *
+         * That is the "corner artefact" this renderer has carried from the
+         * beginning: a grid of asset thumbnails and stray UI panels composited
+         * over an otherwise correct world. It was never a corner and never an
+         * artefact. Every frame was simply one buffer stale.
+         *
+         * GL_FRONT is not the answer: the window is hidden, so the driver
+         * hands back black. GL_BACK is correct -- it is the buffer the frame
+         * was drawn into -- PROVIDED nothing stale is left in the pair. See
+         * the double drain after CG_Init. */
+        /* WAIT FOR THE DRIVER BEFORE READING.
+         *
+         * EndFrame ends in SwapBuffers, which is asynchronous: it returns as
+         * soon as the command is queued. Reading immediately catches the
+         * buffer mid-copy, and the result is a frame assembled from two
+         * different moments -- rectangular regions of correct world that do
+         * not line up with each other. glFinish is the only thing that
+         * promises the GL is actually done. */
+        glFinish();
         glReadBuffer(GL_BACK);
         glPixelStorei(GL_PACK_ALIGNMENT, 1);
         glReadPixels(0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, pixels);

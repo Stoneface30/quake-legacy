@@ -45,12 +45,31 @@ $CC $CGFLAGS $INC -c "$SRC"/game/bg_*.c --output-dir "$OBJ" 2>/dev/null || \
 # ui_shared.c supplies Menu_*/Display_*/PC_*_Parse, which cgame's HUD uses.
 $CC $CGFLAGS -DCGAME $INC -c "$SRC/ui/ui_shared.c" -o "$OBJ/ui_shared.o"
 
+# cgame parses .menu files with botlib's PRECOMPILER. Only the parser is
+# needed -- l_precomp/l_script/l_memory/l_libvar/l_log -- not the bot AI it
+# ships attached to.
+for f in l_precomp l_script l_memory l_libvar l_log; do
+    $CC $CGFLAGS -DBOTLIB $INC -I"$SRC/botlib" -c "$SRC/botlib/$f.c" -o "$OBJ/$f.o"
+done
+# ...reaching the world through OUR botimport, not be_interface.c and the AI.
+$CC $CGFLAGS -DBOTLIB $INC -I"$SRC/botlib" -c "$HERE/host/pantheon_botlib_import.c" -o "$OBJ/pantheon_botlib_import.o"
+
 # THE SEAM. cg_syscalls.c is kept verbatim and calls syscall(); this supplies
 # it, dispatching straight into the renderer with no VM in between.
 $CC $CGFLAGS $INC -c "$HERE/host/pantheon_cg_syscall.c" -o "$OBJ/pantheon_cg_syscall.o"
 # The feed: cgame's world comes from snapshots WE supply -- a demo is one
 # source of them, FrameTruth is another, a composed scenario is a third.
 $CC $CGFLAGS $INC -c "$HERE/host/pantheon_cg_feed.c" -o "$OBJ/pantheon_cg_feed.o"
+# Calls cgame: CG_INIT inside the registration window, then
+# CG_DRAW_ACTIVE_FRAME per frame.
+$CC $CGFLAGS $INC -c "$HERE/host/pantheon_cg_run.c" -o "$OBJ/pantheon_cg_run.o"
+# A probe compiled against cgame own headers: statically linked, cg and cgs
+# are globals we can simply read.
+$CC $CGFLAGS $INC -c "$HERE/host/pantheon_cg_probe.c" -o "$OBJ/pantheon_cg_probe.o"
+# The host gains --cgame, so it is rebuilt here and this object must
+# WIN over build/pantheon_frame.o from the non-cgame build.
+$CC $CGFLAGS $INC -c "$HERE/host/pantheon_frame.c" -o "$OBJ/pantheon_frame.o"
+rm -f "$OUT/pantheon_frame.o"
 
 $CC -m32 -o "$OUT/pantheon_cgame.exe" "$OUT"/*.o "$OBJ"/*.o \
     -lopengl32 -lgdi32 -lwinmm -lws2_32 -lole32 -luser32 -ladvapi32 \
