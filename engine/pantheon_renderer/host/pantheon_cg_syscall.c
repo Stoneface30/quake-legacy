@@ -25,6 +25,13 @@
 
 #include <stdarg.h>
 
+/* The feed: where cgame's view of the world comes from. A demo is one source
+ * of snapshots, not the only one -- see pantheon_cg_feed.c. */
+void     PANTHEON_CG_GetGameState(gameState_t *out);
+void     PANTHEON_CG_GetCurrentSnapshotNumber(int *num, int *serverTime);
+qboolean PANTHEON_CG_GetSnapshot(int number, snapshot_t *out);
+qboolean PANTHEON_CG_GetServerCommand(int seq);
+
 /* Set once, by the host, before cgame runs. */
 static refexport_t *cgre;
 static glconfig_t   cg_glconfig;
@@ -147,6 +154,21 @@ intptr_t syscall(intptr_t cmd, ...)
         cgre->RemapShader(VMA(1), VMA(2), VMA(3), args[4], args[5]);
         return 0;
     case CG_GETGLCONFIG:        *(glconfig_t *)VMA(1) = cg_glconfig; return 0;
+
+    /* ---- the world cgame draws ---------------------------------------- */
+    case CG_GETGAMESTATE:
+        PANTHEON_CG_GetGameState(VMA(1)); return 0;
+    case CG_GETCURRENTSNAPSHOTNUMBER:
+        PANTHEON_CG_GetCurrentSnapshotNumber(VMA(1), VMA(2)); return 0;
+    case CG_GETSNAPSHOT:
+        return PANTHEON_CG_GetSnapshot(args[1], VMA(2));
+    case CG_GETSERVERCOMMAND:
+        return PANTHEON_CG_GetServerCommand(args[1]);
+    /* PANTHEON renders a WORLD, not a player's input history. cgame uses the
+     * command number only for prediction, which a composed shot never does:
+     * nobody is pressing keys. Reported as "no commands" rather than faked. */
+    case CG_GETCURRENTCMDNUMBER: return 0;
+    case CG_GETUSERCMD:          return qfalse;
 
     /* ---- input: PANTHEON is not played ------------------------------- */
     case CG_KEY_ISDOWN: case CG_KEY_GETCATCHER: case CG_KEY_GETKEY:
