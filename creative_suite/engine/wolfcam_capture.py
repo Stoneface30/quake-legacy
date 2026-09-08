@@ -236,7 +236,7 @@ def wolfcam_cmd(safe_demo: str, staging: Path = STAGING,
         merged.update(extra_sets or {})
         extra_sets = merged
     cmd = [
-        str(staging / "wolfcamql.exe"),
+        str(engine_exe(staging)),
         "+set", "fs_homepath", str(staging),
         "+set", "fs_basepath", str(staging),
         "+set", "fs_quakelivedir", str(QL_DIR),
@@ -271,13 +271,77 @@ def _mock_capture(windows: list[dict], staging: Path) -> None:
             creationflags=subprocess.CREATE_NO_WINDOW)
 
 
-def software_gl() -> bool:
-    """Whether this capture will run on the CPU rasteriser.
+# THE TWO FILES THAT DECIDE WHICH RENDERER RUNS.
+#
+# Windows resolves `opengl32.dll` from the executable's own directory before
+# anywhere else. Mesa is staged beside `wolfcamql.exe`, so the engine has been
+# getting Mesa -- and, with llvmpipe absent from this MinGW x86 build, the
+# softpipe reference rasteriser at about half a frame per second.
+#
+# Running the SAME executable from a directory without these two files gets
+# the system NVIDIA ICD instead. Measured 2026-09-08 on one 2,500 ms window:
+#
+#     softpipe   303.4 s   77 frames   30.8 fps captured
+#     NVIDIA      22.4 s  150 frames   60.0 fps captured
+#
+# 13.5x faster, the full frame count, and the "capture writes 30 fps when the
+# cfg asks for 60" defect turns out to have been softpipe dropping frames it
+# could not render in time. It was never an engine bug.
+MESA_DLLS = ("opengl32.dll", "libgallium_wgl.dll")
 
-    We force it ourselves, so we can answer without asking the engine -- and
-    the code that forces software GL is the code that must budget for it.
+#: `native` uses the GPU. `software` reinstates Mesa, which is how this ran
+#: until the NVIDIA path was actually tried.
+GL_MODE_ENV = "PANTHEON_GL"
+
+
+def gl_mode() -> str:
+    mode = os.getenv(GL_MODE_ENV, "native").strip().lower()
+    if mode not in ("native", "software"):
+        raise ValueError(f"{GL_MODE_ENV} must be native or software, "
+                         f"not {mode!r}")
+    return mode
+
+
+def software_gl() -> bool:
+    """Whether this capture will run on the CPU rasteriser."""
+    return gl_mode() == "software"
+
+
+def native_gl_dir(staging: Path = STAGING) -> Path:
+    """A view of the engine with Mesa left out, built by hard link.
+
+    Not a second install: every file is a link to the one in staging, so there
+    is no copy to keep in step and no gigabytes duplicated. The engine still
+    reads all its assets from staging through fs_basepath -- the only thing
+    this directory changes is which `opengl32.dll` Windows finds first.
     """
-    return os.getenv("PANTHEON_FORCE_HARDWARE_GL") != "1"
+    staging = Path(staging)
+    d = staging / "_native_gl"
+    d.mkdir(parents=True, exist_ok=True)
+    skip = {n.lower() for n in MESA_DLLS}
+    for src in list(staging.glob("*.dll")) + [staging / "wolfcamql.exe"]:
+        if not src.is_file() or src.name.lower() in skip:
+            continue
+        dst = d / src.name
+        if dst.exists():
+            if dst.stat().st_size == src.stat().st_size:
+                continue
+            dst.unlink()
+        try:
+            os.link(src, dst)
+        except OSError:
+            import shutil
+            shutil.copy2(src, dst)
+    for name in MESA_DLLS:                # never let one linger here
+        (d / name).unlink(missing_ok=True)
+    return d
+
+
+def engine_exe(staging: Path = STAGING) -> Path:
+    """The executable to launch, for the renderer this run wants."""
+    if software_gl():
+        return Path(staging) / "wolfcamql.exe"
+    return native_gl_dir(staging) / "wolfcamql.exe"
 
 
 def frames_expected(windows: list[dict], fps: int = CAPTURE_FPS) -> int:
@@ -411,7 +475,9 @@ def capture_demo(safe_demo: str, windows: list[dict],
         # untouched. Nothing in System32 was modified and no driver setting
         # was changed. GALLIUM_DRIVER must be set explicitly: the default
         # Zink probe crashes before it can fall back.
-        env = dict(os.environ, GALLIUM_DRIVER="softpipe")
+        env = dict(os.environ)
+        if software_gl():
+            env["GALLIUM_DRIVER"] = "softpipe"
         proc = subprocess.Popen(
             wolfcam_cmd(safe_demo, staging, profile=profile), cwd=staging,
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,

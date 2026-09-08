@@ -1,0 +1,18 @@
+{
+ "seconds_wall": 22.4,
+ "avis": 1,
+ "renderer": "GL_RENDERER: NVIDIA GeForce RTX 5060 Ti/PCIe/SSE2",
+ "zone_error": false,
+ "visible_windows": [],
+ "stole_focus": false,
+ "softpipe_reference": {
+  "seconds_wall": 303.4,
+  "frames": 77
+ },
+ "width": 1920,
+ "height": 1080,
+ "frames": 150,
+ "bytes": 88815616,
+ "capture_fps": 60.0,
+ "speedup_vs_softpipe": 13.5
+}

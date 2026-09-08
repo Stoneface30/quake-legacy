@@ -738,8 +738,13 @@ def _capture_locked(safe_demo: str, windows: list[dict], *, staging: Path,
     argv = wc.wolfcam_cmd(safe_demo, staging, profile=profile,
                           extra_sets=dict(OFFSCREEN_SETS))
     console = staging / "wolfcam-ql" / "qconsole.log"
-    run = run_engine(argv, cwd=staging, timeout=timeout, purpose=purpose,
-                     log=console, env=ENGINE_ENV(), desktop=desktop)
+    # LAUNCH FROM THE ENGINE'S OWN DIRECTORY. Windows resolves opengl32.dll
+    # from there first, and that single fact decides whether this render runs
+    # on the GPU or on a CPU rasteriser thirteen times slower. Staging still
+    # supplies every asset through fs_basepath.
+    run = run_engine(argv, cwd=Path(argv[0]).parent, timeout=timeout,
+                     purpose=purpose, log=console, env=ENGINE_ENV(),
+                     desktop=desktop)
     made = {w["clip_name"]: sorted(videos.glob(f"{w['clip_name']}*.avi"))
             for w in windows}
     avis = {k: str(v[0]) for k, v in made.items() if v}

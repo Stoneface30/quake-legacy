@@ -28,19 +28,20 @@ def test_the_budget_is_sized_for_the_renderer_that_will_actually_run():
         "constant is 10")
 
 
-def test_software_gl_is_the_default_because_we_force_it():
-    """The code that forces software GL is the code that must budget for it."""
+def test_the_slow_budget_applies_only_when_software_gl_is_asked_for(
+        monkeypatch):
+    """Native GL is 13.5x faster, so budgeting for softpipe by default would
+    let a genuinely hung capture run for a quarter of an hour."""
+    monkeypatch.setenv(wc.GL_MODE_ENV, "native")
+    assert wc.software_gl() is False
+    monkeypatch.setenv(wc.GL_MODE_ENV, "software")
     assert wc.software_gl() is True
 
 
-def test_a_hardware_override_restores_the_fast_budget(monkeypatch):
-    monkeypatch.setenv("PANTHEON_FORCE_HARDWARE_GL", "1")
-    assert wc.software_gl() is False
-
-
-def test_the_budget_now_exceeds_what_softpipe_measurably_needs():
-    """At ~0.5 written frames per second, a 2.5 s clip at 60 fps needs ~300 s.
-    The old budget was 223 s, which is why it delivered 42 of 150 frames."""
+def test_the_software_budget_exceeds_what_softpipe_measurably_needs():
+    """Kept because software mode still exists. At ~0.5 written frames per
+    second a 2.5 s clip at 60 fps needs ~300 s; the old budget was 223 s,
+    which is why it delivered 42 of 150 frames."""
     span, seek = 2.5, 579.8
     new = wc.LAUNCH_OVERHEAD_S + span * wc.SOFTWARE_CAPTURE_SLOWDOWN + seek / 12.0
     old = wc.LAUNCH_OVERHEAD_S + span * wc.CAPTURE_SLOWDOWN + seek / 12.0
@@ -137,3 +138,71 @@ def test_the_computed_verdict_is_not_overwritten_by_the_process_result():
         "the process dict must be spread BEFORE the computed verdict, or it "
         "overwrites it")
     assert "engine_ok" in src, "the process-level result should still be "                               "available, under a name that says what it is"
+
+
+# ── which renderer runs, which is what all of the above was really about ───
+
+def test_native_gl_is_the_default():
+    """Mesa softpipe was a workaround for a crash that does not reproduce.
+    Measured on one 2,500 ms window: softpipe 303.4 s / 77 frames / 30.8 fps
+    captured; NVIDIA 22.4 s / 150 frames / 60.0 fps."""
+    assert wc.gl_mode() == "native"
+    assert wc.software_gl() is False
+
+
+def test_software_can_still_be_asked_for(monkeypatch):
+    monkeypatch.setenv(wc.GL_MODE_ENV, "software")
+    assert wc.software_gl() is True
+    monkeypatch.setenv(wc.GL_MODE_ENV, "native")
+    assert wc.software_gl() is False
+
+
+def test_a_nonsense_gl_mode_is_refused(monkeypatch):
+    monkeypatch.setenv(wc.GL_MODE_ENV, "turbo")
+    with pytest.raises(ValueError, match="native or software"):
+        wc.gl_mode()
+
+
+def test_the_native_directory_holds_the_engine_and_no_mesa(tmp_path):
+    """Windows resolves opengl32.dll from the executable's directory, so the
+    ONLY thing that decides the renderer is whether those two files are
+    beside the exe."""
+    staging = tmp_path
+    (staging / "wolfcamql.exe").write_bytes(b"exe")
+    for name in wc.MESA_DLLS:
+        (staging / name).write_bytes(b"mesa")
+    (staging / "SDL.dll").write_bytes(b"sdl")
+
+    d = wc.native_gl_dir(staging)
+    assert (d / "wolfcamql.exe").exists()
+    assert (d / "SDL.dll").exists(), "the engine's own dependencies must come"
+    for name in wc.MESA_DLLS:
+        assert not (d / name).exists(), f"{name} would put Mesa back in charge"
+
+
+def test_a_mesa_dll_that_appears_later_is_removed(tmp_path):
+    """Rebuilding the view must not leave a stale Mesa file behind."""
+    staging = tmp_path
+    (staging / "wolfcamql.exe").write_bytes(b"exe")
+    d = wc.native_gl_dir(staging)
+    (d / wc.MESA_DLLS[0]).write_bytes(b"sneaked in")
+    wc.native_gl_dir(staging)
+    assert not (d / wc.MESA_DLLS[0]).exists()
+
+
+def test_the_exe_that_gets_launched_follows_the_mode(tmp_path, monkeypatch):
+    staging = tmp_path
+    (staging / "wolfcamql.exe").write_bytes(b"exe")
+    monkeypatch.setenv(wc.GL_MODE_ENV, "software")
+    assert wc.engine_exe(staging).parent == staging
+    monkeypatch.setenv(wc.GL_MODE_ENV, "native")
+    assert wc.engine_exe(staging).parent.name == "_native_gl"
+
+
+def test_the_offscreen_path_launches_from_the_engine_directory():
+    """cwd is part of the DLL search order; launching from staging could let
+    Mesa back in through the side door."""
+    import inspect
+    from engine.pantheon import offscreen as O
+    src = inspect.getsource(O._capture_locked)
+    assert "Path(argv[0]).parent" in src

@@ -7,6 +7,60 @@ clip costs ~10 minutes, so a 120-clip Part is ~20 hours of pure capture.
 The engine is `wolfcamql 11.3 win_mingw-x86`, built **Aug 2016**. 32-bit,
 fixed-function OpenGL 1.x, SDL 1.2 with the `windib` video driver.
 
+## THE ANSWER: native NVIDIA works, and always did
+
+**The softpipe workaround was unnecessary.** WolfcamQL gets a real hardware
+context on the hidden desktop, sets the requested mode with no fallback, and
+captures at full rate.
+
+| | softpipe | **native NVIDIA** |
+|---|---|---|
+| wall clock, 2,500 ms window | 303.4 s | **22.4 s** |
+| frames delivered | 77 / 150 | **150 / 150** |
+| captured rate | 30.8 fps | **60.0 fps** |
+| renderer | `softpipe` | `NVIDIA GeForce RTX 5060 Ti/PCIe/SSE2` |
+| window shown / focus stolen | no / no | no / no |
+
+**13.5x faster, and every frame.** Through the production path with the UHD
+asset install included: 66.2 s, 147/150 frames, 58.8 fps, `ok: true`.
+
+### What this retracts
+
+- **"The engine writes 30 fps when asked for 60" was not an engine defect.**
+  It was softpipe dropping frames it could not render in time. On the GPU the
+  cfg's 60 is honoured exactly.
+- **The capture timeout fix, while correct, was treating a symptom.** Captures
+  were being killed at their deadline because the renderer was ~100x too slow,
+  not because the budget was wrong in principle.
+- **The `retime()` repair is still right, and no longer fires.** Native
+  captures come back at `played_too_fast_by: 1.02`, inside tolerance.
+
+### Why the belief was wrong
+
+The record said the NVIDIA driver kills wolfcam during `R_Init`. The recorded
+access violation was in a **custom host**, not in wolfcamql, and stock
+ioquake3 NULL-checks every resolved GL pointer and errors cleanly rather than
+faulting. The documented mechanism fits: `wglGetProcAddress` returns NULL for
+OpenGL 1.1 core functions -- exactly `glColor4f`, `glColor3f`, `glNormal3f`,
+the three that faulted -- and SDL 1.2's `SDL_GL_GetProcAddress` has no
+`GetProcAddress` fallback. Mesa resolves them anyway; NVIDIA follows the spec.
+That is a bug in the custom host, and it was generalised to the whole engine
+without testing the engine.
+
+### How it is selected
+
+Windows resolves `opengl32.dll` from the executable's own directory first, and
+Mesa is staged beside `wolfcamql.exe`. `native_gl_dir()` builds a hard-linked
+view of the engine with `opengl32.dll` and `libgallium_wgl.dll` left out --
+not a second install, just a directory where Windows finds the system ICD
+instead. Assets still come from staging through `fs_basepath`.
+
+`PANTHEON_GL=software` puts Mesa back.
+
+---
+
+## The survey that led here
+
 ## The result
 
 | Driver | Outcome | Evidence |
