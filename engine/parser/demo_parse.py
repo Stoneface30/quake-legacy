@@ -1050,7 +1050,21 @@ class DM73Parser:
             'entity_num':     entity_num,
             'server_time_ms': server_time,
             'round':          round_num,
-            'client_num':     accumulated.get(_F_CLIENT),
+            # A PLAYER ENTITY'S NUMBER IS ITS CLIENT NUMBER. Entity slots
+            # 0..MAX_CLIENTS-1 are the players (bg_public.h; verified against
+            # the corpus, where pain and death match entity_num == client_num
+            # 100% of the time). The clientNum FIELD is delta-compressed and
+            # usually absent, so reading only that left client_num null on
+            # most events -- fire_weapon resolved a client on 38.9% of rows,
+            # and every per-player attribution built on it silently lost the
+            # rest. Entities at or above MAX_CLIENTS stay null: those are
+            # missiles, movers and freestanding ET_EVENTS, which have no
+            # client by construction.
+            'client_num':     (accumulated.get(_F_CLIENT)
+                               if accumulated.get(_F_CLIENT) is not None
+                               else (entity_num if entity_num is not None
+                                     and 0 <= entity_num < _MAX_CLIENTS
+                                     else None)),
             'pos_x':          round(px, 2) if px is not None else None,
             'pos_y':          round(py, 2) if py is not None else None,
             'pos_z':          round(pz, 2) if pz is not None else None,
