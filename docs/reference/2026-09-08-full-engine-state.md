@@ -232,3 +232,69 @@ and that path crashes.
 ran while another session was rebuilding databases, so most of the improvement
 is environmental rather than mine. Every suite covering code touched here
 passes when run explicitly.
+
+
+---
+
+# Addendum 2 — the engine runs on the GPU
+
+Everything in the previous addendum about capture speed is superseded by one
+finding: **the Mesa softpipe workaround was never necessary.**
+
+| | softpipe | native NVIDIA |
+|---|---|---|
+| wall clock, 2,500 ms window | 303.4 s | **22.4 s** |
+| frames delivered | 77 / 150 | **150 / 150** |
+| captured rate | 30.8 fps | **60.0 fps** |
+| renderer | `softpipe` | `NVIDIA GeForce RTX 5060 Ti` |
+| window / focus | none / none | none / none |
+
+Through the production path with the UHD install: **66.2 s, 147/150 frames,
+58.8 fps, `ok: true`**.
+
+## Two conclusions retracted
+
+- **"The engine writes 30 fps when asked for 60" was not an engine defect.**
+  It was softpipe dropping frames it could not render in time.
+- **The capture-timeout fix was treating a symptom.** Captures were killed at
+  their deadline because the renderer was ~100x too slow.
+
+`retime()` remains correct and now never fires: native captures come back at
+`played_too_fast_by: 1.02`, inside tolerance.
+
+## Why the belief stood so long
+
+The record said the NVIDIA driver kills wolfcam during `R_Init`. The recorded
+access violation was in a **custom host**, not wolfcamql, and stock ioquake3
+NULL-checks every resolved GL pointer and errors cleanly rather than faulting.
+`wglGetProcAddress` is documented to return NULL for OpenGL 1.1 core functions
+-- exactly `glColor4f`, `glColor3f`, `glNormal3f`, the three that faulted --
+and SDL 1.2 has no `GetProcAddress` fallback while Mesa resolves them anyway.
+**One host's bug was generalised to the whole engine without testing the
+engine.**
+
+The other Mesa drivers are measured dead ends: `llvmpipe` absent from this
+MinGW x86 build, `d3d12` no matching pixel format across sixteen mode/bpp
+combinations, `zink` dies without writing an error.
+
+## What it unlocks
+
+A 120-clip Part goes from roughly 20 hours of capture to **1-2**. The
+supersampling canary is now worth running, because it would measure the
+hardware rather than what Mesa allows. The wardrobe shoots become practical.
+
+## Also in this pass
+
+- `review_sheet` — crops, labels and stacks comparison frames, names the one
+  variable, refuses a one-sided sheet, reports `PENDING_HUMAN`. Built because
+  three separate measurements said nothing today where one look answered.
+- The HUD control surface proven on pixels: `cg_drawStatus` 1 vs 0.
+- A look that is not built is a choice, not a fault -- `available()` is now
+  scoped to the set being filmed.
+
+## The pattern worth keeping
+
+Four times today a derived number was wrong where a direct look was right, and
+twice a belief was inherited rather than tested. The corrective is the same in
+both cases: **ask the thing itself.** The engine was never asked whether it
+could use the GPU.
