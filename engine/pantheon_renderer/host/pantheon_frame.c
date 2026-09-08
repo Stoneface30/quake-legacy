@@ -69,6 +69,12 @@ static int s_cgame;
 static int    cliRocket, cliBoom;
 static vec3_t cliRocketOrg, cliRocketVel, cliBoomOrg;
 static vec3_t cliBoomNormal = {0, 0, 1};
+/* Motion blur and the depth pass. Both are consequences of owning the frame
+ * loop rather than features bolted onto it -- see PANTHEON_BlurFrame and
+ * WritePGM16. */
+static int   cliBlur;              /* sub-frames per output frame, 0 = off */
+static float cliShutter = 0.5f;    /* fraction of the frame interval open */
+static int   cliDepth;             /* also write a 16-bit depth map */
 static glconfig_t s_glconfig;
 void CON_Init(void);
 extern CRITICAL_SECTION printCriticalSection;
@@ -242,6 +248,90 @@ static void PANTHEON_ShotSnapshot(int n)
     }
 
     PANTHEON_CG_PushSnapshot(n, &snap);
+}
+
+/*
+ * THE DEPTH PASS.
+ *
+ * A colour frame says what the shot looks like. A depth frame says how far
+ * away each pixel is, which is what lets depth of field, fog, atmospheric
+ * haze and compositing be decided in the edit rather than baked into the
+ * render -- and re-decided later without re-rendering.
+ *
+ * Written as 16-bit binary PGM: one channel, big-endian, no compression, and
+ * read by ffmpeg, ImageMagick, Nuke and Resolve without a plugin. The values
+ * are the raw depth buffer, which is NOT linear -- precision is crowded near
+ * the camera by the projection. The near and far planes are written into the
+ * PGM comment so the reader can linearise as
+ *
+ *     z = 2*n*f / (f + n - (2*d - 1)*(f - n))
+ *
+ * rather than guess. A depth map with no planes recorded is a picture of a
+ * gradient, not a measurement.
+ */
+/*
+ * MOTION BLUR THAT IS NOT A CHEAT.
+ *
+ * A real camera's shutter is open for a slice of each frame, and everything
+ * that moves during that slice smears. Every offline approximation of this
+ * either blends the neighbouring OUTPUT frames -- which smears the wrong
+ * distance and ghosts, because the frames are too far apart -- or warps pixels
+ * along a guessed velocity field, which invents geometry at silhouettes.
+ *
+ * PANTHEON does not have to approximate. The renderer is fed a snapshot and
+ * asked for the world at an INSTANT, so a frame at t can be built from N real
+ * renders spread across the shutter interval and averaged. Each sub-frame is
+ * an actual world state: the rocket really was there, the torso really had
+ * turned that far, the explosion really was that many milliseconds old. The
+ * average of real samples is what a shutter does.
+ *
+ * This is the thing an engine that PLAYS a demo cannot do -- it can only show
+ * you the frames the playback clock lands on. It falls out of the snapshot
+ * feed for free.
+ *
+ * Accumulated in 32-bit so that 64 sub-frames cannot overflow, and averaged
+ * only at the end: averaging as you go loses the low bits N times over.
+ */
+static void PANTHEON_BlurAccumulate(unsigned *acc, const byte *rgb, int n)
+{
+    int i;
+    for (i = 0; i < n; i++) acc[i] += rgb[i];
+}
+
+static void PANTHEON_BlurResolve(byte *rgb, const unsigned *acc, int n,
+                                 int samples)
+{
+    int i;
+    for (i = 0; i < n; i++)
+        rgb[i] = (byte)((acc[i] + samples / 2) / samples);
+}
+
+static void WritePGM16(const char *path, const float *depth, int w, int h,
+                       float zNear, float zFar)
+{
+    FILE  *f = fopen(path, "wb");
+    byte  *row;
+    int    x, y;
+
+    if (!f) Com_Error(ERR_FATAL, "cannot write %s", path);
+    fprintf(f, "P5\n# PANTHEON depth znear=%.6f zfar=%.6f nonlinear=1\n"
+               "%d %d\n65535\n", zNear, zFar, w, h);
+    row = malloc((size_t)w * 2);
+    /* GL hands back bottom-up; PGM is top-down. */
+    for (y = h - 1; y >= 0; y--) {
+        for (x = 0; x < w; x++) {
+            float    d = depth[y * w + x];
+            unsigned v;
+            if (d < 0.0f) d = 0.0f;
+            if (d > 1.0f) d = 1.0f;
+            v = (unsigned)(d * 65535.0f + 0.5f);
+            row[x * 2 + 0] = (byte)(v >> 8);
+            row[x * 2 + 1] = (byte)(v & 255);
+        }
+        fwrite(row, 1, (size_t)w * 2, f);
+    }
+    free(row);
+    fclose(f);
 }
 
 static void WriteTGA(const char *path, const byte *rgb, int w, int h)
@@ -447,6 +537,9 @@ int main(int argc, char **argv)
     const char *shotPath = NULL;
     const char *shotPaths[PA_MAX_SHOTS];
     int         numShots = 0, take, totalFrames = 0;
+    unsigned   *blurAccum = NULL;
+    float      *depthPix = NULL;
+    int         blurSub, blurSamples;
 
     /* single-frame mode inputs */
     char  cliMap[MAX_QPATH] = {0};
@@ -520,6 +613,12 @@ int main(int argc, char **argv)
             cliH = atoi(argv[++i]);
         else if (!strcmp(argv[i], "--cgame"))
             s_cgame = 1;
+        else if (!strcmp(argv[i], "--blur") && i + 1 < argc)
+            cliBlur = atoi(argv[++i]);
+        else if (!strcmp(argv[i], "--shutter") && i + 1 < argc)
+            cliShutter = (float)atof(argv[++i]);
+        else if (!strcmp(argv[i], "--depth"))
+            cliDepth = 1;
         else if (!strcmp(argv[i], "--rocket") && i + 6 < argc) {
             cliRocket = 1;
             cliRocketOrg[0] = (float)atof(argv[++i]);
@@ -815,8 +914,17 @@ int main(int argc, char **argv)
         }
     }
 
-    pixels = malloc((size_t)(shotPath ? s_shot.width : cliW) *
-                    (size_t)(shotPath ? s_shot.height : cliH) * 3);
+    {
+        size_t np = (size_t)(shotPath ? s_shot.width : cliW) *
+                    (size_t)(shotPath ? s_shot.height : cliH);
+        pixels = malloc(np * 3);
+        if (cliBlur > 1) {
+            blurAccum = calloc(np * 3, sizeof(unsigned));
+            Com_Printf("PANTHEON: motion blur %d sub-frames, shutter %.2f of "
+                       "the frame interval\n", cliBlur, cliShutter);
+        }
+        if (cliDepth) depthPix = malloc(np * sizeof(float));
+    }
 
   for (take = 0; take < (numShots > 1 ? numShots : 1); take++) {
 
@@ -884,6 +992,29 @@ int main(int argc, char **argv)
         rd.time = time_ms;
         rd.rdflags = s_noWorld ? RDF_NOWORLDMODEL : 0;
 
+      /* THE SHUTTER.
+       *
+       * Sub-frames run over (t - shutter*dt, t], i.e. the shutter closes ON
+       * the frame's own timestamp. A shutter centred on t would be more
+       * photographically pure and would run cg.time BACKWARDS between output
+       * frames, which cgame reads as a demo rewind -- it has a whole branch
+       * for that -- and would re-fire events already transitioned. Trailing
+       * keeps every sub-time monotonic across the entire sequence, which is
+       * the only ordering cgame's snapshot machinery accepts. */
+      blurSamples = (cliBlur > 1) ? cliBlur : 1;
+      if (blurAccum) memset(blurAccum, 0, (size_t)w * h * 3 * sizeof(unsigned));
+
+      for (blurSub = 0; blurSub < blurSamples; blurSub++) {
+        int subTime = time_ms;
+        if (blurSamples > 1) {
+            int dt = (shotPath && fi > 0)
+                   ? time_ms - s_shot.frames[fi - 1].server_time_ms : 33;
+            float span = (float)dt * cliShutter;
+            subTime = time_ms - (int)(span * (blurSamples - 1 - blurSub)
+                                      / (float)blurSamples);
+        }
+        rd.time = subTime;
+
         re->BeginFrame(STEREO_CENTER, qfalse);
 
         /* CLEAR WHAT THE FRAME DOES NOT COVER.
@@ -912,9 +1043,9 @@ int main(int argc, char **argv)
              * frame is the tail of the pair and the world stops moving
              * between them -- which looks like a low frame rate rather than
              * like a bug. */
-            if (shotPath && fi + 3 <= s_shot.numFrames)
+            if (shotPath && fi + 3 <= s_shot.numFrames && blurSub == 0)
                 PANTHEON_ShotSnapshot(fi + 3);
-            PANTHEON_CG_Frame(time_ms, fi == 0);
+            PANTHEON_CG_Frame(subTime, fi == 0 && blurSub == 0);
             re->EndFrame(NULL, NULL);
             goto pantheon_readback;
         }
@@ -988,7 +1119,30 @@ pantheon_readback:
         glReadBuffer(GL_BACK);
         glPixelStorei(GL_PACK_ALIGNMENT, 1);
         glReadPixels(0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, pixels);
-        WriteTGA(out, pixels, w, h);
+        if (blurAccum) PANTHEON_BlurAccumulate(blurAccum, pixels, w * h * 3);
+        else           WriteTGA(out, pixels, w, h);
+
+        if (cliDepth && (!blurAccum || blurSub == cliBlur - 1)) {
+            /* The depth of the LAST sub-frame, not an average of them. An
+             * averaged depth buffer is a surface that exists nowhere: half in
+             * front of the wall and half behind it. Motion blur belongs to the
+             * colour pass; depth stays a measurement of one instant. */
+            char dpath[MAX_OSPATH];
+            Q_strncpyz(dpath, out, sizeof(dpath));
+            {
+                char *dot = strrchr(dpath, '.');
+                if (dot) Q_strncpyz(dot, ".depth.pgm",
+                                    sizeof(dpath) - (dot - dpath));
+            }
+            glReadPixels(0, 0, w, h, GL_DEPTH_COMPONENT, GL_FLOAT, depthPix);
+            WritePGM16(dpath, depthPix, w, h, 4.0f, 65536.0f);
+        }
+      }   /* sub-frame */
+
+        if (blurAccum) {
+            PANTHEON_BlurResolve(pixels, blurAccum, w * h * 3, blurSamples);
+            WriteTGA(out, pixels, w, h);
+        }
 
         if (shotPath && (fi % 10 == 0 || fi == s_shot.numFrames - 1))
             Com_Printf("PANTHEON: frame %d/%d t=%d -> %s\n",
@@ -998,6 +1152,8 @@ pantheon_readback:
   }
 
     free(pixels);
+    free(blurAccum);
+    free(depthPix);
     if (shotPath)
         Com_Printf("PANTHEON: wrote %d frames across %d take%s (%dx%d) "
                    "map=%s provenance=%s\n",
