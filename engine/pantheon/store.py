@@ -47,6 +47,49 @@ FRAGS_DB = PROJECT_ROOT / "creative_suite" / "database" / "frags_rebuilt.db"
 RECOG_DB = PROJECT_ROOT / "creative_suite" / "database" / "frag_recognition.db"
 
 
+
+# ── code root and data root are different questions ─────────────────────────
+
+CODE_ROOT = REPO_ROOT            # the checkout these lines were loaded from
+DATA_ROOT = PROJECT_ROOT         # the checkout that owns the corpus
+
+
+class AuthoritativeDataRootNotResolved(RuntimeError):
+    """The real corpus could not be found, and guessing is not an option."""
+
+
+def data_root() -> Path:
+    """The checkout that owns the databases, whichever one is running.
+
+    A worktree under `.claude/worktrees/` resolves to the project above it;
+    QUAKE_LEGACY_ROOT overrides both.
+    """
+    return _project_root()
+
+
+def database_dir() -> Path:
+    return data_root() / "creative_suite" / "database"
+
+
+def require_database_dir() -> Path:
+    """FAIL CLOSED.
+
+    SQLite creates any file you open, so a wrong data root does not raise --
+    it silently produces an empty database and a system that reports zero
+    human verdicts. Anything asking for AUTHORITATIVE data asks here, and
+    gets an exception rather than an empty room.
+
+    Tests that want an isolated database say so explicitly, by pointing
+    QUAKE_LEGACY_ROOT at a fixture or by patching the module path. Nothing
+    infers "this is a worktree, therefore a test".
+    """
+    d = database_dir()
+    if not d.is_dir():
+        raise AuthoritativeDataRootNotResolved(
+            f"no database directory at {d}; set QUAKE_LEGACY_ROOT to the "
+            f"checkout that owns the corpus")
+    return d
+
 def store_root() -> Path:
     raw = os.getenv(ENV_STORE, "").strip()
     root = Path(raw) if raw else DEFAULT_STORE

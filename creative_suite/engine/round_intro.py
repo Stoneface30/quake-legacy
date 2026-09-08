@@ -68,7 +68,11 @@ from creative_suite.engine.pantheon_ads import (
     _laurel, _marble, _logo_glyph,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: under a worktree these differ, and opening a
+# database beneath the wrong one silently CREATES an empty file
+# rather than failing. See engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 FONTS_DIR = REPO_ROOT / "creative_suite" / "engine" / "assets" / "fonts"
 OUT_DIR = REPO_ROOT / "creative_suite" / "engine" / "assets" / "round_intro"
 ASSIGN_LOG = REPO_ROOT / "output" / "demo_v2" / "round_intro_assignments.json"

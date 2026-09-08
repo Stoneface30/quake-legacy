@@ -350,8 +350,44 @@ Everything above the bottom row runs without launching a game.
 ### Rule HL-8: One RenderPermit, and a running game always wins (user requirement, 2026-09-05)
 - **WHAT** `engine/pantheon/render_permit.py` is the ONE authority. The ONE setting is `PANTHEON_RENDER=off|auto|on` (default `auto`): `off` never renders; `auto` and `on` render only when no protected game is running; a running game ALWAYS defers, whatever the setting says. There is no force variable, persistent or inherited. Every game-process launch (capture_demo, director_preview, director_session, _preview_job, engine supervisor, shot.render, cvar_probe, playback_probe) imports that module and asks `check()`/`require()` immediately before spawning. A refused queue job stays `QUEUED` with `RENDER DEFERRED`, never FAILED; a READY proxy keeps playing. The process scan is psutil or a toolhelp snapshot, never `tasklist`. `SW_SHOWMINNOACTIVE` on the capture window is defence in depth, not the mechanism.
 - **DISK** Three thresholds in `engine/pantheon/disk_policy.py`, never one: `REVIEW_DB_WRITE_SAFE` (a verdict is tiny), `RENDER_JOB_SAFE` (expected output + margin; the permit DEFERS below it), `LARGE_BUILD_SAFE` (an index build refuses to start). Derived data lives under `PANTHEON_PERFORMANCE_STORE`; no drive letter in engine code.
+
 - **WHERE** `engine/pantheon/render_permit.py` · `engine/pantheon/disk_policy.py` · `creative_suite/engine/capture_guard.py` (process list, window flags) · `creative_suite/tests/test_render_permit.py` (every launch site must ask; a second module or a retired switch name fails the suite) · `creative_suite/tests/conftest.py` (no test can create a game process) · `docs/reference/pantheon_engine_architecture.md`.
 - **WHY** A review origin coming up reclaimed queued proxy jobs and launched Wolfcam over the game the user was playing; two sessions then wrote two permits with two switch sets (`PANTHEON_RENDER_ALLOWED/FORCE` vs `PANTHEON_RENDER`). One contract, one module, and no configuration that means "film over my match".
+
+
+### Rule HL-9: Code root and data root are different questions (2026-09-06)
+- **WHAT** Modules that read the corpus, the databases, render output or the
+  tools resolve their root through `engine/pantheon/store` — `data_root()`,
+  `database_dir()`, `require_database_dir()`, with `CODE_ROOT` kept separate
+  and `QUAKE_LEGACY_ROOT` overriding both. A worktree under
+  `.claude/worktrees/` shares the project's data, because the databases are
+  gitignored and exist exactly once. Anything asking for AUTHORITATIVE data
+  and not finding it raises `AuthoritativeDataRootNotResolved`. Only an
+  explicit TEST fixture may create a temporary database; nothing infers
+  "this is a worktree, therefore a test".
+- **WHERE** `engine/pantheon/store.py` · `creative_suite/tests/test_data_root.py`
+  (both checkouts must report identical corpus counts; importing the reviewer
+  must create no `.db` file).
+- **WHY** Every reviewer module used `Path(__file__).resolve().parents[2]`,
+  which is right in the main checkout by coincidence. In a worktree it was
+  wrong, and SQLite creates whatever you open — so a clean integration
+  checkout did not error, it made an empty review database, reported zero
+  human verdicts and skipped 212 tests while passing. Worse, a PARTIAL fix
+  (fifteen modules, leaving `identity.py`) gave the real corpus an empty
+  identity store and quietly lost 250 frags: plausible wrong numbers, which
+  are more dangerous than an error. The same root bug reaches ffmpeg,
+  ffprobe, the demo corpus and the staging dirs, not only one filename.
+
+### Rule HL-10: An integration never clears another session's untracked files (2026-09-06)
+- **WHAT** If a merge is blocked by untracked files belonging to another
+  worktree or session, STOP, or do the merge in a clean worktree. Do not
+  delete, move or rename them to make the merge succeed — not even when they
+  are byte-identical to the incoming version and "git will put them back".
+- **WHY** That reasoning was used here, and the merge then aborted on a
+  different conflict, leaving 49 of another session's files simply gone. They
+  came back only because git held 48 of them and one had been copied aside.
+  The recovery worked; the decision was still wrong, and a clean worktree
+  cost nothing.
 
 ## HARD RULES — Demo Parser & Highlight Criteria
 

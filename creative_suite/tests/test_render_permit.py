@@ -437,3 +437,47 @@ def test_the_pointer_signal_needs_no_list_at_all(monkeypatch):
     monkeypatch.setattr(cg, "foreground_is_fullscreen", lambda: False)
     monkeypatch.setattr(cg, "pointer_is_grabbed", lambda: True)
     assert cg.game_is_running()
+
+
+# ── the leak that took six tests down with it ───────────────────────────────
+
+def test_a_refused_review_job_is_requeued_and_leaves_no_residue(monkeypatch):
+    """Deferring REQUEUES the job -- that is the whole point of DEFERRED --
+    and `_queue` is module state shared with every other test in the suite.
+
+    Kept from the reviewer branch because it cost real time: a test that
+    proved the requeue and then left the job sitting there made six proxy
+    tests fail later in the same run while passing in isolation, which is
+    exactly how long that class of leak takes to explain.
+    """
+    from creative_suite.engine import review_proxy as rpx
+    from engine.pantheon import render_permit as rp
+
+    monkeypatch.setattr(rp, "check",
+                        lambda **kw: rp.Decision(rp.Permit.DEFERRED, "test"))
+    captured: list[str] = []
+    monkeypatch.setattr(rpx, "_generate",
+                        lambda job: captured.append(job["key"]))
+    monkeypatch.setattr(rpx, "_try_acquire_lock", lambda: True)
+    monkeypatch.setattr(rpx.time, "sleep", lambda _s: None)
+    seen: list[tuple] = []
+    monkeypatch.setattr(rpx, "_set_state",
+                        lambda *a, **k: seen.append((a, k)))
+
+    job = {"key": "leakprobe", "frag_id": 1, "demo_name": "d",
+           "demo_path": "d", "start_ms": 0, "end_ms": 1000, "lock_waits": 0}
+    rpx._queue.put(job)
+    rpx._queue.put(None)
+    try:
+        rpx._worker_loop()
+        assert captured == [], "a capture ran while the permit refused"
+        assert any(a[1] == "QUEUED" for a, _k in seen), "job was not requeued"
+    finally:
+        while True:
+            try:
+                rpx._queue.get_nowait()
+                rpx._queue.task_done()
+            except Exception:                                  # noqa: BLE001
+                break
+        rpx._queued_keys.discard("leakprobe")
+    assert rpx._queue.qsize() == 0, "the queue was left dirty for the suite"

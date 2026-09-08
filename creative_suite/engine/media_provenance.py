@@ -31,7 +31,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: under a worktree these differ, and opening a
+# database beneath the wrong one silently CREATES an empty file
+# rather than failing. See engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 
 # Provenance labels. Every active media asset carries one of these.
 RAW_DEMO_CAPTURE = "RAW_DEMO_CAPTURE"

@@ -8,7 +8,11 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: under a worktree these differ, and opening a
+# database beneath the wrong one silently CREATES an empty file
+# rather than failing. See engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 DEFAULT_DB_PATH = Path(__file__).resolve().parent / "demo_v2.db"
 DEFAULT_OUTPUT_ROOT = REPO_ROOT / "output"
 

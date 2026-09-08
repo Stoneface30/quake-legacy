@@ -184,3 +184,45 @@ def test_the_checkpoint_counts_only_the_user_s_own_verdicts():
     from creative_suite.engine import curation_checkpoint as cc
     ids = cc.human_reviewed_occurrence_ids()
     assert set((495, 1080, 18858)).issubset(set(ids))
+
+
+# ── a queue that counts must also return ────────────────────────────────────
+
+def test_an_empty_item_type_does_not_empty_the_reviewer():
+    """THE REVIEWER WENT BLANK AND SAID 33,102 CANDIDATES.
+
+    A restored session carried `item_type=` (empty). The count path fell
+    back to the corpus default and reported thousands; the row path did not
+    and returned none. The page showed an empty queue while insisting there
+    was work to do, which reads as "the reviewer is broken" rather than
+    "this filter is wrong".
+    """
+    from fastapi.testclient import TestClient
+    from fastapi import FastAPI
+    from creative_suite.api.review import router
+    app = FastAPI()
+    app.include_router(router)
+    c = TestClient(app)
+    d = c.get("/api/review/queue", params={
+        "corpus": "USER_FRAGS", "item_type": "", "limit": 5}).json()
+    assert d["total"] > 0
+    assert len(d["items"]) > 0, \
+        f"{d['total']} counted, none returned -- the reviewer looks empty"
+
+
+def test_the_count_and_the_rows_agree_about_emptiness():
+    """Whatever the filter, `total == 0` and `items == []` must travel
+    together. One without the other is always a lie about the corpus."""
+    from fastapi.testclient import TestClient
+    from fastapi import FastAPI
+    from creative_suite.api.review import router
+    app = FastAPI()
+    app.include_router(router)
+    c = TestClient(app)
+    for params in ({"corpus": "USER_FRAGS", "item_type": ""},
+                   {"corpus": "USER_FRAGS"},
+                   {"corpus": "USER_AND_PTN", "item_type": ""}):
+        d = c.get("/api/review/queue",
+                  params={**params, "limit": 3}).json()
+        if d["total"] > 0:
+            assert d["items"], f"{params}: counted {d['total']}, returned 0"

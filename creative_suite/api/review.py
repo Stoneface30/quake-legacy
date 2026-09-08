@@ -79,9 +79,16 @@ def get_queue(order: str = rc.ORDER_WORST_FIRST, offset: int = 0,
               actor: str | None = None, opponent: str | None = None,
               pov: str | None = None, merge: str | None = None,
               min_round_kills: int | None = None,
-              funny: str | None = None):
+              funny: str | None = None, view: str = "frags"):
     # Named parameters, not a query string the browser composes. The filter
     # whitelist lives in review_corpus and refuses anything it does not know.
+    # AN EMPTY item_type EMPTIED THE WHOLE REVIEWER. The count path falls
+    # back to the corpus default, the row path did not, so a restored
+    # session that carried `item_type=` reported 33,102 candidates and
+    # returned none of them -- a reviewer that looks broken while insisting
+    # there is plenty to do. Empty means "whatever this corpus is".
+    if not item_type:
+        item_type = rc.CORPUS_ITEM_TYPE.get(corpus or "", rc.FRAG)
     filters = {k: v for k, v in
                {"weapon": weapon, "map": map, "trait": trait,
                 "death_cause": death_cause, "actor": actor,
@@ -89,9 +96,18 @@ def get_queue(order: str = rc.ORDER_WORST_FIRST, offset: int = 0,
                 "min_round_kills": min_round_kills,
                 "funny": funny}.items() if v}
     try:
-        items = rc.queue(order=order, limit=limit, offset=offset,
-                         item_type=item_type, unreviewed_only=unreviewed_only,
-                         corpus=corpus, filters=filters)
+        if view not in ("frags", "rounds"):
+            raise ValueError("view must be frags or rounds")
+        grouped_total = None
+        if view == "rounds":
+            corpus = corpus or rc.USER_AND_PTN
+            items, grouped_total = rc.round_queue(
+                order=order, limit=limit, offset=offset, corpus=corpus,
+                unreviewed_only=unreviewed_only, filters=filters)
+        else:
+            items = rc.queue(order=order, limit=limit, offset=offset,
+                             item_type=item_type, unreviewed_only=unreviewed_only,
+                             corpus=corpus, filters=filters)
     except ValueError as e:
         raise HTTPException(400, str(e))
     if corpus:
@@ -99,13 +115,14 @@ def get_queue(order: str = rc.ORDER_WORST_FIRST, offset: int = 0,
     with _lock:
         _state["order"] = order
         _state["cursor"] = offset
-    _prefetch(items[:PREFETCH],
-              key=f"{corpus}|{item_type}|{order}|{sorted(filters.items())}")
+    if view == "frags":
+        _prefetch(items[:PREFETCH],
+                  key=f"{corpus}|{item_type}|{order}|{sorted(filters.items())}")
     return {"order": order, "offset": offset, "item_type": item_type,
             "corpus": corpus,
-            "filters": filters,
-            "total": rc.count_items(item_type, corpus=corpus,
-                                    filters=filters),
+            "filters": filters, "view": view,
+            "total": grouped_total if grouped_total is not None else rc.count_items(
+                item_type, corpus=corpus, filters=filters),
             "items": [i.to_dict() for i in items]}
 
 
@@ -132,8 +149,11 @@ def get_location(item_id: str):
         return {"item_id": item_id, "available": False,
                 "reason": "not a kill"}
     try:
-        from engine.pantheon import map_context as mc
-        ctx = mc.context_for_kill(int(it.source_id))
+        # ONE DOOR. geography is the shared API over the review region
+        # model and the headless occupancy index; the reviewer does not
+        # keep a façade of its own beside it.
+        from engine.pantheon import geography as geo
+        ctx = geo.approach_for_occurrence(int(it.source_id))
     except Exception as e:                                     # noqa: BLE001
         return {"item_id": item_id, "available": False,
                 "reason": f"{type(e).__name__}"}
@@ -146,18 +166,11 @@ def get_location(item_id: str):
 @router.get("/map_regions/{map_name}")
 def get_map_regions(map_name: str):
     """The learned regions of one map, for inspection."""
-    from engine.pantheon import map_geography as mg
-    idx = mg.load_index(map_name)
-    if idx is None:
+    from engine.pantheon import geography as geo
+    out = geo.map_summary(map_name)
+    if out is None:
         raise HTTPException(404, f"no geography for {map_name}")
-    from engine.pantheon import map_context as mc
-    return {"map": map_name,
-            "layers": [{"layer": la.layer, "z_lo": la.z_lo, "z_hi": la.z_hi,
-                        "samples": la.samples,
-                        "word": mc.layer_word(idx, la.layer)}
-                       for la in idx.layers],
-            "regions": [r.to_dict() for r in sorted(
-                idx.regions.values(), key=lambda r: r.region_id)]}
+    return out
 
 
 @router.post("/verdict")
@@ -171,6 +184,22 @@ def post_verdict(v: Verdict):
     except ValueError as e:
         raise HTTPException(400, str(e))
     return {**out, "progress": rc.progress(it.item_type)}
+
+
+@router.post("/verdict/round")
+def post_round_verdict(v: Verdict):
+    try:
+        return rc.record_round(v.item_id, v.role, v.note, provenance=rc.HUMAN_USER)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+@router.post("/note/round")
+def post_round_note(n: Note):
+    try:
+        return rc.annotate_round(n.item_id, n.note)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
 
 
 @router.post("/note")
@@ -504,6 +533,13 @@ def _deferred(st: dict[str, Any]) -> bool:
     if st.get("state") not in ("QUEUED", "PENDING", "MISSING"):
         return False
     return not _permit_view()["permit"] == "GRANTED"
+
+
+@router.get("/operator_health")
+def operator_health():
+    """Origin, worker, queue, disk and permit, in one read. Changes nothing."""
+    from creative_suite.engine import operator_health as oh
+    return oh.check().to_dict()
 
 
 @router.get("/render_permit")

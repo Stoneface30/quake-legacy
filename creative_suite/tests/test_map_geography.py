@@ -245,3 +245,68 @@ def test_the_reviewed_frags_get_a_place_or_an_honest_silence():
             assert ctx["location"]["layer_word"] in (
                 "GROUND", "LOWER", "MID", "UPPER")
     assert seen, "no reviewed frag resolved to a map at all"
+
+
+# ── the review site consumes truth; it does not fork it ─────────────────────
+
+def test_the_review_api_knows_no_clustering_mathematics():
+    """The UI asks the authority for a region. It must not import the
+    watershed, the grid, or the layering -- when the shared engine takes
+    over, `map_authority` is the only file outside it that changes."""
+    src = (REPO_ROOT / "creative_suite" / "api"
+           / "review.py").read_text(encoding="utf-8")
+    assert "geography" in src
+    for forked in ("map_context", "_watershed", "CELL_XY", "build_regions"):
+        assert forked not in src, f"review.py reaches past the authority: {forked}"
+
+
+def test_the_frontend_knows_no_clustering_mathematics():
+    html = (REPO_ROOT / "creative_suite" / "frontend"
+            / "review.html").read_text(encoding="utf-8")
+    for forked in ("watershed", "CELL_XY", "z_histogram", "cluster"):
+        assert forked not in html, f"the UI knows about {forked}"
+
+
+def test_the_authority_reports_which_backend_is_answering():
+    """The reviewer asks geography; it no longer keeps a facade of its
+    own beside the shared one."""
+    from engine.pantheon import geography as ma
+    assert callable(ma.approach_for_occurrence)
+
+
+# ── aliases are a name, never an identity ───────────────────────────────────
+
+def test_an_alias_never_renames_the_stable_key(tmp_path, monkeypatch):
+    """"this is the RA room" is something the user tells us. REGION_04 is
+    what every route edge, derived table and human note refers to, and it
+    does not move because somebody gave it a nickname."""
+    from engine.pantheon import geography as ma
+    monkeypatch.setenv("QUAKE_LEGACY_ROOT", str(tmp_path))
+    (tmp_path / "creative_suite" / "database").mkdir(parents=True, exist_ok=True)
+    a = ma.set_alias("campgrounds", "REGION_04", "RA room")
+    assert a["region_id"] == "REGION_04"
+    assert ma.aliases("campgrounds") == {"REGION_04": "RA room"}
+    # Removing every alias changes nothing about the geography itself.
+    assert ma.aliases("asylum") == {}
+
+
+def test_an_alias_must_attach_to_a_machine_id(tmp_path, monkeypatch):
+    from engine.pantheon import geography as ma
+    monkeypatch.setenv("QUAKE_LEGACY_ROOT", str(tmp_path))
+    (tmp_path / "creative_suite" / "database").mkdir(parents=True, exist_ok=True)
+    with pytest.raises(ValueError):
+        ma.set_alias("campgrounds", "the RA room", "RA room")
+    with pytest.raises(ValueError):
+        ma.set_alias("campgrounds", "REGION_04", "   ")
+
+
+def test_nothing_invents_an_alias_by_itself():
+    """Community callouts are not inferred. A guess printed on every clip is
+    worse than a machine label."""
+    import inspect
+    from engine.pantheon import geography as ma
+    src = inspect.getsource(ma)
+    i = src.index("def set_alias")
+    callers = [ln for ln in src.split("\n") if "set_alias(" in ln]
+    assert len(callers) == 1, f"set_alias is called from inside: {callers}"
+    assert 'provenance: str = "HUMAN_USER"' in src[i:i + 400]

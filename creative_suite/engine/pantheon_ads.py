@@ -36,7 +36,11 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont, ImageOps
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: under a worktree these differ, and opening a
+# database beneath the wrong one silently CREATES an empty file
+# rather than failing. See engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 LOGO = REPO_ROOT / "PantheonProduction.JPG"
 OUT_DIR = REPO_ROOT / "creative_suite" / "engine" / "assets" / "pantheon_ads"
 PK3 = (REPO_ROOT / "output" / "demo_v2" / "_wolfcam_staging" / "wolfcam-ql"

@@ -25,7 +25,11 @@ import subprocess
 import time
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: under a worktree these differ, and opening a
+# database beneath the wrong one silently CREATES an empty file
+# rather than failing. See engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 BIN_DIR = REPO_ROOT / "engine" / "engines" / "ghidra" / "binaries"
 CANONICAL_GAMEDIR = (REPO_ROOT / "engine" / "engines" / "_canonical"
                      / "package-files" / "wolfcam-ql")

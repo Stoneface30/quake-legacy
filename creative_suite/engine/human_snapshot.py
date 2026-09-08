@@ -24,7 +24,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: under a worktree these differ, and opening a
+# database beneath the wrong one silently CREATES an empty file
+# rather than failing. See engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 DB_DIR = REPO_ROOT / "creative_suite" / "database"
 EDITORIAL_DB = DB_DIR / "editorial.db"
 SNAPSHOT_DIR = REPO_ROOT / "output" / "human_snapshots"

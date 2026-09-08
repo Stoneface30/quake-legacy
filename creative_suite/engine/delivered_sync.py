@@ -31,7 +31,11 @@ from typing import Any
 
 import numpy as np
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# TOOLS AND DATA BOTH LIVE WITH THE PROJECT, not with the code. The
+# integration worktree resolved ffmpeg beside itself and every
+# transient search died on WinError 2. See engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 FFMPEG = REPO_ROOT / "creative_suite" / "tools" / "ffmpeg" / "ffmpeg.exe"
 
 ANALYSIS_SR = 22050

@@ -49,7 +49,11 @@ from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: in a worktree these differ, and opening a database
+# under the wrong one silently creates an empty file. See
+# engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 RECOGNITION_DB = REPO_ROOT / "creative_suite" / "database" / "frag_recognition.db"
 
 # WP_ launcher space, from bg_public.h via demo_parse._WP_NAMES. NOT MOD_.
@@ -99,7 +103,10 @@ class ActionStats:
     accuracy_pct: float | None = None
     accuracy_upper_pct: float | None = None
     engagement_ms: int | None = None
-    damage_dealt: int | None = None     # only where a ledger exists
+    health_lost: int | None = None      # observed, and a FLOOR: armour
+                                        # absorbs a share health never shows
+    health_from: int | None = None      # first observed victim health
+    health_to: int | None = None        # last, at the kill
     target: str | None = None
     confidence: str = CONF_UNKNOWN
     unit: str = "shots"
@@ -122,6 +129,30 @@ def window_for(wp: int | None) -> int:
         return PROJECTILE_WINDOW_MS
     return HITSCAN_WINDOW_MS
 
+
+
+def health_lost_in_window(content_hash: str, victim_client: int, t0: int,
+                          t1: int, db: Path = RECOGNITION_DB
+                          ) -> tuple[int | None, int | None, int | None]:
+    """(health_lost, first_seen, last_seen) for one victim in a window.
+
+    EV_PAIN carries the victim's health after the hit. Summing the DOWNWARD
+    steps gives the health they actually lost; an upward step is a pickup or
+    a respawn, and is skipped rather than counted as negative damage.
+
+    Returns (None, None, None) when fewer than two pain events were
+    observed, because one health reading is a state and not a change.
+    """
+    with _conn(db) as c:
+        vals = [r[0] for r in c.execute(
+            "SELECT parm FROM semantic_events_v1 WHERE content_hash=? AND "
+            "type='pain' AND client_num=? AND parm IS NOT NULL AND "
+            "server_time_ms BETWEEN ? AND ? ORDER BY server_time_ms",
+            (content_hash, int(victim_client), t0, t1))]
+    if len(vals) < 2:
+        return None, None, None
+    lost = sum(a - b for a, b in zip(vals, vals[1:]) if b < a)
+    return lost, vals[0], vals[-1]
 
 def for_action(content_hash: str, frag_time_ms: int, mod: int | None,
                victim_client: int | None, is_actor_pov: bool,
@@ -172,6 +203,7 @@ def for_action(content_hash: str, frag_time_ms: int, mod: int | None,
                 "AND entity_num IS NOT NULL AND entity_num<>? "
                 "AND server_time_ms BETWEEN ? AND ?",
                 (content_hash, victim_client, t0, t1)).fetchone()[0]
+        health_lost = first_hp = last_hp = None
         first = c.execute(
             "SELECT MIN(server_time_ms) FROM semantic_events_v1 WHERE "
             "content_hash=? AND type='fire_weapon' AND source='playerstate' "
@@ -185,12 +217,16 @@ def for_action(content_hash: str, frag_time_ms: int, mod: int | None,
 
     unit = "attack ticks" if wp in CONTINUOUS else "shots"
     engagement = (frag_time_ms - int(first)) if first is not None else None
+    if victim_client is not None:
+        health_lost, first_hp, last_hp = health_lost_in_window(
+            content_hash, victim_client, t0, t1, db)
     if wp not in ATTRIBUTABLE:
         # Shots and duration are solid; hits are not countable for a weapon
         # that fires faster than the pain signal arrives.
         return ActionStats(
             weapon=name, weapon_wp=wp, window_ms=win, shots=shots, unit=unit,
             engagement_ms=engagement, target=target_name,
+            health_lost=health_lost, health_from=first_hp, health_to=last_hp,
             confidence=NOT_DERIVABLE,
             note=("pain events are throttled -- median 925 ms apart, never "
                   f"under 100 ms -- so hits cannot be counted for a weapon "

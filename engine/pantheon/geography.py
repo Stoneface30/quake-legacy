@@ -223,3 +223,75 @@ class GeographyValidity:
 
     def region(self, pos: Vec3) -> str | None:
         return self.geo.region_for_position(pos)
+
+
+# ── the name a person gives a region ────────────────────────────────────────
+#
+# Machine ids are REGION_01..N and they never move: every route edge, derived
+# table and human note refers to one. An alias is a SEPARATE column, so a
+# person can call REGION_04 "the RA room" without the key underneath it
+# changing, and deleting every alias would change nothing about the
+# geography.
+#
+# Nothing writes one by itself. Community callouts are not inferred -- nobody
+# told us which region is which, and a guess printed on every clip is worse
+# than a machine label.
+
+ALIAS_SCHEMA = """
+CREATE TABLE IF NOT EXISTS map_region_aliases_v1 (
+    map        TEXT NOT NULL,
+    region_id  TEXT NOT NULL,
+    alias      TEXT NOT NULL,
+    provenance TEXT NOT NULL DEFAULT 'HUMAN_USER',
+    added_at   TEXT NOT NULL,
+    PRIMARY KEY (map, region_id)
+);
+"""
+
+
+def _alias_conn() -> sqlite3.Connection:
+    from engine.pantheon import store as _s
+    c = sqlite3.connect(_s.database_dir() / "map_geography.db", timeout=30)
+    c.row_factory = sqlite3.Row
+    c.executescript(ALIAS_SCHEMA)
+    return c
+
+
+def set_alias(map_name: str, region_id: str, alias: str,
+              provenance: str = "HUMAN_USER") -> dict[str, Any]:
+    """Record what a person calls a region. The stable key does not move."""
+    from datetime import datetime, timezone
+    alias = alias.strip()
+    if not alias:
+        raise ValueError("an empty alias is not a name")
+    if not region_id.startswith("REGION_"):
+        raise ValueError(f"not a machine region id: {region_id}")
+    now = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    c = _alias_conn()
+    try:
+        c.execute(
+            "INSERT INTO map_region_aliases_v1(map, region_id, alias, "
+            "provenance, added_at) VALUES(?,?,?,?,?) ON CONFLICT(map, "
+            "region_id) DO UPDATE SET alias=excluded.alias, "
+            "provenance=excluded.provenance, added_at=excluded.added_at",
+            (map_name, region_id, alias, provenance, now))
+        c.commit()
+    finally:
+        c.close()
+    return {"map": map_name, "region_id": region_id, "alias": alias,
+            "provenance": provenance, "added_at": now}
+
+
+def aliases(map_name: str) -> dict[str, str]:
+    try:
+        c = _alias_conn()
+    except sqlite3.Error:
+        return {}
+    try:
+        return {r["region_id"]: r["alias"] for r in c.execute(
+            "SELECT region_id, alias FROM map_region_aliases_v1 WHERE map=?",
+            (map_name,))}
+    except sqlite3.Error:
+        return {}
+    finally:
+        c.close()

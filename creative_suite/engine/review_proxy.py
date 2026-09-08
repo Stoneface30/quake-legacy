@@ -45,7 +45,11 @@ from engine.pantheon import disk_policy
 from engine.pantheon import store as _store
 from creative_suite.engine.process_liveness import process_alive
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+# DATA, not code: in a worktree these differ, and opening a database
+# under the wrong one silently creates an empty file. See
+# engine.pantheon.store.
+from engine.pantheon.store import data_root as _data_root
+REPO_ROOT = _data_root()
 _DB_DIR = REPO_ROOT / "creative_suite" / "database"
 
 # Module-level so tests can monkeypatch them.
@@ -185,7 +189,7 @@ def _profile_id() -> str:
     # cache key, so correcting the exposure and the enemy model
     # automatically invalidates every over-bright clip -- they can never be
     # served as current review media. Regeneration is on demand.
-    return master_profile.profile_id(master_profile.REVIEW_PROFILE_NAME)
+    return master_profile.profile_id(master_profile.FAST_REVIEW_PROFILE_NAME)
 
 
 def proxy_key(content_hash: str, start_ms: int, end_ms: int, profile_id: str) -> str:
@@ -194,10 +198,52 @@ def proxy_key(content_hash: str, start_ms: int, end_ms: int, profile_id: str) ->
     return h.hexdigest()
 
 
+def _playable(row: sqlite3.Row | None) -> dict[str, Any] | None:
+    """A row is only READY if the file it points at is actually there."""
+    if row is None:
+        return None
+    d = dict(row)
+    if d.get("state") != "READY":
+        return None
+    mp4 = d.get("mp4_path")
+    if not mp4 or not Path(str(mp4)).exists():
+        return None
+    return d
+
+
 def get_state(frag_id: int) -> dict[str, Any]:
-    """Latest proxy state for a frag. MISSING when never requested."""
+    """The best thing this frag can show right now. MISSING if never asked.
+
+    A READY clip beats a pending one even when the pending one is newer.
+    Changing the review profile to 720p30 changed the cache key, and without
+    this the 126 clips already on disk turned into spinners the moment a
+    replacement was queued -- a strictly worse reviewer than the day before.
+
+    An older proxy for the same frag, start and end differs only in review
+    QUALITY: everything that changes what is shown (source, point of view,
+    camera, enemy-model semantics, time bounds) is in the key beside the
+    profile, so it cannot silently differ.
+    """
+    profile = _profile_id()
     conn = editorial_conn()
     try:
+        current = conn.execute(
+            "SELECT * FROM review_proxies WHERE frag_id = ? AND profile_id = ?"
+            " ORDER BY updated_at DESC, key DESC LIMIT 1",
+            (frag_id, profile)).fetchone()
+        best = _playable(current)
+        if best is None:
+            # Any other profile, most recent first: an older look that plays.
+            for row in conn.execute(
+                    "SELECT * FROM review_proxies WHERE frag_id = ? AND "
+                    "profile_id <> ? ORDER BY updated_at DESC, key DESC",
+                    (frag_id, profile)):
+                best = _playable(row)
+                if best is not None:
+                    best["compatible_older_profile"] = True
+                    break
+        if best is not None:
+            return best
         row = conn.execute(
             "SELECT * FROM review_proxies WHERE frag_id = ? "
             "ORDER BY updated_at DESC, key DESC LIMIT 1",
@@ -209,6 +255,8 @@ def get_state(frag_id: int) -> dict[str, Any]:
         return {"state": "MISSING"}
     d = dict(row)
     if d["state"] == "READY":
+        # READY in the table but gone from disk. Nothing playable survived
+        # the ladder above, so this is the honest answer.
         mp4 = d.get("mp4_path")
         if not mp4 or not Path(str(mp4)).exists():
             d["state"] = "FAILED"
@@ -458,8 +506,15 @@ def _generate(job: dict[str, Any]) -> None:
     safe = wc.stage_demo(demo_path)
     clip_name = f"rp_{key[:16]}"
     from creative_suite.engine import master_profile as _mp
+    # BOTH HALVES OF THE RECONCILIATION. The backend is the shared PANTHEON
+    # offscreen renderer -- no window, no focus steal, and no quiet fallback
+    # to a visible one. The profile is the reviewer's fast 720p30 variant,
+    # because review media is for judging rather than for the film; it still
+    # carries the REVIEW visual semantics, so the enemy is the same green
+    # Keel the shared proof was banked on.
     windows = [{"clip_name": clip_name, "start_ms": start_ms, "end_ms": end_ms}]
-    res, backend = _film(safe, windows, profile=_mp.REVIEW_PROFILE_NAME)
+    res, backend = _film(safe, windows,
+                         profile=_mp.FAST_REVIEW_PROFILE_NAME)
     if not res["ok"]:
         raise RuntimeError(res.get("error") or f"{backend} capture failed")
     avi = Path(res["avis"][clip_name])
