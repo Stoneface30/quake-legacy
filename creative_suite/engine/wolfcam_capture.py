@@ -235,6 +235,12 @@ def wolfcam_cmd(safe_demo: str, staging: Path = STAGING,
         merged = dict(master_profile.launch_sets_for(profile))
         merged.update(extra_sets or {})
         extra_sets = merged
+    # ABSOLUTE, all of it. The launcher runs the engine from its OWN
+    # directory so Windows resolves opengl32.dll there -- which means a
+    # relative fs_basepath no longer points anywhere the engine can find, and
+    # it exits rc=1 in a tenth of a second with no stdout, no stderr and
+    # nothing in any log. argv[0] alone is not enough; the paths travel too.
+    staging = Path(staging).resolve()
     cmd = [
         str(engine_exe(staging)),
         "+set", "fs_homepath", str(staging),
@@ -315,7 +321,12 @@ def native_gl_dir(staging: Path = STAGING) -> Path:
     reads all its assets from staging through fs_basepath -- the only thing
     this directory changes is which `opengl32.dll` Windows finds first.
     """
-    staging = Path(staging)
+    # ABSOLUTE. The launcher passes this as argv[0] AND changes cwd to it;
+    # CreateProcess resolves a relative argv[0] against the PARENT's directory,
+    # not the child's, so a relative path here dies with rc=1, no stdout, no
+    # stderr, and nothing in any log. Measured: relative rc=1 in 0.1 s,
+    # absolute rc=0 in 15 s, same argv otherwise.
+    staging = Path(staging).resolve()
     d = staging / "_native_gl"
     d.mkdir(parents=True, exist_ok=True)
     skip = {n.lower() for n in MESA_DLLS}
@@ -338,14 +349,36 @@ def native_gl_dir(staging: Path = STAGING) -> Path:
 
 
 def engine_exe(staging: Path = STAGING) -> Path:
-    """The executable to launch, for the renderer this run wants."""
+    """The executable to launch, for the renderer this run wants.
+
+    Always absolute, for the CreateProcess reason above.
+    """
     if software_gl():
-        return Path(staging) / "wolfcamql.exe"
+        return (Path(staging).resolve() / "wolfcamql.exe")
     return native_gl_dir(staging) / "wolfcamql.exe"
 
 
-def frames_expected(windows: list[dict], fps: int = CAPTURE_FPS) -> int:
-    return sum(int(round((int(w["end_ms"]) - int(w["start_ms"])) / 1000.0 * fps))
+def profile_fps(profile: str | None = None) -> int:
+    """The rate THIS profile captures at.
+
+    Not a constant: the fast-review master records at 30 and the gameplay
+    master at 60. Measuring a 30 fps clip against 60 declares every fast-review
+    capture under-sampled and "twice too fast", then retimes a file that was
+    already correct.
+    """
+    try:
+        from creative_suite.engine import master_profile as _mp
+        cv = _mp.PROFILES.get(profile or _mp.PROFILE_NAME) or {}
+        rate = cv.get("cl_aviFrameRate") if isinstance(cv, dict) else None
+        return int(rate) if rate else CAPTURE_FPS
+    except Exception:                                       # noqa: BLE001
+        return CAPTURE_FPS
+
+
+def frames_expected(windows: list[dict], fps: int | None = None,
+                    profile: str | None = None) -> int:
+    rate = fps if fps is not None else profile_fps(profile)
+    return sum(int(round((int(w["end_ms"]) - int(w["start_ms"])) / 1000.0 * rate))
                for w in windows)
 
 
@@ -505,9 +538,10 @@ def capture_demo(safe_demo: str, windows: list[dict],
     # THE FILE CAN BE COMPLETE AND STILL WRONG. Count the frames, work out the
     # rate that actually implies, and RETIME the container so the declared
     # rate is the truth. The frames are not touched.
-    want = frames_expected(windows)
+    rate = profile_fps(profile)
+    want = frames_expected(windows, profile=profile)
     got = sum(count_frames(a) for a in avis.values())
-    speed = playback_error(windows, got) if got else 0.0
+    speed = playback_error(windows, got, rate) if got else 0.0
     retimed = []
     if got and abs(speed - 1.0) > 0.05:
         actual = true_frame_rate(windows, got)
