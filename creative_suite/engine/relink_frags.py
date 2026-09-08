@@ -90,6 +90,38 @@ def relink(dry_run=True, rec_db=None, ed_db=None, map_path=None):
             "applied": not dry_run}
 
 
+def verify(rec_db=None, ed_db=None, map_path=None) -> dict:
+    """Check the DATABASE, not the map.
+
+    `relink` compares the current frag against the id frozen in the map, so
+    re-running it after a successful apply reports the same "renumbered"
+    count forever -- the map is a record of what WAS, and never changes. That
+    made a working fix look like it had not applied. This asks the only
+    question that matters: does the proxy row holding this clip file now
+    point at a frag that IS this kill?
+    """
+    rec = sqlite3.connect("file:%s?mode=ro" % (rec_db or REC_DB), uri=True,
+                          timeout=60)
+    ed = sqlite3.connect("file:%s?mode=ro" % (ed_db or ED_DB), uri=True,
+                         timeout=60)
+    ok = wrong = orphan = 0
+    for e in load_map(map_path):
+        row = ed.execute("SELECT frag_id FROM review_proxies WHERE mp4_path=? "
+                         "LIMIT 1", (e["mp4_path"],)).fetchone()
+        if not row:
+            orphan += 1
+            continue
+        r = rec.execute("SELECT content_hash, server_time_ms FROM "
+                        "recognized_frags WHERE id=?", (row[0],)).fetchone()
+        same_demo = r and r[0] == e["content_hash"]
+        close = r and abs(r[1] - e["server_time_ms"]) <= TIME_TOLERANCE_MS
+        if same_demo and close:
+            ok += 1
+        else:
+            wrong += 1
+    return {"correct": ok, "wrong": wrong, "no_proxy_row": orphan}
+
+
 if __name__ == "__main__":
     import sys
     dry = "--apply" not in sys.argv
@@ -102,3 +134,6 @@ if __name__ == "__main__":
     for e in r["missing"][:10]:
         print("   LOST  %s t=%s (clip kept on disk)"
               % (e["content_hash"][:12], e["server_time_ms"]))
+    v = verify()
+    print("verified against the database: %d correct, %d wrong, %d no proxy row"
+          % (v["correct"], v["wrong"], v["no_proxy_row"]))
