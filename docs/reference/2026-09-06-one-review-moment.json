@@ -1,0 +1,650 @@
+{
+ "moment": {
+  "performance_id": "PERF:FIRE_ROCKET:acd726fd089a1011:7:447500",
+  "action": {
+   "kind": "FIRE_ROCKET",
+   "events": [
+    "fire_weapon",
+    "fire_weapon",
+    "change_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "pain",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "jump",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "change_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "fire_weapon",
+    "pain"
+   ],
+   "samples": 141,
+   "evidence": "performance index row"
+  },
+  "playback": {
+   "demo_hash": "acd726fd089a1011",
+   "client": 7,
+   "server_time_ms": 447500,
+   "start_ms": 446000,
+   "end_ms": 449500
+  },
+  "location": {
+   "map": "thunderstruck",
+   "region": null,
+   "known_geography": false
+  },
+  "povs": [
+   {
+    "client": 7,
+    "role": "actor",
+    "is_recorder": true,
+    "observed": true
+   },
+   {
+    "client": 0,
+    "role": "victim",
+    "is_recorder": false,
+    "observed": true
+   }
+  ],
+  "facts": [
+   {
+    "name": "kind",
+    "value": "FIRE_ROCKET",
+    "source": "performance index row"
+   },
+   {
+    "name": "map",
+    "value": "thunderstruck",
+    "source": "performance index row"
+   },
+   {
+    "name": "server_time_ms",
+    "value": 447500,
+    "source": "performance index row"
+   },
+   {
+    "name": "window_ms",
+    "value": [
+     446000,
+     449500
+    ],
+    "source": "performance index row"
+   },
+   {
+    "name": "is_recorder_pov",
+    "value": true,
+    "source": "performance index row"
+   },
+   {
+    "name": "transform_samples",
+    "value": 141,
+    "source": "performance index row"
+   },
+   {
+    "name": "largest_observation_gap_ms",
+    "value": 25,
+    "source": "performance index row"
+   },
+   {
+    "name": "weapon",
+    "value": "ROCKET",
+    "source": "performance index row"
+   },
+   {
+    "name": "outcome",
+    "value": "KILL",
+    "source": "performance index row"
+   },
+   {
+    "name": "victim_client_slot",
+    "value": 0,
+    "source": "performance index row"
+   },
+   {
+    "name": "observed_projectile_samples",
+    "value": 138,
+    "source": "performance index row"
+   },
+   {
+    "name": "projectile_weapon",
+    "value": "PLASMA",
+    "source": "performance index row"
+   },
+   {
+    "name": "airborne_ms",
+    "value": 1400,
+    "source": "performance index row"
+   },
+   {
+    "name": "max_speed_ups",
+    "value": 515.1,
+    "source": "performance index row"
+   },
+   {
+    "name": "clients_in_demo",
+    "value": 4,
+    "source": "demos table"
+   },
+   {
+    "name": "event_chain",
+    "value": [
+     "fire_weapon",
+     "fire_weapon",
+     "change_weapon",
+     "fire_weapon",
+     "fire_weapon",
+     "fire_weapon",
+     "fire_weapon",
+     "fire_weapon",
+     "fire_weapon",
+     "fire_weapon",
+     "fire_weapon",
+     "fire_weapon"
+    ],
+    "source": "performance index row"
+   }
+  ],
+  "strip": {
+   "weapon": "ROCKET",
+   "outcome": "KILL",
+   "health": "NOT_DERIVABLE",
+   "armour": "NOT_DERIVABLE",
+   "accuracy": "NOT_DERIVABLE",
+   "round": "NOT_DERIVABLE",
+   "map_region": "NOT_DERIVABLE",
+   "povs": 2,
+   "observation_gap_ms": 25
+  },
+  "possibilities": {
+   "performance_id": "PERF:FIRE_ROCKET:acd726fd089a1011:7:447500",
+   "facts": [
+    {
+     "name": "kind",
+     "value": "FIRE_ROCKET",
+     "source": "performance index row"
+    },
+    {
+     "name": "map",
+     "value": "thunderstruck",
+     "source": "performance index row"
+    },
+    {
+     "name": "server_time_ms",
+     "value": 447500,
+     "source": "performance index row"
+    },
+    {
+     "name": "window_ms",
+     "value": [
+      446000,
+      449500
+     ],
+     "source": "performance index row"
+    },
+    {
+     "name": "is_recorder_pov",
+     "value": true,
+     "source": "performance index row"
+    },
+    {
+     "name": "transform_samples",
+     "value": 141,
+     "source": "performance index row"
+    },
+    {
+     "name": "largest_observation_gap_ms",
+     "value": 25,
+     "source": "performance index row"
+    },
+    {
+     "name": "weapon",
+     "value": "ROCKET",
+     "source": "performance index row"
+    },
+    {
+     "name": "outcome",
+     "value": "KILL",
+     "source": "performance index row"
+    },
+    {
+     "name": "victim_client_slot",
+     "value": 0,
+     "source": "performance index row"
+    },
+    {
+     "name": "observed_projectile_samples",
+     "value": 138,
+     "source": "performance index row"
+    },
+    {
+     "name": "projectile_weapon",
+     "value": "PLASMA",
+     "source": "performance index row"
+    },
+    {
+     "name": "airborne_ms",
+     "value": 1400,
+     "source": "performance index row"
+    },
+    {
+     "name": "max_speed_ups",
+     "value": 515.1,
+     "source": "performance index row"
+    },
+    {
+     "name": "clients_in_demo",
+     "value": 4,
+     "source": "demos table"
+    },
+    {
+     "name": "event_chain",
+     "value": [
+      "fire_weapon",
+      "fire_weapon",
+      "change_weapon",
+      "fire_weapon",
+      "fire_weapon",
+      "fire_weapon",
+      "fire_weapon",
+      "fire_weapon",
+      "fire_weapon",
+      "fire_weapon",
+      "fire_weapon",
+      "fire_weapon"
+     ],
+     "source": "performance index row"
+    }
+   ],
+   "truth_available": [
+    "ACTION",
+    "AIM",
+    "ENEMY_POV",
+    "EVENTS",
+    "OTHER_POV",
+    "PROJECTILE_PATH",
+    "TRANSFORM",
+    "WEAPON_STATE"
+   ],
+   "possibilities": [
+    {
+     "recipe": "XRAY_ACTOR",
+     "compatible": true,
+     "status": "BACKEND_SUPPORTED",
+     "reasons": [
+      "TRANSFORM: 141 observed transform samples",
+      "OTHER_POV: the demo carries 4 clients"
+     ],
+     "missing_truth": [],
+     "missing_capabilities": [],
+     "provenance": "DERIVED"
+    },
+    {
+     "recipe": "WALL_REMOVE_XRAY",
+     "compatible": false,
+     "status": "SEMANTICALLY_SUPPORTED",
+     "reasons": [
+      "TRANSFORM: 141 observed transform samples",
+      "MAP_GEOGRAPHY MISSING: this moment does not carry it",
+      "no proven backend for WALL_REMOVAL"
+     ],
+     "missing_truth": [
+      "MAP_GEOGRAPHY"
+     ],
+     "missing_capabilities": [
+      "WALL_REMOVAL"
+     ],
+     "provenance": "DERIVED"
+    },
+    {
+     "recipe": "FREEZE_AND_EXPLAIN",
+     "compatible": false,
+     "status": "SEMANTICALLY_SUPPORTED",
+     "reasons": [
+      "ACTION: the index read this as FIRE_ROCKET",
+      "TRANSFORM: 141 observed transform samples",
+      "EVENTS: the recorded event chain is on the row",
+      "no proven backend for FREEZE_ENTITY, TIME_SCALE"
+     ],
+     "missing_truth": [],
+     "missing_capabilities": [
+      "FREEZE_ENTITY",
+      "TIME_SCALE"
+     ],
+     "provenance": "DERIVED"
+    },
+    {
+     "recipe": "FREEZE_KILLER",
+     "compatible": false,
+     "status": "SEMANTICALLY_SUPPORTED",
+     "reasons": [
+      "ACTION: the index read this as FIRE_ROCKET",
+      "TRANSFORM: 141 observed transform samples",
+      "no proven backend for FREEZE_ENTITY"
+     ],
+     "missing_truth": [],
+     "missing_capabilities": [
+      "FREEZE_ENTITY"
+     ],
+     "provenance": "DERIVED"
+    },
+    {
+     "recipe": "PROJECTILE_FOLLOW",
+     "compatible": false,
+     "status": "SEMANTICALLY_SUPPORTED",
+     "reasons": [
+      "PROJECTILE_PATH: 138 OBSERVED missile samples, not extended",
+      "TRANSFORM: 141 observed transform samples",
+      "no proven backend for CHASE_ENTITY"
+     ],
+     "missing_truth": [],
+     "missing_capabilities": [
+      "CHASE_ENTITY"
+     ],
+     "provenance": "DERIVED"
+    },
+    {
+     "recipe": "PROJECTILE_FLYTHROUGH",
+     "compatible": false,
+     "status": "BACKEND_SUPPORTED",
+     "reasons": [
+      "PROJECTILE_PATH: 138 OBSERVED missile samples, not extended",
+      "MAP_GEOGRAPHY MISSING: this moment does not carry it"
+     ],
+     "missing_truth": [
+      "MAP_GEOGRAPHY"
+     ],
+     "missing_capabilities": [],
+     "provenance": "DERIVED"
+    },
+    {
+     "recipe": "ENEMY_POV_REPLAY",
+     "compatible": true,
+     "status": "BACKEND_SUPPORTED",
+     "reasons": [
+      "ENEMY_POV: the victim is client slot 0, not the recorder",
+      "ACTION: the index read this as FIRE_ROCKET"
+     ],
+     "missing_truth": [],
+     "missing_capabilities": [],
+     "provenance": "DERIVED"
+    },
+    {
+     "recipe": "PIP_ALT_POV",
+     "compatible": true,
+     "status": "BACKEND_SUPPORTED",
+     "reasons": [
+      "OTHER_POV: the demo carries 4 clients"
+     ],
+     "missing_truth": [],
+     "missing_capabilities": [],
+     "provenance": "DERIVED"
+    },
+    {
+     "recipe": "HIGH_SPEED_RETIME",
+     "compatible": false,
+     "status": "SEMANTICALLY_SUPPORTED",
+     "reasons": [
+      "ACTION: the index read this as FIRE_ROCKET",
+      "EVENTS: the recorded event chain is on the row",
+      "no proven backend for TIME_SCALE"
+     ],
+     "missing_truth": [],
+     "missing_capabilities": [
+      "TIME_SCALE"
+     ],
+     "provenance": "DERIVED"
+    },
+    {
+     "recipe": "REPLAY_STUTTER",
+     "compatible": true,
+     "status": "BACKEND_SUPPORTED",
+     "reasons": [
+      "EVENTS: the recorded event chain is on the row"
+     ],
+     "missing_truth": [],
+     "missing_capabilities": [],
+     "provenance": "DERIVED"
+    },
+    {
+     "recipe": "MULTI_FRAG_ROUND",
+     "compatible": false,
+     "status": "BACKEND_SUPPORTED",
+     "reasons": [
+      "ACTION: the index read this as FIRE_ROCKET",
+      "EVENTS: the recorded event chain is on the row",
+      "ROUND MISSING: the round is in the review corpus, not the performance index"
+     ],
+     "missing_truth": [
+      "ROUND"
+     ],
+     "missing_capabilities": [],
+     "provenance": "DERIVED"
+    },
+    {
+     "recipe": "TACTICAL_ROUND_STORY",
+     "compatible": false,
+     "status": "BACKEND_SUPPORTED",
+     "reasons": [
+      "TRANSFORM: 141 observed transform samples",
+      "OTHER_POV: the demo carries 4 clients",
+      "ROUND MISSING: the round is in the review corpus, not the performance index",
+      "MAP_GEOGRAPHY MISSING: this moment does not carry it"
+     ],
+     "missing_truth": [
+      "ROUND",
+      "MAP_GEOGRAPHY"
+     ],
+     "missing_capabilities": [],
+     "provenance": "DERIVED"
+    },
+    {
+     "recipe": "GRENADE_SEQUENCE",
+     "compatible": false,
+     "status": "SEMANTICALLY_SUPPORTED",
+     "reasons": [
+      "PROJECTILE_PATH: 138 OBSERVED missile samples, not extended",
+      "EVENTS: the recorded event chain is on the row",
+      "no proven backend for CHASE_ENTITY"
+     ],
+     "missing_truth": [],
+     "missing_capabilities": [
+      "CHASE_ENTITY"
+     ],
+     "provenance": "DERIVED"
+    },
+    {
+     "recipe": "LOW_HP_REACTION",
+     "compatible": false,
+     "status": "BACKEND_SUPPORTED",
+     "reasons": [
+      "ACTION: the index read this as FIRE_ROCKET",
+      "HEALTH MISSING: health over the window comes from the trace, not the index row"
+     ],
+     "missing_truth": [
+      "HEALTH"
+     ],
+     "missing_capabilities": [],
+     "provenance": "DERIVED"
+    },
+    {
+     "recipe": "MAP_WIREFRAME_REVEAL",
+     "compatible": false,
+     "status": "SEMANTICALLY_SUPPORTED",
+     "reasons": [
+      "MAP_GEOGRAPHY MISSING: this moment does not carry it",
+      "no proven backend for SHADER_REMAP"
+     ],
+     "missing_truth": [
+      "MAP_GEOGRAPHY"
+     ],
+     "missing_capabilities": [
+      "SHADER_REMAP"
+     ],
+     "provenance": "DERIVED"
+    },
+    {
+     "recipe": "WORLD_HIDE_REVEAL",
+     "compatible": false,
+     "status": "SEMANTICALLY_SUPPORTED",
+     "reasons": [
+      "TRANSFORM: 141 observed transform samples",
+      "no proven backend for SHADER_REMAP"
+     ],
+     "missing_truth": [],
+     "missing_capabilities": [
+      "SHADER_REMAP"
+     ],
+     "provenance": "DERIVED"
+    },
+    {
+     "recipe": "MODEL_MORPH",
+     "compatible": false,
+     "status": "SEMANTICALLY_SUPPORTED",
+     "reasons": [
+      "ROSTER MISSING: who performs is chosen at compile time, never recorded",
+      "no proven backend for CUSTOM_GEOMETRY"
+     ],
+     "missing_truth": [
+      "ROSTER"
+     ],
+     "missing_capabilities": [
+      "CUSTOM_GEOMETRY"
+     ],
+     "provenance": "DERIVED"
+    },
+    {
+     "recipe": "DIEGETIC_PRESENTER",
+     "compatible": false,
+     "status": "SEMANTICALLY_SUPPORTED",
+     "reasons": [
+      "ROSTER MISSING: who performs is chosen at compile time, never recorded",
+      "MAP_GEOGRAPHY MISSING: this moment does not carry it",
+      "no proven backend for SYNTHETIC_PERFORMANCE"
+     ],
+     "missing_truth": [
+      "ROSTER",
+      "MAP_GEOGRAPHY"
+     ],
+     "missing_capabilities": [
+      "SYNTHETIC_PERFORMANCE"
+     ],
+     "provenance": "DERIVED"
+    },
+    {
+     "recipe": "ANALYSIS_ACTOR_WALKOUT",
+     "compatible": false,
+     "status": "SEMANTICALLY_SUPPORTED",
+     "reasons": [
+      "TRANSFORM: 141 observed transform samples",
+      "MAP_GEOGRAPHY MISSING: this moment does not carry it",
+      "ROSTER MISSING: who performs is chosen at compile time, never recorded",
+      "no proven backend for SYNTHETIC_PERFORMANCE"
+     ],
+     "missing_truth": [
+      "MAP_GEOGRAPHY",
+      "ROSTER"
+     ],
+     "missing_capabilities": [
+      "SYNTHETIC_PERFORMANCE"
+     ],
+     "provenance": "DERIVED"
+    },
+    {
+     "recipe": "DIEGETIC_SCOREBOARD",
+     "compatible": false,
+     "status": "SEMANTICALLY_SUPPORTED",
+     "reasons": [
+      "SCOREBOARD MISSING: match state is not carried on an action row",
+      "ROUND MISSING: the round is in the review corpus, not the performance index",
+      "no proven backend for CUSTOM_GEOMETRY"
+     ],
+     "missing_truth": [
+      "SCOREBOARD",
+      "ROUND"
+     ],
+     "missing_capabilities": [
+      "CUSTOM_GEOMETRY"
+     ],
+     "provenance": "DERIVED"
+    }
+   ],
+   "suggestions": [
+    {
+     "recipe": "PROJECTILE_FOLLOW",
+     "because": "138 observed missile samples: the flight is long enough to ride",
+     "provenance": "MACHINE_SUGGESTION"
+    },
+    {
+     "recipe": "HIGH_SPEED_RETIME",
+     "because": "1400 ms airborne: there is a hang to stretch",
+     "provenance": "MACHINE_SUGGESTION"
+    },
+    {
+     "recipe": "ENEMY_POV_REPLAY",
+     "because": "the victim is a different client the demo observed",
+     "provenance": "MACHINE_SUGGESTION"
+    }
+   ]
+  },
+  "human": []
+ },
+ "plan": {
+  "profile": "REVIEW",
+  "deliverable": true,
+  "passes": [
+   {
+    "pass": "BEAUTY",
+    "backend": "PANTHEON_QUAKE_OFFSCREEN",
+    "status": "PLANNED",
+    "because": "PANTHEON_QUAKE_OFFSCREEN has BEAUTY_PASS proven",
+    "capabilities": [
+     "BEAUTY_PASS"
+    ],
+    "recipes": [
+     "XRAY_ACTOR",
+     "ENEMY_POV_REPLAY",
+     "PIP_ALT_POV"
+    ]
+   },
+   {
+    "pass": "FINAL",
+    "backend": "FFMPEG",
+    "status": "PLANNED",
+    "because": "assembly and encode are ffmpeg's job, and always have been",
+    "capabilities": [],
+    "recipes": []
+   }
+  ]
+ }
+}

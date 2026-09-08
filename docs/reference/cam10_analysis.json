@@ -1,0 +1,62 @@
+{
+  "offset": {
+    "rows": [
+      {
+        "variant": "offctr",
+        "offset": null,
+        "derived_position": null,
+        "derived_in_open_space": null,
+        "divergence_from_centred": 0.0
+      },
+      {
+        "variant": "offlat",
+        "offset": null,
+        "derived_position": null,
+        "derived_in_open_space": null,
+        "divergence_from_centred": 26.26
+      },
+      {
+        "variant": "offvert",
+        "offset": null,
+        "derived_position": null,
+        "derived_in_open_space": null,
+        "divergence_from_centred": 37.71
+      },
+      {
+        "variant": "offboth",
+        "offset": null,
+        "derived_position": null,
+        "derived_in_open_space": null,
+        "divergence_from_centred": 37.68
+      }
+    ],
+    "applied": 3,
+    "verdict": "OFFSET_APPLIED"
+  },
+  "commandStr": {
+    "rows": [
+      {
+        "requested_ms": 2000,
+        "visible": false
+      },
+      {
+        "requested_ms": 3000,
+        "visible": false
+      },
+      {
+        "requested_ms": 4000,
+        "visible": false
+      },
+      {
+        "requested_ms": 5000,
+        "visible": false
+      },
+      {
+        "requested_ms": 6000,
+        "visible": false
+      }
+    ],
+    "status": "ENGINE_TRIGGER_PORT",
+    "reason": "too few firings produced a visible effect"
+  }
+}

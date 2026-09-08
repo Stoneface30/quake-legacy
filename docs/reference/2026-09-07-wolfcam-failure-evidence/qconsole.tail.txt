@@ -1,0 +1,42 @@
+logfile opened on Mon Sep 07 10:07:42 2026
+----- Client Initialization -----
+Couldn't read q3history.
+allocated 51.71 MB for rewind backups
+----- Initializing Renderer ----
+-------------------------------
+QKEY found.
+----- Client Initialization Complete -----
+----- R_Init -----
+SDL_Init( SDL_INIT_VIDEO ) FAILED (No available video device)
+^1GLimp_StartDriverAndSetMode() failed, reverting to safe values
+GLimp_Shutdown: mode -1 lastMode -999
+SDL using driver "windib"
+Initializing OpenGL display
+Estimated display aspect: 1.778
+...setting mode 11: 856 480
+about to set mode 856 480  bpp 24
+^2Using 8/8/8 Color bits, 24 depth, 8 stencil display.
+Available modes: '1280x720 1366x768 1600x900 1920x1080 3840x2160 1176x664 1360x768 1280x768 1280x800 1440x900 1680x1050 1600x1024 720x480 640x480 800x600 1024x768 1152x864 1280x960 1440x1080 720x576 1280x1024'
+GL_RENDERER: NVIDIA GeForce RTX 5060 Ti/PCIe/SSE2
+Initializing OpenGL extensions
+...ignoring GL_EXT_texture_compression_s3tc
+...ignoring GL_S3_s3tc
+...using GL_EXT_texture_env_add
+...using GL_ARB_multitexture
+...using GL_EXT_compiled_vertex_array
+...ignoring GL_EXT_texture_filter_anisotropic
+...using fragment shaders
+...using GL_EXT_framebuffer_object
+...using GL_EXT_packed_depth_stencil
+...using GL_EXT_framebuffer_multisample
+...using GL_EXT_framebuffer_blit
+anti-alias samples: 4
+^1InitFrameBufferAndRenderBuffer  multisample framebuffer error: 0x8cdd
+^1unsupported
+^5scripts/posteffect.vs ->
+^5scripts/colorcorrect.fs ->
+^5scripts/blurhoriz.fs ->
+^5scripts/blurvertical.fs ->
+^5scripts/brightpass.fs ->
+^5scripts/combine.fs ->
+^5scripts/downsample1.fs ->

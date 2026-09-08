@@ -1,0 +1,4 @@
+total 4166073
+drwxr-xr-x 1 Stoneface 197609          0 Sep  7 08:54 .
+drwxr-xr-x 1 Stoneface 197609          0 Sep  7 08:51 ..
+61

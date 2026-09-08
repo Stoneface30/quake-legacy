@@ -1,0 +1,19 @@
+{
+  "source_demo_sha256": "876bb6742ace7189e709d55356534ab206f2a095eea2e33d828c3bc3724e1545",
+  "parser_sha256": "d6c8542a581a14b58a1a50b06c7d4f0938d7237733b67d5133b8f7ecdcb873bf",
+  "checks": [
+    "15 nonempty round windows",
+    "79 kills assigned exactly once",
+    "14211 unique event IDs",
+    "monotonic snapshot timestamps",
+    "unknown damage remains null",
+    "identity fields excluded; roster strings scanned",
+    "Playable round6 event seek verified; three post-event frames inspected"
+  ],
+  "file_hashes": {
+    "evidence.json": "8abc793b3343113ac88d0a069bc4fa6aa59b8a1642333f54b0c1124307178800",
+    "explorer-data.js": "ae9e8291a0321449d7ca511177c4ab90f5d9fc92f2b15e131be52f1bcb21519f",
+    "explorer.html": "c0c9af490a573619495202b0392fb34e5060030108351ff1982b66e4cb034b28",
+    "source-of-truth.md": "2218b0f77e760e4f4a73c4de07b01c288f86c97aaac794f7d77e12b5673430ea"
+  }
+}

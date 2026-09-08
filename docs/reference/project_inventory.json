@@ -1,0 +1,912 @@
+[
+  {
+    "path": "creative_suite/api",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.17,
+    "file_count": 23,
+    "description": "FastAPI routers (phase1, studio, forge, comfy, clips, render worker). Live app surface on port 8765."
+  },
+  {
+    "path": "creative_suite/engine",
+    "classification": "ACTIVE",
+    "approx_size_mb": 4.0,
+    "file_count": 96,
+    "description": "Render pipeline python modules (render_part_v6, render_highlight, title_card, beat_sync, effects, music_stitcher). Modified through 2026-08-31."
+  },
+  {
+    "path": "creative_suite/engine/effects",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.02,
+    "file_count": 3,
+    "description": "Effects package incl. speed_ramp.py (P1-Q-AUTO). Touched 2026-08-31."
+  },
+  {
+    "path": "creative_suite/engine/clip_lists",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.04,
+    "file_count": 23,
+    "description": "Per-Part clip list text files (Gate R-1 artifacts)."
+  },
+  {
+    "path": "creative_suite/engine/tests",
+    "classification": "ACTIVE",
+    "approx_size_mb": 5.84,
+    "file_count": 31,
+    "description": "Engine-local pytest suite plus 5.6 MB of media fixtures."
+  },
+  {
+    "path": "creative_suite/engine/assets",
+    "classification": "SOURCE",
+    "approx_size_mb": 56.57,
+    "file_count": 31,
+    "description": "Fonts, pantheon_ads, round_intro brand media used by title_card / intro build. Updated 2026-08-31."
+  },
+  {
+    "path": "creative_suite/engine/sound_templates",
+    "classification": "REFERENCE",
+    "approx_size_mb": 40.76,
+    "file_count": 570,
+    "description": "Rule P1-DD QL sound template library extracted from pak00.pk3, normalised PCM WAV + manifest.json. Frozen 2026-04-22."
+  },
+  {
+    "path": "creative_suite/engine/music/library",
+    "classification": "SOURCE",
+    "approx_size_mb": 9656.1,
+    "file_count": 2093,
+    "description": "Downloaded music candidate pool (beats/, _user_curated/, _dl_* per-track dirs). Gitignored (copyright). Frozen 2026-04-20."
+  },
+  {
+    "path": "creative_suite/engine/music/_stitched",
+    "classification": "GENERATED",
+    "approx_size_mb": 243.63,
+    "file_count": 6,
+    "description": "Rule P1-AA stitched three-track music beds per Part. Regenerable from music_stitcher.py."
+  },
+  {
+    "path": "creative_suite/engine/music",
+    "classification": "ACTIVE",
+    "approx_size_mb": 321.4,
+    "file_count": 81,
+    "description": "Per-Part music slot files (partNN_music_0N.mp3), beats.json caches, catalog + download scripts. Excludes library/ and _stitched/ counted separately."
+  },
+  {
+    "path": "creative_suite/engine/parser",
+    "classification": "SUPERSEDED",
+    "approx_size_mb": 0.03,
+    "file_count": 11,
+    "description": "Thin dm73 parser stub (11 files, frozen 2026-04-22). Superseded by engine/parser/ (57 files, active 2026-08-31)."
+  },
+  {
+    "path": "creative_suite/frontend",
+    "classification": "ACTIVE",
+    "approx_size_mb": 4.29,
+    "file_count": 64,
+    "description": "studio.html + studio-*.js + tokens.css + vendor bundles. The /studio cockpit UI."
+  },
+  {
+    "path": "creative_suite/web",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.05,
+    "file_count": 9,
+    "description": "annotate.html / creative.html secondary web surfaces."
+  },
+  {
+    "path": "creative_suite/tests",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.69,
+    "file_count": 118,
+    "description": "Main pytest suite (~596 tests). New DM73/effects/audio-safety tests added 2026-08."
+  },
+  {
+    "path": "creative_suite/database",
+    "classification": "RUNTIME",
+    "approx_size_mb": 205.79,
+    "file_count": 30,
+    "description": "SQLite runtime DBs (frag_recognition 130 MB, frags_rebuilt 61 MB, music_analysis, cinematic, demo_v2, studio_nle) + schema.sql + MusicLibrary.json. Gitignored; contains gameplay PII."
+  },
+  {
+    "path": "creative_suite/storage/thumbnails",
+    "classification": "CACHE",
+    "approx_size_mb": 399.86,
+    "file_count": 6578,
+    "description": "6,578 numerically-named clip thumbnail PNGs, every file stamped 2026-04-18 22:42-22:43. Not written since; regenerable from source AVIs."
+  },
+  {
+    "path": "creative_suite/storage",
+    "classification": "RUNTIME",
+    "approx_size_mb": 0.05,
+    "file_count": 1,
+    "description": "creative_suite.db plus empty annotations/packs/variants/wolfcam_capture dirs. Gitignored via `storage/`."
+  },
+  {
+    "path": "creative_suite/generated/packs",
+    "classification": "GENERATED",
+    "approx_size_mb": 29.48,
+    "file_count": 1,
+    "description": "zzz_photorealistic.pk3 style pack built from photoreal output (Rule ENG-2 naming). Gitignored, regenerable."
+  },
+  {
+    "path": "creative_suite/generated/brand",
+    "classification": "GENERATED",
+    "approx_size_mb": 0.01,
+    "file_count": 1,
+    "description": "Generated brand asset. New 2026-08-31."
+  },
+  {
+    "path": "creative_suite/graphify-out/cache",
+    "classification": "CACHE",
+    "approx_size_mb": 23.43,
+    "file_count": 2076,
+    "description": "Graphify per-file analysis cache from the 2026-04-22 run. Gitignored, regenerable."
+  },
+  {
+    "path": "creative_suite/output",
+    "classification": "RUNTIME",
+    "approx_size_mb": 0.01,
+    "file_count": 3,
+    "description": "Small app-local output scratch (2026-08-28)."
+  },
+  {
+    "path": "creative_suite/editor",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.02,
+    "file_count": 4,
+    "description": "OTIO bridge + editor state module."
+  },
+  {
+    "path": "creative_suite/clips",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.01,
+    "file_count": 4,
+    "description": "Clip resolution / scanning helpers."
+  },
+  {
+    "path": "creative_suite/annotations",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.01,
+    "file_count": 2,
+    "description": "Annotation persistence module."
+  },
+  {
+    "path": "creative_suite/capture",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.005,
+    "file_count": 2,
+    "description": "Wolfcam capture helper module."
+  },
+  {
+    "path": "creative_suite/inventory",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.01,
+    "file_count": 4,
+    "description": "Asset inventory module."
+  },
+  {
+    "path": "creative_suite/pk3_build",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.005,
+    "file_count": 3,
+    "description": "pk3 style-pack builder."
+  },
+  {
+    "path": "creative_suite/ollama",
+    "classification": "EXPERIMENTAL",
+    "approx_size_mb": 0.005,
+    "file_count": 2,
+    "description": "Local-LLM helper shim; untouched since 2026-04-22."
+  },
+  {
+    "path": "creative_suite/overrides",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.005,
+    "file_count": 2,
+    "description": "partNN_overrides.txt grammar parser."
+  },
+  {
+    "path": "creative_suite/scripts",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.04,
+    "file_count": 11,
+    "description": "Operational helper scripts."
+  },
+  {
+    "path": "creative_suite/db",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.01,
+    "file_count": 3,
+    "description": "DB connection helpers."
+  },
+  {
+    "path": "creative_suite/comfy",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.3,
+    "file_count": 12,
+    "description": "ComfyUI client, prompt builders, full_overnight.py batch driver, verify_comfyui.py, download_loras.py. full_overnight.py modified 2026-08-31."
+  },
+  {
+    "path": "creative_suite/comfy/workflows",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.05,
+    "file_count": 21,
+    "description": "21 workflow JSONs (upscale_only, tile_*, img2img_*, style LoRA). CLAUDE.md documents 8 - drift."
+  },
+  {
+    "path": "creative_suite/comfy/loras",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.07,
+    "file_count": 5,
+    "description": "LoRA manifest.json (6 styles) + metadata. Weights live outside the repo."
+  },
+  {
+    "path": "creative_suite/comfy/assets/phase5_png",
+    "classification": "SOURCE",
+    "approx_size_mb": 1.7,
+    "file_count": 108,
+    "description": "Rule PH5-3 scope: 107 weapon/HUD source PNGs for the phase-5 diffusion target set. Gitignored."
+  },
+  {
+    "path": "creative_suite/comfy/photoreal/assets",
+    "classification": "SOURCE",
+    "approx_size_mb": 986.39,
+    "file_count": 6213,
+    "description": "pak00.pk3 PNG extraction (9 categories). Proprietary id Software assets - gitignored, never redistribute. Read-only per Rule ENG-4."
+  },
+  {
+    "path": "creative_suite/comfy/photoreal/pipelines",
+    "classification": "GENERATED",
+    "approx_size_mb": 15298.24,
+    "file_count": 14224,
+    "description": "full_overnight.py batch output across 20 pipeline dirs. upscale_only is the only complete run (10,060 MB / 5,776 files); 9 style pipelines sit at ~500 MB / 800 files each; tile_d35..d80 + cel_shade/cartoon/concept_art/ink_etching hold only 7-11 E2E stub files. Gitignored, fully regenerable."
+  },
+  {
+    "path": "creative_suite/comfy/photoreal/e2e",
+    "classification": "GENERATED",
+    "approx_size_mb": 46.74,
+    "file_count": 155,
+    "description": "Rule PH5-4 E2E sample grid (11 categories x 9 pipelines) + index.html. Regenerable."
+  },
+  {
+    "path": "creative_suite/comfy/photoreal/pass1",
+    "classification": "SUPERSEDED",
+    "approx_size_mb": 30.3,
+    "file_count": 300,
+    "description": "Legacy first-pass diffusion output; explicitly named 'legacy first-pass output' in .gitignore. Superseded by pipelines/."
+  },
+  {
+    "path": "creative_suite/comfy/photoreal/compare",
+    "classification": "SUPERSEDED",
+    "approx_size_mb": 0.03,
+    "file_count": 1,
+    "description": "Old comparison UI, labelled superseded in .gitignore. Single file."
+  },
+  {
+    "path": "creative_suite/comfy/photoreal/celshade_wild",
+    "classification": "EXPERIMENTAL",
+    "approx_size_mb": 3.78,
+    "file_count": 8,
+    "description": "One-off cel_shade exploration from celshade_wild.py (2026-04-21)."
+  },
+  {
+    "path": "creative_suite/comfy/photoreal/twopass_test",
+    "classification": "EXPERIMENTAL",
+    "approx_size_mb": 16.31,
+    "file_count": 11,
+    "description": "One-off two-pass sanity check from twopass_test.py (2026-04-21)."
+  },
+  {
+    "path": "creative_suite/comfy/photoreal",
+    "classification": "RUNTIME",
+    "approx_size_mb": 14.0,
+    "file_count": 21,
+    "description": "assets.db (5 MB SQLite render ledger), gallery.html viewer, plus 17 batch/e2e/comfyui log files from April 2026."
+  },
+  {
+    "path": "creative_suite/tools/ffmpeg",
+    "classification": "ACTIVE",
+    "approx_size_mb": 290.35,
+    "file_count": 3,
+    "description": "ffmpeg/ffprobe/ffplay binaries - the render pipeline's core dependency."
+  },
+  {
+    "path": "creative_suite/tools/comfyui",
+    "classification": "ARCHIVE_CANDIDATE",
+    "approx_size_mb": 10898.74,
+    "file_count": 8,
+    "description": "Second ComfyUI install: 1.9 GB ComfyUI_windows_portable_nvidia.7z installer + 9.0 GB of model weights (RealVisXL_V5.0, xinsir-union-promax ControlNet). CLAUDE.md/PH5-5 point the live pipeline at E:\\PersonalAI instead, so this copy is unreferenced."
+  },
+  {
+    "path": "creative_suite/tools/ghidra",
+    "classification": "ARCHIVE_CANDIDATE",
+    "approx_size_mb": 788.69,
+    "file_count": 253,
+    "description": "FT-4 tooling: ghidra_12.0.4_PUBLIC.zip (486 MB installer) AND the extracted ghidra_12.0.4_PUBLIC/ (302 MB). Installer and extraction are both retained - one is redundant."
+  },
+  {
+    "path": "creative_suite/tools/vendored-src",
+    "classification": "REFERENCE",
+    "approx_size_mb": 329.38,
+    "file_count": 3159,
+    "description": "Read-only vendored upstream sources: moviepy, ffmpeg-python, vapoursynth, avisynth, virtualdub2. Reference for API study, not built."
+  },
+  {
+    "path": "creative_suite/tools/blur",
+    "classification": "REFERENCE",
+    "approx_size_mb": 15.39,
+    "file_count": 177,
+    "description": "Cloned 'blur' motion-blur tool repo incl. its own 11 MB .git. Reference only, untouched since 2026-04-16."
+  },
+  {
+    "path": "creative_suite/tools/virtualdub2",
+    "classification": "REFERENCE",
+    "approx_size_mb": 122.45,
+    "file_count": 47,
+    "description": "VirtualDub2 binaries + 32/64-bit plugin sets. Gitignored. Not referenced by the current render path."
+  },
+  {
+    "path": "creative_suite/tools/comfy-pilot",
+    "classification": "EXPERIMENTAL",
+    "approx_size_mb": 3.09,
+    "file_count": 48,
+    "description": "comfy-pilot MCP server clone (incl. its own .git). MCP entry is disabled in CLAUDE.md, but __pycache__ was touched 2026-08-31."
+  },
+  {
+    "path": "creative_suite/tools/game-assets",
+    "classification": "REFERENCE",
+    "approx_size_mb": 0.15,
+    "file_count": 1,
+    "description": "q3a-extracted asset stub."
+  },
+  {
+    "path": "creative_suite/tools/uberdemotools",
+    "classification": "UNKNOWN",
+    "approx_size_mb": 0.0,
+    "file_count": 1,
+    "description": "Near-empty stub; CLAUDE.md claims UDT_json.exe lives here but the binary is absent."
+  },
+  {
+    "path": "creative_suite/tools/davinci",
+    "classification": "UNKNOWN",
+    "approx_size_mb": 0.0,
+    "file_count": 1,
+    "description": "Empty placeholder from the 2026-04-19 video-tooling plan; gitignored, never populated."
+  },
+  {
+    "path": "engine/engines/_canonical",
+    "classification": "SOURCE",
+    "approx_size_mb": 548.18,
+    "file_count": 16623,
+    "description": "SHA-256 deduped merged tree of all 18 Quake engine source trees (authority-ordered). Wholly gitignored. Includes a 226 MB demo_files/ set and a 49 MB / 6,728-file graphify-out/ artifact folder embedded inside it."
+  },
+  {
+    "path": "engine/engines/_forks/q3mme",
+    "classification": "ACTIVE",
+    "approx_size_mb": 67.23,
+    "file_count": 921,
+    "description": "Live writable q3mme fork - the protocol-73 port base. Only engine tree with 2026-08-31 modifications."
+  },
+  {
+    "path": "engine/engines/variants",
+    "classification": "SOURCE",
+    "approx_size_mb": 29.49,
+    "file_count": 1214,
+    "description": "Per-tree thin variant dirs (files that differ from _canonical). Contains variants/ioquake3 (6.4 MB, 208 files) - the current home of the path the user called game-dissection/engines/variants/ioquake3."
+  },
+  {
+    "path": "engine/engines/_diffs",
+    "classification": "REFERENCE",
+    "approx_size_mb": 3.81,
+    "file_count": 513,
+    "description": "513 per-file .diff.md patch docs for near-duplicate engine files. Tracked deliverable."
+  },
+  {
+    "path": "engine/engines/_manifest",
+    "classification": "REFERENCE",
+    "approx_size_mb": 7.53,
+    "file_count": 11,
+    "description": "Inventory, canonical_map, build_canonical.py / build_inventory.py, DELETE_READY.md."
+  },
+  {
+    "path": "engine/engines/dissection",
+    "classification": "REFERENCE",
+    "approx_size_mb": 0.08,
+    "file_count": 63,
+    "description": "Per-engine ARCHITECTURE / QUIRKS / EXTENSION_POINTS doc triads for 18 trees. Current home of the path the user called game-dissection/engines/dissection."
+  },
+  {
+    "path": "engine/engines/wolfcam-knowledge",
+    "classification": "REFERENCE",
+    "approx_size_mb": 0.97,
+    "file_count": 14,
+    "description": "Rule P3-B protocol-73 docs, cvar inventory, patch series, shipped-binary deltas."
+  },
+  {
+    "path": "engine/engines/ghidra",
+    "classification": "REFERENCE",
+    "approx_size_mb": 53.62,
+    "file_count": 30,
+    "description": "FT-4 RE outputs: 16 MB decompilation reports, symbols, ipc-maps, plus 37.6 MB of binaries (gitignored, id Software IP)."
+  },
+  {
+    "path": "engine/parser",
+    "classification": "ACTIVE",
+    "approx_size_mb": 1.1,
+    "file_count": 38,
+    "description": "FT-1 C++17 .dm_73 parser (src/include/vendor/tests). tests/ touched 2026-08-31. This is the live parser; creative_suite/engine/parser is the stale stub."
+  },
+  {
+    "path": "engine/assets",
+    "classification": "SOURCE",
+    "approx_size_mb": 178.7,
+    "file_count": 32,
+    "description": "xcsv_hires.zip (178 MB HD texture pack) + Q3Q_HD_Textures manifest set."
+  },
+  {
+    "path": "engine/music/library",
+    "classification": "ARCHIVE_CANDIDATE",
+    "approx_size_mb": 2895.99,
+    "file_count": 396,
+    "description": "Second, flat music download pool frozen 2026-04-21. Zero name+size overlap with the active creative_suite/engine/music/library, and engine/music/ has no sibling code or manifest referencing it."
+  },
+  {
+    "path": "game-dissection",
+    "classification": "SUPERSEDED",
+    "approx_size_mb": 95.52,
+    "file_count": 1847,
+    "description": "Pre-2026-04-20-restructure copy of engine/engines/. Real directory, not a junction. All 1,848 tracked paths are a strict subset of engine/ with identical blob hashes except README.md/REPOS.md, which engine/ has since path-corrected. Missing _canonical/ and has an empty _forks/. Every internal doc still self-references game-dissection/*."
+  },
+  {
+    "path": "output",
+    "classification": "GENERATED",
+    "approx_size_mb": 24865.0,
+    "file_count": 272,
+    "description": "Render output root: 33 PartNN_highlight*.mp4 (23.9 GB) plus 58 JSON plans/manifests, 14 CSVs and ~165 log/pid/err files. 31 of the 33 mp4s are byte-identical duplicates of files in output/reference/."
+  },
+  {
+    "path": "output/reference",
+    "classification": "GENERATED",
+    "approx_size_mb": 55616.23,
+    "file_count": 69,
+    "description": "68 PartNN_highlight*.mp4 reference renders from the 2026-08-29/30 batch (54.3 GB). Superset of the root mp4 set; 31 files are byte-identical copies (verified by MD5)."
+  },
+  {
+    "path": "output/demo_v2/_wolfcam_staging",
+    "classification": "RUNTIME",
+    "approx_size_mb": 6082.56,
+    "file_count": 279,
+    "description": "WolfcamQL capture staging for the demo-v2 mining branch. Active through 2026-08-31."
+  },
+  {
+    "path": "output/demo_v2/_bench",
+    "classification": "EXPERIMENTAL",
+    "approx_size_mb": 4914.86,
+    "file_count": 40,
+    "description": "Encoder/pipeline benchmark renders from 2026-08-30 (FT-6 adjacent). Single-day burst, not referenced since."
+  },
+  {
+    "path": "output/demo_v2/music_auditions",
+    "classification": "GENERATED",
+    "approx_size_mb": 167.81,
+    "file_count": 10,
+    "description": "Music audition renders, 2026-08-31."
+  },
+  {
+    "path": "output/demo_v2/review_proxies",
+    "classification": "GENERATED",
+    "approx_size_mb": 87.09,
+    "file_count": 6,
+    "description": "Low-bitrate review proxies for Gate R-2/R-3, 2026-08-31."
+  },
+  {
+    "path": "output/demo_v2/presentation",
+    "classification": "GENERATED",
+    "approx_size_mb": 18.46,
+    "file_count": 15,
+    "description": "Presentation/export artifacts, 2026-08-31."
+  },
+  {
+    "path": "output/demo_v2/recognition",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.41,
+    "file_count": 22,
+    "description": "Recognition JSON outputs (frag/event classification) driving the current mining work."
+  },
+  {
+    "path": "output/demo_v2/part01",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.02,
+    "file_count": 3,
+    "description": "Part 01 v2 plan artifacts, 2026-08-31."
+  },
+  {
+    "path": "output/demo_v2/_wolfcam_director_staging",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.0,
+    "file_count": 3,
+    "description": "New director-driven wolfcam staging, created 2026-08-31."
+  },
+  {
+    "path": "output/demo_v2/review",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.05,
+    "file_count": 1,
+    "description": "Review notes artifact."
+  },
+  {
+    "path": "output/_part04_v6_body_chunks",
+    "classification": "CACHE",
+    "approx_size_mb": 5491.14,
+    "file_count": 123,
+    "description": "Per-chunk intermediate PCM/video segments for Part 4 (Rule P1-BB split graphs). Regenerable; single-day 2026-08-28."
+  },
+  {
+    "path": "output/_part05_v6_body_chunks",
+    "classification": "CACHE",
+    "approx_size_mb": 6003.63,
+    "file_count": 130,
+    "description": "Part 5 body chunk intermediates, 2026-08-28. Regenerable."
+  },
+  {
+    "path": "output/_part06_v6_body_chunks",
+    "classification": "CACHE",
+    "approx_size_mb": 5137.9,
+    "file_count": 123,
+    "description": "Part 6 body chunk intermediates, 2026-08-28. Regenerable."
+  },
+  {
+    "path": "output/_part04_stems",
+    "classification": "CACHE",
+    "approx_size_mb": 1564.27,
+    "file_count": 2,
+    "description": "Part 4 separated audio stems, 2026-08-28. Regenerable."
+  },
+  {
+    "path": "output/_part05_stems",
+    "classification": "CACHE",
+    "approx_size_mb": 1701.1,
+    "file_count": 2,
+    "description": "Part 5 separated audio stems, 2026-08-28. Regenerable."
+  },
+  {
+    "path": "output/_part06_stems",
+    "classification": "CACHE",
+    "approx_size_mb": 1540.53,
+    "file_count": 2,
+    "description": "Part 6 separated audio stems, 2026-08-28. Regenerable."
+  },
+  {
+    "path": "output/_hl_manifests",
+    "classification": "ACTIVE",
+    "approx_size_mb": 2.02,
+    "file_count": 281,
+    "description": "Highlight episode manifests written by hl_generate.py / hl_all.py."
+  },
+  {
+    "path": "output/_series_manifests",
+    "classification": "ACTIVE",
+    "approx_size_mb": 2.23,
+    "file_count": 218,
+    "description": "Continuous-series Part manifests from hl_series.py. Newest 2026-08-31."
+  },
+  {
+    "path": "output/_v2_manifests",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.01,
+    "file_count": 1,
+    "description": "Current v2 manifest, 2026-08-31."
+  },
+  {
+    "path": "output/_v2_manifests_superseded",
+    "classification": "SUPERSEDED",
+    "approx_size_mb": 0.05,
+    "file_count": 5,
+    "description": "Self-labelled superseded v2 manifests, 2026-08-31."
+  },
+  {
+    "path": "output/_beat_grids",
+    "classification": "GENERATED",
+    "approx_size_mb": 0.02,
+    "file_count": 7,
+    "description": "Beat/downbeat grids per Part (P1-Z / P1-CC inputs), 2026-08-31."
+  },
+  {
+    "path": "output/_hl_ledger",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.01,
+    "file_count": 1,
+    "description": "Highlight ledger - the promoted master pool referenced by the newest commit."
+  },
+  {
+    "path": "output/_quarantine_collision_2026-08-29",
+    "classification": "ARCHIVE_CANDIDATE",
+    "approx_size_mb": 0.01,
+    "file_count": 10,
+    "description": "Self-labelled quarantine of colliding ledger files from a 2026-08-29 incident. Retained for forensics; nothing reads it."
+  },
+  {
+    "path": "output/LEFTOVERS",
+    "classification": "TEMPORARY",
+    "approx_size_mb": 0.02,
+    "file_count": 2,
+    "description": "Two leftover files from the 2026-08-30 coverage reconciliation pass."
+  },
+  {
+    "path": "output/brand",
+    "classification": "GENERATED",
+    "approx_size_mb": 0.72,
+    "file_count": 11,
+    "description": "Generated PANTHEON brand frames, 2026-08-31."
+  },
+  {
+    "path": "output/summary",
+    "classification": "GENERATED",
+    "approx_size_mb": 8.1,
+    "file_count": 2,
+    "description": "Batch summary artifacts from 2026-08-30."
+  },
+  {
+    "path": "demos",
+    "classification": "SOURCE",
+    "approx_size_mb": 13462.51,
+    "file_count": 6445,
+    "description": "Primary .dm_73 demo corpus (13.1 GB). Frozen since 2026-04-19. Read-only source of truth - never modify. Contains gameplay PII."
+  },
+  {
+    "path": "QUAKE VIDEO/T1",
+    "classification": "SOURCE",
+    "approx_size_mb": 214759.49,
+    "file_count": 728,
+    "description": "Tier-1 historical AVI capture corpus, Parts 1-12. Frozen since 2019-10. Rule P1-A: rarest/elite peak frags."
+  },
+  {
+    "path": "QUAKE VIDEO/T2",
+    "classification": "SOURCE",
+    "approx_size_mb": 200749.6,
+    "file_count": 691,
+    "description": "Tier-2 historical AVI capture corpus, Parts 1-12. Frozen since 2019-10. The backbone tier (>=70% screen time)."
+  },
+  {
+    "path": "QUAKE VIDEO/T3",
+    "classification": "SOURCE",
+    "approx_size_mb": 49607.47,
+    "file_count": 160,
+    "description": "Tier-3 historical AVI capture corpus, Parts 1-12. Frozen since 2019-10. Filler/cinematic tier."
+  },
+  {
+    "path": "QUAKE VIDEO/Gaunlet",
+    "classification": "SOURCE",
+    "approx_size_mb": 20000.2,
+    "file_count": 79,
+    "description": "Gauntlet-themed AVI capture set, Parts 1-6. Frozen 2019-10-04."
+  },
+  {
+    "path": "QUAKE VIDEO/VIDEO PART1",
+    "classification": "SOURCE",
+    "approx_size_mb": 21588.39,
+    "file_count": 75,
+    "description": "'ALL ACTION PART1' legacy capture set. Frozen 2019-10."
+  },
+  {
+    "path": "QUAKE VIDEO/Demos QUAKELIVE",
+    "classification": "SOURCE",
+    "approx_size_mb": 861.63,
+    "file_count": 2,
+    "description": "Two archived demo bundles from 2019. Frozen."
+  },
+  {
+    "path": "QUAKE VIDEO/Ready for youtube",
+    "classification": "GENERATED",
+    "approx_size_mb": 31162.19,
+    "file_count": 37,
+    "description": "37 finished renders staged for upload, written 2026-08-30. Output, not source - the only non-frozen folder under QUAKE VIDEO/."
+  },
+  {
+    "path": "SOURCE_EXCEPTIONS",
+    "classification": "ACTIVE",
+    "approx_size_mb": 140.96,
+    "file_count": 2,
+    "description": "manifest.json + one recovered/ AVI ('Demo (100) - 3 [RECOVERED].avi'). Exception ledger for the 2026-08-30 avi_reconcile.py coverage pass."
+  },
+  {
+    "path": "WOLF WHISPERER",
+    "classification": "REFERENCE",
+    "approx_size_mb": 13.6,
+    "file_count": 2,
+    "description": "wolfcamql-src.tar.gz (2016) + wolfcam-ql/models/models.7z (2019). FT-4 notes the Wolf Whisperer .rar still needs extracting; no .exe present on disk."
+  },
+  {
+    "path": "docs/reference",
+    "classification": "REFERENCE",
+    "approx_size_mb": 0.41,
+    "file_count": 31,
+    "description": "31 authoritative reference docs (dm73-format-deep-dive, highlight-criteria, wolfcam-commands, parser-certification-2026-08-30). Live and cited by CLAUDE.md."
+  },
+  {
+    "path": "docs/visual-record",
+    "classification": "REFERENCE",
+    "approx_size_mb": 97.41,
+    "file_count": 150,
+    "description": "Rule VIS-1 dated visual records, 2026-04-17 through 2026-08-31. Gameplay frames gitignored (HUD nameplate PII)."
+  },
+  {
+    "path": "docs/superpowers",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.19,
+    "file_count": 8,
+    "description": "Plans + specs incl. EXECUTION_STATUS.md, modified 2026-08-30."
+  },
+  {
+    "path": "docs/mockups",
+    "classification": "REFERENCE",
+    "approx_size_mb": 2.61,
+    "file_count": 5,
+    "description": "UI mockups from 2026-04-23."
+  },
+  {
+    "path": "docs/claude_designer",
+    "classification": "REFERENCE",
+    "approx_size_mb": 0.23,
+    "file_count": 7,
+    "description": "Design-contractor briefs and exports, 2026-04-22."
+  },
+  {
+    "path": "docs/screenshots",
+    "classification": "REFERENCE",
+    "approx_size_mb": 0.7,
+    "file_count": 6,
+    "description": "UI screenshots, 2026-04-22."
+  },
+  {
+    "path": "docs/brand",
+    "classification": "REFERENCE",
+    "approx_size_mb": 0.0,
+    "file_count": 1,
+    "description": "PANTHEON brand note."
+  },
+  {
+    "path": "docs/_archive",
+    "classification": "ARCHIVE_CANDIDATE",
+    "approx_size_mb": 0.13,
+    "file_count": 3,
+    "description": "2026-04-21-cockpit-shell archive; already an explicit archive folder, safe to relocate wholesale."
+  },
+  {
+    "path": "<root>/hl_*.py + avi_*.py + remix_audio.py + render_batch.py + _tc_test.py",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.11,
+    "file_count": 10,
+    "description": "Current demo-v2 workstream drivers at repo root: hl_series.py (2026-08-31), hl_generate.py, hl_all.py, hl_audit.py, hl_batch.py, avi_queue.py, avi_reconcile.py, remix_audio.py, render_batch.py, _tc_test.py. Untracked but actively edited - they belong in creative_suite/scripts/, not the root."
+  },
+  {
+    "path": "<root>/test_endpoints.py + test_routes.py + test_routes2.py + test_thumb.py + test_thumb.jpg",
+    "classification": "SUPERSEDED",
+    "approx_size_mb": 0.06,
+    "file_count": 5,
+    "description": "Ad-hoc localhost:8765 smoke scripts from 2026-04-21. Superseded by the 596-test creative_suite/tests suite."
+  },
+  {
+    "path": "<root>/twopass_test.py + celshade_wild.py + validate_workflows.py",
+    "classification": "EXPERIMENTAL",
+    "approx_size_mb": 0.01,
+    "file_count": 3,
+    "description": "One-off ComfyUI probes from 2026-04-21. Outputs live in comfy/photoreal/twopass_test and celshade_wild."
+  },
+  {
+    "path": "<root>/ann.html",
+    "classification": "REFERENCE",
+    "approx_size_mb": 0.31,
+    "file_count": 1,
+    "description": "Saved esreality.com article page ('AnnihilatioN by own-age') - the FT-3 morph-remaster style reference. External web capture, not project code."
+  },
+  {
+    "path": "<root>/scratch_after2.pkl",
+    "classification": "TEMPORARY",
+    "approx_size_mb": 35.68,
+    "file_count": 1,
+    "description": "35.7 MB unnamed Python serialisation dump written 2026-08-31. No code references 'scratch_after2'; a debugging artifact. Note: .pkl payloads execute code on load - treat as untrusted."
+  },
+  {
+    "path": "<root>/Quake Legacy.zip",
+    "classification": "ARCHIVE_CANDIDATE",
+    "approx_size_mb": 2.62,
+    "file_count": 1,
+    "description": "2.6 MB snapshot archive from 2026-04-20. Gitignored (*.zip). Provenance and contents undocumented."
+  },
+  {
+    "path": "<root>/.graphify_*.json + .graphify_python",
+    "classification": "CACHE",
+    "approx_size_mb": 9.14,
+    "file_count": 6,
+    "description": "Graphify intermediate analysis JSON from the 2026-04-22 run. Explicitly gitignored as regenerable."
+  },
+  {
+    "path": "<root>/*.log + *.png screenshots",
+    "classification": "TEMPORARY",
+    "approx_size_mb": 0.21,
+    "file_count": 12,
+    "description": "app_*.log, uv*.log, twopass_*.log, celshade_wild_out.log plus cinema_panel.png / creative_panel.png / creative_suite_*.png. All explicitly gitignored as root-level scratch. One filename is literally 'creative_suite_landing_$(date).png' - a failed shell expansion."
+  },
+  {
+    "path": "<root>/PantheonProduction.JPG",
+    "classification": "REFERENCE",
+    "approx_size_mb": 0.03,
+    "file_count": 1,
+    "description": "PANTHEON brand reference image from 2019. Untracked."
+  },
+  {
+    "path": "<root>/build.js + package.json + pyproject.toml + start_ui.bat + stop_ui.bat + kill_and_start.bat + start_server.bat",
+    "classification": "ACTIVE",
+    "approx_size_mb": 0.01,
+    "file_count": 7,
+    "description": "Build and launch tooling. build.js copies vendor libs into creative_suite/frontend/vendor/."
+  },
+  {
+    "path": ".git",
+    "classification": "RUNTIME",
+    "approx_size_mb": 12030.48,
+    "file_count": 803,
+    "description": "Git object store; 12.0 GB, of which 11,996 MB is packfiles. Large because binary artifacts were committed historically."
+  },
+  {
+    "path": ".claude/worktrees",
+    "classification": "RUNTIME",
+    "approx_size_mb": 195.06,
+    "file_count": 3133,
+    "description": "Two live git worktrees (creative-suite-v2, engine-fork) registered with `git worktree list`, plus an empty hopeful-shtern-7fe850 dir. Both branches last touched 2026-04-19."
+  },
+  {
+    "path": "node_modules",
+    "classification": "RUNTIME",
+    "approx_size_mb": 65.52,
+    "file_count": 1290,
+    "description": "npm deps: @theatre (AGPL, pre-approved exception), tweakpane, wavesurfer, mp4box, litegraph, lodash-es, esbuild. Gitignored."
+  },
+  {
+    "path": "graphify-out",
+    "classification": "GENERATED",
+    "approx_size_mb": 7.62,
+    "file_count": 176,
+    "description": "Root graphify run output (graph.html / graph.json / GRAPH_REPORT.md + cache). Gitignored, regenerable."
+  },
+  {
+    "path": "storage",
+    "classification": "ARCHIVE_CANDIDATE",
+    "approx_size_mb": 0.05,
+    "file_count": 1,
+    "description": "Root-level storage/ skeleton: empty annotations/packs/thumbnails/variants/wolfcam_capture plus a 48 KB creative_suite.db. Duplicates creative_suite/storage/ - consistent with the known ROOT vs REPO_ROOT path bug, i.e. created by running the app from the wrong CWD."
+  },
+  {
+    "path": "tools/comfy-pilot",
+    "classification": "UNKNOWN",
+    "approx_size_mb": 0.0,
+    "file_count": 1,
+    "description": "Near-empty root-level tools/ dir from 2026-04-24. Real tooling lives in creative_suite/tools/."
+  },
+  {
+    "path": "Vault",
+    "classification": "RUNTIME",
+    "approx_size_mb": 0.03,
+    "file_count": 28,
+    "description": "Obsidian vault graph fragment (gitignored). Canonical Vault is at ~/.claude/Vault."
+  },
+  {
+    "path": "projects/quake_legacy/memory",
+    "classification": "RUNTIME",
+    "approx_size_mb": 0.01,
+    "file_count": 15,
+    "description": "Claude project memory files, 2026-08-31."
+  },
+  {
+    "path": ".pytest_cache + __pycache__ (all) + quake_legacy.egg-info",
+    "classification": "CACHE",
+    "approx_size_mb": 6.3,
+    "file_count": 320,
+    "description": "Python bytecode and test caches throughout the tree. Gitignored, regenerable."
+  },
+  {
+    "path": ".playwright-mcp + .playwright-cli + .swarm + .superpowers + .claude/bin",
+    "classification": "CACHE",
+    "approx_size_mb": 3.79,
+    "file_count": 109,
+    "description": "MCP/plugin tool caches and session state. Gitignored."
+  }
+]

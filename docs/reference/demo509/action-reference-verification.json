@@ -1,0 +1,24 @@
+{
+  "date": "2026-09-07",
+  "scope": "documentation; no production parser or capture changes",
+  "validation": {
+    "local_links_checked_before_final_two_link_additions": 177,
+    "broken_links": 0,
+    "sample_event_times": "verified against evidence.json",
+    "snapshot_count": 19729,
+    "supported_event_count": 14211,
+    "obituaries": 79,
+    "rounds": 15,
+    "damage_example_pairs": 4,
+    "independent_source_review": "no material errors",
+    "visual_record": "../../visual-record/2026-09-07/demo509_action_code_reference.png"
+  },
+  "files": {
+    "action-to-code-reference.md": "1742a63cb42d7a2051d2c0eb0f901e3b3737259eb6d58489b30227a758f71d8d",
+    "movement-code-map.md": "cec14e5192fb3164c8dead6f4ceaeabe54b5b06c0cf670ef1fc0cad6a0b58e14",
+    "weapon-code-map.md": "4e41b772d09d2dbf123c4b15bd7caf6c9e1d70eb43187dab49f5a55dcb6d4df9",
+    "damage-code-map.md": "c2a8d598c2896621b6590de6d5add8e122da42b1d47c056e1e5f406d7c036411",
+    "animation-code-map.md": "2d6b2034e05e38d5ac48fc6702cef9642c701125cce36ce2f0cd2924ba4eef3a",
+    "action-map.html": "bb0b59e2f30a57d70781cff12a4eb8b660a3eea33b05e24143e91c384c4ab2b7"
+  }
+}

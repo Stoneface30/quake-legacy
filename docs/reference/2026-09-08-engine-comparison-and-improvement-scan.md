@@ -171,3 +171,71 @@ rendered in 4.0 s by `pantheon_cgame.exe` with no `wolfcamql.exe` process:
 rocket in flight with its dynamic light, explosion, drifting smoke, scorch mark
 burned into the floor, blood decals. None of that is in the shot script. All of
 it is cgame reacting to state PANTHEON handed it.
+
+---
+
+## 6. Corrections and measured caveats (2026-09-08, later)
+
+An external review of §1–§3 raised four things worth holding onto. Three are
+corrections to how this document reads; one is a defect it found in code
+shipped the same day, which was then measured.
+
+### 6.1 Availability is not integration
+This document lists what is **on disk**. rend2, the newer MME modules, IQM and
+the OpenAL backend are *sources we hold*, not modules that drop in. Each needs
+integration against PANTHEON's snapshot interface and against Quake Live's
+asset conventions. §3's ordering is by value per unit of work; none of the
+entries is a copy-and-build.
+
+### 6.2 Vulkan does not make an image look better
+§3.2 said a Vulkan backend "would close the NVIDIA immediate-mode blocker by
+not using immediate mode". That is true and it is *mechanical*. Realism comes
+from materials, lighting and sampling, not from the API. Vulkan earns its keep
+for explicit GPU control, compute and ray tracing — not as a quality upgrade,
+and not as a speed claim without a benchmark on our own workload.
+
+### 6.3 A container is not quality, and 8-bit cannot be un-clipped
+§1 lists `cl_avi.c` line counts as a capability comparison. AVI is a container;
+it neither creates nor destroys image quality. The real ceiling is elsewhere:
+**our readback is `glReadPixels(GL_RGB, GL_UNSIGNED_BYTE)` — 8-bit, after tone
+mapping.** Writing that into EXR would recover nothing. A scene-linear master
+requires a floating-point render target first, which means the FBO work in
+§3.1 is a prerequisite for the capture work, not parallel to it.
+
+### 6.4 The depth pass cannot substitute for a sampled lens
+A single depth image has no record of what is *behind* the foreground. It is
+genuinely useful for previews, fog, and compositing; it cannot reconstruct the
+occluded geometry a real aperture sees around an out-of-focus edge. Properly
+sampled DOF means sampling through aperture positions, the same way the motion
+blur samples through shutter time.
+
+### 6.5 MEASURED: a re-drawn instant is not bit-identical
+
+The review warned that drawing a changing cgame state repeatedly can duplicate
+events or vary by render order. Tested directly, because motion blur draws one
+output frame from N renders.
+
+| Test | Result |
+|---|---|
+| Two identical plain runs, 66 frames | **0 / 66 frames differ** |
+| Two identical `--blur 8` runs, 66 frames | **0 / 66 frames differ** |
+| `--blur 8 --shutter 0` (same instant ×8, averaged) vs a single render | **differs** |
+
+So the renderer is *reproducible* — the production requirement holds — but
+drawing one instant eight times and averaging is not identical to drawing it
+once. Bounded by measurement on the worst frame:
+
+- **349 differing pixels out of 921,600 — 0.038%**
+- confined to a single 45×60 region at the bottom of the frame
+- worst channel delta 39
+
+It is one small per-call effect element, not a systemically different world.
+Seeding `rand()` from the sub-frame's timestamp (`pantheon_cg_run.c`) was tried
+first and changed the result by **nothing**, so the cause is not the PRNG. The
+seeding is kept anyway: it makes the random stream a function of *when* rather
+than *how many*, which is the property a re-render at a different blur setting
+needs, and it costs one line.
+
+The remaining 0.038% is not yet explained. It is recorded here rather than
+rounded off, because "the blur looks right" is exactly how this project has
+been wrong before.

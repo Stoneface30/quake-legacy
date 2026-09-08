@@ -26,6 +26,7 @@
 
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 intptr_t PANTHEON_CG_Syscall(intptr_t cmd, ...);
 void     dllEntry(intptr_t (QDECL *syscallptr)(intptr_t arg, ...));
@@ -216,6 +217,30 @@ void PANTHEON_CG_Frame(int serverTime, qboolean firstFrame)
                              "gamestate and two snapshots were fed");
 
     (void)firstFrame;
+
+    /*
+     * THE SAME INSTANT MUST RENDER THE SAME WAY.
+     *
+     * cgame's effects are full of random(), which is rand(): sparks, smoke
+     * drift, gib direction, mark jitter, and every particle the q3mme FX
+     * scripts spawn. rand() advances per CALL, not per unit of time, so the
+     * jitter a frame gets depends on how many frames were drawn before it.
+     *
+     * In a game nobody can tell. In a renderer that draws one instant several
+     * times -- which is exactly what motion blur does -- it means the samples
+     * being averaged are not samples of one world. Measured before this line
+     * existed: drawing a single instant eight times with a zero-length shutter
+     * and averaging differed from drawing it once by up to 39 levels on a
+     * channel. The blur looked right, because camera motion dominates it, and
+     * it was not the thing it claimed to be.
+     *
+     * Seeding from the sub-frame's own timestamp makes the stream a function
+     * of WHEN, not of HOW MANY. Two sub-frames at the same instant become
+     * identical; two at different instants still differ, which is what a
+     * shutter should see. It also means a frame re-rendered next month, at a
+     * different blur setting, in a different batch, gets the same sparks.
+     */
+    srand((unsigned)serverTime * 2654435761u);
 
     /* serverTime, stereoView, demoPlayback, videoRecording, ioverf, draw */
     vmMain(CG_DRAW_ACTIVE_FRAME, serverTime, STEREO_CENTER, qtrue,

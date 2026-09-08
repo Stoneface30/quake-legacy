@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>DEMO509 · Event evidence</title>
+<style>
+:root{font:15px/1.5 "Segoe UI",sans-serif;color:#242930;background:#e9eaed}*{box-sizing:border-box}body{margin:0}header{padding:24px 4vw;background:#303740;color:#f3f4f6}h1{margin:0;font-size:27px;font-weight:650}header p{margin:6px 0 0;color:#cbd0d8;max-width:850px}main{max-width:1440px;margin:auto;padding:24px 4vw}nav{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-bottom:20px}select,input,button{font:inherit}select{padding:8px;background:white;border:1px solid #adb4bf;border-radius:4px}label{display:flex;align-items:center;gap:8px}.layout{display:grid;grid-template-columns:1.2fr 1fr;gap:24px}.panel{background:white;padding:20px;border:1px solid #cdd1d8;border-radius:6px}h2{margin:0 0 8px;font-size:18px}p{margin:5px 0 12px}.muted{color:#626c78;font-size:13px}canvas{width:100%;aspect-ratio:1.45;background:#f5f6f8;border-radius:4px}input[type=range]{width:100%;margin:14px 0}#stats{display:flex;gap:22px;flex-wrap:wrap;margin:16px 0}#stats strong{display:block;font-size:23px;font-variant-numeric:tabular-nums}#stats span{font-size:12px;color:#626c78}table{border-collapse:collapse;width:100%;font-size:13px}th,td{text-align:left;padding:9px;border-bottom:1px solid #e3e6eb;white-space:nowrap}th{position:sticky;top:0;background:#eef0f3;color:#48515e}.scroll{max-height:440px;overflow:auto}.rounds{display:flex;height:96px;gap:6px;align-items:end;margin:18px 0}.rounds button{flex:1;min-width:16px;border:0;background:#9ba8ba;color:#1d2838;cursor:pointer;border-radius:3px 3px 0 0;font-size:12px}.rounds button.active{background:#486992;color:white}.rounds button span{display:block}.warn{background:#fbf4db;border-left:3px solid #b99a3e;padding:12px 16px;margin-top:20px;font-size:13px}a{color:#284e80}button:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid #cba632;outline-offset:3px}#count{margin-left:auto;color:#626c78}.health{height:80px;width:100%;display:block;background:#f5f6f8}footer{margin-top:24px;color:#626c78;font-size:13px}@media(max-width:800px){.layout{grid-template-columns:1fr}main{padding:16px}header{padding:20px}h1{font-size:23px}.panel{padding:14px}.rounds{gap:3px}#count{margin-left:0}}
+</style>
+<header><h1>DEMO509 — the event evidence</h1><p>Overkill · Clan Arena · 15 round announcements · 79 observed kills. Explore the recording as rounds, with each supported action linked to its server timestamp.</p></header>
+<main>
+<nav><label>Round <select id="round" aria-label="Select round"></select></label><label>Events <select id="type"><option value="obituary">Kills</option><option value="all">All supported events</option><option value="pain">Pain cues</option><option value="fire_weapon">Firing cues</option><option value="missile_hit">Impact cues</option><option value="jump_pad">Jump pads</option></select></label><span id="count"></span></nav>
+<div class="rounds" id="roundbars" aria-label="Observed kills by round"></div>
+<section id="video-proof" class="panel" style="margin-bottom:24px"><h2>Round 6 — rendered evidence</h2><p class="muted">Click an event row to seek in this 720p30 capture. Other rounds have decoded evidence only.</p><video id="proof" controls preload="metadata" style="width:100%;max-height:480px;background:#000" src="../../../output/demo_v2/demo509-reference/demo509-round06-reference.mp4"></video></section>
+<div class="layout">
+<section class="panel"><h2 id="heading"></h2><p class="muted">P02 coordinate path from followed-player snapshots. This is a schematic, not a gameplay frame or map render. Black dots mark P02 kills.</p><canvas id="path" width="800" height="550" aria-label="Recorded position diagram"></canvas><input id="time" type="range" min="0" max="1000" value="1000" aria-label="Time within round"><p id="clock"></p><svg class="health" id="health" viewBox="0 0 800 80" role="img" aria-label="P02 observed health trace"></svg><p class="muted">Health trace: signed 16-bit health, clamped at zero for display. Gaps and POV changes are not interpolated.</p></section>
+<section class="panel"><h2>What is in this round</h2><div id="stats"></div><p id="note"></p><div class="scroll"><table><thead><tr><th>Server time</th><th>Event</th><th>Observed action</th></tr></thead><tbody id="events"></tbody></table></div></section>
+</div>
+<div class="warn">Evidence boundary: the three P02 outcomes in round 6 were visually spot-checked. Other rounds have not been visually reviewed. Exact damage dealt is unknown. Pain cues and observed health loss must not be presented as damage inflicted. Native parser round labels were rejected and reconstructed from explicit round control signals.</div>
+<footer><a href="source-of-truth.md">Read the source-of-truth document</a> · <a href="evidence.json">Complete sanitized evidence</a><p>All player references are file-local numeric slot aliases. Command timing is bracketed by adjacent snapshots; the final round uses intermission as its end evidence.</p></footer>
+</main>
+<script src="explorer-data.js"></script>
+<script>
+'use strict';
+const $=id=>document.getElementById(id),ctx=$('path').getContext('2d');
+const node=(tag,text)=>{const n=document.createElement(tag);n.textContent=text;return n;};
+const clock=t=>Math.floor(t/60000)+':'+((t%60000)/1000).toFixed(3).padStart(6,'0');
+for(const r of evidence.rounds){const o=node('option',r.round);o.value=r.round;$('round').append(o);const b=node('button',r.round);b.style.height=(20+r.kills*9)+'px';b.title='Round '+r.round+': '+r.kills+' kills';b.onclick=()=>{$('round').value=r.round;render();};b.dataset.round=r.round;$('roundbars').append(b);}
+$('round').value=6;
+function render(){
+ const r=evidence.rounds.find(r=>r.round===Number($('round').value)),all=evidence.events.filter(e=>e.round===r.round),type=$('type').value;
+ $("video-proof").hidden=r.round!==6;if(r.round!==6)$("proof").pause();
+ const ev=all.filter(e=>type==='all'||e.type===type);
+ $('heading').textContent='Round '+r.round+' · '+(r.duration_ms/1000).toFixed(3)+' seconds';
+ $('count').textContent=ev.length+' matching events';$('stats').replaceChildren();
+ for(const [v,l] of [[r.kills,'Observed kills'],[r.focus_kills,'P02 kills'],['Unknown','Damage dealt']]){const d=node('div','');d.append(node('strong',v),node('span',l));$('stats').append(d);}
+ $('note').textContent=r.round===6?'Three P02 outcomes in one continuous round: rocket, rail, rocket splash. Keep the buildup and the final winning kill.':r.focus_kills+' P02 kill(s). Compare the entire action sequence before assigning an editorial role.';
+ $('events').replaceChildren(...ev.map(e=>{const row=node('tr','');row.append(node('td',clock(e.server_time_ms)),node('td',e.event_id),node('td',e.type==='obituary'?e.killer+' → '+e.victim+' · '+e.weapon_name:e.type+(e.weapon_name?' · '+e.weapon_name:'')));row.title='Snapshot event at '+e.server_time_ms+'ms';if(r.round===6){row.style.cursor="pointer";row.tabIndex=0;const seek=()=>{$("proof").currentTime=Math.max(0,(e.server_time_ms-212000)/1000);$("proof").play().catch(()=>{});};row.onclick=seek;row.onkeydown=k=>{if(k.key==="Enter")seek();};}return row;}));
+ document.querySelectorAll('#roundbars button').forEach(b=>b.classList.toggle('active',Number(b.dataset.round)===r.round));draw();
+}
+function draw(){
+ const r=evidence.rounds.find(r=>r.round===Number($('round').value)),end=r.start_ms+r.duration_ms*Number($('time').value)/1000;
+ const track=evidence.track.filter(x=>x.round===r.round&&x.pov==='P02'&&Number.isFinite(x.x)&&Number.isFinite(x.y));
+ $('clock').textContent='Server '+clock(end)+' · round +'+((end-r.start_ms)/1000).toFixed(3)+'s';ctx.clearRect(0,0,800,550);
+ if(!track.length){ctx.fillText('No P02 path observed',30,30);return;}
+ const xs=track.map(x=>x.x),ys=track.map(x=>x.y),minx=Math.min(...xs),maxx=Math.max(...xs),miny=Math.min(...ys),maxy=Math.max(...ys),scale=Math.min(700/Math.max(1,maxx-minx),450/Math.max(1,maxy-miny));
+ const px=x=>50+(x-minx)*scale,py=y=>500-(y-miny)*scale;
+ ctx.strokeStyle='#dce0e6';ctx.lineWidth=1;for(let x=50;x<800;x+=100){ctx.beginPath();ctx.moveTo(x,20);ctx.lineTo(x,520);ctx.stroke();}
+ const visible=track.filter(x=>x.server_time_ms<=end);ctx.strokeStyle='#5274a1';ctx.lineWidth=2;let prev=null;
+ for(const x of visible){if(prev&&x.server_time_ms-prev.server_time_ms<=150){ctx.beginPath();ctx.moveTo(px(prev.x),py(prev.y));ctx.lineTo(px(x.x),py(x.y));ctx.stroke();}prev=x;}
+ for(const e of evidence.events.filter(e=>e.round===r.round&&e.type==='obituary'&&e.killer==='P02'&&e.server_time_ms<=end)){
+  const nearest=track.reduce((best,x)=>Math.abs(x.server_time_ms-e.server_time_ms)<Math.abs(best.server_time_ms-e.server_time_ms)?x:best,track[0]);
+  ctx.fillStyle='#202b3b';ctx.beginPath();ctx.arc(px(nearest.x),py(nearest.y),7,0,Math.PI*2);ctx.fill();ctx.font='15px Segoe UI';ctx.fillText(e.event_id,px(nearest.x)+10,py(nearest.y)-8);
+ }
+ if(prev){ctx.fillStyle='#b39128';ctx.beginPath();ctx.arc(px(prev.x),py(prev.y),5,0,Math.PI*2);ctx.fill();}
+ $('health').replaceChildren();let segment=[];
+ const flush=()=>{if(segment.length>1){const p=document.createElementNS('http://www.w3.org/2000/svg','polyline');p.setAttribute('points',segment.join(' '));p.setAttribute('fill','none');p.setAttribute('stroke','#9b554c');p.setAttribute('stroke-width','2');$('health').append(p);}segment=[];};prev=null;
+ for(const x of visible){if(prev&&x.server_time_ms-prev.server_time_ms>150)flush();segment.push(((x.server_time_ms-r.start_ms)/r.duration_ms*800)+','+(75-Math.min(200,Math.max(0,x.health))/200*70));prev=x;}flush();
+}
+$('round').onchange=render;$('type').onchange=render;$('time').oninput=draw;render();
+</script></html>
