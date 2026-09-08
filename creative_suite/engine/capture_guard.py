@@ -31,7 +31,10 @@ round.
 """
 from __future__ import annotations
 
+import ctypes
 import os
+import sys
+from ctypes import wintypes
 import subprocess
 import sys
 
@@ -66,13 +69,123 @@ def watched_games() -> tuple[str, ...]:
     return tuple(p.strip().lower() for p in raw.split(",") if p.strip())
 
 
+# A MAXIMISED CHAT WINDOW IS NOT A MATCH.
+#
+# The shape signal alone is too eager: on 2026-09-07 it deferred every render
+# because Discord was full-screen. These are the things that routinely fill a
+# monitor and are not somebody playing. The list is a convenience, not the
+# safety net -- a grabbed pointer is, and that is checked separately and
+# unconditionally.
+NOT_A_GAME = {
+    "explorer.exe", "searchhost.exe", "dwm.exe", "shellexperiencehost.exe",
+    "wolfcamql.exe",                       # our own renderer
+    "discord.exe", "slack.exe", "teams.exe", "zoom.exe",
+    "chrome.exe", "firefox.exe", "msedge.exe", "brave.exe", "opera.exe",
+    "code.exe", "devenv.exe", "pycharm64.exe", "idea64.exe",
+    "windowsterminal.exe", "powershell.exe", "pwsh.exe", "cmd.exe",
+    "claude.exe", "notepad.exe", "notepad++.exe",
+    "vlc.exe", "mpv.exe", "mpc-hc64.exe", "spotify.exe",
+    "obs64.exe", "snippingtool.exe", "photos.exe",
+}
+
+
+def foreground_is_fullscreen() -> bool:
+    """Is a full-screen application in front of the operator right now?
+
+    A NAMED LIST IS NOT ENOUGH, and 2026-09-07 proved it: the list held four
+    Quake Live executables, the operator was playing OVERWATCH, and the permit
+    granted every capture of the evening. A list can only ever know the games
+    someone remembered to add.
+
+    So the shape of the thing is checked too -- a window covering its whole
+    monitor, belonging to a process that is not obviously not a game. That
+    exclusion matters: the first version of this deferred everything because
+    Discord was full-screen.
+    """
+    if sys.platform != "win32":
+        return False
+    try:
+        u = ctypes.WinDLL("user32", use_last_error=True)
+        hwnd = u.GetForegroundWindow()
+        if not hwnd:
+            return False
+        rect = wintypes.RECT()
+        u.GetWindowRect(wintypes.HWND(hwnd), ctypes.byref(rect))
+
+        class MONITORINFO(ctypes.Structure):
+            _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT),
+                        ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD)]
+
+        mon = u.MonitorFromWindow(wintypes.HWND(hwnd), 2)   # NEAREST
+        info = MONITORINFO()
+        info.cbSize = ctypes.sizeof(MONITORINFO)
+        u.GetMonitorInfoW(mon, ctypes.byref(info))
+        m = info.rcMonitor
+        win_area = max(rect.right - rect.left, 0) * max(rect.bottom - rect.top, 0)
+        mon_area = max(m.right - m.left, 1) * max(m.bottom - m.top, 1)
+        if win_area < mon_area * 0.98:
+            return False
+        # The desktop itself covers the monitor and is not a game.
+        pid = wintypes.DWORD()
+        u.GetWindowThreadProcessId(wintypes.HWND(hwnd), ctypes.byref(pid))
+        if pid.value in (0, os.getpid()):
+            return False
+        try:
+            import psutil
+            name = (psutil.Process(pid.value).name() or "").lower()
+        except Exception:                                      # noqa: BLE001
+            return True                                        # unreadable: defer
+        return name not in NOT_A_GAME
+    except Exception:                                          # noqa: BLE001
+        return True            # cannot tell: fail towards the operator
+
+
+def pointer_is_grabbed() -> bool:
+    """Has some application confined the mouse to a rectangle?
+
+    A game holding the pointer is a game being played. This is the same
+    measurement the offscreen watcher takes, read here for the opposite
+    reason: not to check our own behaviour, but to notice someone else's.
+    """
+    if sys.platform != "win32":
+        return False
+    try:
+        u = ctypes.WinDLL("user32", use_last_error=True)
+        r = wintypes.RECT()
+        u.GetClipCursor(ctypes.byref(r))
+        w = u.GetSystemMetrics(78)         # SM_CXVIRTUALSCREEN
+        h = u.GetSystemMetrics(79)         # SM_CYVIRTUALSCREEN
+        if not (w and h):
+            return False
+        return (r.right - r.left) < w or (r.bottom - r.top) < h
+    except Exception:                                          # noqa: BLE001
+        return False
+
+
 def game_is_running() -> bool:
     """Is something we must not interrupt on screen right now?
 
     FAILS TOWARDS THE USER. An unreadable process list returns True: we
     would rather delay a capture we could have run than steal the screen
     from a game we could not see.
+
+    Two signals, either of which is enough: a pointer some application has
+    grabbed, or a named process.
+
+    FULL-SCREEN SHAPE IS NOT ONE OF THEM, and that is a correction. The first
+    version of this deferred on any window covering its monitor, which on
+    2026-09-07 meant Discord, and then qBittorrent, within ten minutes -- two
+    false alarms and no true one that the pointer had not already caught. An
+    exclusion list only moves the problem to the next app nobody enumerated.
+
+    A GRABBED POINTER NEEDS NO LIST. Overwatch was caught by it: the clip
+    rectangle was 1920x1080 on a 3000x1440 desktop. Only an application that
+    captures the mouse does that, and that is what being played looks like.
+    `foreground_is_fullscreen()` remains available and is reported, because it
+    is worth SEEING in a diagnosis; it just does not decide anything.
     """
+    if pointer_is_grabbed():
+        return True
     names = watched_games()
     try:
         import psutil

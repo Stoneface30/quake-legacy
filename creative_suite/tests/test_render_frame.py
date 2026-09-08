@@ -149,8 +149,11 @@ def test_shot_script_round_trips_the_values_the_host_will_read(tmp_path):
     assert len(actor_lines) == len(frames)
     # Every actor line references a declared player index.
     assert all(int(l.split()[1]) == 0 for l in actor_lines)
-    # the pose is nine angles: legs, torso, head
-    assert all(len(l.split()) == 19 for l in actor_lines)
+    # keyword + playerIdx + origin(3) + two anim numbers + six evaluated
+    # frame values + nine angles + weapon model index. The host parses this
+    # positionally and treats a short line as fatal, so the arity is part of
+    # the contract, not an incidental.
+    assert all(len(l.split()) == 23 for l in actor_lines)
 
 
 # ── projectiles ────────────────────────────────────────────────────────────

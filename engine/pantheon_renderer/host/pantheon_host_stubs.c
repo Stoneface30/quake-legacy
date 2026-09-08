@@ -146,22 +146,30 @@ byte *ExtraVideoBuffer = NULL;
  */
 void CL_TakeVideoFrame(void) {}
 
-/*
- * Four more symbols the client and console would supply. The renderer host
- * has no AVI writer, no key binding table and no console log, and says so
- * rather than pretending: nothing here is a behaviour, each is an absence.
- */
-qboolean CL_VideoRecording(const aviFileData_t *afd) { (void)afd; return qfalse; }
+/* Remaining client entry points common.c calls unconditionally. A renderer
+ * host has no cgame, no UI, no cinematic and no video capture, so doing
+ * nothing is the correct answer for each -- none of them can return a wrong
+ * one. CL_ConsolePrint is the exception worth naming: console output already
+ * goes out through Sys_Print, so a second sink would duplicate it. */
+void CL_ShutdownCGame(void) {}
+void CL_ShutdownUI(void) {}
+void CIN_CloseAllVideos(void) {}
+qboolean CL_VideoRecording(const aviFileData_t *afd)
+{
+    (void)afd;
+    return qfalse;   /* the host writes TGA itself; there is no AVI path */
+}
+void CL_ConsolePrint(char *text) { (void)text; }
 void Key_KeynameCompletion(void (*callback)(const char *s))
 {
-    (void)callback;
+    (void)callback;   /* no key bindings without a client */
 }
+
+/* The console log the passive console asks for. This host has no console
+ * backlog to hand out: `sys_win32.c` calls these when it prints, and without
+ * them the link fails on CON_LogSize/CON_LogRead. Absences, not behaviours. */
 unsigned int CON_LogSize(void) { return 0; }
 unsigned int CON_LogRead(char *out, unsigned int size)
 {
     (void)out; (void)size; return 0;
 }
-void CL_ConsolePrint(char *text) { (void)text; }
-void CL_ShutdownCGame(void) {}
-void CL_ShutdownUI(void) {}
-void CIN_CloseAllVideos(void) {}

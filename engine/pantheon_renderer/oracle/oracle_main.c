@@ -26,6 +26,8 @@ oracleCg_t   cg;
 oracleCgs_t  cgs;
 oracleCvar_t cg_swingSpeed      = { 0.3f, 0 };   /* cg_swingSpeed default */
 oracleCvar_t cg_playerLeanScale = { 1.0f, 1 };   /* cg_playerLeanScale default */
+oracleCvar_t cg_animSpeed       = { 1.0f, 1 };   /* cg_animSpeed default */
+oracleCvar_t cg_debugAnim       = { 0.0f, 0 };   /* cg_debugAnim default */
 
 qboolean CG_FreezeTagFrozen(int clientNum) { (void)clientNum; return qfalse; }
 
@@ -42,6 +44,12 @@ void QDECL CG_Error(const char *msg, ...)
 
 /* q_shared/q_math reach for these. The oracle prints and exits rather than
  * continuing, so a shared-code complaint cannot pass unnoticed. */
+void QDECL CG_Printf(const char *msg, ...)
+{
+    va_list ap;
+    va_start(ap, msg); vfprintf(stderr, msg, ap); va_end(ap);
+}
+
 void QDECL Com_Printf(const char *msg, ...)
 {
     va_list ap;

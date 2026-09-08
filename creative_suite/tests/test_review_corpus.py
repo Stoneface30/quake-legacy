@@ -523,3 +523,56 @@ def test_funny_does_not_downgrade_anything():
     assert fc.WEIGHTS[fc.CHAT_REACTION] == min(fc.WEIGHTS.values()), \
         "chat is the weakest signal and never establishes comedy"
     assert "not a quality class" in fc.summary()["note"]
+
+
+# -- every declared corpus must be able to describe itself -----------------
+#
+# NO_KILL_ACTIONS was in CORPORA, had an item type, a WHERE clause, an item
+# builder and a working count -- and corpus_status had no branch for it, so it
+# fell through to "unknown corpus" and the reviewer never offered the lane.
+# The queue existed and nobody could reach it. This is the guard.
+
+def _require_derived_tables():
+    """This checkout may carry a stub recognition database. The guard below is
+    about the SHAPE of the answer, not the data, so skip rather than fail --
+    but skip on the absence of the tables, never on an exception, or a real
+    breakage would look like a missing database."""
+    import sqlite3
+    from creative_suite.engine import review_corpus as rc
+    if not Path(rc.RECOGNITION_DB).exists():
+        pytest.skip("no recognition database in this checkout")
+    c = sqlite3.connect("file:%s?mode=ro" % rc.RECOGNITION_DB, uri=True)
+    have = {r[0] for r in c.execute(
+        "select name from sqlite_master where type='table'")}
+    c.close()
+    missing = {"kill_events_v1", "kill_occurrences_v1"} - have
+    if missing:
+        pytest.skip("recognition database is a stub, missing %s" % sorted(missing))
+
+
+def test_every_declared_corpus_answers_status():
+    from creative_suite.engine import review_corpus as rc
+    _require_derived_tables()
+    unknown = []
+    for corpus in rc.CORPORA:
+        st = rc.corpus_status(corpus)
+        assert st.get("corpus") == corpus
+        assert "available" in st, corpus
+        if st.get("blocked_by") == "unknown corpus":
+            unknown.append(corpus)
+        if not st["available"]:
+            # Unavailable is allowed -- this machine may not have the derived
+            # tables -- but it must say WHY, or the reviewer cannot act on it.
+            assert st.get("blocked_by"), corpus
+    assert not unknown, (
+        "declared in CORPORA but corpus_status cannot describe: %s" % unknown)
+
+
+def test_action_status_never_reports_a_machine_score():
+    """An action was never scored. Reporting `scored: True` would let the UI
+    sort actions against frags, which are not comparable."""
+    from creative_suite.engine import review_corpus as rc
+    _require_derived_tables()
+    st = rc.corpus_status(rc.NO_KILL_ACTIONS)
+    assert st.get("scored") is False
+    assert st["item_type"] == rc.ACTION

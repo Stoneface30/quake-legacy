@@ -90,17 +90,3 @@ process during R_Init instead**, which looks exactly like a renderer bug and is
 not one. Pinning the driver removes the probe, is deterministic, and keeps the
 NVIDIA ICD out of the process entirely (`glwho.exe` then reports
 `nvoglv32.dll NOT LOADED`).
-
-## Pin the Gallium driver, always
-
-`GALLIUM_DRIVER=softpipe` (and `LIBGL_ALWAYS_SOFTWARE=1`) must be set for every
-render. Without them Mesa's WGL negotiates a driver at startup and tries ZINK
-first; ZINK fails here (`vkCreateDevice VK_ERROR_INITIALIZATION_FAILED`) and
-the attempt loads the NVIDIA ICD into the process. Renders then die
-**intermittently** inside `nvoglv32.dll` -- the same driver that crashes on
-`glColor*`. `glwho.exe` shows both `opengl32.dll` (Mesa, ours) and
-`nvoglv32.dll` loaded when this happens.
-
-Found from a gdb backtrace, not from the symptom: a run that dies this way
-looks like "the renderer broke", and it was blamed on a map and on a model
-before the stack named the driver.

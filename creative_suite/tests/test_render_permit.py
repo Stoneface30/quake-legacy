@@ -228,6 +228,12 @@ def test_no_wolfcam_launch_outside_the_known_sites():
             rel = p.relative_to(REPO_ROOT).as_posix()
             if "/tests/" in rel or "vendored" in rel or "/tools/" in rel:
                 continue
+            # capture_guard is the thing the permit ASKS. It names the
+            # engine so it can recognise our own window among the
+            # full-screen ones, and it describes Popen in a docstring.
+            # It starts nothing.
+            if rel == "creative_suite/engine/capture_guard.py":
+                continue
             src = p.read_text(encoding="utf-8", errors="replace")
             if ("wolfcam_cmd(" in src or "wolfcamql.exe" in src) and \
                     ("Popen(" in src or "create_subprocess_exec" in src) and rel not in LAUNCH_SITES:
@@ -359,3 +365,75 @@ def test_a_tiny_write_is_not_held_to_render_headroom(monkeypatch, tmp_path):
         disk_policy.RENDER_EXPECTED_DEFAULT + disk_policy.RENDER_MARGIN)
     assert disk_policy.review_db_write_safe(tmp_path).ok
     assert not disk_policy.render_job_safe(tmp_path).ok
+
+
+# ── a game the list never heard of ─────────────────────────────────────────
+
+def test_a_game_nobody_listed_defers_because_it_grabbed_the_pointer(monkeypatch):
+    """2026-09-07: the list held four Quake Live executables, the operator was
+    playing Overwatch, and every capture of the evening was granted. What
+    caught it was the mouse: a clip rectangle of 1920x1080 on a 3000x1440
+    desktop. That signal needs no list."""
+    from creative_suite.engine import capture_guard as cg
+    from engine.pantheon import render_permit as rp
+
+    monkeypatch.setattr(cg, "watched_games", lambda: ("quakelive.exe",))
+    monkeypatch.setattr(cg, "pointer_is_grabbed", lambda: True)
+    assert cg.game_is_running()
+    monkeypatch.setattr(rp, "mode", lambda: rp.MODE_ON)
+    d = rp.check(purpose="a render")
+    assert d.permit is rp.Permit.DEFERRED and "game is running" in d.reason
+
+
+def test_a_maximised_window_alone_does_not_defer(monkeypatch):
+    """Discord full-screen, then qBittorrent, both deferred every render for
+    ten minutes. Shape is reported, not obeyed."""
+    from creative_suite.engine import capture_guard as cg
+
+    monkeypatch.setattr(cg, "watched_games", lambda: ("quakelive.exe",))
+    monkeypatch.setattr(cg, "foreground_is_fullscreen", lambda: True)
+    monkeypatch.setattr(cg, "pointer_is_grabbed", lambda: False)
+    monkeypatch.setattr(cg, "_game_is_running_fallback", lambda names: False)
+    import sys
+    monkeypatch.setitem(sys.modules, "psutil", None)
+    assert cg.game_is_running() is False
+
+
+def test_a_grabbed_pointer_also_means_someone_is_playing(monkeypatch):
+    from creative_suite.engine import capture_guard as cg
+
+    monkeypatch.setattr(cg, "watched_games", lambda: ())
+    monkeypatch.setattr(cg, "pointer_is_grabbed", lambda: True)
+    assert cg.game_is_running()
+
+
+def test_an_idle_desktop_still_renders(monkeypatch):
+    from creative_suite.engine import capture_guard as cg
+
+    monkeypatch.setattr(cg, "watched_games", lambda: ("quakelive.exe",))
+    monkeypatch.setattr(cg, "foreground_is_fullscreen", lambda: False)
+    monkeypatch.setattr(cg, "pointer_is_grabbed", lambda: False)
+    monkeypatch.setattr(cg, "_game_is_running_fallback", lambda names: False)
+    import sys
+    monkeypatch.setitem(sys.modules, "psutil", None)
+    assert cg.game_is_running() is False
+
+
+def test_the_benign_list_is_advisory_only(monkeypatch):
+    """NOT_A_GAME still filters the reported shape signal, but nothing defers
+    on shape any more, so the list cannot cause a false alarm."""
+    from creative_suite.engine import capture_guard as cg
+
+    assert "discord.exe" in cg.NOT_A_GAME
+    assert "overwatch.exe" not in cg.NOT_A_GAME
+
+
+def test_the_pointer_signal_needs_no_list_at_all(monkeypatch):
+    """Overwatch was caught by the grabbed pointer, not by its name. That is
+    the signal that works for a game nobody has ever heard of."""
+    from creative_suite.engine import capture_guard as cg
+
+    monkeypatch.setattr(cg, "watched_games", lambda: ())
+    monkeypatch.setattr(cg, "foreground_is_fullscreen", lambda: False)
+    monkeypatch.setattr(cg, "pointer_is_grabbed", lambda: True)
+    assert cg.game_is_running()

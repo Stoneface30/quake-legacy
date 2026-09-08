@@ -74,6 +74,7 @@ HEADLESS = {
 # Modules that are allowed to touch a backend or spawn a process, and why.
 BACKEND_ALLOWED = {
     "backends",         # the interface itself
+    "model_assets",     # asks the host what a model.cfg declares; spawns it
     "offscreen",        # hosts the renderer on a hidden desktop; spawns processes
     "render_permit",    # the one gate every launch asks; reads the process list
     "shot",             # WOLFCAM_REFERENCE implementation
@@ -87,6 +88,8 @@ BACKEND_ALLOWED = {
     "first_recipe_proof",  # the one end-to-end run: it films
     "engine_census",    # asks the running binary what it has; one session
     "engine_inventory", # the raw inventory and its grades; reads files only
+    "assets",           # which asset packs the picture uses; links files
+    "capture_lock",     # one engine at a time; a pid file, no processes
     "conformance",      # the 10-case backend A/B: it films both legs
     "cast_proof", "presenter_proof", "instruction_proof", "proofs",
     "proof0_color", "proof_b_identity", "proof_c_rails",

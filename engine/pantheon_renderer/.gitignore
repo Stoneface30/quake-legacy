@@ -1,11 +1,14 @@
-# Upstream GPL-2.0 source, extracted by bootstrap_source.sh from an archive
-# whose sha256 is recorded in SOURCE.sha256. Not vendored: reproducible.
-wolfcamql-11.3-src/
-# Build products and the Mesa staging (2.3 GB of DLLs and frame dumps).
+# Built artefacts and staged third-party binaries. Sources and recipe only:
+# build_host.sh rebuilds everything here from the vendored tree.
 build/
-gl_software/bin/
-gl_software/_pkg/
-gl_software/out/
-*.o
 *.exe
-*.tga
+*.o
+
+# Mesa 24.3.3 i686 plus its dependency closure -- 2.3 GB of staged binaries.
+# Provenance and SHA-256 for every package are in gl_software/PROVENANCE.md,
+# which IS tracked.
+gl_software/bin/
+
+# WolfcamQL 11.3 source, extracted from the archive whose SHA-256 is pinned in
+# SOURCE.sha256. Vendored for building, not redistributed from here.
+wolfcamql-11.3-src/

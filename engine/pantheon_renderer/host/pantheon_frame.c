@@ -44,18 +44,23 @@ extern CRITICAL_SECTION printCriticalSection;
 
 #define PA_MAX_MODELS  16
 #define PA_MAX_MISSILES 8
-/* Authored world geometry placed in the scene: a PANTHEON door leaf,
- * a plinth, a banner. Same transform as a missile and deliberately a
- * SEPARATE keyword -- a door is not a projectile, and a grammar that
- * blurs the two would put set dressing into the projectile track. */
+/* Authored world geometry placed in the scene -- a door leaf, a plinth,
+ * the PANTHEON mark. A door is not a projectile, and one grammar for
+ * both would put set dressing into the projectile track. */
 #define PA_MAX_PROPS 32
 
 typedef struct {
     int      player;                 /* index into the declared players */
     vec3_t   origin;
     vec3_t   angles;
-    int      legs, torso;
-    int      legs_ms, torso_ms;      /* independent per-part animation clocks */
+    int      legs, torso;            /* recorded animation numbers */
+    /* frame/oldframe/backlerp per part, evaluated by PANTHEON with the
+     * engine's own stateful lerp-frame rule. The host does no animation
+     * maths: the closed form it used to run was disproved by the oracle. */
+    int      legsFrame, legsOldFrame;
+    float    legsBacklerp;
+    int      torsoFrame, torsoOldFrame;
+    float    torsoBacklerp;
     vec3_t   legsAngles, torsoAngles, headAngles;  /* composed upstream */
     int      weaponModel;            /* index into declared models, -1 none */
 } shotActor_t;
@@ -100,6 +105,7 @@ typedef struct {
 static shot_t     s_shot;
 static paPlayer_t s_players[PA_MAX_PLAYERS];
 static qboolean   s_noWorld;
+static const char *s_dumpModel;   /* --dump-model: asset query, no render */
 
 /* ── TGA out ────────────────────────────────────────────────────────────── */
 static void WriteTGA(const char *path, const byte *rgb, int w, int h)
@@ -198,14 +204,17 @@ static void ParseShot(const char *path)
                 Com_Error(ERR_FATAL, "PANTHEON: too many actors, line %d", lineno);
             a = &cur->actors[cur->numActors];
             if (sscanf(line,
-                       "%*s %d %f %f %f %d %d %d %d "
+                       "%*s %d %f %f %f %d %d "
+                       "%d %d %f %d %d %f "
                        "%f %f %f %f %f %f %f %f %f %d",
                        &a->player, &a->origin[0], &a->origin[1], &a->origin[2],
-                       &a->legs, &a->torso, &a->legs_ms, &a->torso_ms,
+                       &a->legs, &a->torso,
+                       &a->legsFrame, &a->legsOldFrame, &a->legsBacklerp,
+                       &a->torsoFrame, &a->torsoOldFrame, &a->torsoBacklerp,
                        &a->legsAngles[0], &a->legsAngles[1], &a->legsAngles[2],
                        &a->torsoAngles[0], &a->torsoAngles[1], &a->torsoAngles[2],
                        &a->headAngles[0], &a->headAngles[1], &a->headAngles[2],
-                       &a->weaponModel) != 18)
+                       &a->weaponModel) != 22)
                 Com_Error(ERR_FATAL, "PANTHEON: bad actor line %d", lineno);
             if (a->weaponModel >= s_shot.numModels)
                 Com_Error(ERR_FATAL,
@@ -297,7 +306,15 @@ int main(int argc, char **argv)
     char  cliModel[MAX_QPATH] = {0}, cliSkin[MAX_QPATH] = "default";
     vec3_t cliOrigin = {0, 0, 0}, cliAngles = {0, 0, 0};
     vec3_t cliActorOrigin = {0, 0, 0}, cliActorAngles = {0, 0, 0};
+    /* The one-actor CLI path is a smoke test. It names MD3 frames directly,
+     * because the host no longer owns any animation maths: which frames an
+     * animation number resolves to is PANTHEON's answer, evaluated with the
+     * engine's stateful lerp-frame rule. --actor-anim survives only to label
+     * what is being posed. */
     int   cliLegs = 0, cliTorso = 0, cliW = 1280, cliH = 720;
+    int   cliLegsFrame = 0, cliLegsOldFrame = 0;
+    int   cliTorsoFrame = 0, cliTorsoOldFrame = 0;
+    float cliLegsBacklerp = 0.0f, cliTorsoBacklerp = 0.0f;
     float cliFov = 90.0f;
     qboolean cliActor = qfalse;
 
@@ -315,6 +332,11 @@ int main(int argc, char **argv)
             cliAngles[0] = (float)atof(argv[++i]);
             cliAngles[1] = (float)atof(argv[++i]);
             cliAngles[2] = (float)atof(argv[++i]);
+        } else if (!strcmp(argv[i], "--dump-model") && i + 1 < argc) {
+            /* Asset interrogation, not rendering. PANTHEON asks the host what
+             * a model declares because the host is the only thing that can
+             * open the pak; it still decides nothing about the answer. */
+            s_dumpModel = argv[++i];
         } else if (!strcmp(argv[i], "--actor-model") && i + 1 < argc) {
             Q_strncpyz(cliModel, argv[++i], sizeof(cliModel));
             cliActor = qtrue;
@@ -331,6 +353,13 @@ int main(int argc, char **argv)
         } else if (!strcmp(argv[i], "--actor-anim") && i + 2 < argc) {
             cliLegs = atoi(argv[++i]);
             cliTorso = atoi(argv[++i]);
+        } else if (!strcmp(argv[i], "--actor-frames") && i + 6 < argc) {
+            cliLegsFrame     = atoi(argv[++i]);
+            cliLegsOldFrame  = atoi(argv[++i]);
+            cliLegsBacklerp  = (float)atof(argv[++i]);
+            cliTorsoFrame    = atoi(argv[++i]);
+            cliTorsoOldFrame = atoi(argv[++i]);
+            cliTorsoBacklerp = (float)atof(argv[++i]);
         } else if (!strcmp(argv[i], "--fov") && i + 1 < argc)
             cliFov = (float)atof(argv[++i]);
         else if (!strcmp(argv[i], "--width") && i + 1 < argc)
@@ -395,7 +424,10 @@ int main(int argc, char **argv)
         else
             Q_strcat(cmdline, sizeof(cmdline), "+set r_gamma 1.0 ");
     } else {
-        if (!cliMap[0]) {
+        /* --dump-model asks the filesystem a question; it has no world and
+         * needs none. Demanding a map here would make an asset query depend
+         * on naming a level it never loads. */
+        if (!cliMap[0] && !s_dumpModel) {
             fprintf(stderr, "PANTHEON: --map or --shot is required; the "
                             "renderer does not choose a world\n");
             return 2;
@@ -403,16 +435,25 @@ int main(int argc, char **argv)
         Q_strcat(cmdline, sizeof(cmdline),
                  va("+set r_customwidth %d +set r_customheight %d ", cliW, cliH));
     }
-    /* PANTHEON renders 1024x1024 and larger textures on purpose -- the Phase 5
-     * upscale corpus is the whole point of `nopicmip`. Quake's default zone
-     * (24 MB) and hunk are sized for 1999 art and die with
-     * "Z_Malloc: failed on allocation of 16777240 bytes" on the first big
-     * image. These are DEFAULTS: a later +set on the command line still wins. */
     Q_strcat(cmdline, sizeof(cmdline),
              "+set com_zoneMegs 128 +set com_hunkMegs 512 "
              "+set r_mode -1 +set r_fullscreen 0 +set r_fboAntiAlias 0 ");
 
     Com_Init(cmdline);
+
+    if (s_dumpModel) {
+        /* Answer the asset question and stop. No GL context is created, so
+         * this runs anywhere -- including while a game is running, which the
+         * RenderPermit would otherwise defer. */
+        paPlayer_t q;
+        if (!PANTHEON_ActorLoadAnimations(&q, s_dumpModel)) {
+            Com_Printf("PANTHEON: could not parse animation.cfg for %s\n",
+                       s_dumpModel);
+            return 2;
+        }
+        PANTHEON_ActorDumpModel(&q);
+        return 0;
+    }
 
     memset(&ri, 0, sizeof(ri));
     ri.Printf = PANTHEON_RefPrintf;
@@ -520,8 +561,12 @@ int main(int argc, char **argv)
                                   sf->actors[a].legsAngles,
                                   sf->actors[a].torsoAngles,
                                   sf->actors[a].headAngles,
-                                  sf->actors[a].legs, sf->actors[a].torso,
-                                  sf->actors[a].legs_ms, sf->actors[a].torso_ms,
+                                  sf->actors[a].legsFrame,
+                                  sf->actors[a].legsOldFrame,
+                                  sf->actors[a].legsBacklerp,
+                                  sf->actors[a].torsoFrame,
+                                  sf->actors[a].torsoOldFrame,
+                                  sf->actors[a].torsoBacklerp,
                                   wm >= 0 ? s_shot.modelHandle[wm] : 0);
             }
             for (a = 0; a < sf->numMissiles; a++)
@@ -535,9 +580,13 @@ int main(int argc, char **argv)
         } else if (cliActor) {
             {
                 vec3_t zero = {0, 0, 0};
+                (void)cliLegs; (void)cliTorso;
                 PANTHEON_ActorAdd(&s_players[0], cliActorOrigin,
                                   cliActorAngles, zero, zero,
-                                  cliLegs, cliTorso, 0, 0, 0);
+                                  cliLegsFrame, cliLegsOldFrame,
+                                  cliLegsBacklerp,
+                                  cliTorsoFrame, cliTorsoOldFrame,
+                                  cliTorsoBacklerp, 0);
             }
         }
 

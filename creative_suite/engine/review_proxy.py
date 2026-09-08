@@ -499,7 +499,15 @@ def _worker_loop() -> None:
             # a game on screen outranks every configuration. The job is not
             # urgent and is not dropped -- it stays QUEUED, the page says
             # RENDER DEFERRED, and it runs when the permit opens.
-            permit = render_permit.check(purpose="review proxy capture")
+            # CS_PROXY_MOCK writes a testsrc mp4 with ffmpeg and never opens
+            # a renderer, so there is nothing for the permit to protect. It
+            # used to be asked anyway, which meant the test suite failed
+            # whenever the developer happened to be playing something --
+            # 2026-09-07, once capture_guard learned to notice any game.
+            permit = (render_permit.Decision(render_permit.Permit.GRANTED,
+                                             "mock: no renderer is opened")
+                      if os.getenv("CS_PROXY_MOCK")
+                      else render_permit.check(purpose="review proxy capture"))
             if not permit.may_render:
                 _set_state(job["key"], "QUEUED", error=permit.reason)
                 time.sleep(_PERMIT_WAIT_S)
