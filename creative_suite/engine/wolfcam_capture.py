@@ -200,8 +200,8 @@ def write_capture_cfg(windows: list[dict], staging: Path = STAGING,
     # Toggling it guarantees the count moves. It must END ON 0: a value of
     # 1 makes cg_players.c skip the enemy-model branch altogether, so
     # forcing a model and overriding the enemy model cannot both apply.
-    lines.append("cg_forceModel 1")
     lines.append("cg_forceModel 0")
+    lines.append("cg_forceModel 1")
     prev_end = None
     for w in sorted(windows, key=lambda w: w["start_ms"]):
         name = _validate_cfg_token(str(w["clip_name"]))
