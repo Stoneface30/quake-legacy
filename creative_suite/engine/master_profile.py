@@ -335,9 +335,22 @@ _REVIEW_V2 = {
     # Enemy readability.
     "cg_enemyModel": "keel/bright",
     "cg_enemyHeadModel": "keel/bright",
+    # THE single colour cvar, confirmed green on screen by the user.
+    # The per-part Head/Torso/Legs cvars below are kept for the parts
+    # they do cover, but this is the one that carries the override.
+    "cg_enemyColor": "0x00ff00",
     "cg_enemyHeadColor": "0x2a8000",
     "cg_enemyTorsoColor": "0x2a8000",
     "cg_enemyLegsColor": "0x2a8000",
+    # 1, as in the profile whose green Keel is VISUALLY PROVEN.
+    #
+    # cg_players.c:5077 does skip the enemy-model branch when this is set,
+    # which reads like it should defeat cg_enemyModel -- but the banked proof
+    # (REVIEW profile, 49,509 strong-green pixels against 2 for AUTHENTIC)
+    # was produced with this at 1, so that reading is incomplete. Setting it
+    # to 0 on the strength of the source alone produced a RED TEAM-SKINNED
+    # model, which is worse than the default it replaced. The proof outranks
+    # my reading of the source; see reference_review_green_keel_proof.
     "cg_forceModel": 1,
     "cg_disallowEnemyModelForTeammates": 1,
     # Clan Arena is a team game, and cg_players.c forces red/blue TEAM SKINS

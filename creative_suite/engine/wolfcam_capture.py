@@ -186,6 +186,22 @@ def write_capture_cfg(windows: list[dict], staging: Path = STAGING,
     cfg_name = _mp._CFG_FILES.get(profile or _mp.PROFILE_NAME,
                                   "wolfcam_tr4sh_master_capture.cfg")
     lines = [f"exec {cfg_name}"]
+    # RE-REGISTER THE PLAYER MODELS, or the enemy override is set and ignored.
+    #
+    # cg_enemyModel is NOT watched for changes -- cg_main.c tracks a
+    # modificationCount for cg_forceModel only, and that is what calls
+    # CG_ForceModelChange() -> CG_NewClientInfo() for every client. This cfg
+    # runs at cgamepostinit, AFTER every client is already registered with the
+    # model it had, so setting cg_enemyModel here changes nothing on its own.
+    # And `seta cg_forceModel 1` does not help when the archived config
+    # already said 1: the value is unchanged, so the modificationCount is
+    # unchanged, so no re-register happens.
+    #
+    # Toggling it guarantees the count moves. It must END ON 0: a value of
+    # 1 makes cg_players.c skip the enemy-model branch altogether, so
+    # forcing a model and overriding the enemy model cannot both apply.
+    lines.append("cg_forceModel 1")
+    lines.append("cg_forceModel 0")
     prev_end = None
     for w in sorted(windows, key=lambda w: w["start_ms"]):
         name = _validate_cfg_token(str(w["clip_name"]))
@@ -476,8 +492,30 @@ def capture_demo(safe_demo: str, windows: list[dict],
 
     total_capture_s = sum(
         (int(w["end_ms"]) - int(w["start_ms"])) / 1000.0 for w in windows)
-    # Seeks fast-forward-parse the demo (~50x realtime measured; budget 25x).
-    max_seek_s = max(int(w["start_ms"]) for w in windows) / 1000.0
+    # SEEK WORK IS BOUNDED BY THE FILE, NOT BY THE SERVER'S CLOCK.
+    #
+    # start_ms is ABSOLUTE SERVER TIME -- the server's uptime when the moment
+    # happened, not an offset into the recording. A demo taken from a server
+    # that had been up four and a half hours carries start_ms around
+    # 16,600,000, and reading that as "16,597 seconds to fast-forward" bought
+    # it a 23-MINUTE timeout. On a depth-one queue that is not a slow clip, it
+    # is a stopped queue: one such frag blocked every other clip behind it for
+    # an hour.
+    #
+    # The engine can only parse what the file holds, so the demo's own size is
+    # the honest bound. 12x realtime over the file, floored so a tiny demo
+    # still gets a sane budget.
+    biggest = 0
+    for w in windows:
+        src = STAGING / "wolfcam-ql" / "demos" / safe_demo
+        for cand in (src, src.with_suffix(".dm_73")):
+            try:
+                biggest = max(biggest, cand.stat().st_size)
+                break
+            except OSError:
+                continue
+    # ~1 MB of protocol-73 demo is roughly 10s of play; budget 3x that to parse.
+    max_seek_s = max(30.0, (biggest / 1_000_000.0) * 30.0)
     # Budget for the renderer we are ACTUALLY going to use, not the one the
     # constant was calibrated against.
     slowdown = (SOFTWARE_CAPTURE_SLOWDOWN if software_gl() else
