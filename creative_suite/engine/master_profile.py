@@ -505,6 +505,28 @@ FAST_REVIEW_LAUNCH_SETS = {
     # bulk run of 11,850 proxies before anyone read wolfcam's own log.
     # The engine default is 0 and q3config.cfg already says 0; this profile
     # was the only thing turning it on. Review clips do not need AA.
+    # BRIGHTNESS, measured rather than guessed (2026-09-09).
+    #
+    # Review clips came out at mean luma 12-28 where 16 is the black floor:
+    # the reviewer could not see the action at all. Two separate faults.
+    #
+    # r_gamma and r_intensity were 0.85 -- BELOW neutral, actively darkening.
+    # And r_ignorehwgamma was 0, so gamma went through the display's LUT,
+    # which affects the monitor and NOT the framebuffer wolfcam captures. The
+    # value could never reach the file whatever it was set to; fixing that
+    # alone still only reached luma 21.
+    #
+    # Measured on one window, same frame each time:
+    #     ignorehwgamma 0, gamma 0.85, intensity 0.85, mapOverBright 1 ->  12.3
+    #     ignorehwgamma 1, gamma 1.0,  intensity 1.0,  mapOverBright 1 ->  21.4
+    #     ignorehwgamma 1, gamma 1.4,  intensity 1.3,  mapOverBright 2 ->  82.4  <- this
+    #     ignorehwgamma 1, gamma 1.8,  intensity 1.5,  mapOverBright 2 -> 116.1  washed out
+    #     ignorehwgamma 1, gamma 2.2,  intensity 1.7,  mapOverBright 3 -> 175.2  blown
+    # Frames: docs/visual-record/2026-09-09/brightness/
+    "r_ignorehwgamma": 1,
+    "r_gamma": 1.4,
+    "r_intensity": 1.3,
+    "r_mapOverBrightBits": 2,
     "r_fboAntiAlias": 0,
     # The GLSL post-process chain (bloom, colour correct, blur passes) is the
     # next thing this driver dies inside -- the session stops mid
