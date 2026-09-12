@@ -1,0 +1,16 @@
+WolfcamQL 11.3 source, used to build PANTHEON (pantheon_cgame.exe).
+
+Upstream: https://github.com/brugal/wolfcamql, tag v11.3, commit
+73e2d707e5dd1fb0fc50d4ad9f00940909c4b3ec. Exact version, hashes and download
+sources: SOURCE.json and TREE.sha256 in this directory.
+
+Licence: GNU General Public License v2 (LICENSE, copied from the source's
+COPYING.txt). PANTHEON is a combined, Wolfcam-derived work; it keeps this
+licence, attribution and provenance with its source and its build.
+
+Components bundled inside the WolfcamQL source carry their own terms,
+reproduced here verbatim from the archive:
+  COPYING-backtrace.txt   backtrace support
+  unifont-LICENSE.txt     GNU Unifont
+  CREDITS-openarena.txt   OpenArena credits
+  README-ioquake3.txt     ioquake3 lineage and notices

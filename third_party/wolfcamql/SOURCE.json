@@ -1,0 +1,28 @@
+{
+  "name": "wolfcamql",
+  "version": "11.3",
+  "archive": "wolfcamql-src.tar.gz",
+  "sha256": "3051397d08f15ee9345f71c4eac35eaedc568ac2bf8b3ad3de3d9aa4349ee8dc",
+  "size": 4101307,
+  "top_level_dir": "wolfcamql-src",
+  "extract_to": "engine/pantheon_renderer/wolfcamql-11.3-src",
+  "upstream_project": "https://github.com/brugal/wolfcamql",
+  "upstream_commit": "73e2d707e5dd1fb0fc50d4ad9f00940909c4b3ec",
+  "upstream_tag": "v11.3",
+  "upstream_tarball": "https://codeload.github.com/brugal/wolfcamql/tar.gz/73e2d707e5dd1fb0fc50d4ad9f00940909c4b3ec",
+  "tree_manifest": "third_party/wolfcamql/TREE.sha256",
+  "upstream_extras_ignored": [
+    ".gitignore",
+    "code/botlib/lcc.mak",
+    "code/botlib/linux-i386.mak",
+    "code/qcommon/version.h",
+    "macwolfcambuild/",
+    "package-files/",
+    "track-svn.txt",
+    "update-mac-binaries.sh"
+  ],
+  "license": "GPL-2.0 (COPYING.txt in the source, copied to LICENSE); bundled components listed in NOTICE",
+  "mirrors": [],
+  "local_fallback_env": "WOLFCAMQL_ARCHIVE",
+  "provenance_notes": "Archive bundled with WolfWhisperer, dated 2016-08-13; matches the qagamex86 compile time 1471095929. Verified 2026-09-12: all 929 files byte-identical to brugal/wolfcamql tag v11.3 (commit 73e2d707); the tag's only extras are the 8 packaging entries in upstream_extras_ignored. The extracted tree on the original workstation carried one local in-place edit (a blank line added at renderer/tr_init.c:2234, 2026-09-07), restored from the archive before adoption."
+}

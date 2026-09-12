@@ -14,6 +14,12 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# The WolfcamQL source is a pinned dependency, not a checked-in tree
+# (third_party/wolfcamql/SOURCE.json). Absent or unstamped: bootstrap it.
+if [ ! -f "$HERE/wolfcamql-11.3-src/.bootstrap.json" ]; then
+    "${PYTHON:-python}" "$HERE/../../scripts/bootstrap_wolfcamql.py" || {
+        echo "WolfcamQL source unavailable -- see third_party/wolfcamql/SOURCE.json" >&2; exit 2; }
+fi
 SRC="$HERE/wolfcamql-11.3-src/wolfcamql-src/code"
 OUT="$HERE/build"
 CC=${CC:-gcc}

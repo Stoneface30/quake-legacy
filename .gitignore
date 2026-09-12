@@ -250,3 +250,6 @@ exchange/
 # Local review experiments and verification artifacts
 .tmp/
 tmp/
+
+# Pinned third-party downloads (scripts/bootstrap_wolfcamql.py)
+.cache/

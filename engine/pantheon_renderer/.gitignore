@@ -9,6 +9,7 @@ build/
 # which IS tracked.
 gl_software/bin/
 
-# WolfcamQL 11.3 source, extracted from the archive whose SHA-256 is pinned in
-# SOURCE.sha256. Vendored for building, not redistributed from here.
+# WolfcamQL 11.3 source: a pinned dependency, not a checked-in tree. Version,
+# hashes, download sources and licence: third_party/wolfcamql/SOURCE.json.
+# build_host.sh / build_cgame.sh run scripts/bootstrap_wolfcamql.py if absent.
 wolfcamql-11.3-src/
