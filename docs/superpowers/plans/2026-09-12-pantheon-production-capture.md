@@ -1,37 +1,72 @@
-# PANTHEON Production Capture Implementation Plan
+# PANTHEON Production Capture Implementation Plan (revision 2)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Make `pantheon_cgame.exe` the engine that renders production demo clips, behind a switch, replacing `wolfcamql.exe` only after four measured parity gates pass and the user signs off.
 
-**Architecture:** The host gains a demo reader (`pantheon_demo_feed.c`) that decodes `.dm_73` with the engine's *own* `msg.c`/`huffman.c` — the exact decoder that produces cgame's snapshots inside wolfcam — and pushes the recorded gamestate, snapshots and server commands through the existing feed seam (`pantheon_cg_feed.c`). A Python backend (`engine/pantheon/pantheon_capture.py`) implements `capture_demo`'s return contract exactly; `wolfcam_capture.capture_demo` dispatches on `PANTHEON_CAPTURE_BACKEND` (default `wolfcam`). Audio is produced from cgame's own sound calls, logged by the host and mixed offline. Wolfcam stays as the oracle (HL-2).
+**Architecture:** The host gains a demo reader (`pantheon_demo_feed.c`) that decodes `.dm_73` with the engine's *own* `msg.c`/`huffman.c` — the exact decoder that produces cgame's snapshots inside wolfcam — keeps the gamestate current as `cs` commands arrive, and pushes recorded snapshots and server commands through the existing feed seam (`pantheon_cg_feed.c`). A Python backend (`engine/pantheon/pantheon_capture.py`) matches `capture_demo`'s return contract; `wolfcam_capture.capture_demo` dispatches on `PANTHEON_CAPTURE_BACKEND` (default `wolfcam`). Audio is produced from cgame's own sound calls, logged by the host and mixed offline. Wolfcam stays as the oracle (HL-2).
 
 **Tech Stack:** C (MinGW i686, `gcc -m32`, WolfcamQL 11.3 sources), Python 3 (`E:/PersonalAI/venv`), pytest, ffmpeg (`store.PROJECT_ROOT/creative_suite/tools/ffmpeg/ffmpeg.exe`).
 
 ---
 
+## Revision 2 — what an independent review changed (2026-09-12)
+
+Seventeen findings, every cited source line checked before accepting. The ones that change behaviour:
+
+| # | Finding | Where it is fixed |
+|---|---|---|
+| 1 | **Blocker.** `cs` changes before the window never reached cgame: the reader never updated its own gamestate | Task 2: the reader applies `cs`/`bcs*` as it parses, exactly as `CL_ConfigstringModified` |
+| 2 | Parse ring 2048, engine uses `MAX_PARSE_ENTITIES = PACKET_BACKUP × MAX_SNAPSHOT_ENTITIES = 8192`; deltas up to 31 back would read overwritten slots | Task 2 |
+| 3 | Command ring 32, engine keeps `MAX_RELIABLE_COMMANDS = 64` | Task 2 |
+| 4 | `--dump-snapshots` would exit at the host's `--map or --shot is required` check (`pantheon_frame.c:674`) | Task 3 |
+| 5 | G1 compared only `ps.origin`, which never touches the entity ring; wrong key names (`origin_x/y/z`) | Task 3: entity-level comparison |
+| 6 | Adjacent frags (pre-roll before previous end) cannot be served by a forward-only reader | Task 4: windows merge into continuous passes |
+| 7 | cgame started at the wrong command sequence, and with zeroed demo info | Task 4: first snapshot's sequence; a pre-scan fills demo info |
+| 8 | Compile errors hidden by `-w` | Task 2: host files compile with `-Werror=implicit-function-declaration` |
+| 9 | Sound handles re-issued per window, exhausted by window 3; entity-attached sounds at full volume | Task 6 |
+| 10 | The public-export profile and the `wolfcam-ql` gamedir were dropped — the first would reintroduce burned-in names | Task 7 refuses a profile; Task 4 uses `--game wolfcam-ql` |
+| 11 | `_mix` was a placeholder with no path to the paks | Task 7, specified in full |
+| 12 | G4 asserted keys the same function set; semantics differed from wolfcam's | Task 7: keys derived from `capture_demo` itself; shared helpers |
+| 13 | **The HDR probe could only ever answer "no"**: fixed-function GL clamps colour to [0,1] unless `glClampColor` disables it | Task 10: clamps off, and a positive control that must exceed 1.0 |
+| 14 | G2 compared by fraction of AVI length, not by server time | Task 5 |
+
+---
+
 ## Constraints (user decisions, 2026-09-12 — do not relitigate)
 
-1. **The 64×64 WGL device-context window stays.** Output size is independent of the monitor (proven: 5120×2880, commit `cf27b8ac`). It still needs a valid interactive Windows graphics session; that is acceptable. Windowless context creation (EGL/pbuffer) is **out of scope** unless the renderer must run as a service.
-2. **No supersampling merge until accumulation is linear-light.** Averaging display-encoded RGB darkens edges. Our own motion-blur accumulator has the same flaw and is fixed here (Task 10); `codex/capture-supersampling` must adopt the same resolve before it merges.
-3. **No HDR/EXR, floating-point targets or asset work in this plan.** Task 11 is a *measurement* of whether values above 1.0 survive the renderer before tonemap/gamma/clamp. Its result decides whether an HDR plan is written at all.
+1. **The 64×64 WGL device-context window stays.** Output size is independent of the monitor (proven: 5120×2880, commit `cf27b8ac`). It still needs a valid interactive Windows graphics session; that is acceptable. Windowless context creation is **out of scope** unless the renderer must run as a service.
+2. **No supersampling merge until accumulation is linear-light.** Our own motion-blur accumulator has the same flaw and is fixed here (Task 9); `codex/capture-supersampling` must adopt the same resolve before it merges.
+3. **No HDR/EXR, floating-point targets or asset work in this plan.** Task 10 *measures* whether values above 1.0 survive the renderer before tonemap/gamma/clamp. Its result decides whether an HDR plan is written at all.
 
 ## Rollout gates
 
 | Gate | Proves | Pass condition |
 |---|---|---|
-| **G1** decoder agreement | The C reader decodes demos the same as `DM73Parser` | 3 demos, every snapshot: same `serverTime`, `ps.origin` within 0.5 u, same entity count |
-| **G2** frame parity | PANTHEON pictures the same moment wolfcam does | 10 frags, review sheet per frag, **human PASS** recorded |
-| **G3** audio parity | cgame's own sounds, mixed offline, land where wolfcam's do | 10 frags: envelope cross-correlation lag ≤ 40 ms and correlation ≥ 0.6 |
-| **G4** contract parity | Callers cannot tell the backends apart | `capture_demo` returns the same keys and semantics; full suite green except pre-existing failures |
+| **G1** decoder agreement | The C reader decodes demos exactly as `DM73Parser` | 3 demos (2 maps, ≥1 protocol 91), every snapshot: same `serverTime`; `ps.origin` within 0.5 u; for every player and missile entity, same number, `eType`, and `trBase` within 0.5 u |
+| **G2** frame parity | PANTHEON pictures the same moment wolfcam does | 10 frags, one review sheet each, frames chosen by **server time**; **human PASS** recorded |
+| **G3** audio parity | cgame's own sounds, mixed offline, land where wolfcam's do | 10 frags: envelope lag ≤ 40 ms and correlation ≥ 0.6 |
+| **G4** contract parity | Callers cannot tell the backends apart | Keys and types derived from `capture_demo` itself; `ok`/`under_sampled`/`frames_expected` computed by the *same* helpers; suite at or better than the Task 0 baseline |
 
-The default flips (Task 12) only after G1–G4 **and** the user's explicit go. A run that fails any gate leaves `wolfcam` the default.
+The default flips (Task 11) only after G1–G4 **and** the user's explicit go.
+
+## Human eye-check stops (never skip)
+
+| Stop | After | The user looks at |
+|---|---|---|
+| **H1** | Task 4 | 3 frames of a demo window through PANTHEON's eyes: does it read as the first-person capture? |
+| **H2** | Task 5 | 10 parity sheets, same server times, wolfcam vs PANTHEON: PASS/FAIL each |
+| **H3** | Task 8 | The same 10 clips with sound: rockets, hits, announcer where wolfcam has them |
+| **H4** | Task 9 | Before/after crop of a bright moving edge: no dark fringe |
+| **H5** | Task 10 | The HDR measurement and its decision |
+| **H6** | Task 11 | Go/no-go; then one real frag through the normal mining command, watched end to end |
 
 ## Known limits, stated up front
 
-- **Pre-roll replaces seeking.** Deltas force the reader to parse from the start of the file, but cgame is only started `PREROLL_MS` (1500) before the window. Effects begun earlier than that (a smoke trail from a rocket fired 2 s before the window) are absent. Wolfcam's `seekclock` has the same property.
-- **Looping sounds are out of G3.** Lava hum, powerup loops, the LG beam loop are logged but not mixed in v1; G3 measures one-shot sounds only.
-- **Spatial audio is approximate.** Distance attenuation and stereo pan use Q3's constants; room acoustics are not modelled. G3 measures timing, not spatial accuracy.
+- **Pre-roll replaces seeking.** Deltas force the reader to parse from the file's start, but cgame starts `PREROLL_MS` (1500) before a pass. Effects begun earlier are absent — the same property as wolfcam's `seekclock`.
+- **Looping sounds are out of G3** (logged, not mixed in v1). **Spatial audio is approximate**: Q3's distance attenuation and pan, no room acoustics. G3 measures timing.
+- **Demo info is approximate where wolfcam pre-scans**: `firstServerTime`/`lastServerTime` are exact (pre-scan); `gameStartTime` comes from `CS_LEVEL_START_TIME`; `gameEndTime` is the last server time. Kill/victim/pickup look-ahead stays `-1` (as in a live game).
+- **Profiles:** v1 renders the stock view. The pantheon backend **refuses** a non-`None` profile rather than silently ignoring one — the public-export profile is what keeps opponent names out of clips.
 
 ---
 
@@ -39,64 +74,44 @@ The default flips (Task 12) only after G1–G4 **and** the user's explicit go. A
 
 | File | Responsibility |
 |---|---|
-| **Create** `engine/pantheon_renderer/host/pantheon_demo_feed.c` | `.dm_73` → gamestate + snapshots + server commands, using `msg.c`. Owns the delta rings. Knows nothing about rendering. |
-| **Create** `engine/pantheon_renderer/host/pantheon_sound_log.c` | Registered sound names and every start/local sound event → a TSV sidecar. Plays nothing. |
-| Modify `engine/pantheon_renderer/host/pantheon_cg_feed.c` | Apply `cs` / `bcs0/1/2` server commands to the stored gamestate, as `CL_ConfigstringModified` does. Carry `serverCommandSequence` in snapshots. |
-| Modify `engine/pantheon_renderer/host/pantheon_cg_run.c` | `PANTHEON_CG_Init` takes the recorder's `clientNum` and the command sequence at pre-roll. |
-| Modify `engine/pantheon_renderer/host/pantheon_cg_syscall.c` | Sound cases call the logger; `S_RegisterSound` returns real handles. |
-| Modify `engine/pantheon_renderer/host/pantheon_frame.c` | `--demo`, `--window` (repeatable), `--fps`, `--dump-snapshots`, `--sound-log`; linear-light blur accumulate. |
-| Modify `engine/pantheon_renderer/build_cgame.sh` | Compile the two new files. |
-| Modify `engine/pantheon_renderer/build_host.sh` | Stop linking a standalone exe that has not linked since 2026-09-08; build objects only. |
-| **Create** `engine/pantheon/pantheon_capture.py` | The backend: argv, permit, run, frames→AVI, mix, return the `capture_demo` dict. |
-| **Create** `engine/pantheon/sound_mix.py` | Sound log + pak samples → stereo 48 kHz WAV. Pure function of its inputs. |
-| Modify `creative_suite/engine/wolfcam_capture.py` | `capture_demo` dispatches on `PANTHEON_CAPTURE_BACKEND`. |
-| Modify `engine/pantheon/backends.py` | Register `PANTHEON_NATIVE`. |
-| Modify `engine/pantheon/model_assets.py:28` | Resolve the host through `store`, pointing at the exe that exists. |
-| **Create** `creative_suite/tests/test_pantheon_capture.py` | Contract tests (G4), mixer tests, dispatch tests. |
-| **Create** `creative_suite/tests/test_pantheon_demo_feed.py` | G1, integration; skips when the corpus or exe is absent. |
-| Modify `creative_suite/tests/test_render_permit.py` | Add `engine/pantheon/pantheon_capture.py` to `LAUNCH_SITES`. |
-| Modify `creative_suite/tests/test_pantheon_headless_boundary.py` | Classify `pantheon_capture` and `sound_mix` as `BACKEND_ALLOWED`. |
+| **Create** `engine/pantheon_renderer/host/pantheon_demo_feed.c` | `.dm_73` → current gamestate + snapshots + server commands, via `msg.c`. Owns the delta rings and its own gamestate. Knows nothing about rendering. |
+| **Create** `engine/pantheon_renderer/host/pantheon_sound_log.c` | Registered sound names and start/local events → TSV. Plays nothing. |
+| Modify `engine/pantheon_renderer/host/pantheon_cg_feed.c` | 64-slot, sequence-numbered command ring; `cs`/`bcs*` applied when cgame reads them; entity origin lookup for sounds; last-executed tracking. |
+| Modify `engine/pantheon_renderer/host/pantheon_cg_run.c` | `PANTHEON_CG_Init(clientNum, serverCommandSequence)`; sound time. |
+| Modify `engine/pantheon_renderer/host/pantheon_cg_syscall.c` | Sound cases → logger; last-executed command. |
+| Modify `engine/pantheon_renderer/host/pantheon_frame.c` | `--demo`, `--window` (repeatable), `--fps`, `--dump-snapshots`, `--sound-log`, `--probe-hdr`; passes; linear-light blur. |
+| Modify `engine/pantheon_renderer/build_cgame.sh`, `build_host.sh` | New files; strict implicit-declaration errors on host files; no standalone exe. |
+| Modify `engine/parser/demo_parse.py` | Optional per-snapshot entity capture (`capture_entities=True`) for G1. Default off: no behaviour change. |
+| **Create** `engine/pantheon/pantheon_capture.py` | The backend. |
+| **Create** `engine/pantheon/sound_mix.py` | Sound log + samples → stereo float PCM. Pure. |
+| **Create** `engine/pantheon/capture_parity.py` | G2 sheets and G3 measurement. |
+| Modify `creative_suite/engine/wolfcam_capture.py` | `capture_backend()`, dispatch, and `completeness()` extracted so both backends share it. |
+| Modify `engine/pantheon/backends.py`, `engine/pantheon/model_assets.py:28` | Register `PANTHEON_NATIVE`; resolve the host through `store`. |
+| Tests | `test_pantheon_capture.py` (new), `test_pantheon_demo_feed.py` (new), `test_render_permit.py` (`LAUNCH_SITES`), `test_pantheon_headless_boundary.py` (classification). |
 
-Run all Python tests with: `E:/PersonalAI/venv/Scripts/python.exe -m pytest <path> -q`
-Build with: `cd engine/pantheon_renderer && ./build_host.sh && ./build_cgame.sh` (Git Bash).
+Python tests: `E:/PersonalAI/venv/Scripts/python.exe -m pytest <path> -q`
+Build (Git Bash): `cd engine/pantheon_renderer && ./build_host.sh && ./build_cgame.sh`
+
+**Worktree note:** `engine/pantheon_renderer/wolfcamql-11.3-src/` is deliberately untracked (extracted from the archive pinned in `SOURCE.sha256`). In a worktree, junction it from the main checkout before building:
+`MSYS_NO_PATHCONV=1 cmd /c mklink /J "<worktree>\engine\pantheon_renderer\wolfcamql-11.3-src" "G:\QUAKE_LEGACY\engine\pantheon_renderer\wolfcamql-11.3-src"`
 
 ---
 
-### Task 0: Worktree and baseline
+### Task 0: Baseline
 
-**Files:** none
-
-- [ ] **Step 1: Create an isolated worktree** (@superpowers:using-git-worktrees)
-
-```bash
-git worktree add ../QUAKE_LEGACY_WORKTREES/pantheon-capture -b feature/pantheon-production-capture demo-v2-mining
-```
-
-- [ ] **Step 2: Record the baseline failures, so later tasks are judged against them and not against zero**
-
-Run: `E:/PersonalAI/venv/Scripts/python.exe -m pytest creative_suite/tests -q -p no:cacheprovider 2>&1 | tail -15 > docs/reference/2026-09-12-capture-baseline.txt`
-Expected (2026-09-12): failures only in `test_scene_editor.py` (live frags DB) and `test_tool_root.py::test_no_new_module_finds_its_tools_beside_the_code` (another session's untracked `engine/music/`). Anything else: stop and report.
-
-- [ ] **Step 3: Commit the baseline**
-
-```bash
-git add docs/reference/2026-09-12-capture-baseline.txt
-git commit -m "docs: test baseline before the PANTHEON capture work"
-```
+- [ ] **Step 1:** Worktree exists (`G:/QUAKE_LEGACY_WORKTREES/pantheon-capture`, branch `feature/pantheon-production-capture`), source junctioned, `./build_cgame.sh` exits 0.
+- [ ] **Step 2:** `E:/PersonalAI/venv/Scripts/python.exe -m pytest creative_suite/tests -q -p no:cacheprovider 2>&1 | tail -15 > docs/reference/2026-09-12-capture-baseline.txt`. Expected: failures only in `test_scene_editor.py` (live frags DB) and `test_tool_root.py::test_no_new_module_finds_its_tools_beside_the_code` (another session's untracked `engine/music/`). Anything else: stop and report.
+- [ ] **Step 3:** `git add docs/reference/2026-09-12-capture-baseline.txt && git commit -m "docs: test baseline before the PANTHEON capture work"`
 
 ---
 
 ### Task 1: One binary, found through the store
 
-The standalone `pantheon_frame.exe` has not linked since 2026-09-08 (`build_host.sh` omits the cgame objects that `pantheon_frame.c` now calls) and no longer exists on disk. `model_assets.py:28` still points at it by a hardcoded `G:/` path (HL-9). `pantheon_cgame.exe` accepts `--dump-model` because it is built from the same `pantheon_frame.c`.
+The standalone `pantheon_frame.exe` has not linked since 2026-09-08 and does not exist; `model_assets.py:28` points at it by a hardcoded `G:/` path (HL-9). `pantheon_cgame.exe` accepts `--dump-model` (same `pantheon_frame.c`).
 
-**Files:**
-- Modify: `engine/pantheon_renderer/build_host.sh` (the final link line)
-- Modify: `engine/pantheon/model_assets.py:28`
-- Create: `engine/pantheon/pantheon_capture.py` (only `host_exe()` in this task)
-- Test: `creative_suite/tests/test_pantheon_capture.py`
+**Files:** `engine/pantheon_renderer/build_host.sh`, `engine/pantheon/model_assets.py:28`, create `engine/pantheon/pantheon_capture.py`, test `creative_suite/tests/test_pantheon_capture.py`
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Failing test**
 
 ```python
 # creative_suite/tests/test_pantheon_capture.py
@@ -107,20 +122,15 @@ from engine.pantheon import store as S
 
 def test_host_exe_is_resolved_through_the_store_not_a_drive_letter():
     from engine.pantheon import pantheon_capture as PC
-    exe = PC.host_exe()
-    assert exe == S.CODE_ROOT / "engine" / "pantheon_renderer" / "build" / "pantheon_cgame.exe"
+    assert PC.host_exe() == S.CODE_ROOT / "engine" / "pantheon_renderer" / "build" / "pantheon_cgame.exe"
 
 
 def test_model_assets_uses_the_one_binary_that_exists():
     from engine.pantheon import model_assets, pantheon_capture as PC
     assert model_assets.HOST_EXE == PC.host_exe()
-    assert "G:/" not in Path(model_assets.__file__).read_text(encoding="utf-8").split("HOST_EXE", 1)[1][:120]
 ```
 
-- [ ] **Step 2: Run to verify it fails**
-
-Run: `E:/PersonalAI/venv/Scripts/python.exe -m pytest creative_suite/tests/test_pantheon_capture.py -q`
-Expected: FAIL — `ModuleNotFoundError: engine.pantheon.pantheon_capture`
+- [ ] **Step 2:** Run it: FAIL (`ModuleNotFoundError: engine.pantheon.pantheon_capture`).
 
 - [ ] **Step 3: Implement**
 
@@ -130,9 +140,8 @@ Expected: FAIL — `ModuleNotFoundError: engine.pantheon.pantheon_capture`
 
 Renders production demo clips with pantheon_cgame.exe: our own binary, the
 WolfcamQL 11.3 renderer and cgame linked statically, drawing into its own
-framebuffer object. Implements the same return contract as
-creative_suite.engine.wolfcam_capture.capture_demo so callers cannot tell the
-two backends apart (gate G4).
+framebuffer object. Matches creative_suite.engine.wolfcam_capture.capture_demo's
+return contract so callers cannot tell the two backends apart (gate G4).
 """
 from __future__ import annotations
 
@@ -142,119 +151,209 @@ from engine.pantheon import store as S
 
 
 def host_exe() -> Path:
-    """The one PANTHEON binary. Resolved from the code root (HL-9), never a
-    drive letter: a worktree must run its own build."""
+    """The one PANTHEON binary, from the code root (HL-9): a worktree runs its
+    own build, never the main checkout's."""
     return S.CODE_ROOT / "engine" / "pantheon_renderer" / "build" / "pantheon_cgame.exe"
 ```
 
-In `engine/pantheon/model_assets.py` replace line 28:
+`engine/pantheon/model_assets.py`, replacing line 28:
 
 ```python
 from engine.pantheon.pantheon_capture import host_exe as _host_exe
 HOST_EXE = _host_exe()
 ```
 
-In `engine/pantheon_renderer/build_host.sh`, replace the final `$CC ... -o "$OUT/pantheon_frame.exe" ...` link command with:
+`build_host.sh`: replace the final `-o "$OUT/pantheon_frame.exe"` link with
 
 ```bash
-# The standalone pantheon_frame.exe stopped linking on 2026-09-08, when
-# pantheon_frame.c started calling cgame. There is one binary now:
-# build_cgame.sh links these objects into pantheon_cgame.exe.
+# One binary: build_cgame.sh links these objects into pantheon_cgame.exe.
+# The standalone pantheon_frame.exe stopped linking on 2026-09-08.
 echo "built objects in $OUT (link with ./build_cgame.sh)"
 ```
 
-- [ ] **Step 4: Run tests and both builds**
+and add `-Werror=implicit-function-declaration` to the compile flags used for `host/*.c` only (not the vendored tree — it would not build).
 
-Run: `E:/PersonalAI/venv/Scripts/python.exe -m pytest creative_suite/tests/test_pantheon_capture.py -q`
-Expected: 2 passed
-Run: `cd engine/pantheon_renderer && ./build_host.sh && ./build_cgame.sh`
-Expected: both exit 0; `build/pantheon_cgame.exe` exists.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add engine/pantheon/pantheon_capture.py engine/pantheon/model_assets.py engine/pantheon_renderer/build_host.sh creative_suite/tests/test_pantheon_capture.py
-git commit -m "fix: one PANTHEON binary, found through the store"
-```
+- [ ] **Step 4:** Tests pass (2); both builds exit 0. If the stricter flag surfaces errors in existing host files, fix each with a real prototype — never with `-w`.
+- [ ] **Step 5:** `git commit -am "fix: one PANTHEON binary, found through the store"` (add the new files explicitly).
 
 ---
 
-### Task 2: The demo reader
+### Task 2: The demo reader, and the command ring it feeds
 
-Mirrors `CL_ReadDemoMessage` (`cl_main.c:1063`), `CL_ParseServerMessage` (`cl_parse.c:1703`), `CL_ParseGamestate` (`:830`), `CL_ParseSnapshot` (`:383`), `CL_ParsePacketEntities` (`:108`) and `CL_DeltaEntity` (`:80`), with the client globals replaced by one `pdemo_t`. Copy logic, not ideas: every branch below has a counterpart in those functions.
+Mirrors `CL_ReadDemoMessage` (`cl_main.c:1063`), `CL_ParseServerMessage` (`cl_parse.c:1703`), `CL_ParseGamestate` (`:830`), `CL_ParseSnapshot` (`:383`), `CL_ParsePacketEntities` (`:108`), `CL_DeltaEntity` (`:80`), `CL_ParseCommandString` (`:1338`), and — for the reader's own gamestate — `CL_GetServerCommand`'s `bcs*`/`cs` handling and `CL_ConfigstringModified` (`cl_cgame.c`). Copy logic, not ideas.
 
-**Files:**
-- Create: `engine/pantheon_renderer/host/pantheon_demo_feed.c`
-- Modify: `engine/pantheon_renderer/build_cgame.sh` (add a compile line next to `pantheon_cg_feed.c`)
+**Files:** create `host/pantheon_demo_feed.c`; modify `host/pantheon_cg_feed.c`, `build_cgame.sh`
 
-- [ ] **Step 1: Write the reader**
+- [ ] **Step 1: The command ring in `pantheon_cg_feed.c`**
+
+```c
+/* 64, as MAX_RELIABLE_COMMANDS: a round start can carry more than 32
+ * configstring updates between two snapshots. */
+#define PANTHEON_CMD_RING MAX_RELIABLE_COMMANDS
+static int  cg_cmd_num[PANTHEON_CMD_RING];   /* which seq owns each slot */
+static int  cg_cmd_executed;                 /* CG_GETLASTEXECUTEDSERVERCOMMAND */
+static char cg_bigcs[BIG_INFO_STRING];
+```
+
+Replace `PANTHEON_CG_QueueServerCommand` so composed shots keep working, and add the sequence-numbered form:
+
+```c
+void PANTHEON_CG_QueueServerCommandSeq(int seq, const char *text)
+{
+    if (!text || seq <= 0) return;
+    Q_strncpyz(cg_cmds[seq % PANTHEON_CMD_RING], text, BIG_INFO_STRING);
+    cg_cmd_num[seq % PANTHEON_CMD_RING] = seq;
+    if (seq > cg_cmd_seq) cg_cmd_seq = seq;
+}
+
+void PANTHEON_CG_QueueServerCommand(const char *text)
+{
+    PANTHEON_CG_QueueServerCommandSeq(cg_cmd_seq + 1, text);
+}
+```
+
+Add the configstring rewrite (`CL_ConfigstringModified`, including its early return):
+
+```c
+/* Rebuild the string pool with one index replaced. Shared by the reader's
+ * gamestate and cgame's, so the two cannot apply a change differently. */
+void PANTHEON_GameState_Set(gameState_t *gs, int index, const char *value)
+{
+    gameState_t old;
+    int i, len;
+    const char *cur;
+
+    if (index < 0 || index >= MAX_CONFIGSTRINGS) return;
+    cur = gs->stringOffsets[index] ? gs->stringData + gs->stringOffsets[index] : "";
+    if (!strcmp(cur, value)) return;                      /* unchanged */
+    old = *gs;
+    memset(gs, 0, sizeof(*gs));
+    gs->dataCount = 1;
+    for (i = 0; i < MAX_CONFIGSTRINGS; i++) {
+        const char *s = (i == index) ? value
+                      : (old.stringOffsets[i] ? old.stringData + old.stringOffsets[i] : "");
+        if (!s[0]) continue;
+        len = strlen(s);
+        if (len + 1 + gs->dataCount > MAX_GAMESTATE_CHARS)
+            Com_Error(ERR_DROP, "PANTHEON: MAX_GAMESTATE_CHARS applying cs %d", index);
+        gs->stringOffsets[i] = gs->dataCount;
+        memcpy(gs->stringData + gs->dataCount, s, len + 1);
+        gs->dataCount += len + 1;
+    }
+}
+
+/* CL_GetServerCommand's reassembly of big configstrings. Returns qtrue when
+ * `text` (already tokenised) completes a `cs` for `gs`; qfalse for bcs0/bcs1
+ * pieces, which are absorbed. */
+qboolean PANTHEON_GameState_Command(gameState_t *gs, char *bigcs, int bigcsSize)
+{
+    const char *cmd = Cmd_Argv(0);
+    if (!strcmp(cmd, "bcs0")) { Com_sprintf(bigcs, bigcsSize, "cs %s \"%s", Cmd_Argv(1), Cmd_Argv(2)); return qfalse; }
+    if (!strcmp(cmd, "bcs1")) { Q_strcat(bigcs, bigcsSize, Cmd_Argv(2)); return qfalse; }
+    if (!strcmp(cmd, "bcs2")) {
+        Q_strcat(bigcs, bigcsSize, va("%s\"", Cmd_Argv(2)));
+        Cmd_TokenizeString(bigcs);
+        cmd = Cmd_Argv(0);
+    }
+    if (!strcmp(cmd, "cs")) PANTHEON_GameState_Set(gs, atoi(Cmd_Argv(1)), Cmd_ArgsFrom(2));
+    return qtrue;
+}
+```
+
+Replace `PANTHEON_CG_GetServerCommand`:
+
+```c
+qboolean PANTHEON_CG_GetServerCommand(int seq)
+{
+    char *text;
+    if (seq <= 0 || seq > cg_cmd_seq) return qfalse;
+    if (cg_cmd_num[seq % PANTHEON_CMD_RING] != seq) return qfalse;   /* aged out */
+    text = cg_cmds[seq % PANTHEON_CMD_RING];
+    Cmd_TokenizeString(text);
+    cg_cmd_executed = seq;
+    if (!PANTHEON_GameState_Command(&cg_gs, cg_bigcs, sizeof(cg_bigcs)))
+        return qfalse;                             /* bcs0/bcs1: nothing for cgame yet */
+    if (!strcmp(Cmd_Argv(0), "cs") || !strcmp(Cmd_Argv(0), "bcs2"))
+        Cmd_TokenizeString(!strcmp(Cmd_Argv(0), "bcs2") ? cg_bigcs : text);   /* cgame re-reads */
+    return qtrue;
+}
+
+int PANTHEON_CG_LastExecutedServerCommand(void) { return cg_cmd_executed; }
+```
+
+In `PANTHEON_CG_Reset`: `memset(cg_cmd_num, 0, sizeof(cg_cmd_num)); cg_cmd_executed = 0; cg_bigcs[0] = 0;` — and **do not** zero `cg_di` there any more (demo info is set once per demo, after Reset; see Task 4).
+
+In `pantheon_cg_syscall.c`: `case CG_GETLASTEXECUTEDSERVERCOMMAND: return PANTHEON_CG_LastExecutedServerCommand();`
+
+- [ ] **Step 2: The reader** — `host/pantheon_demo_feed.c`
 
 ```c
 /*
  * A .dm_73 BECOMES A SNAPSHOT FEED.
  *
- * Decoded with the engine's own msg.c and huffman.c -- the same functions
- * that fill cl.snapshots inside WolfcamQL -- so a snapshot handed to cgame
- * here is bit-for-bit the one wolfcam would have handed it. Nothing is
- * reinterpreted: this file is cl_parse.c with the client globals replaced by
- * one struct, and every branch has a counterpart there (line numbers in the
- * comments). DM73Parser in Python is the independent cross-check (gate G1).
+ * Decoded with the engine's own msg.c and huffman.c -- the functions that fill
+ * cl.snapshots inside WolfcamQL -- so a snapshot handed to cgame here is the
+ * one wolfcam would hand it. Every branch has a counterpart in cl_parse.c /
+ * cl_main.c / cl_cgame.c (line numbers in comments). DM73Parser in Python is
+ * the independent cross-check (gate G1).
+ *
+ * The reader keeps ITS OWN gamestate current as `cs` commands arrive
+ * (CL_ConfigstringModified). cgame is started only at a pass's pre-roll, so
+ * every configstring change before that -- joins, scores, models, the round
+ * clock -- must already be in the gamestate cgame is handed.
  */
 #include "../wolfcamql-11.3-src/wolfcamql-src/code/qcommon/q_shared.h"
 #include "../wolfcamql-11.3-src/wolfcamql-src/code/qcommon/qcommon.h"
 #include "../wolfcamql-11.3-src/wolfcamql-src/code/cgame/cg_public.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-#define PD_MAX_PARSE_ENTITIES 2048          /* as MAX_PARSE_ENTITIES */
+#define PD_MAX_PARSE_ENTITIES (PACKET_BACKUP * MAX_SNAPSHOT_ENTITIES)   /* client.h:96 */
 
 typedef struct {
     qboolean      valid;
-    int           messageNum, deltaNum, serverTime, snapFlags;
-    int           serverCommandNum;
+    int           messageNum, deltaNum, serverTime, snapFlags, serverCommandNum;
     byte          areamask[MAX_MAP_AREA_BYTES];
     playerState_t ps;
     int           numEntities, parseEntitiesNum;
 } pdSnap_t;
 
-typedef struct {
+static struct {
     FILE         *f;
-    int           messageSeq;               /* clc.serverMessageSequence */
-    int           commandSeq;               /* clc.serverCommandSequence */
-    int           clientNum;
+    int           messageSeq, commandSeq, clientNum;
     gameState_t   gs;
+    char          bigcs[BIG_INFO_STRING];
     entityState_t baselines[MAX_GENTITIES];
     pdSnap_t      snaps[PACKET_BACKUP];
     entityState_t parse[PD_MAX_PARSE_ENTITIES];
     int           parseNum;
-    pdSnap_t      latest;                   /* most recent valid snapshot */
-    qboolean      haveGamestate, haveLatest;
-} pdemo_t;
+    pdSnap_t      latest;
+    qboolean      haveLatest;
+    int           queueFrom;      /* commands with seq > this go to cgame */
+} pd;
 
-static pdemo_t pd;
+/* pantheon_cg_feed.c */
+void     PANTHEON_CG_QueueServerCommandSeq(int seq, const char *text);
+void     PANTHEON_GameState_Set(gameState_t *gs, int index, const char *value);
+qboolean PANTHEON_GameState_Command(gameState_t *gs, char *bigcs, int bigcsSize);
 
-/* feed seam (pantheon_cg_feed.c) */
-void PANTHEON_CG_SetGameState(const gameState_t *gs);
-void PANTHEON_CG_QueueServerCommandSeq(int seq, const char *text);
+#define PD_ENT(base, i) (&pd.parse[((base) + (i)) & (PD_MAX_PARSE_ENTITIES - 1)])
 
-/* cl_parse.c:80 */
 static void PD_DeltaEntity(msg_t *msg, pdSnap_t *frame, int newnum,
-                           entityState_t *old, qboolean unchanged)
+                           entityState_t *old, qboolean unchanged)        /* :80 */
 {
-    entityState_t *state = &pd.parse[pd.parseNum & (PD_MAX_PARSE_ENTITIES - 1)];
+    entityState_t *state = PD_ENT(pd.parseNum, 0);
     if (unchanged) *state = *old;
     else           MSG_ReadDeltaEntity(msg, old, state, newnum);
-    if (state->number == MAX_GENTITIES - 1) return;   /* delta-removed */
+    if (state->number == MAX_GENTITIES - 1) return;
     pd.parseNum++;
     frame->numEntities++;
 }
 
-#define PD_OLDSTATE(of, i) (&pd.parse[((of)->parseEntitiesNum + (i)) & (PD_MAX_PARSE_ENTITIES - 1)])
-
-/* cl_parse.c:108 */
 static void PD_ParsePacketEntities(msg_t *msg, const pdSnap_t *oldframe,
-                                   pdSnap_t *newframe)
+                                   pdSnap_t *newframe)                   /* :108 */
 {
     int newnum, oldindex = 0, oldnum;
     entityState_t *oldstate = NULL;
@@ -262,11 +361,11 @@ static void PD_ParsePacketEntities(msg_t *msg, const pdSnap_t *oldframe,
     newframe->parseEntitiesNum = pd.parseNum;
     newframe->numEntities = 0;
     if (!oldframe || oldframe->numEntities == 0) oldnum = 99999;
-    else { oldstate = PD_OLDSTATE(oldframe, 0); oldnum = oldstate->number; }
+    else { oldstate = PD_ENT(oldframe->parseEntitiesNum, 0); oldnum = oldstate->number; }
 
 #define PD_NEXT_OLD() do { oldindex++; \
         if (!oldframe || oldindex >= oldframe->numEntities) oldnum = 99999; \
-        else { oldstate = PD_OLDSTATE(oldframe, oldindex); oldnum = oldstate->number; } \
+        else { oldstate = PD_ENT(oldframe->parseEntitiesNum, oldindex); oldnum = oldstate->number; } \
     } while (0)
 
     for (;;) {
@@ -282,8 +381,7 @@ static void PD_ParsePacketEntities(msg_t *msg, const pdSnap_t *oldframe,
 #undef PD_NEXT_OLD
 }
 
-/* cl_parse.c:383 -- demo playback branch only */
-static void PD_ParseSnapshot(msg_t *msg)
+static void PD_ParseSnapshot(msg_t *msg)                                 /* :383 */
 {
     pdSnap_t ns, *old;
     int deltaNum, len;
@@ -306,7 +404,6 @@ static void PD_ParseSnapshot(msg_t *msg)
     if (len > (int)sizeof(ns.areamask))
         Com_Error(ERR_DROP, "PANTHEON demo: areamask length %d", len);
     MSG_ReadData(msg, &ns.areamask, len);
-
     MSG_ReadDeltaPlayerstate(msg, old ? &old->ps : NULL, &ns.ps);
     PD_ParsePacketEntities(msg, old, &ns);
 
@@ -316,8 +413,7 @@ static void PD_ParseSnapshot(msg_t *msg)
     pd.haveLatest = qtrue;
 }
 
-/* cl_parse.c:830 */
-static void PD_ParseGamestate(msg_t *msg)
+static void PD_ParseGamestate(msg_t *msg)                                /* :830 */
 {
     entityState_t nullstate;
     int cmd, i, len, newnum;
@@ -326,6 +422,7 @@ static void PD_ParseGamestate(msg_t *msg)
     memset(&pd.gs, 0, sizeof(pd.gs));
     memset(pd.baselines, 0, sizeof(pd.baselines));
     memset(pd.snaps, 0, sizeof(pd.snaps));
+    pd.haveLatest = qfalse;                    /* a new gamestate invalidates it */
     pd.commandSeq = MSG_ReadLong(msg);
     pd.gs.dataCount = 1;
     for (;;) {
@@ -339,10 +436,11 @@ static void PD_ParseGamestate(msg_t *msg)
             len = strlen(s);
             if (len + 1 + pd.gs.dataCount > MAX_GAMESTATE_CHARS)
                 Com_Error(ERR_DROP, "PANTHEON demo: MAX_GAMESTATE_CHARS");
-            if (i == 0) {
-                /* cl_parse.c:862 -- msg.c picks its field tables from this */
-                int p = atoi(Info_ValueForKey(s, "protocol"));
+            if (i == 0) {                      /* :862 -- msg.c picks field tables from this */
+                const char *value = Info_ValueForKey(s, "protocol");
+                int p = atoi(value);
                 int cp = atoi(Info_ValueForKey(s, "com_protocol"));
+                Cvar_Set("real_protocol", value);
                 if ((p >= 66 && p <= 71) || (cp >= 66 && cp <= 71))
                     Cvar_Set("protocol", va("%d", PROTOCOL_Q3));
                 else if (p == 73 || p == 90) Cvar_Set("protocol", va("%d", p));
@@ -361,16 +459,27 @@ static void PD_ParseGamestate(msg_t *msg)
     }
     pd.clientNum = MSG_ReadLong(msg);
     (void)MSG_ReadLong(msg);                   /* checksumFeed */
-    pd.haveGamestate = qtrue;
-    PANTHEON_CG_SetGameState(&pd.gs);
 }
 
-/* cl_parse.c:1703 */
-static void PD_ParseServerMessage(msg_t *msg)
+static void PD_ServerCommand(msg_t *msg)                                 /* :1338 */
 {
-    int cmd, seq;
-    char *s;
+    int seq = MSG_ReadLong(msg);
+    char *s = MSG_ReadString(msg);
+    char text[BIG_INFO_STRING];
 
+    if (pd.commandSeq >= seq) return;
+    pd.commandSeq = seq;
+    Q_strncpyz(text, s, sizeof(text));
+    /* Keep the reader's gamestate current, whether or not cgame is running. */
+    Cmd_TokenizeString(text);
+    PANTHEON_GameState_Command(&pd.gs, pd.bigcs, sizeof(pd.bigcs));
+    /* Hand it to cgame only once cgame exists for this pass. */
+    if (seq > pd.queueFrom) PANTHEON_CG_QueueServerCommandSeq(seq, s);
+}
+
+static void PD_ParseServerMessage(msg_t *msg)                            /* :1703 */
+{
+    int cmd;
     MSG_Bitstream(msg);
     (void)MSG_ReadLong(msg);                   /* reliableAcknowledge */
     for (;;) {
@@ -385,16 +494,12 @@ static void PD_ParseServerMessage(msg_t *msg)
         if (cmd == svc_EOF) break;
         switch (cmd) {
         case svc_nop: break;
-        case svc_serverCommand:              /* cl_parse.c:1338 */
-            seq = MSG_ReadLong(msg);
-            s = MSG_ReadString(msg);
-            if (pd.commandSeq >= seq) break;
-            pd.commandSeq = seq;
-            PANTHEON_CG_QueueServerCommandSeq(seq, s);
-            break;
-        case svc_gamestate: PD_ParseGamestate(msg); break;
-        case svc_snapshot:  PD_ParseSnapshot(msg);  break;
+        case svc_serverCommand: PD_ServerCommand(msg); break;
+        case svc_gamestate:     PD_ParseGamestate(msg); break;
+        case svc_snapshot:      PD_ParseSnapshot(msg); break;
         default:
+            /* svc_download / svc_voip carry no length prefix we could skip. A
+             * demo containing one is reported, not guessed past. */
             Com_Error(ERR_DROP, "PANTHEON demo: unsupported server message %d", cmd);
         }
     }
@@ -403,12 +508,12 @@ static void PD_ParseServerMessage(msg_t *msg)
 qboolean PANTHEON_Demo_Open(const char *path)
 {
     memset(&pd, 0, sizeof(pd));
+    pd.queueFrom = 0x7fffffff;                 /* nothing queued until a pass starts */
     pd.f = fopen(path, "rb");
     return pd.f != NULL;
 }
 
-/* cl_main.c:1063. Returns qfalse at end of demo. */
-qboolean PANTHEON_Demo_ReadMessage(void)
+qboolean PANTHEON_Demo_ReadMessage(void)                                 /* cl_main.c:1063 */
 {
     static byte data[MAX_MSGLEN];
     msg_t buf;
@@ -422,197 +527,97 @@ qboolean PANTHEON_Demo_ReadMessage(void)
     if (len < 0 || len > MAX_MSGLEN)
         Com_Error(ERR_DROP, "PANTHEON demo: message length %d", len);
     MSG_Init(&buf, data, sizeof(data));
-    if ((int)fread(buf.data, 1, len, pd.f) != len) return qfalse;   /* truncated */
+    if ((int)fread(buf.data, 1, len, pd.f) != len) return qfalse;
     buf.cursize = len;
     buf.readcount = 0;
     PD_ParseServerMessage(&buf);
     return qtrue;
 }
 
-/* The newest valid snapshot, as cgame's snapshot_t (cl_cgame.c CL_GetSnapshot). */
+/* cl_cgame.c CL_GetSnapshot, including its staleness check (:184). */
 qboolean PANTHEON_Demo_Latest(snapshot_t *out, int *messageNum)
 {
     int i, n;
     if (!pd.haveLatest) return qfalse;
+    if (pd.parseNum - pd.latest.parseEntitiesNum >= PD_MAX_PARSE_ENTITIES) return qfalse;
     memset(out, 0, sizeof(*out));
     out->snapFlags = pd.latest.snapFlags;
     out->serverCommandSequence = pd.latest.serverCommandNum;
+    out->ping = 0;
     out->serverTime = pd.latest.serverTime;
+    out->messageNum = pd.latest.messageNum;
     memcpy(out->areamask, pd.latest.areamask, sizeof(out->areamask));
     out->ps = pd.latest.ps;
     n = pd.latest.numEntities;
     if (n > MAX_ENTITIES_IN_SNAPSHOT) n = MAX_ENTITIES_IN_SNAPSHOT;
-    for (i = 0; i < n; i++)
-        out->entities[i] = *PD_OLDSTATE(&pd.latest, i);
+    for (i = 0; i < n; i++) out->entities[i] = *PD_ENT(pd.latest.parseEntitiesNum, i);
     out->numEntities = n;
     *messageNum = pd.latest.messageNum;
     return qtrue;
 }
 
-int  PANTHEON_Demo_ClientNum(void)       { return pd.clientNum; }
-int  PANTHEON_Demo_CommandSequence(void) { return pd.commandSeq; }
+/* From now on, commands after `seq` are cgame's to execute. */
+void PANTHEON_Demo_QueueCommandsAfter(int seq) { pd.queueFrom = seq; }
+int  PANTHEON_Demo_ClientNum(void)             { return pd.clientNum; }
 const gameState_t *PANTHEON_Demo_GameState(void) { return &pd.gs; }
 void PANTHEON_Demo_Close(void) { if (pd.f) fclose(pd.f); pd.f = NULL; }
 ```
 
-- [ ] **Step 2: Add the compile line** in `build_cgame.sh`, directly after the `pantheon_cg_feed.c` line:
+Before building, open `wolfcamql-11.3-src/.../cgame/cg_public.h` and confirm `snapshot_t` has `messageNum` and `ping` (the composed-snapshot code already sets `messageNum`). Remove either line if the field is absent.
 
-```bash
-$CC $CGFLAGS $INC -c "$HERE/host/pantheon_demo_feed.c" -o "$OBJ/pantheon_demo_feed.o"
-```
-
-- [ ] **Step 3: Build**
-
-Run: `cd engine/pantheon_renderer && ./build_cgame.sh`
-Expected: exit 0. (It will fail to link until Task 3 adds `PANTHEON_CG_QueueServerCommandSeq`; if so, do Task 3 Step 1 now and rebuild.)
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add engine/pantheon_renderer/host/pantheon_demo_feed.c engine/pantheon_renderer/build_cgame.sh
-git commit -m "feat: PANTHEON reads .dm_73 with the engine's own decoder"
-```
+- [ ] **Step 3:** `build_cgame.sh`, after the `pantheon_cg_feed.c` line: `$CC $CGFLAGS $HOSTSTRICT $INC -c "$HERE/host/pantheon_demo_feed.c" -o "$OBJ/pantheon_demo_feed.o"` (where `HOSTSTRICT=-Werror=implicit-function-declaration`, applied to every `host/*.c` line in the script).
+- [ ] **Step 4:** Build, exit 0. Render the existing `v2.shot` sequence (composed shots must be unchanged): 66 frames, byte-identical to the Task 0 build's output of the same shot.
+- [ ] **Step 5:** Commit: `feat: PANTHEON reads .dm_73 with the engine's own decoder, gamestate kept current`
 
 ---
 
-### Task 3: Server commands and configstrings, as the client applies them
+### Task 3: Gate G1 — two decoders agree, down to the entities
 
-In the real client, `CL_GetServerCommand` rewrites `cl.gameState` when a `cs` command arrives (`CL_ConfigstringModified`) and joins `bcs0/bcs1/bcs2` big configstrings, *before* cgame reads the command. cgame then calls `trap_GetGameState` to see the new value. Without this, scores, player joins, model changes and the warmup/round clock never update.
+**Files:** `host/pantheon_frame.c`, `engine/parser/demo_parse.py`, create `creative_suite/tests/test_pantheon_demo_feed.py`
 
-**Files:**
-- Modify: `engine/pantheon_renderer/host/pantheon_cg_feed.c`
+- [ ] **Step 1: `--dump-snapshots` in `pantheon_frame.c`**
 
-- [ ] **Step 1: Add sequence-numbered queueing and configstring application**
-
-```c
-/* Queue with the sequence the SERVER gave it, not our own counter: cgame's
- * snapshot.serverCommandSequence is the server's number, and cgame asks for
- * exactly those. */
-void PANTHEON_CG_QueueServerCommandSeq(int seq, const char *text)
-{
-    if (!text || seq <= 0) return;
-    Q_strncpyz(cg_cmds[seq % PANTHEON_CMD_RING], text, BIG_INFO_STRING);
-    cg_cmd_num[seq % PANTHEON_CMD_RING] = seq;
-    if (seq > cg_cmd_seq) cg_cmd_seq = seq;
-}
-
-/* cl_cgame.c CL_ConfigstringModified: rebuild the string pool with one
- * index replaced. */
-static void PANTHEON_CG_SetConfigstring(int index, const char *value)
-{
-    gameState_t old = cg_gs;
-    int i, len;
-
-    if (index < 0 || index >= MAX_CONFIGSTRINGS) return;
-    memset(&cg_gs, 0, sizeof(cg_gs));
-    cg_gs.dataCount = 1;
-    for (i = 0; i < MAX_CONFIGSTRINGS; i++) {
-        const char *s = (i == index) ? value
-                      : (old.stringOffsets[i] ? old.stringData + old.stringOffsets[i] : "");
-        if (!s[0]) continue;
-        len = strlen(s);
-        if (len + 1 + cg_gs.dataCount > MAX_GAMESTATE_CHARS)
-            Com_Error(ERR_DROP, "PANTHEON: MAX_GAMESTATE_CHARS applying cs %d", index);
-        cg_gs.stringOffsets[i] = cg_gs.dataCount;
-        memcpy(cg_gs.stringData + cg_gs.dataCount, s, len + 1);
-        cg_gs.dataCount += len + 1;
-    }
-}
-```
-
-Add `static int cg_cmd_num[PANTHEON_CMD_RING];` beside `cg_cmds`, and `static char cg_bigcs[BIG_INFO_STRING];`.
-
-Replace `PANTHEON_CG_GetServerCommand` with:
-
-```c
-qboolean PANTHEON_CG_GetServerCommand(int seq)
-{
-    const char *cmd;
-    if (seq <= 0 || seq > cg_cmd_seq) return qfalse;
-    if (cg_cmd_num[seq % PANTHEON_CMD_RING] != seq) return qfalse;   /* aged out */
-    Cmd_TokenizeString(cg_cmds[seq % PANTHEON_CMD_RING]);
-    cmd = Cmd_Argv(0);
-
-    /* cl_cgame.c CL_GetServerCommand: big configstrings arrive in pieces */
-    if (!strcmp(cmd, "bcs0")) { Q_strncpyz(cg_bigcs, va("cs %s \"%s", Cmd_Argv(1), Cmd_Argv(2)), sizeof(cg_bigcs)); return qfalse; }
-    if (!strcmp(cmd, "bcs1")) { Q_strcat(cg_bigcs, sizeof(cg_bigcs), Cmd_Argv(2)); return qfalse; }
-    if (!strcmp(cmd, "bcs2")) {
-        Q_strcat(cg_bigcs, sizeof(cg_bigcs), va("%s\"", Cmd_Argv(2)));
-        Cmd_TokenizeString(cg_bigcs);
-        cmd = Cmd_Argv(0);
-    }
-    if (!strcmp(cmd, "cs")) {
-        PANTHEON_CG_SetConfigstring(atoi(Cmd_Argv(1)), Cmd_ArgsFrom(2));
-        Cmd_TokenizeString(cg_cmds[seq % PANTHEON_CMD_RING]);   /* cgame re-reads it */
-        if (!strcmp(Cmd_Argv(0), "bcs2")) Cmd_TokenizeString(cg_bigcs);
-    }
-    return qtrue;
-}
-```
-
-In `PANTHEON_CG_Reset`, also `memset(cg_cmd_num, 0, sizeof(cg_cmd_num));`.
-
-- [ ] **Step 2: Build**
-
-Run: `cd engine/pantheon_renderer && ./build_cgame.sh`
-Expected: exit 0.
-
-- [ ] **Step 3: Commit**
-
-```bash
-git add engine/pantheon_renderer/host/pantheon_cg_feed.c
-git commit -m "feat: configstring changes reach cgame the way the client applies them"
-```
-
----
-
-### Task 4: `--dump-snapshots` and gate G1
-
-The decoder is the one place a subtle bug corrupts every frame downstream. It is proven against the independent Python decoder before anything renders from it.
-
-**Files:**
-- Modify: `engine/pantheon_renderer/host/pantheon_frame.c` (argument parsing, and an early-exit mode after `Com_Init`)
-- Create: `creative_suite/tests/test_pantheon_demo_feed.py`
-
-- [ ] **Step 1: Add the mode to `pantheon_frame.c`**
-
-Declarations near the other `PANTHEON_CG_*` prototypes:
+Prototypes beside the other `PANTHEON_CG_*` declarations:
 
 ```c
 qboolean PANTHEON_Demo_Open(const char *path);
 qboolean PANTHEON_Demo_ReadMessage(void);
 qboolean PANTHEON_Demo_Latest(snapshot_t *out, int *messageNum);
 int      PANTHEON_Demo_ClientNum(void);
-int      PANTHEON_Demo_CommandSequence(void);
+const gameState_t *PANTHEON_Demo_GameState(void);
+void     PANTHEON_Demo_QueueCommandsAfter(int seq);
 void     PANTHEON_Demo_Close(void);
-static const char *s_dumpSnapshots;   /* --dump-snapshots <demo>: decode, no render */
+static const char *s_dumpSnapshots;
 ```
 
-Argument (beside `--dump-model`):
+Argument: `else if (!strcmp(argv[i], "--dump-snapshots") && i + 1 < argc) s_dumpSnapshots = argv[++i];`
 
-```c
-        else if (!strcmp(argv[i], "--dump-snapshots") && i + 1 < argc)
-            s_dumpSnapshots = argv[++i];
-```
+The `--map or --shot is required` check (line ~673) becomes `if (!cliMap[0] && !s_dumpModel && !s_dumpSnapshots && !s_demoPath)`.
 
-Immediately after `Com_Init(cmdline);`, before any GL work:
+Immediately after `Com_Init(cmdline);`:
 
 ```c
     if (s_dumpSnapshots) {
-        /* G1: one TSV line per valid snapshot, compared against DM73Parser.
-         * No GL context is created, so this runs anywhere. */
+        /* G1. One S line per valid snapshot, one E line per player/missile
+         * entity in it. No GL context: runs anywhere. */
         snapshot_t snap;
-        int num, last = -1;
+        int num, last = -1, k;
         if (!PANTHEON_Demo_Open(s_dumpSnapshots)) {
             fprintf(stderr, "PANTHEON: cannot open %s\n", s_dumpSnapshots);
             return 2;
         }
-        printf("messageNum\tserverTime\tox\toy\toz\tnumEntities\n");
         while (PANTHEON_Demo_ReadMessage())
             if (PANTHEON_Demo_Latest(&snap, &num) && num != last) {
-                printf("%d\t%d\t%.1f\t%.1f\t%.1f\t%d\n", num, snap.serverTime,
+                printf("S\t%d\t%d\t%.1f\t%.1f\t%.1f\t%d\n", num, snap.serverTime,
                        snap.ps.origin[0], snap.ps.origin[1], snap.ps.origin[2],
                        snap.numEntities);
+                for (k = 0; k < snap.numEntities; k++) {
+                    const entityState_t *e = &snap.entities[k];
+                    if (e->eType == ET_PLAYER || e->eType == ET_MISSILE)
+                        printf("E\t%d\t%d\t%d\t%.1f\t%.1f\t%.1f\n", snap.serverTime,
+                               e->number, e->eType, e->pos.trBase[0],
+                               e->pos.trBase[1], e->pos.trBase[2]);
+                }
                 last = num;
             }
         PANTHEON_Demo_Close();
@@ -620,20 +625,32 @@ Immediately after `Com_Init(cmdline);`, before any GL work:
     }
 ```
 
-- [ ] **Step 2: Write the G1 test**
+- [ ] **Step 2: Optional entity capture in `DM73Parser`** (`engine/parser/demo_parse.py`). Add `capture_entities: bool = False` to `__init__`, store it, and initialise `self._entity_capture: dict[int, dict[int, tuple]] = {}`. At the point where the snapshot is appended (`snapshots.append(snap)`, ~line 894), add:
+
+```python
+        if self._capture_entities:
+            # G1: the entity state AFTER this snapshot, keyed by server time.
+            # Players and missiles only -- the entities the picture is made of.
+            self._entity_capture[server_time] = {
+                num: (st.get(_F_ETYPE), st.get(_F_POS_X), st.get(_F_POS_Y), st.get(_F_POS_Z))
+                for num, st in self._entity_states.items()
+                if st.get(_F_ETYPE) in (1, 3)
+            }
+```
+
+and include `"entities_by_time": self._entity_capture` in `parse()`'s returned dict when capture is on. Confirm `_F_POS_Y`/`_F_POS_Z` exist beside `_F_POS_X`; use the file's actual names. Default off: run `E:/PersonalAI/venv/Scripts/python.exe -m pytest engine/parser/tests -q` and confirm no change.
+
+Note on what "the entity state after this snapshot" means: `_entity_states` in DM73Parser is the accumulated delta state, which is the same quantity `PD_ENT` holds for the entities present in the snapshot. An entity DM73Parser still holds but the C snapshot omits (removed this frame) is a real disagreement; report it rather than filter it.
+
+- [ ] **Step 3: The G1 test**
 
 ```python
 # creative_suite/tests/test_pantheon_demo_feed.py
-"""G1: the C demo reader and DM73Parser agree on every snapshot.
-
-Integration test: needs the corpus catalogue and a built pantheon_cgame.exe,
-skips cleanly without them. Two independent decoders agreeing is the proof;
-neither is trusted alone.
-"""
+"""G1: the C demo reader and DM73Parser agree on every snapshot and on every
+player and missile in it. Two independent decoders agreeing is the proof;
+neither is trusted alone. Skips cleanly without the corpus or the exe."""
 from __future__ import annotations
 
-import csv
-import io
 import sqlite3
 import subprocess
 from pathlib import Path
@@ -643,7 +660,7 @@ import pytest
 from engine.pantheon import store as S
 from engine.pantheon.pantheon_capture import host_exe
 
-G1_HASHES = ("4db16c445bcaafce",)   # REAL_ACTION_TRACE_PROOF_01's demo; add two more at execution
+G1_HASHES = ("4db16c445bcaafce",)   # + two more at execution: another map, protocol 91
 
 
 def _demo(prefix: str) -> Path:
@@ -658,61 +675,61 @@ def _demo(prefix: str) -> Path:
     return Path(row[0])
 
 
-def _c_snapshots(demo: Path) -> list[dict]:
+def _c_dump(demo: Path):
     if not host_exe().exists():
         pytest.skip("pantheon_cgame.exe not built")
     out = subprocess.run([str(host_exe()), "--dump-snapshots", str(demo)],
-                         capture_output=True, text=True, timeout=600, check=True).stdout
-    return list(csv.DictReader(io.StringIO(out), delimiter="\t"))
+                         capture_output=True, text=True, timeout=900, check=True).stdout
+    snaps, ents = {}, {}
+    for line in out.splitlines():
+        f = line.split("\t")
+        if f[0] == "S":
+            snaps[int(f[2])] = tuple(map(float, f[3:6]))
+        elif f[0] == "E":
+            ents.setdefault(int(f[1]), {})[int(f[2])] = (int(f[3]), *map(float, f[4:7]))
+    return snaps, ents
+
+
+def _close(a, b, tol=0.5):
+    return all(x is not None and abs(float(x) - float(y)) <= tol for x, y in zip(a, b))
 
 
 @pytest.mark.parametrize("prefix", G1_HASHES)
 def test_c_reader_agrees_with_dm73parser_on_every_snapshot(prefix):
     from engine.parser.demo_parse import DM73Parser
     demo = _demo(prefix)
-    py = DM73Parser(demo).parse()["snapshots"]
-    c = _c_snapshots(demo)
-    by_time = {int(r["serverTime"]): r for r in c}
-    assert len(by_time) >= 0.99 * len(py), (len(by_time), len(py))
+    py = DM73Parser(demo, capture_entities=True).parse()
+    c_snaps, c_ents = _c_dump(demo)
+
     bad = []
-    for s in py:
-        r = by_time.get(int(s["server_time_ms"]))
-        if r is None:
-            bad.append((s["server_time_ms"], "missing in C"))
+    for s in py["snapshots"]:
+        t = int(s["server_time_ms"])
+        if t not in c_snaps:
+            bad.append((t, "snapshot missing in C"))
             continue
-        o = s.get("origin") or (s.get("origin[0]"), s.get("origin[1]"), s.get("origin[2]"))
-        if any(abs(float(r[k]) - float(v)) > 0.5 for k, v in zip(("ox", "oy", "oz"), o)):
-            bad.append((s["server_time_ms"], "origin", o, (r["ox"], r["oy"], r["oz"])))
-    assert not bad, bad[:10]
+        if not _close((s["origin_x"], s["origin_y"], s["origin_z"]), c_snaps[t]):
+            bad.append((t, "ps.origin", c_snaps[t]))
+        want = py["entities_by_time"].get(t, {})
+        got = c_ents.get(t, {})
+        for num in set(want) | set(got):
+            if num not in got or num not in want:
+                bad.append((t, "entity presence", num, num in want, num in got))
+            elif want[num][0] != got[num][0] or not _close(want[num][1:], got[num][1:]):
+                bad.append((t, "entity", num, want[num], got[num]))
+    assert len(c_snaps) >= 0.99 * len(py["snapshots"])
+    assert not bad, bad[:15]
 ```
 
-Before running: open `engine/parser/demo_parse.py:1169` (`_read_playerstate`) and confirm the key the snapshot dict uses for origin. Adjust the `o = ...` line to that key; do not guess. If `DM73Parser` records no per-snapshot entity count, compare counts only where it does.
-
-- [ ] **Step 3: Build and run**
-
-Run: `cd engine/pantheon_renderer && ./build_cgame.sh && cd ../.. && E:/PersonalAI/venv/Scripts/python.exe -m pytest creative_suite/tests/test_pantheon_demo_feed.py -q`
-Expected: PASS (or SKIP with a stated reason). A FAIL is a decoder bug — stop and fix it before Task 5; every later gate depends on this one.
-
-- [ ] **Step 4: Add two more demos to `G1_HASHES`** (different maps, at least one protocol-91), rerun, expect PASS.
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add engine/pantheon_renderer/host/pantheon_frame.c creative_suite/tests/test_pantheon_demo_feed.py
-git commit -m "test: G1 -- the C demo reader agrees with DM73Parser"
-```
+- [ ] **Step 4:** Build and run. **A failure is a decoder bug: stop and fix it before Task 4** — every later gate stands on this one. Then add two more hashes (another map; a protocol-91 demo) and rerun.
+- [ ] **Step 5:** Commit: `test: G1 -- the C reader agrees with DM73Parser, entities included`
 
 ---
 
-### Task 5: Render a demo window from the recorder's eyes
+### Task 4: Render demo passes from the recorder's eyes — then stop H1
 
-**Files:**
-- Modify: `engine/pantheon_renderer/host/pantheon_cg_run.c` (`PANTHEON_CG_Init` signature)
-- Modify: `engine/pantheon_renderer/host/pantheon_frame.c` (`--demo`, `--window`, `--fps`, and a demo render loop)
+**Files:** `host/pantheon_cg_run.c`, `host/pantheon_frame.c`
 
-- [ ] **Step 1: Let CG_Init start as the recorder, at a known command sequence**
-
-In `pantheon_cg_run.c` change `PANTHEON_CG_Init(void)` to:
+- [ ] **Step 1: `PANTHEON_CG_Init` takes the recorder and a command sequence**
 
 ```c
 void PANTHEON_CG_Init(int clientNum, int serverCommandSequence)
@@ -721,22 +738,22 @@ void PANTHEON_CG_Init(int clientNum, int serverCommandSequence)
         Com_Error(ERR_FATAL, "PANTHEON: CG_Init before a gamestate and two "
                              "snapshots were fed");
     dllEntry(PANTHEON_CG_Syscall);
-    /* serverMessageNum, serverCommandSequence, clientNum, demoPlayback.
-     * Commands at or below serverCommandSequence are treated as already
-     * executed -- which is true: they happened before the pre-roll. */
+    /* Commands at or below serverCommandSequence are already reflected in the
+     * gamestate cgame is handed (the reader applied them); cgame executes
+     * only the ones after. */
     vmMain(CG_INIT, 1, serverCommandSequence, clientNum, qtrue, 0, 0, 0, 0, 0, 0, 0, 0);
     PANTHEON_CG_RegisterAllWeapons();
 }
 ```
 
-Update the two existing call sites in `pantheon_frame.c` to `PANTHEON_CG_Init(0, 0);` (composed shots keep today's behaviour).
+Update the prototype at `pantheon_frame.c:50` to `void PANTHEON_CG_Init(int clientNum, int serverCommandSequence);` and the two existing call sites to `PANTHEON_CG_Init(0, 0);`. Every call to `PANTHEON_CG_Frame` keeps its two arguments `(t, firstFrame)`.
 
-- [ ] **Step 2: Add the arguments**
+- [ ] **Step 2: Arguments**
 
 ```c
 #define PA_MAX_WINDOWS 64
 #define PREROLL_MS     1500
-typedef struct { char clip[MAX_QPATH]; int start, end; char outdir[MAX_OSPATH]; } paWindow_t;
+typedef struct { char clip[MAX_QPATH]; int start, end; char outdir[MAX_OSPATH]; int frames; } paWindow_t;
 static const char *s_demoPath;
 static paWindow_t  s_windows[PA_MAX_WINDOWS];
 static int         s_numWindows;
@@ -760,15 +777,28 @@ static int         s_fps = 60;
         }
 ```
 
-`--demo` requires `--map`-free startup: the map comes from the demo's `CS_SERVERINFO`. `--demo` with `--shot` is an error.
+Validation after parsing: `--demo` excludes `--shot`; windows sorted by `start` (else `ShotError`); `s_fps` in 1..240.
 
-- [ ] **Step 3: The demo render path**
+**Frame count must equal wolfcam's** (`frames_expected`, `wolfcam_capture.py:394`, which rounds): per window `n = (int)((end - start) * s_fps / 1000.0 + 0.5)`; frame `k` at `t_k = start + (int)((k * 1000.0) / s_fps + 0.5)`.
 
-Windows must be sorted by `start` (enforce: `ShotError` if not). For each window, in one process (the batching win from `ba8925e4`):
+- [ ] **Step 3: Passes, and the registration window**
+
+Windows whose pre-roll would start before the previous window ends are **merged into one pass**: a pass renders continuously from `firstStart − PREROLL_MS` to `lastEnd`, and each frame time is written into every window that contains it. Separate passes need `pass[n].start − PREROLL_MS ≥ pass[n−1].end`.
+
+Before any GL registration closes:
+
+1. **Pre-scan** (a first `PANTHEON_Demo_Open` → read all → `Close`): record the first and last valid snapshot server times, and the value of `CS_LEVEL_START_TIME` in the gamestate at the first snapshot. Call `PANTHEON_CG_SetDemoInfo(levelStart, lastTime, firstTime, lastTime, mapname)` — after any `PANTHEON_CG_Reset`, never before (Reset no longer clears it; it is set once per demo).
+2. **Reopen**, read until the latest snapshot's `serverTime ≥ pass0.start − PREROLL_MS`.
+3. The map comes from the reader's `CS_SERVERINFO` `mapname`; cgame loads it (`CG_R_LOADWORLDMAP`) inside `CG_Init`, which must therefore run **before** `re->EndRegistration()` — the existing composed-shot ordering (`pantheon_frame.c:853`). Restructure `main` so the demo path reaches this point before `EndRegistration`.
+4. `PANTHEON_CG_Reset(); PANTHEON_CG_SetGameState(PANTHEON_Demo_GameState());` push the current snapshot (call its `serverCommandSequence` `seq0`), read to the next valid snapshot and push it; `PANTHEON_Demo_QueueCommandsAfter(seq0)`; `PANTHEON_CG_SetDemoInfo(...)`; `PANTHEON_CG_Init(PANTHEON_Demo_ClientNum(), seq0);` then the existing drains.
+
+Later passes: read forward to the pass's pre-roll, `PANTHEON_CG_Shutdown()`, then step 4 again (without the EndRegistration constraint — the world is resident; `CG_R_LOADWORLDMAP` already answers a same-map repeat with nothing).
+
+Feeding during a pass:
 
 ```c
-/* Feed until the newest snapshot is AT OR PAST t_ms, so cgame always has a
- * nextSnap beyond the frame being drawn. Returns qfalse at end of demo. */
+/* Push snapshots until the newest one is PAST t_ms, so cgame always has a
+ * nextSnap beyond the frame being drawn. qfalse at end of demo. */
 static qboolean PANTHEON_DemoFeedTo(int t_ms, int *pushed)
 {
     snapshot_t snap;
@@ -784,162 +814,145 @@ static qboolean PANTHEON_DemoFeedTo(int t_ms, int *pushed)
 }
 ```
 
-Per window:
-1. Read messages (without pushing) until the latest snapshot's `serverTime >= start - PREROLL_MS`.
-2. `PANTHEON_CG_Reset()`; `PANTHEON_CG_SetGameState(PANTHEON_Demo_GameState())`; push the current snapshot, read to the next one and push it (cgame needs a pair).
-3. First window only, inside the registration window: `PANTHEON_CG_Init(PANTHEON_Demo_ClientNum(), PANTHEON_Demo_CommandSequence())` then the existing drains. Later windows: `PANTHEON_CG_Shutdown()` then the same `PANTHEON_CG_Init(...)` (as `--shot` takes do today).
-4. Pre-roll: for `t = start - PREROLL_MS` step `1000 / s_fps` to `< start`: `PANTHEON_DemoFeedTo(t)`, `BeginFrame`, clear, `PANTHEON_CG_Frame(t)`, `EndFrame`; **no readback** — this only advances trails, marks and local entities to the state they have at `start`.
-5. Capture: frame `k = 0 .. floor((end - start) * s_fps / 1000) - 1` at `t = start + (k * 1000 + s_fps / 2) / s_fps` (integer ms, rounded, monotonic), feed, render, read back through the existing path (blur, depth and offscreen checks all apply), write `outdir/<clip>_<k:06d>.tga`.
-6. If the demo ends before `end`: finish the frames that exist, print `PANTHEON: window <clip> short: demo ended at <t>`, and continue to the next window. The Python side reports it (`under_sampled`).
+Pre-roll frames (`t` from pass start to `firstStart`, step `1000 / s_fps`): feed, `BeginFrame`, clear, `PANTHEON_CG_Frame(t, qfalse)`, `EndFrame`, **no readback** — they only bring trails, marks and local entities to their state at the window start.
 
-Record at the end: `PANTHEON: window <clip> frames=<n> start=<s> end=<e>` — `pantheon_capture.py` parses these lines.
+Capture frames: feed, render through the existing path (FBO checks, blur, depth all apply), write `outdir/<clip>_<k:06d>.tga` for each window containing `t_k`; count `w->frames`. If the demo ends early: stop the pass, keep what exists.
 
-- [ ] **Step 4: Smoke run on the proof demo**
+At the end print one line per window: `PANTHEON: window <clip> frames=<n> expected=<m> start=<s> end=<e>`.
 
-Run (Git Bash; `$DEMO` from `test_pantheon_demo_feed._demo("4db16c445bcaafce")`):
+- [ ] **Step 4: Two adjacent windows test** — windows 1 s apart in the proof demo must both be complete (`frames == expected`) and the log must show one pass.
+
+- [ ] **Step 5: Smoke render and stop H1**
+
+`$DEMO` from `test_pantheon_demo_feed._demo("4db16c445bcaafce")`; staging `$S=$PWD/output/demo_v2/_wolfcam_staging` (main checkout data root):
 ```bash
-engine/pantheon_renderer/build/pantheon_cgame.exe --basepath "$PWD/output/demo_v2/_wolfcam_staging" --game baseq3 --cgame --set cg_draw2D 1 --width 1280 --height 720 --fps 60 --demo "$DEMO" --window proof 1197225 1200725 /tmp/pc_proof
+engine/pantheon_renderer/build/pantheon_cgame.exe --basepath "$S" --game wolfcam-ql --cgame --width 1280 --height 720 --fps 60 --demo "$DEMO" --window proof 1197225 1200725 /tmp/pc_proof
 ```
-Expected: exit 0, `frames=210` (3.5 s × 60), 210 TGAs, 1280×720. Open frames 0, 105, 209: first-person view of client 5 with the HUD — the jump-pad rocket from `REAL_ACTION_TRACE_PROOF_01`. Save three PNGs to `docs/visual-record/<date>/pantheon_demo_window_*.png` (VIS-1).
+Expected: exit 0; `frames=210 expected=210`; 210 TGAs at 1280×720; the log shows `wolfcam-ql/zzz_*.pk3` loaded. Save frames 0, 105, 209 as PNG to `docs/visual-record/<date>/pantheon_demo_window_*.png` (VIS-1).
 
-- [ ] **Step 5: Commit**
+**STOP H1.** Send the three PNGs to the user with the question: *"Is this the first-person capture you'd expect for this moment — view, HUD, weapon, effects?"* Do not start Task 5 without a yes.
 
-```bash
-git add engine/pantheon_renderer/host/pantheon_frame.c engine/pantheon_renderer/host/pantheon_cg_run.c docs/visual-record/
-git commit -m "feat: PANTHEON renders a demo window from the recorder's eyes"
-```
+- [ ] **Step 6:** Commit: `feat: PANTHEON renders demo passes from the recorder's eyes`
 
 ---
 
-### Task 6: Gate G2 — frame parity against wolfcam
+### Task 5: Gate G2 harness — frames by server time — then stop H2
 
-**Files:**
-- Create: `engine/pantheon/capture_parity.py`
-- Modify: `creative_suite/tests/test_pantheon_headless_boundary.py` (classify `capture_parity` as `BACKEND_ALLOWED`)
+**Files:** create `engine/pantheon/capture_parity.py`; classify it `BACKEND_ALLOWED` in `test_pantheon_headless_boundary.py`
 
-- [ ] **Step 1: Write the harness**
+- [ ] **Step 1: Harness**
 
 ```python
 # engine/pantheon/capture_parity.py
-"""G2: the same instants, rendered by wolfcam and by PANTHEON, side by side.
+"""G2 and G3: wolfcam and PANTHEON at the same SERVER TIMES, side by side.
 
-For each frag window: capture with each backend, take frames at the SAME
-server times (0 %, 50 %, 100 % of the window), and build one review sheet.
-The verdict is a human's; this only makes the question impossible to dodge.
+A frame is chosen by server time, never by a fraction of the file: wolfcam's
+AVIs are retimed and can differ in length. Frame k of a window is the frame
+rendered at start + k*1000/fps in both backends (both round the same way).
+The verdict is a human's; this makes the question impossible to dodge.
 """
 from __future__ import annotations
 
-import os
 import subprocess
 from pathlib import Path
 
 from engine.pantheon import review_sheet, store as S
 
 FFMPEG = S.PROJECT_ROOT / "creative_suite" / "tools" / "ffmpeg" / "ffmpeg.exe"
-FRACTIONS = (0.0, 0.5, 0.999)
 
 
-def frame_at(avi: Path, fraction: float, dest: Path) -> Path:
-    """Extract the frame at `fraction` of the clip's duration."""
-    dur = float(subprocess.run(
-        [str(FFMPEG.with_name("ffprobe.exe")), "-v", "error", "-show_entries",
-         "format=duration", "-of", "default=nw=1:nk=1", str(avi)],
-        capture_output=True, text=True, check=True).stdout.strip())
-    subprocess.run([str(FFMPEG), "-y", "-loglevel", "error", "-ss", f"{dur * fraction:.3f}",
-                    "-i", str(avi), "-frames:v", "1", str(dest)], check=True)
+def frame_index(t_ms: int, start_ms: int, fps: int) -> int:
+    return int(round((t_ms - start_ms) * fps / 1000.0))
+
+
+def frame_at(avi: Path, index: int, dest: Path) -> Path:
+    subprocess.run([str(FFMPEG), "-y", "-loglevel", "error", "-i", str(avi),
+                    "-vf", f"select=eq(n\\,{index})", "-frames:v", "1", str(dest)],
+                   check=True)
     return dest
 
 
-def parity_sheet(clip: str, wolfcam_avi: Path, pantheon_avi: Path, work: Path) -> dict:
+def parity_sheet(window: dict, fps: int, wolfcam_avi: Path, pantheon_avi: Path,
+                 work: Path) -> dict:
+    s, e = int(window["start_ms"]), int(window["end_ms"])
+    times = (s, (s + e) // 2, e - int(1000 / fps))
     work.mkdir(parents=True, exist_ok=True)
     legs = {}
-    for f in FRACTIONS:
-        tag = f"{int(f * 100):02d}"
-        legs[f"wolfcam {tag}%"] = frame_at(wolfcam_avi, f, work / f"w_{tag}.png")
-        legs[f"pantheon {tag}%"] = frame_at(pantheon_avi, f, work / f"p_{tag}.png")
+    for t in times:
+        i = frame_index(t, s, fps)
+        legs[f"wolfcam t={t}"] = frame_at(wolfcam_avi, i, work / f"w_{t}.png")
+        legs[f"pantheon t={t}"] = frame_at(pantheon_avi, i, work / f"p_{t}.png")
     return review_sheet.compare(
-        f"parity_{clip}", "Is this the same moment, from the same eyes, with the same HUD and effects?",
-        "renderer", legs, note="G2. PASS only if nothing is missing or wrong in PANTHEON's frames.")
-
-
-def run(windows_by_demo: dict[str, list[dict]], work: Path) -> list[dict]:
-    """Capture every window with both backends and return one sheet per clip."""
-    from creative_suite.engine import wolfcam_capture as W
-    sheets = []
-    for demo, windows in windows_by_demo.items():
-        results = {}
-        for backend in ("wolfcam", "pantheon"):
-            os.environ["PANTHEON_CAPTURE_BACKEND"] = backend
-            results[backend] = W.capture_demo(demo, windows)
-        for w in windows:
-            c = w["clip_name"]
-            sheets.append(parity_sheet(c, Path(results["wolfcam"]["avis"][c]),
-                                       Path(results["pantheon"]["avis"][c]), work / c))
-    os.environ.pop("PANTHEON_CAPTURE_BACKEND", None)
-    return sheets
+        f"parity_{window['clip_name']}",
+        "Same moment, same eyes, same HUD and effects?", "renderer", legs,
+        note="G2. PASS only if nothing is missing or wrong in PANTHEON's frames.")
 ```
 
-This task depends on Task 8 (the dispatch). Build the harness now; run Step 2 after Task 8.
+- [ ] **Step 2 (after Task 7): Run on 10 frags** the user picks (RL, rail, LG, a multi-kill, three maps). Capture each window with `PANTHEON_CAPTURE_BACKEND=wolfcam` then `=pantheon` through `capture_demo`, build the sheets, save them to `docs/visual-record/<date>/`.
 
-- [ ] **Step 2 (after Task 8): Run on 10 frags** chosen by the user (Gate P-3 analogue: include RL, rail, LG, a multi-kill and one frag on each of three maps). Save the sheets to `docs/visual-record/<date>/`, send them to the user, and record each verdict in `docs/reference/<date>-capture-parity-g2.md` as `clip | verdict | note`.
+**STOP H2.** Send the ten sheets; record each verdict in `docs/reference/<date>-capture-parity.md` as `clip | verdict | note`.
 
-- [ ] **Step 3: Commit**
-
-```bash
-git add engine/pantheon/capture_parity.py creative_suite/tests/test_pantheon_headless_boundary.py
-git commit -m "feat: G2 parity sheets -- wolfcam and PANTHEON at the same instants"
-```
+- [ ] **Step 3:** Commit: `feat: G2 parity sheets at matching server times`
 
 ---
 
-### Task 7: Sound, from cgame's own calls
+### Task 6: Sound, from cgame's own calls
 
-cgame already decides every sound: which sample, which entity, which channel, where, when. Today `pantheon_cg_syscall.c` counts those calls and drops them. Log them instead, with the listener track, and mix offline.
-
-**Files:**
-- Create: `engine/pantheon_renderer/host/pantheon_sound_log.c`
-- Modify: `engine/pantheon_renderer/host/pantheon_cg_syscall.c` (sound cases)
-- Modify: `engine/pantheon_renderer/host/pantheon_frame.c` (`--sound-log <path>`, listener line per captured frame)
-- Modify: `engine/pantheon_renderer/build_cgame.sh`
+**Files:** create `host/pantheon_sound_log.c`; modify `host/pantheon_cg_syscall.c`, `host/pantheon_cg_run.c`, `host/pantheon_cg_feed.c`, `host/pantheon_frame.c`, `build_cgame.sh`
 
 - [ ] **Step 1: The logger**
 
 ```c
 /*
- * THE SOUNDS CGAME ASKED FOR, IN ORDER, WITH WHERE AND WHEN.
+ * THE SOUNDS CGAME ASKED FOR, WITH WHERE AND WHEN.
  *
- * Plays nothing. engine/pantheon/sound_mix.py turns this into a WAV, so the
- * audio is a pure function of the log and the pak samples -- rendering the
- * same moment twice gives the same mix. Lines are tab-separated:
- *   S  <time_ms> <entity> <channel> <sfx> <x> <y> <z>   positional start
- *   L  <time_ms> <sfx> <channel>                          local (UI, announcer)
- *   E  <time_ms> <x> <y> <z> <pitch> <yaw> <roll>         listener, per frame
- *   R  <sfx> <name>                                       registration
+ * Plays nothing: engine/pantheon/sound_mix.py turns the log into a WAV, so the
+ * audio is a pure function of the log and the pak samples. Tab-separated:
+ *   R <sfx> <name>                               registration (once per name)
+ *   S <time> <entity> <channel> <sfx> <x> <y> <z> positional start
+ *   L <time> <sfx> <channel>                     local (announcer, UI)
+ *   E <time> <x> <y> <z> <pitch> <yaw> <roll>    listener, per captured frame
+ * Times are server ms. Passes never overlap in time (Task 4), so an event
+ * belongs to every window whose range contains its time and to no other.
  */
 #include "../wolfcamql-11.3-src/wolfcamql-src/code/qcommon/q_shared.h"
 #include <stdio.h>
+#include <string.h>
 
-#define PS_MAX_SFX 1024
+#define PS_MAX_SFX 4096
 static FILE *s_log;
-static int   s_numSfx;
-static int   s_time;
+static char  s_names[PS_MAX_SFX][MAX_QPATH];
+static int   s_numSfx, s_time;
 
-void PANTHEON_Sound_Open(const char *path) { s_log = fopen(path, "w"); }
-void PANTHEON_Sound_Close(void) { if (s_log) fclose(s_log); s_log = NULL; }
-void PANTHEON_Sound_SetTime(int t) { s_time = t; }
+qboolean PANTHEON_CG_EntityOrigin(int entityNum, vec3_t out);   /* pantheon_cg_feed.c */
 
-/* Handle 0 means "no sound" to cgame, so handles start at 1. */
+void PANTHEON_Sound_Open(const char *path)  { s_log = fopen(path, "w"); }
+void PANTHEON_Sound_Close(void)             { if (s_log) fclose(s_log); s_log = NULL; }
+void PANTHEON_Sound_SetTime(int t)          { s_time = t; }
+
+/* A name keeps its handle for the life of the process: every pass's CG_Init
+ * re-registers every sound, and issuing new handles would exhaust the table
+ * by the third window. Handle 0 is "no sound" to cgame, so handles start at 1. */
 int PANTHEON_Sound_Register(const char *name)
 {
+    int i;
+    for (i = 1; i <= s_numSfx; i++)
+        if (!Q_stricmp(s_names[i], name)) return i;
     if (s_numSfx + 1 >= PS_MAX_SFX) return 0;
     s_numSfx++;
+    Q_strncpyz(s_names[s_numSfx], name, MAX_QPATH);
     if (s_log) fprintf(s_log, "R\t%d\t%s\n", s_numSfx, name);
     return s_numSfx;
 }
 
 void PANTHEON_Sound_Start(const float *origin, int ent, int chan, int sfx)
 {
+    vec3_t o;
     if (!s_log || sfx <= 0) return;
+    /* An entity-attached sound (origin NULL) -- another player's shot, a hit
+     * -- is placed where that entity is in the snapshot now, so it is not
+     * mixed at full volume from inside the listener's head. */
+    if (!origin && PANTHEON_CG_EntityOrigin(ent, o)) origin = o;
     if (origin) fprintf(s_log, "S\t%d\t%d\t%d\t%d\t%.1f\t%.1f\t%.1f\n",
                         s_time, ent, chan, sfx, origin[0], origin[1], origin[2]);
     else        fprintf(s_log, "S\t%d\t%d\t%d\t%d\t\t\t\n", s_time, ent, chan, sfx);
@@ -957,9 +970,25 @@ void PANTHEON_Sound_Listener(const float *o, const float *a)
 }
 ```
 
-Registration happens inside `CG_Init`, before the log path is known to matter; open the log **before** the first `PANTHEON_CG_Init` so every `R` line is captured.
+`pantheon_cg_feed.c`:
 
-- [ ] **Step 2: Route the syscalls** in `pantheon_cg_syscall.c`:
+```c
+/* Where an entity is in the newest snapshot fed; the recorder is the
+ * playerstate. Used to place entity-attached sounds. */
+qboolean PANTHEON_CG_EntityOrigin(int entityNum, vec3_t out)
+{
+    const snapshot_t *s;
+    int i;
+    if (cg_latest <= 0) return qfalse;
+    s = &cg_ring[cg_latest % PANTHEON_SNAP_RING];
+    if (entityNum == s->ps.clientNum) { VectorCopy(s->ps.origin, out); return qtrue; }
+    for (i = 0; i < s->numEntities; i++)
+        if (s->entities[i].number == entityNum) { VectorCopy(s->entities[i].pos.trBase, out); return qtrue; }
+    return qfalse;
+}
+```
+
+- [ ] **Step 2: Syscalls** (`pantheon_cg_syscall.c`, with prototypes for all four logger functions at the top):
 
 ```c
     case CG_S_REGISTERSOUND:    return PANTHEON_Sound_Register(VMA(1));
@@ -967,36 +996,66 @@ Registration happens inside `CG_Init`, before the log path is known to matter; o
     case CG_S_STARTLOCALSOUND:  PANTHEON_Sound_Local(args[1], args[2]); return 0;
 ```
 
-Remove those three from the counted-and-dropped group; keep the rest counted. `PANTHEON_CG_Frame(t)` calls `PANTHEON_Sound_SetTime(t)` before `vmMain`. Pre-roll frames log too — the mixer discards events before the window start but needs nothing else from them.
+Remove those three from the counted-and-dropped group. `PANTHEON_CG_Frame` calls `PANTHEON_Sound_SetTime(serverTime)` before `vmMain` (prototype in `pantheon_cg_run.c`).
 
-- [ ] **Step 3: Listener per captured frame** — after each captured `PANTHEON_CG_Frame`, `PANTHEON_Sound_Listener(snap.ps.origin, snap.ps.viewangles)` from the snapshot fed for that time.
-
-- [ ] **Step 4: Build, smoke, commit**
-
-Run the Task 5 smoke command with `--sound-log /tmp/pc_proof/proof.sound.tsv`.
-Expected: the TSV has hundreds of `R` lines, `S` lines for the rocket fire and explosion near the proof's server times, and 210 `E` lines.
-
-```bash
-git add engine/pantheon_renderer/host/pantheon_sound_log.c engine/pantheon_renderer/host/pantheon_cg_syscall.c engine/pantheon_renderer/host/pantheon_frame.c engine/pantheon_renderer/build_cgame.sh
-git commit -m "feat: PANTHEON logs every sound cgame asks for"
-```
+- [ ] **Step 3:** `--sound-log <path>`: open **before** the first `PANTHEON_CG_Init` (so every `R` line is logged), close at exit. After each captured frame, `PANTHEON_Sound_Listener(snap.ps.origin, snap.ps.viewangles)` from the newest pushed snapshot.
+- [ ] **Step 4:** Build; rerun the Task 4 smoke with `--sound-log /tmp/pc_proof/sound.tsv`. Expected: `R` lines each unique; `S` lines for the rocket fire and explosion near the proof's times; 210 `E` lines. Run a 3-window, 3-pass render: the `R` count does not grow after the first pass.
+- [ ] **Step 5:** Commit: `feat: PANTHEON logs every sound cgame asks for, placed where it happens`
 
 ---
 
-### Task 8: The backend, the mixer, and the switch
+### Task 7: The backend, the mixer and the switch (gate G4)
 
-**Files:**
-- Create: `engine/pantheon/sound_mix.py`
-- Modify: `engine/pantheon/pantheon_capture.py` (full backend)
-- Modify: `creative_suite/engine/wolfcam_capture.py` (`capture_demo` head)
-- Modify: `engine/pantheon/backends.py`, `creative_suite/tests/test_render_permit.py`, `creative_suite/tests/test_pantheon_headless_boundary.py`
-- Test: `creative_suite/tests/test_pantheon_capture.py`
+**Files:** create `engine/pantheon/sound_mix.py`; complete `engine/pantheon/pantheon_capture.py`; modify `creative_suite/engine/wolfcam_capture.py`, `engine/pantheon/backends.py`, `test_render_permit.py`, `test_pantheon_headless_boundary.py`; tests in `test_pantheon_capture.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [ ] **Step 1: Extract the completeness rules** so both backends compute them identically. In `wolfcam_capture.py`, move the tail of `capture_demo` into:
+
+```python
+def completeness(windows: list[dict], avis: dict, frames_written: int,
+                 fps: int) -> dict:
+    """ok / under_sampled / frames_expected, one definition for every backend."""
+    want = frames_expected(windows, fps)
+    return {"ok": len(avis) == len(windows),
+            "frames_expected": want,
+            "under_sampled": bool(avis) and want > 0 and frames_written < want * COMPLETE_ENOUGH,
+            "error": None if len(avis) == len(windows)
+            else f"missing {len(windows) - len(avis)} AVIs"}
+```
+
+and have `capture_demo` use it (behaviour unchanged — run the existing capture tests to prove it).
+
+- [ ] **Step 2: Failing tests**
 
 ```python
 # append to creative_suite/tests/test_pantheon_capture.py
+import os
+
 import numpy as np
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _permit(monkeypatch):
+    from engine.pantheon import render_permit
+    monkeypatch.setattr(render_permit, "require", lambda *a, **k: None)
+
+
+def _wolfcam_mock_result(tmp_path, monkeypatch, windows):
+    from creative_suite.engine import wolfcam_capture as W
+    monkeypatch.setenv("CS_CAPTURE_MOCK", "1")
+    monkeypatch.delenv("PANTHEON_CAPTURE_BACKEND", raising=False)
+    (tmp_path / "wolfcam-ql" / "videos").mkdir(parents=True)
+    (tmp_path / "wolfcam-ql" / "demos").mkdir(parents=True)
+    return W.capture_demo("d.dm_73", windows, staging=tmp_path)
+
+
+def _fake_host(monkeypatch, frames_by_clip):
+    from engine.pantheon import pantheon_capture as PC
+    text = "".join(f"PANTHEON: window {c} frames={n} expected=0 start=0 end=0\n"
+                   for c, n in frames_by_clip.items())
+    monkeypatch.setattr(PC, "_run_host", lambda argv, timeout: (0, text))
+    monkeypatch.setattr(PC, "_encode", lambda frames_dir, clip, wav, fps, dest: dest.write_bytes(b"x") or dest)
+    monkeypatch.setattr(PC, "_mix", lambda log, windows, out_dir, staging: {c: None for c in frames_by_clip})
 
 
 def test_the_default_backend_is_still_wolfcam(monkeypatch):
@@ -1006,36 +1065,46 @@ def test_the_default_backend_is_still_wolfcam(monkeypatch):
 
 
 def test_an_unknown_backend_is_refused(monkeypatch):
-    import pytest
     from creative_suite.engine import wolfcam_capture as W
     monkeypatch.setenv("PANTHEON_CAPTURE_BACKEND", "blender")
     with pytest.raises(ValueError):
         W.capture_backend()
 
 
-def test_pantheon_result_has_every_key_wolfcam_returns(tmp_path, monkeypatch):
+def test_pantheon_returns_the_same_keys_and_types_as_wolfcam(tmp_path, monkeypatch):
+    """Keys and types come from capture_demo itself, not from a list in this test."""
     from engine.pantheon import pantheon_capture as PC
     windows = [{"clip_name": "c1", "start_ms": 1000, "end_ms": 2000}]
-    monkeypatch.setattr(PC, "_run_host", lambda argv, timeout: (0, "PANTHEON: window c1 frames=60 start=1000 end=2000\n"))
-    monkeypatch.setattr(PC, "_encode", lambda frames_dir, clip, wav, fps, dest: dest.write_bytes(b"avi") or dest)
-    monkeypatch.setattr(PC, "_mix", lambda log, windows, out_dir: {"c1": None})
-    r = PC.capture(tmp_path / "d.dm_73", windows, out_dir=tmp_path, fps=60)
-    for k in ("ok", "returncode", "elapsed_s", "avis", "frames_expected",
-              "frames_written", "capture_fps", "played_too_fast_by",
-              "retimed", "under_sampled", "error"):
-        assert k in r, k
-    assert r["ok"] and r["frames_written"] == 60 and r["frames_expected"] == 60
-    assert r["played_too_fast_by"] == 1.0 and r["retimed"] == []
+    ref = _wolfcam_mock_result(tmp_path / "w", monkeypatch, windows)
+    _fake_host(monkeypatch, {"c1": 60})
+    got = PC.capture(tmp_path / "d.dm_73", windows, out_dir=tmp_path / "p", fps=60)
+    assert set(got) == set(ref)
+    for k in ref:
+        if ref[k] is not None and got[k] is not None:
+            assert type(got[k]) is type(ref[k]), (k, type(ref[k]), type(got[k]))
 
 
-def test_a_short_window_is_reported_under_sampled(tmp_path, monkeypatch):
+def test_completeness_is_computed_by_the_shared_rule(tmp_path, monkeypatch):
+    from creative_suite.engine import wolfcam_capture as W
     from engine.pantheon import pantheon_capture as PC
     windows = [{"clip_name": "c1", "start_ms": 1000, "end_ms": 2000}]
-    monkeypatch.setattr(PC, "_run_host", lambda argv, timeout: (0, "PANTHEON: window c1 frames=30 start=1000 end=2000\n"))
-    monkeypatch.setattr(PC, "_encode", lambda *a: a[-1])
-    monkeypatch.setattr(PC, "_mix", lambda *a: {"c1": None})
-    r = PC.capture(tmp_path / "d.dm_73", windows, out_dir=tmp_path, fps=60)
-    assert r["under_sampled"] is True
+    for n in (60, 59, 30):
+        _fake_host(monkeypatch, {"c1": n})
+        got = PC.capture(tmp_path / "d.dm_73", windows, out_dir=tmp_path / f"p{n}", fps=60)
+        rule = W.completeness(windows, got["avis"], n, 60)
+        for k in ("ok", "frames_expected", "under_sampled"):
+            assert got[k] == rule[k], (n, k)
+
+
+def test_a_profile_is_refused_rather_than_ignored(tmp_path, monkeypatch):
+    """The public-export profile keeps opponent names out of clips. Silently
+    rendering without it would burn names in -- the known disclosure bug."""
+    from creative_suite.engine import wolfcam_capture as W
+    monkeypatch.setenv("PANTHEON_CAPTURE_BACKEND", "pantheon")
+    monkeypatch.delenv("CS_CAPTURE_MOCK", raising=False)
+    with pytest.raises(ValueError, match="profile"):
+        W.capture_demo("d.dm_73", [{"clip_name": "c", "start_ms": 0, "end_ms": 1}],
+                       staging=tmp_path, profile="public")
 
 
 def test_the_mix_places_a_sample_at_its_logged_time(tmp_path):
@@ -1043,26 +1112,34 @@ def test_the_mix_places_a_sample_at_its_logged_time(tmp_path):
     sr = 48000
     click = np.zeros(480, dtype=np.float32); click[0] = 1.0
     log = tmp_path / "s.tsv"
-    log.write_text("R\t1\tsound/test.wav\nE\t1000\t0\t0\t0\t0\t0\t0\n"
-                   "L\t1250\t1\t0\n", encoding="utf-8")
+    log.write_text("R\t1\tsound/test.wav\nE\t1000\t0\t0\t0\t0\t0\t0\nL\t1250\t1\t0\n",
+                   encoding="utf-8")
     wav = M.mix(log, start_ms=1000, end_ms=2000, samples={"sound/test.wav": click}, sr=sr)
-    first = int(np.argmax(np.abs(wav[:, 0]) > 0.5))
-    assert abs(first - int(0.250 * sr)) <= 1
+    assert abs(int(np.argmax(np.abs(wav[:, 0]) > 0.5)) - int(0.250 * sr)) <= 1
+
+
+def test_a_distant_sound_is_quieter_than_a_near_one(tmp_path):
+    from engine.pantheon import sound_mix as M
+    sr = 48000
+    tone = np.ones(480, dtype=np.float32) * 0.5
+    log = tmp_path / "s.tsv"
+    log.write_text("R\t1\ta.wav\nE\t0\t0\t0\t0\t0\t0\t0\n"
+                   "S\t100\t5\t0\t1\t50\t0\t0\nS\t500\t6\t0\t1\t900\t0\t0\n", encoding="utf-8")
+    wav = M.mix(log, start_ms=0, end_ms=1000, samples={"a.wav": tone}, sr=sr)
+    near = np.abs(wav[int(0.1 * sr):int(0.1 * sr) + 400]).max()
+    far = np.abs(wav[int(0.5 * sr):int(0.5 * sr) + 400]).max()
+    assert far < near
 ```
 
-- [ ] **Step 2: Run, expect failures** (`capture_backend`, `capture`, `mix` undefined).
-
-- [ ] **Step 3: The mixer**
+- [ ] **Step 3: The mixer** — `engine/pantheon/sound_mix.py`
 
 ```python
-# engine/pantheon/sound_mix.py
 """Sound log + samples -> stereo float32 PCM for one capture window.
 
-A pure function of its inputs: the same log and the same samples always mix
-to the same buffer. Positional sounds use Q3's distance attenuation
-(snd_dma.c: SOUND_FULLVOLUME 80, SOUND_ATTENUATE 0.0008) and a pan from the
-listener's right vector at the moment the sound starts. Looping sounds are
-not mixed in v1 (see the plan's known limits).
+A pure function of its inputs. Positional sounds use Q3's distance
+attenuation (snd_dma.c: SOUND_FULLVOLUME 80, SOUND_ATTENUATE 0.0008) and a pan
+from the listener's right vector at the moment the sound starts. Looping
+sounds are not mixed in v1.
 """
 from __future__ import annotations
 
@@ -1083,11 +1160,10 @@ def _right(angles) -> np.ndarray:
 def _gains(origin, listener) -> tuple[float, float]:
     if origin is None or listener is None:
         return 1.0, 1.0
-    o, (lo, la) = np.asarray(origin, float), listener
-    d = o - np.asarray(lo, float)
-    dist = max(0.0, float(np.linalg.norm(d)) - SOUND_FULLVOLUME)
-    vol = max(0.0, 1.0 - dist * SOUND_ATTENUATE)
+    lo, la = listener
+    d = np.asarray(origin, float) - np.asarray(lo, float)
     n = float(np.linalg.norm(d))
+    vol = max(0.0, 1.0 - max(0.0, n - SOUND_FULLVOLUME) * SOUND_ATTENUATE)
     pan = float(np.dot(d / n, _right(la))) if n > 1e-3 else 0.0
     return vol * (1.0 - max(0.0, pan) * 0.5), vol * (1.0 + min(0.0, pan) * 0.5)
 
@@ -1105,6 +1181,7 @@ def parse(log: Path):
             events.append((int(f[1]), int(f[2]), None))
         elif f[0] == "E":
             listeners.append((int(f[1]), tuple(map(float, f[2:5])), tuple(map(float, f[5:8]))))
+    listeners.sort()
     return names, events, listeners
 
 
@@ -1113,12 +1190,13 @@ def mix(log: Path, *, start_ms: int, end_ms: int,
     names, events, listeners = parse(log)
     out = np.zeros((int((end_ms - start_ms) * sr / 1000), 2), dtype=np.float32)
     for t, sfx, org in events:
-        if t < start_ms or t >= end_ms:
+        if not (start_ms <= t < end_ms):
             continue
         pcm = samples.get(names.get(sfx, ""))
         if pcm is None:
             continue
-        lst = max((l for l in listeners if l[0] <= t), key=lambda l: l[0], default=None)
+        before = [l for l in listeners if l[0] <= t]
+        lst = before[-1] if before else (listeners[0] if listeners else None)
         gl, gr = _gains(org, (lst[1], lst[2]) if lst else None)
         i = int((t - start_ms) * sr / 1000)
         n = min(len(pcm), len(out) - i)
@@ -1128,21 +1206,25 @@ def mix(log: Path, *, start_ms: int, end_ms: int,
     return np.clip(out, -1.0, 1.0)
 ```
 
-Sample loading (in `pantheon_capture._mix`): for every registered name, find it in the staging `baseq3/*.pk3` (zip, read-only — ENG-4), try `.wav` then `.ogg`, decode once with `ffmpeg -i - -f f32le -ac 1 -ar 48000 -` into a cache under `S.store_root() / "sfx_cache"`.
-
-- [ ] **Step 4: The backend** (complete `engine/pantheon/pantheon_capture.py`)
+- [ ] **Step 4: The backend** — complete `engine/pantheon/pantheon_capture.py` (below `host_exe`):
 
 ```python
+import io
 import re
 import subprocess
 import time
+import wave
+import zipfile
 
 import numpy as np
 
+from engine.pantheon import sound_mix
+
 FFMPEG = S.PROJECT_ROOT / "creative_suite" / "tools" / "ffmpeg" / "ffmpeg.exe"
 _WINDOW = re.compile(r"PANTHEON: window (\S+) frames=(\d+)")
-PER_FRAME_S = 0.08          # measured 2026-09-12: 66 frames in ~4-6 s incl. load
-LAUNCH_S = 20.0
+PER_FRAME_S = 0.08           # measured 2026-09-12 (66 frames ~4-6 s incl. load)
+LAUNCH_S = 30.0
+SR = 48000
 
 
 def _run_host(argv: list[str], timeout: float) -> tuple[int, str]:
@@ -1163,121 +1245,171 @@ def _encode(frames_dir: Path, clip: str, wav: Path | None, fps: int, dest: Path)
     return dest
 
 
-def _mix(log: Path, windows: list[dict], out_dir: Path) -> dict[str, Path | None]:
-    """See sound_mix. Writes <clip>.wav per window; None when a window has no log."""
-    ...   # load samples as described in Step 3, call sound_mix.mix, write 48 kHz s16 WAV
+def _paks(staging: Path) -> list[Path]:
+    """wolfcam-ql first, then baseq3; within each, reverse alphabetical so a
+    zzz_ override wins, as the engine's own search order does. Read-only (ENG-4)."""
+    out = []
+    for game in ("wolfcam-ql", "baseq3"):
+        out += sorted((staging / game).glob("*.pk3"), reverse=True)
+    return out
+
+
+def _decode(raw: bytes) -> np.ndarray:
+    p = subprocess.run([str(FFMPEG), "-loglevel", "error", "-i", "-", "-f", "f32le",
+                        "-ac", "1", "-ar", str(SR), "-"], input=raw,
+                       capture_output=True, check=True)
+    return np.frombuffer(p.stdout, dtype=np.float32).copy()
+
+
+def _sample(name: str, paks: list[Path], cache: Path) -> np.ndarray | None:
+    key = cache / (name.replace("/", "__") + ".f32")
+    if key.exists():
+        return np.fromfile(key, dtype=np.float32)
+    stem = name.rsplit(".", 1)[0]
+    for cand in (name, stem + ".wav", stem + ".ogg"):
+        for pak in paks:
+            with zipfile.ZipFile(pak) as z:
+                try:
+                    raw = z.read(cand)
+                except KeyError:
+                    continue
+            pcm = _decode(raw)
+            cache.mkdir(parents=True, exist_ok=True)
+            pcm.tofile(key)
+            return pcm
+    return None
+
+
+def _write_wav(path: Path, stereo: np.ndarray) -> Path:
+    pcm = (np.clip(stereo, -1, 1) * 32767).astype("<i2")
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR)
+        w.writeframes(pcm.tobytes())
+    return path
+
+
+def _mix(log: Path, windows: list[dict], out_dir: Path, staging: Path) -> dict[str, Path | None]:
+    if not log.exists():
+        return {w["clip_name"]: None for w in windows}
+    names, events, _ = sound_mix.parse(log)
+    paks, cache = _paks(staging), S.store_root() / "sfx_cache"
+    samples = {n: pcm for n in set(names.values())
+               if (pcm := _sample(n, paks, cache)) is not None}
+    result = {}
+    for w in windows:
+        s, e = int(w["start_ms"]), int(w["end_ms"])
+        if not any(s <= t < e for t, _, _ in events):
+            result[w["clip_name"]] = None
+            continue
+        stereo = sound_mix.mix(log, start_ms=s, end_ms=e, samples=samples, sr=SR)
+        result[w["clip_name"]] = _write_wav(out_dir / f"{w['clip_name']}.wav", stereo)
+    return result
+
+
+def resolve_demo(path: Path) -> Path:
+    """safe_demo may arrive without its extension (wolfcam_capture.py:510)."""
+    return path if path.exists() else path.with_suffix(".dm_73")
 
 
 def capture(demo: Path, windows: list[dict], *, out_dir: Path, fps: int,
-            staging: Path | None = None, profile_sets: list[str] = ()) -> dict:
+            staging: Path | None = None) -> dict:
+    from creative_suite.engine import wolfcam_capture as W
     from engine.pantheon import render_permit
     render_permit.require(f"pantheon_capture:{Path(demo).name}")
     t0 = time.time()
+    staging = staging or W.STAGING
     out_dir.mkdir(parents=True, exist_ok=True)
     frames_dir = out_dir / "_frames"
     frames_dir.mkdir(exist_ok=True)
     log = out_dir / "sound.tsv"
     ws = sorted(windows, key=lambda w: int(w["start_ms"]))
-    argv = [str(host_exe()), "--cgame", "--fps", str(fps), "--demo", str(demo),
-            "--sound-log", str(log)]
-    if staging:
-        argv += ["--basepath", str(staging), "--game", "baseq3"]
-    argv += list(profile_sets)
+    argv = [str(host_exe()), "--cgame", "--fps", str(fps),
+            "--basepath", str(staging), "--game", "wolfcam-ql",
+            "--demo", str(resolve_demo(Path(demo))), "--sound-log", str(log)]
     for w in ws:
         argv += ["--window", w["clip_name"], str(int(w["start_ms"])),
                  str(int(w["end_ms"])), str(frames_dir)]
-    want = sum(int((int(w["end_ms"]) - int(w["start_ms"])) * fps / 1000) for w in ws)
+    want = W.frames_expected(ws, fps)
+    base = {"returncode": None, "avis": {}, "frames_written": 0, "capture_fps": 0,
+            "played_too_fast_by": 0.0, "retimed": []}
     try:
         rc, text = _run_host(argv, timeout=LAUNCH_S + want * PER_FRAME_S * 3)
     except subprocess.TimeoutExpired:
-        return {"ok": False, "returncode": None, "elapsed_s": time.time() - t0,
-                "avis": {}, "frames_expected": want, "frames_written": 0,
-                "capture_fps": 0, "played_too_fast_by": 0.0, "retimed": [],
-                "under_sampled": True, "error": "TIMEOUT"}
+        r = {**base, **W.completeness(ws, {}, 0, fps), "elapsed_s": time.time() - t0}
+        r["error"] = "TIMEOUT"
+        return r
     got = {m.group(1): int(m.group(2)) for m in _WINDOW.finditer(text)}
-    wavs = _mix(log, ws, out_dir) if rc == 0 else {}
-    avis = {}
-    for w in ws:
-        c = w["clip_name"]
-        if got.get(c):
-            avis[c] = _encode(frames_dir, c, wavs.get(c), fps, out_dir / f"{c}.avi")
+    wavs = _mix(log, ws, out_dir, staging) if rc == 0 else {}
+    avis = {w["clip_name"]: _encode(frames_dir, w["clip_name"], wavs.get(w["clip_name"]),
+                                    fps, out_dir / f"{w['clip_name']}.avi")
+            for w in ws if got.get(w["clip_name"])}
     written = sum(got.values())
-    return {"ok": rc == 0 and len(avis) == len(ws), "returncode": rc,
-            "elapsed_s": time.time() - t0, "avis": avis,
-            "frames_expected": want, "frames_written": written,
-            # Frames are rendered at exact server times, never against a wall
-            # clock, so the declared rate IS the true rate: nothing to retime.
-            "capture_fps": float(fps) if written else 0,
-            "played_too_fast_by": 1.0 if written else 0.0, "retimed": [],
-            "under_sampled": want > 0 and written < want,
-            "error": None if rc == 0 and len(avis) == len(ws)
-            else (text.strip().splitlines() or ["no output"])[-1]}
+    r = {**base, "returncode": rc, "elapsed_s": time.time() - t0, "avis": avis,
+         "frames_written": written,
+         # Frames are rendered at exact server times, never against a wall
+         # clock: the declared rate is the true rate, nothing to retime.
+         "capture_fps": round(float(fps), 2) if written else 0,
+         "played_too_fast_by": 1.0 if written else 0.0,
+         **W.completeness(ws, avis, written, fps)}
+    if rc != 0 and not r["error"]:
+        r["error"] = (text.strip().splitlines() or ["no output"])[-1]
+    return r
 ```
 
-- [ ] **Step 5: The switch** — at the top of `creative_suite/engine/wolfcam_capture.py` add:
+- [ ] **Step 5: The switch** in `wolfcam_capture.py`:
 
 ```python
 BACKENDS = ("wolfcam", "pantheon")
 
 
 def capture_backend() -> str:
-    """One setting, two backends. Default wolfcam until G1-G4 pass and the
-    user signs off (docs/superpowers/plans/2026-09-12-pantheon-production-capture.md)."""
+    """One setting, two backends. wolfcam until G1-G4 pass and the user signs
+    off (docs/superpowers/plans/2026-09-12-pantheon-production-capture.md)."""
     b = os.getenv("PANTHEON_CAPTURE_BACKEND", "wolfcam").strip().lower()
     if b not in BACKENDS:
         raise ValueError(f"PANTHEON_CAPTURE_BACKEND={b!r}; expected one of {BACKENDS}")
     return b
 ```
 
-and as the first statement of `capture_demo`:
+First statements of `capture_demo`:
 
 ```python
     if capture_backend() == "pantheon" and not os.getenv("CS_CAPTURE_MOCK"):
+        if profile is not None:
+            raise ValueError(
+                f"profile {profile!r} is not supported by the pantheon backend yet; "
+                "refusing rather than rendering without it (the public profile is "
+                "what keeps opponent names out of clips)")
         from engine.pantheon import pantheon_capture as PC
-        videos = staging / "wolfcam-ql" / "videos"
         return PC.capture(staging / "wolfcam-ql" / "demos" / safe_demo, windows,
-                          out_dir=videos, fps=profile_fps(profile), staging=staging)
+                          out_dir=staging / "wolfcam-ql" / "videos",
+                          fps=profile_fps(None), staging=staging)
 ```
 
-The AVIs land in the same `videos` directory, so `publish_avi` and every caller are unchanged. (Profile cvars: pass the profile's `cg_draw*` sets through `profile_sets` in a follow-up once G2 shows which ones matter.)
+The AVIs land in the same `videos` directory, so `publish_avi` and every caller are unchanged.
 
-- [ ] **Step 6: Register and classify**
+- [ ] **Step 6: Register and classify.** `backends.py`: `PantheonNative` (`name = "PANTHEON_NATIVE"`, `supports = {REFERENCE_RENDER, FINAL_QUAKE_BEAUTY}`, `render` raises `NotImplementedError("demo capture goes through pantheon_capture.capture; ShotSpecs through --shot")`), added to `BACKENDS`. `test_render_permit.py`: add `"engine/pantheon/pantheon_capture.py"` to `LAUNCH_SITES`. `test_pantheon_headless_boundary.py`: `"pantheon_capture"`, `"sound_mix"`, `"capture_parity"` into `BACKEND_ALLOWED`.
+- [ ] **Step 7:** Run `test_pantheon_capture.py test_render_permit.py test_pantheon_headless_boundary.py` and every existing `test_*capture*.py`: all pass.
+- [ ] **Step 8:** Commit: `feat: PANTHEON_NATIVE capture backend behind PANTHEON_CAPTURE_BACKEND`
 
-`engine/pantheon/backends.py`: add a `PantheonNative` class with `name = "PANTHEON_NATIVE"`, `supports = frozenset({BackendUse.REFERENCE_RENDER, BackendUse.FINAL_QUAKE_BEAUTY})`, whose `render` raises `NotImplementedError("ShotSpec rendering goes through --shot; production demo capture goes through pantheon_capture.capture")`, and add it to `BACKENDS`.
-`test_render_permit.py`: add `"engine/pantheon/pantheon_capture.py"` to `LAUNCH_SITES`.
-`test_pantheon_headless_boundary.py`: add `"pantheon_capture"` and `"sound_mix"` to `BACKEND_ALLOWED` with one-line reasons.
-
-- [ ] **Step 7: Run everything touched**
-
-Run: `E:/PersonalAI/venv/Scripts/python.exe -m pytest creative_suite/tests/test_pantheon_capture.py creative_suite/tests/test_render_permit.py creative_suite/tests/test_pantheon_headless_boundary.py -q`
-Expected: all pass.
-
-- [ ] **Step 8: Commit**
-
-```bash
-git add engine/pantheon/sound_mix.py engine/pantheon/pantheon_capture.py engine/pantheon/backends.py creative_suite/engine/wolfcam_capture.py creative_suite/tests/test_pantheon_capture.py creative_suite/tests/test_render_permit.py creative_suite/tests/test_pantheon_headless_boundary.py
-git commit -m "feat: PANTHEON_NATIVE capture backend behind PANTHEON_CAPTURE_BACKEND"
-```
-
-Now run Task 6 Step 2 (G2).
+Now run Task 5 Step 2 (G2 / stop H2).
 
 ---
 
-### Task 9: Gate G3 — audio parity
+### Task 8: Gate G3 — audio parity — then stop H3
 
-**Files:**
-- Modify: `engine/pantheon/capture_parity.py`
+**Files:** `engine/pantheon/capture_parity.py`
 
-- [ ] **Step 1: Add the measurement**
+- [ ] **Step 1:**
 
 ```python
-def envelope(avi: Path, sr: int = 8000) -> "np.ndarray":
+def envelope(avi: Path, sr: int = 8000):
     import numpy as np
     raw = subprocess.run([str(FFMPEG), "-loglevel", "error", "-i", str(avi), "-vn",
                           "-ac", "1", "-ar", str(sr), "-f", "f32le", "-"],
                          capture_output=True, check=True).stdout
     x = np.abs(np.frombuffer(raw, dtype=np.float32))
-    k = sr // 100                                   # 10 ms windows
+    k = sr // 100                                       # 10 ms windows
     return x[: len(x) // k * k].reshape(-1, k).mean(axis=1)
 
 
@@ -1289,36 +1421,33 @@ def audio_lag_ms(wolfcam_avi: Path, pantheon_avi: Path) -> tuple[float, float]:
     a, b = a[:n] - a[:n].mean(), b[:n] - b[:n].mean()
     c = np.correlate(a, b, mode="full")
     i = int(np.argmax(c))
-    denom = float(np.linalg.norm(a) * np.linalg.norm(b)) or 1.0
-    return (i - (n - 1)) * 10.0, float(c[i]) / denom
+    return (i - (n - 1)) * 10.0, float(c[i]) / (float(np.linalg.norm(a) * np.linalg.norm(b)) or 1.0)
 ```
 
-- [ ] **Step 2: Run on the G2 frags.** Pass per clip: `|lag| <= 40` and `corr >= 0.6`. Record results in the G2 document. A consistent non-zero lag across all clips is a pipeline offset (fix it once); scattered failures are missing sounds (inspect the `S` lines for that clip).
+Add a self-test to `test_pantheon_capture.py` proving the metric can fail: two synthetic WAVs with a known 120 ms offset must report `|lag| ≈ 120` (so a 40 ms gate is meaningful).
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 2:** Run on the ten G2 frags; pass per clip `|lag| ≤ 40` and `corr ≥ 0.6`. A consistent offset across all clips is one pipeline offset (fix once); scattered failures are missing sounds (inspect that clip's `S` lines).
 
-```bash
-git add engine/pantheon/capture_parity.py docs/reference/
-git commit -m "test: G3 -- PANTHEON audio lands where wolfcam's does"
-```
+**STOP H3.** Send the ten PANTHEON clips (with the wolfcam versions) for listening. Record verdicts beside the G2 ones.
+
+- [ ] **Step 3:** Commit: `test: G3 -- PANTHEON audio lands where wolfcam's does`
 
 ---
 
-### Task 10: Linear-light accumulation
+### Task 9: Linear-light accumulation — then stop H4
 
-Averaging display-encoded values darkens edges and mid-tones. The frame is decoded to linear light, averaged, then re-encoded. **The same resolve is required of `codex/capture-supersampling` before it merges** — record that on the branch.
+Averaging display-encoded values darkens edges. Decode to linear, average, re-encode. **The same resolve is required of `codex/capture-supersampling` before it merges** — note it on that branch.
 
-The framebuffer is not clean sRGB: `r_gamma` is baked into textures at upload and overbright is disabled on this host. sRGB is used as the standard decode; Step 3 measures whether it is good enough.
+The framebuffer is not clean sRGB (`r_gamma` is baked into textures at upload; overbright is off on this host). sRGB is the standard decode; Step 3 checks the result by eye.
 
-**Files:**
-- Modify: `engine/pantheon_renderer/host/pantheon_frame.c` (`PANTHEON_BlurAccumulate`, `PANTHEON_BlurResolve`, the accumulator type)
+**Files:** `host/pantheon_frame.c`
 
-- [ ] **Step 1: Replace the accumulator**
+- [ ] **Step 1:** Replace the accumulator:
 
 ```c
-/* sRGB <-> linear, by table. Averaging ENCODED values averages numbers, not
- * light: a half-covered edge between 255 and 0 averages to 128, which is 22 %
- * of the light, not 50 %. That is the dark fringe. */
+/* Averaging ENCODED values averages numbers, not light: a half-covered edge
+ * between 255 and 0 averages to 128 -- 22 % of the light, not 50 %. That is
+ * the dark fringe. */
 static float s_toLinear[256];
 static byte  s_toSrgb[4097];
 
@@ -1330,8 +1459,8 @@ static void PANTHEON_LinearTables(void)
         s_toLinear[i] = c <= 0.04045f ? c / 12.92f : powf((c + 0.055f) / 1.055f, 2.4f);
     }
     for (i = 0; i <= 4096; i++) {
-        float l = i / 4096.0f, c = l <= 0.0031308f ? l * 12.92f
-                                   : 1.055f * powf(l, 1.0f / 2.4f) - 0.055f;
+        float l = i / 4096.0f;
+        float c = l <= 0.0031308f ? l * 12.92f : 1.055f * powf(l, 1.0f / 2.4f) - 0.055f;
         s_toSrgb[i] = (byte)(c * 255.0f + 0.5f);
     }
 }
@@ -1347,82 +1476,70 @@ static void PANTHEON_BlurResolve(byte *rgb, const float *acc, int n, int samples
     int i;
     for (i = 0; i < n; i++) {
         float l = acc[i] / samples;
+        if (l < 0.0f) l = 0.0f;
+        if (l > 1.0f) l = 1.0f;
         rgb[i] = s_toSrgb[(int)(l * 4096.0f + 0.5f)];
     }
 }
 ```
 
-Change `unsigned *blurAccum` to `float *blurAccum` (allocation `calloc(np * 3, sizeof(float))`, reset `memset(..., sizeof(float))`), and call `PANTHEON_LinearTables()` once at startup. Add `#include <math.h>`.
+`blurAccum` becomes `float *` (`calloc(np * 3, sizeof(float))`, reset with `sizeof(float)`); `PANTHEON_LinearTables()` once at startup; `#include <math.h>`.
 
-- [ ] **Step 2: Prove the identity case is untouched** — `--blur 8 --shutter 0` against `--blur 1` on the Task 5 window: must differ by no more than the known 0.038 % per-call effect region (see `docs/reference/2026-09-08-engine-comparison-and-improvement-scan.md` §6.5) plus ±1 rounding.
+- [ ] **Step 2:** `--blur 8 --shutter 0` vs `--blur 1` on the Task 4 window: differs by no more than the documented 0.038 % per-call region (`docs/reference/2026-09-08-engine-comparison-and-improvement-scan.md` §6.5) plus ±1 level. (sRGB round trips on integer inputs are exact to ±1.)
+- [ ] **Step 3:** Render the Task 4 window at `--blur 8 --shutter 0.7` with the old and new accumulator; `review_sheet.compare` cropped on the rocket's light against the ceiling.
 
-- [ ] **Step 3: Measure the fringe fix** — render the Task 5 window at `--blur 8 --shutter 0.7` before and after; build a review sheet cropped on a bright-on-dark moving edge (the rocket's light against the ceiling). The after-leg must not show a dark halo. Save to the visual record.
+**STOP H4.** Send the sheet: *"Is the dark halo around the moving light gone, and is nothing else worse?"*
 
-- [ ] **Step 4: Commit**
-
-```bash
-git add engine/pantheon_renderer/host/pantheon_frame.c docs/visual-record/
-git commit -m "fix: motion blur averages light, not encoded values"
-```
+- [ ] **Step 4:** Commit: `fix: motion blur averages light, not encoded values`
 
 ---
 
-### Task 11: Measure whether HDR exists before building it
+### Task 10: Measure whether HDR exists before building it — then stop H5
 
-**This task changes no production behaviour.** It answers one question: do values above 1.0 survive this renderer before the final clamp? If they do not, an FP16 target and EXR output would store 0–1 data in a larger file, and no HDR plan is written.
+**No production behaviour changes.** One question: do values above 1.0 survive this renderer before the final clamp?
 
-**Files:**
-- Modify (probe only, behind `--probe-hdr`): `wolfcamql-11.3-src/.../renderer/tr_init.c` (scene texture internal format), `host/pantheon_frame.c`
-- Create: `docs/reference/<date>-hdr-survival-probe.md`
+**Files:** probe-only code behind `--probe-hdr` in `wolfcamql-11.3-src/.../renderer/tr_init.c` (scene texture format) and `host/pantheon_frame.c`; create `docs/reference/<date>-hdr-survival-probe.md`
 
-- [ ] **Step 1: Read, and write down, every clamp on the path** — before any code. At minimum: texture upload (`R_LightScaleTexture`, 8-bit `GL_RGB8`/`GL_RGBA8` internal formats), lightmaps (`R_ColorShiftLightingBytes` in `tr_bsp.c` clamps to 255), vertex colours (bytes), `tr.overbrightBits`/`r_mapOverBrightBits` (disabled on a host with no hardware gamma), shader stage blending into an 8-bit target. List each with file:line in the doc.
+- [ ] **Step 1: Write down every clamp on the path, with file:line, before any code.** At minimum: texture upload internal formats (`GL_RGB8`/`GL_RGBA8`) and `R_LightScaleTexture`; lightmaps (`R_ColorShiftLightingBytes`, `tr_bsp.c`, clamps to 255); vertex colours (bytes); `tr.overbrightBits` / `r_mapOverBrightBits`; and **fixed-function colour clamping**: vertex and fragment colours are clamped to [0,1] before blending unless `GL_ARB_color_buffer_float` clamping is turned off.
 
-- [ ] **Step 2: The probe** — with `--probe-hdr`, create the FBO scene texture as `GL_RGBA16F` instead of `GL_RGB8` (`InitFrameBufferAndRenderBuffer`, `tr_init.c`), render the Task 5 window's frames at 0 %, 50 %, 100 %, read back with `glReadPixels(..., GL_RGB, GL_FLOAT, ...)`, and report per frame: max channel value, and the fraction of pixels with any channel > 1.0.
+- [ ] **Step 2: The probe.** Under `--probe-hdr`:
+  - the FBO scene texture is created `GL_RGBA16F` instead of `GL_RGB8` (`InitFrameBufferAndRenderBuffer`);
+  - `glClampColorARB(GL_CLAMP_VERTEX_COLOR_ARB, GL_FALSE)`, `glClampColorARB(GL_CLAMP_FRAGMENT_COLOR_ARB, GL_FALSE)`, `glClampColorARB(GL_CLAMP_READ_COLOR_ARB, GL_FALSE)` right after the FBO is bound (resolve `glClampColorARB` through `PANTHEON_GetProcAddress`; if absent, the probe reports INVALID, not "no HDR");
+  - **positive control:** before the scene, draw two additive full-screen quads at colour (0.8, 0.8, 0.8) into a scratch region; read it back. If it does not read ≈ 1.6, the probe is **INVALID** and says so — a probe that cannot see 1.6 on purpose cannot see HDR by accident.
+  - Render the Task 4 window's frames at 0 %, 50 %, 100 %; read back with `glReadPixels(..., GL_RGB, GL_FLOAT, ...)`; report per frame the max channel value and the fraction of pixels with any channel > 1.0.
 
 - [ ] **Step 3: Record the result and the decision**
 
 | Result | Meaning | Decision |
 |---|---|---|
-| Max ≤ 1.0 on every frame | The range is gone before the target: 8-bit inputs, clamped lightmaps | No FP target, no EXR. An HDR plan must start with lighting and texture inputs, not the framebuffer. |
-| Values > 1.0 only in additive effects (explosions, flares) | Some range survives, in blending | A narrow FP16 plan is defensible; scope it to effects. |
-| Broad values > 1.0 | Real HDR survives | Write the HDR/EXR plan. |
+| Control INVALID | The measurement cannot see range | Fix the probe; decide nothing |
+| Max ≤ 1.0 on every frame | Range gone before the target (8-bit inputs, clamped lightmaps) | No FP target, no EXR. An HDR plan would start at lighting and texture inputs. |
+| > 1.0 only in additive effects | Some range survives in blending | A narrow FP16 plan scoped to effects is defensible |
+| Broad values > 1.0 | Real HDR survives | Write the HDR/EXR plan |
 
-- [ ] **Step 4: Revert the probe code** unless the decision is "write the HDR plan"; commit the doc either way.
+**STOP H5.** Send the doc; the user decides.
 
-```bash
-git add docs/reference/
-git commit -m "docs: HDR survival probe -- does range exist before the clamp?"
-```
+- [ ] **Step 4:** Revert the probe code unless the decision is "write the HDR plan"; commit the doc either way.
 
 ---
 
-### Task 12: Cutover (only with the user's explicit go)
+### Task 11: Cutover — only with the user's explicit go — stop H6
 
-**Precondition:** G1, G2 (all ten human PASS), G3 and G4 recorded as passing in `docs/reference/<date>-capture-parity-g2.md`, the full suite at or better than the Task 0 baseline, and the user says go in chat.
+**Precondition:** G1, G2 (ten human PASS), G3, G4 recorded as passing; suite at or better than the Task 0 baseline; the user says go in chat.
 
-**Files:**
-- Modify: `creative_suite/engine/wolfcam_capture.py` (`capture_backend` default)
-- Modify: `CLAUDE.md` (HL-2: add PANTHEON_NATIVE as the production renderer; wolfcam's four jobs stand as the oracle's)
-
-- [ ] **Step 1:** Change the default in `capture_backend()` from `"wolfcam"` to `"pantheon"`; update `test_the_default_backend_is_still_wolfcam` to `test_the_default_backend_is_pantheon`.
-- [ ] **Step 2:** Run the full suite; compare against the baseline file. Expected: no new failures.
-- [ ] **Step 3:** Capture one real frag end to end through the normal pipeline (the mining session's command, not a harness). ffprobe the AVI: duration, frame count, audio stream present. Extract one frame to the visual record.
-- [ ] **Step 4:** Commit and push.
-
-```bash
-git add creative_suite/engine/wolfcam_capture.py creative_suite/tests/test_pantheon_capture.py CLAUDE.md docs/visual-record/
-git commit -m "feat: PANTHEON is the production renderer; wolfcam is the oracle"
-git push origin feature/pantheon-production-capture
-```
-
-Rollback is one line: `PANTHEON_CAPTURE_BACKEND=wolfcam`.
+- [ ] **Step 1:** `capture_backend()` default → `"pantheon"`; rename the default test accordingly.
+- [ ] **Step 2:** Full suite vs baseline: no new failures.
+- [ ] **Step 3: STOP H6.** One real frag through the mining session's normal command (not a harness); ffprobe the AVI (duration, frame count, audio stream present); extract one frame to the visual record; the user watches it.
+- [ ] **Step 4:** `CLAUDE.md` HL-2: PANTHEON_NATIVE is the production renderer; wolfcam keeps its four oracle jobs. Commit, push. Rollback is `PANTHEON_CAPTURE_BACKEND=wolfcam`.
 
 ---
 
 ## Explicitly not in this plan
 
-- Windowless GL context (EGL/pbuffer): only if the renderer must run as a service or without an interactive desktop.
-- FP16 targets, EXR masters, tonemapping: gated by Task 11.
-- Merging `codex/capture-supersampling`: gated by Task 10's resolve being adopted there.
+- Windowless GL context (EGL/pbuffer).
+- FP16 targets, EXR masters, tonemapping — gated by Task 10.
+- Merging `codex/capture-supersampling` — gated by Task 9's resolve being adopted there.
 - rend2, Vulkan, IQM, OpenAL Soft, FX-script authoring, texture/asset work.
-- Free-camera (FL) angles from demos: PANTHEON renders the recorder's eyes first; FL comes after G2 proves FP parity.
+- Profiles (HUD cvar sets) under the pantheon backend — refused until a follow-up maps them to host `--set`s.
+- Free-camera (FL) angles from demos — after G2 proves FP parity.
+- Vendoring the WolfcamQL source archive into git (a public-repo decision for the user; the archive is hash-pinned in `SOURCE.sha256` and present on this machine).
