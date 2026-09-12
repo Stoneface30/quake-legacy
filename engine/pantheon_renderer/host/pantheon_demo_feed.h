@@ -17,6 +17,8 @@ qboolean PANTHEON_Demo_Open(const char *path);
 qboolean PANTHEON_Demo_ReadMessage(void);
 qboolean PANTHEON_Demo_Latest(snapshot_t *out);
 void     PANTHEON_Demo_QueueCommandsAfter(int seq);
+/* G1 diagnostics: a D line per parsed snapshot, valid or not (set after Open). */
+void     PANTHEON_Demo_Trace(FILE *f);
 int      PANTHEON_Demo_CommandSequence(void);
 int      PANTHEON_Demo_MessageSequence(void);
 int      PANTHEON_Demo_ClientNum(void);

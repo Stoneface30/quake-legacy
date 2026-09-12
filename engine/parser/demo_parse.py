@@ -543,8 +543,14 @@ _PS_BITS = [
 class DM73Parser:
     """Parse a .dm_73 Quake Live demo. Extracts all events, positions, rounds."""
 
-    def __init__(self, path: str | Path, *, track_missiles: bool = False):
+    def __init__(self, path: str | Path, *, track_missiles: bool = False,
+                 capture_entities: bool = False):
         self._path   = Path(path)
+        # Gate G1 (PANTHEON capture): the entity state after every snapshot,
+        # so an independent C reader can be compared with this one. Off by
+        # default; every existing caller's output is unchanged.
+        self._capture_entities = bool(capture_entities)
+        self._entity_capture: dict[int, dict[int, tuple]] = {}
         # Enrichment 2026-09-02. Off by default so every existing caller
         # gets byte-identical output; the corpus job turns it on.
         self._track_missiles = bool(track_missiles)
@@ -660,6 +666,8 @@ class DM73Parser:
             'accuracy':     self._acc_track,
             'packet_errors': self._packet_errors,
             'first_packet_error': self._first_packet_error,
+            **({'entities_by_time': self._entity_capture}
+               if self._capture_entities else {}),
             'player_stats': stats,
         }
 
@@ -851,9 +859,13 @@ class DM73Parser:
         delta_num             = s.readbyte()
         _                     = s.readbyte()    # snapFlags
         if delta_num == 0:
-            # Full update — reset accumulated state to gamestate baseline
+            # Full update. The frame lists every entity it holds, each decoded
+            # against its gamestate baseline (CL_ParsePacketEntities with no
+            # old frame). Nothing is present until the frame names it: seeding
+            # every baseline here made baseline entities the frame never sent
+            # look present.
             self._ps_state = {}
-            self._entity_states = {k: dict(v) for k, v in self._baseline_entities.items()}
+            self._entity_states = {}
             self._entity_prev_etype.clear()
             self._entity_prev_ev.clear()
         else:
@@ -894,19 +906,6 @@ class DM73Parser:
         snap['round_num']      = self._cur_round
         snapshots.append(snap)
 
-        # Record the state AFTER this snapshot so a later delta can reference
-        # it. Both streams are complete at this point: entities were decoded
-        # above and the playerstate immediately before this.
-        #
-        # PACKET_BACKUP is 32 in the engine, so a reference older than that
-        # cannot exist; keeping a little more than that costs nothing and
-        # avoids evicting an entry a valid delta still wants.
-        self._snap_history[message_num] = (
-            dict(self._ps_state),
-            {k: dict(v) for k, v in self._entity_states.items()})
-        if len(self._snap_history) > 64:
-            for old_num in sorted(self._snap_history)[:-64]:
-                del self._snap_history[old_num]
         if self._ps_events:
             for pe in self._ps_events:
                 code = pe['event_code']
@@ -944,6 +943,13 @@ class DM73Parser:
                 self._entity_prev_ev.pop(entity_num, None)
                 self._close_span(entity_num, server_time, 'EXPLICIT_REMOVAL')
                 continue
+
+            if entity_num not in self._entity_states:
+                # Not in the reference frame: the engine decodes it against its
+                # gamestate baseline (cl_parse.c:186), and an empty delta means
+                # "exactly the baseline" -- present, not absent.
+                self._entity_states[entity_num] = dict(
+                    self._baseline_entities.get(entity_num, {}))
 
             if not delta:
                 # No-change delta — nothing new to detect
@@ -1021,6 +1027,38 @@ class DM73Parser:
             )
             if ev:
                 events.append(ev)
+
+        # Record the state AFTER this snapshot so a later delta can reference
+        # it -- HERE, once the entity deltas above are applied. It used to be
+        # recorded before the entity loop (while the comment claimed the
+        # entities were already decoded), so every reference held the frame
+        # BEFORE the one the server deltaed from: a field that changed in the
+        # reference and not since reverted a frame, and after an uncompressed
+        # frame the reference held only the gamestate baselines, so every
+        # player was rebuilt from a partial delta with no eType. Found by gate
+        # G1 (the engine's own decoder, host/pantheon_demo_feed.c), 2026-09-12.
+        #
+        # PACKET_BACKUP is 32 in the engine, so a reference older than that
+        # cannot exist; keeping a little more than that costs nothing and
+        # avoids evicting an entry a valid delta still wants.
+        self._snap_history[message_num] = (
+            dict(self._ps_state),
+            {k: dict(v) for k, v in self._entity_states.items()})
+        if len(self._snap_history) > 64:
+            for old_num in sorted(self._snap_history)[:-64]:
+                del self._snap_history[old_num]
+
+        if self._capture_entities:
+            # G1: players (eType 1) and missiles (3) as they stand AFTER this
+            # snapshot's entity deltas -- the same quantity the C reader's
+            # snapshot holds. Captured here, not where the snapshot row is
+            # appended, because that happens before the entities are read.
+            self._entity_capture[server_time] = {
+                num: (st.get(_F_ETYPE), st.get(_F_POS_X), st.get(_F_POS_Y),
+                      st.get(_F_POS_Z))
+                for num, st in self._entity_states.items()
+                if st.get(_F_ETYPE) in (1, 3)
+            }
 
         # ── PRESENCE. _entity_states now holds exactly the entities in this
         # snapshot: entries arrive on a delta and leave only on an explicit
@@ -1293,10 +1331,16 @@ class DM73Parser:
                             out[i] = float(trunc - _FLOAT_INT_BIAS)
                         else:
                             out[i] = s.readfloat()
-                    # non-zero bit = 0 → value is 0.0, leave absent (default)
+                    else:
+                        # Changed TO zero (msg.c:1347). Recorded, not left out:
+                        # an absent key means "unchanged", so omitting it kept
+                        # the old value alive in the accumulated state.
+                        out[i] = 0.0
                 else:           # integer field
                     if s.readbits(1):   # non-zero
                         out[i] = s.readbits(bits)
+                    else:
+                        out[i] = 0      # changed to zero (msg.c:1368)
         return out
 
 

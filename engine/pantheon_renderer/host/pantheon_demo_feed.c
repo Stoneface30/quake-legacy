@@ -55,6 +55,7 @@ static struct {
     pdSnap_t      snap;                /* cl.snap */
     int           gamestates;          /* how many svc_gamestate seen */
     int           queueFrom;           /* commands with seq > this go to cgame */
+    FILE         *trace;               /* G1 diagnostics; NULL in production */
 } pd;
 
 /* pantheon_cg_feed.c */
@@ -159,6 +160,9 @@ static void PD_ParseSnapshot(msg_t *msg)                             /* cl_parse
     MSG_ReadDeltaPlayerstate(msg, old ? &old->ps : NULL, &ns.ps);
     PD_ParsePacketEntities(msg, old, &ns);
 
+    if (pd.trace)                              /* G1: every parsed frame, valid or not */
+        fprintf(pd.trace, "D\t%d\t%d\t%d\t%d\t%d\t%d\n", ns.messageNum, ns.serverTime,
+                ns.deltaNum, ns.valid, ns.numEntities, pd.snap.messageNum);
     if (!ns.valid) return;                     /* read fully, then dropped */
 
     /* :519 -- invalidate the frames between the last good one and this one,
@@ -350,6 +354,7 @@ qboolean PANTHEON_Demo_Latest(snapshot_t *out)
     return qtrue;
 }
 
+void PANTHEON_Demo_Trace(FILE *f)                { pd.trace = f; }
 void PANTHEON_Demo_QueueCommandsAfter(int seq)   { pd.queueFrom = seq; }
 int  PANTHEON_Demo_CommandSequence(void)         { return pd.commandSeq; }
 int  PANTHEON_Demo_MessageSequence(void)         { return pd.messageSeq; }

@@ -127,6 +127,7 @@ static paPlayer_t s_players[PA_MAX_PLAYERS];
 static qboolean   s_noWorld;
 static const char *s_dumpModel;   /* --dump-model: asset query, no render */
 static const char *s_demoScan;    /* --demo-scan: read a .dm_73, no render */
+static const char *s_dumpSnapshots; /* --dump-snapshots: gate G1, no render */
 
 /* ── TGA out ────────────────────────────────────────────────────────────── */
 #ifndef GL_FRAMEBUFFER_BINDING_EXT
@@ -547,6 +548,8 @@ int main(int argc, char **argv)
             /* The demo reader alone: no GL, no cgame. Its counts are what
              * gate G1 compares against DM73Parser. */
             s_demoScan = argv[++i];
+        } else if (!strcmp(argv[i], "--dump-snapshots") && i + 1 < argc) {
+            s_dumpSnapshots = argv[++i];
         } else if (!strcmp(argv[i], "--actor-model") && i + 1 < argc) {
             Q_strncpyz(cliModel, argv[++i], sizeof(cliModel));
             cliActor = qtrue;
@@ -659,7 +662,7 @@ int main(int argc, char **argv)
         /* --dump-model asks the filesystem a question; it has no world and
          * needs none. Demanding a map here would make an asset query depend
          * on naming a level it never loads. */
-        if (!cliMap[0] && !s_dumpModel && !s_demoScan) {
+        if (!cliMap[0] && !s_dumpModel && !s_demoScan && !s_dumpSnapshots) {
             fprintf(stderr, "PANTHEON: --map or --shot is required; the "
                             "renderer does not choose a world\n");
             return 2;
@@ -723,6 +726,37 @@ int main(int argc, char **argv)
                    PANTHEON_Demo_CommandSequence(), PANTHEON_Demo_ClientNum(),
                    PANTHEON_Demo_ChecksumFeed(), first, last, maxEnt,
                    Cvar_VariableString("protocol"));
+        PANTHEON_Demo_Close();
+        return 0;
+    }
+
+    if (s_dumpSnapshots) {
+        /* G1. One S line per snapshot the reader would offer cgame, one E line
+         * per player/missile entity in it. Tab-separated for the test; no GL
+         * context, so it runs anywhere. */
+        static snapshot_t snap;
+        int lastNum = -1, k;
+
+        if (!PANTHEON_Demo_Open(s_dumpSnapshots)) {
+            fprintf(stderr, "PANTHEON: cannot open %s\n", s_dumpSnapshots);
+            return 2;
+        }
+        PANTHEON_Demo_Trace(stdout);
+        while (PANTHEON_Demo_ReadMessage()) {
+            if (!PANTHEON_Demo_Latest(&snap) || snap.messageNum == lastNum) continue;
+            lastNum = snap.messageNum;
+            printf("S\t%d\t%d\t%.3f\t%.3f\t%.3f\t%d\n", snap.messageNum,
+                   snap.serverTime, snap.ps.origin[0], snap.ps.origin[1],
+                   snap.ps.origin[2], snap.numEntities);
+            for (k = 0; k < snap.numEntities; k++) {
+                const entityState_t *e = &snap.entities[k];
+                if (e->eType == ET_PLAYER || e->eType == ET_MISSILE)
+                    printf("E\t%d\t%d\t%d\t%.3f\t%.3f\t%.3f\n", snap.serverTime,
+                           e->number, e->eType, e->pos.trBase[0],
+                           e->pos.trBase[1], e->pos.trBase[2]);
+            }
+        }
+        fflush(stdout);
         PANTHEON_Demo_Close();
         return 0;
     }
