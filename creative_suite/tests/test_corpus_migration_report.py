@@ -67,6 +67,31 @@ def test_highlight_overlap_is_measured_by_identity(tmp_path):
     assert h["jaccard"] == round(1 / 3, 3)
 
 
+def test_why_buckets_separate_shifted_recovered_lost_and_classification(tmp_path):
+    # kept: t=1000 v3 ; shifted: t=2000 v4 -> t=2025 same attacker+mod ;
+    # lost: t=5000 v6 ; recovered: t=9000 v8
+    _corpus(tmp_path / "old", ["A"], [(1, 1000, 3, 5, 7, 1, "", 1.0),
+                                      (1, 2000, 4, 5, 7, 1, "", 1.0),
+                                      (1, 5000, 6, 5, 7, 1, "", 1.0)])
+    _corpus(tmp_path / "new", ["A"], [(1, 1000, 3, 5, 7, 1, "", 1.0),
+                                      (1, 2025, 4, 5, 7, 1, "", 1.0),
+                                      (1, 9000, 8, 5, 7, 1, "", 1.0)])
+    for side, cls, attrs in (("old", '["AIR"]', '{"victim_speed": 300, "killer_speed": 1}'),
+                             ("new", '["AIR", "CLUTCH_1V2"]', '{"victim_speed": 420, "killer_speed": 1}')):
+        c = sqlite3.connect(str(tmp_path / side / "frag_recognition.db"))
+        c.execute("create table recognized_frags (content_hash text, server_time_ms int,"
+                  " victim_client int, highlight_score real, classes text, attributes text)")
+        c.execute("insert into recognized_frags values ('A', 1000, 3, 1.0, ?, ?)", (cls, attrs))
+        c.commit()
+        c.close()
+    b = M.report(tmp_path / "old", tmp_path / "new")["buckets"]
+    assert b["recovered_kills"] == 1 and b["lost_or_invalid_old_kills"] == 1
+    assert b["shifted_timestamps"]["n"] == 1 and b["shifted_timestamps"]["ms"]["max"] == 25
+    assert b["changed_attributes"]["by_key_top25"] == {"victim_speed": 1}
+    assert b["changed_attributes"]["frags_by_side"] == {"entity": 1}
+    assert b["changed_classification"]["labels_gained_top15"] == {"CLUTCH_1V2": 1}
+
+
 def test_missing_tables_are_reported_not_fatal(tmp_path):
     _corpus(tmp_path / "old", ["A"], [])
     _corpus(tmp_path / "new", ["A"], [])

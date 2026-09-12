@@ -169,31 +169,27 @@ def prepare(build: Path, live: Path) -> dict:
         src.close()
     commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=build, capture_output=True,
                             text=True).stdout.strip()
-    return {"git_commit": commit, "editorial_snapshot_of": str(ed_live)}
+    # The code that ran is the commit only if nothing was modified locally.
+    dirty = subprocess.run(["git", "status", "--porcelain", "--untracked-files=no"],
+                           cwd=build, capture_output=True, text=True).stdout.strip()
+    return {"git_commit": commit, "source_tree_clean": not dirty,
+            "started_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "editorial_snapshot_of": str(ed_live),
+            "editorial_snapshot_sha256": _sha256(ed_copy)}
 
 
 def human_linkage(build: Path, live: Path) -> dict:
-    """v1 live vs this build: does every human verdict still find its kill?
-    Ids are renumbered by a rebuild, so the old -> new mapping is produced by
-    matching kill fingerprints, one-to-one only."""
-    code = f"""
-import json, sqlite3
-from creative_suite.engine import human_migration as hm
-old = r'{live / "creative_suite/database/frag_recognition.db"}'
-new = r'{build / "creative_suite/database/frag_recognition.db"}'
-def fp(db):
-    c = sqlite3.connect('file:' + db.replace('\\\\', '/') + '?mode=ro', uri=True)
-    rows = c.execute('select occurrence_id, kill_fingerprint from kill_occurrences_v1').fetchall()
-    c.close(); return rows
-by_fp_new = {{}}
-for i, f in fp(new): by_fp_new.setdefault(f, []).append(i)
-mapping = {{i: by_fp_new[f][0] for i, f in fp(old) if len(by_fp_new.get(f, [])) == 1}}
-r = hm.check(before_db=__import__('pathlib').Path(old), after_db=__import__('pathlib').Path(new),
-             mapping=mapping)
-print(json.dumps({{k: r[k] for k in ('human_targets', 'by_table', 'by_status', 'blocked')}}))
-"""
-    p = subprocess.run(_py(code), cwd=build, env=_env(build), capture_output=True,
-                       text=True, timeout=3600)
+    """v1 live vs this build: does every human decision find exactly one kill?
+    Strictly one-to-one by observation keys (engine/parser/editorial_linkage);
+    anything else is MANUAL_REVIEW. Read-only: editorial.db is never written."""
+    db = "creative_suite/database/"
+    p = subprocess.run([sys.executable, "-m", "engine.parser.editorial_linkage",
+                        "--old", str(live / db / "frag_recognition.db"),
+                        "--new", str(build / db / "frag_recognition.db"),
+                        "--editorial", str(build / db / "editorial.db"),
+                        "--scope-frags", str(build / db / "frags_rebuilt.db")],
+                       cwd=build, env=_env(build), capture_output=True, text=True,
+                       timeout=7200)
     if p.returncode:
         return {"error": p.stderr[-2000:]}
     return json.loads(p.stdout.strip().splitlines()[-1])
@@ -206,9 +202,23 @@ def _env(build: Path) -> dict:
     return env
 
 
+def _sha256(p: Path) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with p.open("rb") as f:
+        for chunk in iter(lambda: f.read(1 << 22), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def manifest(build: Path) -> dict:
+    """Every output database: size, SHA-256, rows per table. Checkpointed
+    first, so the hash is of the finished file and not of a WAL in flight."""
     out = {}
     for p in sorted((build / "creative_suite" / "database").glob("*.db")):
+        w = sqlite3.connect(str(p))
+        w.execute("pragma wal_checkpoint(TRUNCATE)")
+        w.close()
         c = sqlite3.connect(f"file:{p.as_posix()}?mode=ro", uri=True)
         tables = [r[0] for r in c.execute(
             "select name from sqlite_master where type='table' order by name")]
@@ -216,7 +226,58 @@ def manifest(build: Path) -> dict:
                        "rows": {t: c.execute(f'select count(*) from "{t}"').fetchone()[0]
                                 for t in tables}}
         c.close()
+        out[p.name]["sha256"] = _sha256(p)
     return out
+
+
+def input_manifest(build: Path) -> dict:
+    """What the build read: the unique demos, as one hash over their content
+    hashes, so two builds can be shown to have parsed the same inputs."""
+    import hashlib
+    c = sqlite3.connect(f"file:{(build / 'creative_suite/database/frags_rebuilt.db').as_posix()}"
+                        "?mode=ro", uri=True)
+    hashes = sorted(h for (h,) in c.execute("select content_hash from demos"))
+    errors = c.execute("select count(*) from demos where parse_error is not null").fetchone()[0]
+    info = dict(c.execute("select key, value from build_info"))
+    c.close()
+    return {"unique_demos": len(hashes), "parse_errors": errors,
+            "demo_files_discovered": info.get("demos_discovered"),
+            "demo_set_sha256": hashlib.sha256("\n".join(hashes).encode()).hexdigest()}
+
+
+STAGE_VERSIONS = r"""
+import json, sys
+sys.path.insert(0, 'engine/parser')
+from engine.parser import demo_parse, rebuild_corpus, derive_kill_events, enrich_semantic_events
+from engine.parser import frag_recognition, extract_view_timeseries, extract_lg_engagements
+from engine.parser import extract_projectile_paths, extract_health_armor, extract_dodge_events
+from engine.parser import mine_action_moments, mine_aim_events, demo_lineage
+from creative_suite.engine import kill_occurrences, funny_candidates, movement_moments
+from creative_suite.engine import frag_shapes, match_roster, round_model, mining_epoch
+from engine.pantheon import map_geography
+from engine.parser import clutch_products
+print(json.dumps({
+ 'dm73_parser': demo_parse.PARSER_VERSION, 'corpus': rebuild_corpus.SCHEMA_VERSION,
+ 'recognition': frag_recognition.RECOGNITION_VERSION,
+ 'kill_events': derive_kill_events.DERIVE_VERSION, 'semantic_events': enrich_semantic_events.ENRICH_VERSION,
+ 'clutch': clutch_products.SELECTION_METHOD,
+ 'view': extract_view_timeseries.EXTRACTOR_VERSION, 'lg': extract_lg_engagements.EXTRACTOR_VERSION,
+ 'projectile': extract_projectile_paths.EXTRACTOR_VERSION, 'health': extract_health_armor.EXTRACTOR_VERSION,
+ 'dodge': extract_dodge_events.EXTRACTOR_VERSION, 'frag_shapes': frag_shapes.SCHEMA_VERSION,
+ 'occurrences': kill_occurrences.OCCURRENCE_VERSION, 'funny': funny_candidates.FUNNY_VERSION,
+ 'movement': movement_moments.MOVEMENT_VERSION, 'action_moments': mine_action_moments.MINER_VERSION,
+ 'aim_events': mine_aim_events.MINER_VERSION, 'epoch': mining_epoch.EPOCH_VERSION,
+ 'lineage': demo_lineage.LINEAGE_VERSION, 'round_model': round_model.SCHEMA_VERSION,
+ 'match_roster': match_roster.SCHEMA_VERSION, 'map_geography': map_geography.GEOGRAPHY_VERSION}))
+"""
+
+
+def stage_versions(build: Path) -> dict:
+    p = subprocess.run(_py(STAGE_VERSIONS), cwd=build, env=_env(build),
+                       capture_output=True, text=True, timeout=600)
+    if p.returncode:
+        return {"error": p.stderr[-1500:]}
+    return json.loads(p.stdout.strip().splitlines()[-1])
 
 
 def run(a) -> int:
@@ -243,6 +304,7 @@ def run(a) -> int:
             print(f"[v2] STOP before {name}: free RAM {free_gb():.1f} GB", flush=True)
             return 2
         t0 = time.time()
+        started_at = time.strftime("%Y-%m-%dT%H:%M:%S")
         print(f"[v2] START {name}", flush=True)
         for cmd in cmds:
             p = subprocess.run(cmd, cwd=build, env=env)
@@ -253,7 +315,8 @@ def run(a) -> int:
         if problems:
             print(f"[v2] FAILED {name}: " + "; ".join(problems), flush=True)
             return 1
-        state[name] = {"done_at": time.strftime("%Y-%m-%d %H:%M:%S"),
+        state[name] = {"started_at": started_at,
+                       "done_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
                        "wall_s": round(time.time() - t0, 1)}
         state_p.write_text(json.dumps(state, indent=1))
         print(f"[v2] DONE {name} in {state[name]['wall_s']} s", flush=True)
@@ -270,6 +333,9 @@ def run(a) -> int:
                      git_commit=state["prepare"]["git_commit"],
                      builder="engine/parser/rebuild_corpus_v2.py",
                      limit=str(a.limit or "all"))
+    state["stage_versions"] = stage_versions(build)
+    state["inputs"] = input_manifest(build)
+    state["finished_at"] = time.strftime("%Y-%m-%dT%H:%M:%S")
     state["manifest"] = manifest(build)
     state_p.write_text(json.dumps(state, indent=1))
     (build / MANIFEST_NAME).write_text(json.dumps(state, indent=1), encoding="utf-8")

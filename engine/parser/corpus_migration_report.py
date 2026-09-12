@@ -14,7 +14,8 @@ import argparse
 import json
 import sqlite3
 import statistics
-from collections import Counter
+import sys
+from collections import Counter, defaultdict
 from pathlib import Path
 
 
@@ -83,6 +84,73 @@ def _delta(old, new) -> dict:
                 for k in sorted(set(old) | set(new))}
     return {"old": old, "new": new,
             "delta": (new - old) if old is not None and new is not None else None}
+
+
+# Attribute keys whose value comes from the ENTITY stream (the part parser v1
+# got wrong); everything else in recognized_frags.attributes is the recorder's
+# playerstate or derived from the kill events themselves.
+_ENTITY_ATTR_HINTS = ("victim", "visib", "distance", "missile", "projectile", "enemy",
+                      "target", "presence", "los", "geo")
+
+
+def _attr_side(key: str) -> str:
+    k = key.lower()
+    return "entity" if any(h in k for h in _ENTITY_ATTR_HINTS) else "playerstate_or_event"
+
+
+def _recognized_diff(oc, nc) -> dict:
+    """Changed attributes (by key, split entity vs playerstate side) and changed
+    classification, on recognized frags matched by identity."""
+    def load(c):
+        if c is None or "recognized_frags" not in _tables(c):
+            return {}
+        if not {"classes", "attributes"} <= _cols(c, "recognized_frags"):
+            return {}                    # an older/partial table: nothing to compare
+        return {(h, t, v): (cl or "[]", at or "{}") for h, t, v, cl, at in c.execute(
+            "select content_hash, server_time_ms, victim_client, classes, attributes "
+            "from recognized_frags where content_hash in (select h from s.scope)")}
+    o, n = load(oc), load(nc)
+    names = lambda cl: {x["name"] if isinstance(x, dict) else x for x in json.loads(cl)}
+    attr_changed, sides, cls_changed = Counter(), Counter(), 0
+    gained, lost = Counter(), Counter()
+    for k in set(o) & set(n):
+        (co, ao), (cn, an) = o[k], n[k]
+        a, b = json.loads(ao), json.loads(an)
+        keys = {x for x in set(a) | set(b) if not x.startswith("_") and a.get(x) != b.get(x)}
+        for x in keys:
+            attr_changed[x] += 1
+        for side in {_attr_side(x) for x in keys}:
+            sides[side] += 1
+        so, sn = names(co), names(cn)
+        if so != sn:
+            cls_changed += 1
+            gained.update(sn - so)
+            lost.update(so - sn)
+    return {"recognized_matched": len(set(o) & set(n)),
+            "changed_attributes": {"frags_by_side": dict(sides),
+                                   "by_key_top25": dict(attr_changed.most_common(25))},
+            "changed_classification": {"frags": cls_changed,
+                                       "labels_gained_top15": dict(gained.most_common(15)),
+                                       "labels_lost_top15": dict(lost.most_common(15))}}
+
+
+def _clutch_diff(old_db_dir: Path, new_db_dir: Path, scope: set[str]) -> dict:
+    """Clutch membership, v1 output/ vs v2 output/, keyed without names."""
+    import csv
+    def load(db_dir, name):
+        p = db_dir.parent.parent / "output" / name
+        if not p.is_file():
+            return None
+        with p.open(newline="", encoding="utf-8") as f:
+            return {(r["canonical_demo_hash"], int(r["round"]), int(r["player_client"]))
+                    for r in csv.DictReader(f) if r["canonical_demo_hash"] in scope}
+    out = {}
+    for name in ("clutch_all_players.csv", "clutch_recorder.csv"):
+        a, b = load(old_db_dir, name), load(new_db_dir, name)
+        out[name] = (None if a is None or b is None else
+                     {"old": len(a), "new": len(b), "kept": len(a & b),
+                      "added": len(b - a), "removed": len(a - b)})
+    return out
 
 
 GROUPED = [  # (db, table, group-by column or None)
@@ -158,6 +226,26 @@ def report(old_dir: Path, new_dir: Path, manifest: Path | None = None) -> dict:
                                        for h in scope]),
         "tags": _delta(dict(tag_old), dict(tag_new)),
     }
+    # ---- WHY it changed: the buckets parser v1's defects should explain ------------
+    added, removed = set(nf) - set(of), set(of) - set(nf)
+    by_act = defaultdict(list)                  # (hash, victim, attacker, mod) -> times
+    for k in added:
+        by_act[(k[0], k[2], nf[k][0], nf[k][1])].append(k[1])
+    shifted = []
+    for k in removed:
+        ts = by_act.get((k[0], k[2], of[k][0], of[k][1]), [])
+        near = [t for t in ts if abs(t - k[1]) <= 1000]
+        if near:
+            shifted.append(min(near, key=lambda t: abs(t - k[1])) - k[1])
+    out["buckets"] = {
+        "recovered_kills": len(added) - len(shifted),
+        "lost_or_invalid_old_kills": len(removed) - len(shifted),
+        "shifted_timestamps": {"n": len(shifted), "ms": _dist(shifted)},
+    }
+    out["buckets"].update(_recognized_diff(conns["old", "frag_recognition.db"],
+                                           conns["new", "frag_recognition.db"]))
+    out["buckets"]["clutch_membership"] = _clutch_diff(old_dir, new_dir, set(scope))
+
     # ---- highlights: does the top of the ranking survive? ------------------------
     def _top(c, n):
         if c is None or "recognized_frags" not in _tables(c):
@@ -199,18 +287,25 @@ def markdown(r: dict) -> str:
     L += ["", f"Changed among kept: `{f['changed_in_kept']}` · by_recorder flips: "
           f"`{f['by_recorder_flips']}` · score: `{f['score_delta']}`", "",
           f"Per-demo frag-count delta (v2 − v1): `{f['per_demo_count_delta']}`", "",
+          "## Why it changed", "",
+          "Parser v1 was wrong (`STALE_PRE_PARSER_V2`), so differences are expected; "
+          "each bucket names what moved.", "",
+          f"```\n{json.dumps(r.get('buckets', {}), indent=1)}\n```", "",
           "## Highlights (top-N by highlight_score, matched by identity)", "",
           "| | v1 | v2 | overlap | jaccard |", "|---|---:|---:|---:|---:|"]
     for k, h in r.get("highlights", {}).items():
         L.append(f"| {k} | {h['old']} | {h['new']} | {h['overlap']} | {h['jaccard']} |")
     L += ["", "## Tables", "", "| table | v1 | v2 | Δ |", "|---|---:|---:|---:|"]
     for name, t in r["tables"].items():
+        # A table without content_hash cannot be restricted to the build's
+        # demos: its v1 count is the whole corpus. Say so on the row.
+        tag = "" if t.get("scoped") else " *(unscoped: whole-DB counts)*"
         if "by" in t:
             for k, v in t["by"].items():
-                L.append(f"| {name} = {k} | {v['old']} | {v['new']} | {v['delta']:+d} |")
+                L.append(f"| {name} = {k}{tag} | {v['old']} | {v['new']} | {v['delta']:+d} |")
         else:
             d = t["delta"]
-            L.append(f"| {name} | {t['old']} | {t['new']} | "
+            L.append(f"| {name}{tag} | {t['old']} | {t['new']} | "
                      f"{'' if d is None else f'{d:+d}'} |")
     if r.get("human_linkage") is not None:
         L += ["", "## Human linkage (v1 live → v2 build)", "",
@@ -228,6 +323,9 @@ def main() -> int:
     r = report(a.old, a.new, a.manifest)
     a.out.with_suffix(".json").write_text(json.dumps(r, indent=1), encoding="utf-8")
     a.out.with_suffix(".md").write_text(markdown(r), encoding="utf-8")
+    # A Windows console is cp1252; the files above are already written as
+    # UTF-8, and a summary that cannot print must not look like a failure.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     print(markdown(r)[:4000])
     return 0
 

@@ -24,12 +24,31 @@ def test_join_dedupe_and_alias_filter():
         _win("unknown.dm_73", 1, 1000, "Tr4sH"),     # not in the catalogue
     ]
     name_to_hash = {"a.dm_73": "H1", "a_copy.dm_73": "H1", "b.dm_73": "H2"}
-    all_players, recorder = CP.derive(wins, name_to_hash)
+    all_players, recorder, _stats = CP.derive(wins, name_to_hash)
     assert [(r["canonical_demo_hash"], r["round"]) for r in all_players] == [("H1", 1), ("H2", 2)]
     assert [r["canonical_demo_hash"] for r in recorder] == ["H1"]
+    assert all(r["selection_method"] == "recorder_alias" for r in recorder)
+
+
+def test_alias_and_slot_selection_are_both_recorded_and_disagreements_counted():
+    wins = [_win("a.dm_73", 1, 1000, "Tr4sH", client=3),     # alias AND slot
+            _win("b.dm_73", 1, 1000, "Tr4sH", client=5),     # alias, not the slot
+            _win("c.dm_73", 1, 1000, "Someone", client=2)]   # the slot, not an alias
+    name_to_hash = {"a.dm_73": "A", "b.dm_73": "B", "c.dm_73": "C"}
+    all_players, recorder, st = CP.derive(wins, name_to_hash,
+                                          recorder_of={"A": 3, "B": 7, "C": 2})
+    flags = {r["canonical_demo_hash"]: (r["is_recorder_alias"], r["is_recorder_slot"])
+             for r in all_players}
+    assert flags == {"A": (1, 1), "B": (1, 0), "C": (0, 1)}
+    assert [r["canonical_demo_hash"] for r in recorder] == ["A", "B"]   # alias-selected
+    assert st["alias_and_slot"] == 1
+    assert st["alias_only"] == [["B", 1, 5]] and st["slot_only"] == [["C", 1, 2]]
+    assert "Someone" not in str(st) and "Tr4sH" not in str(st)          # no names
 
 
 def test_the_written_columns_match_what_the_readers_join_on():
     assert CP.JOINED_COLS[:2] == ["demo", "canonical_demo_hash"]
     for col in ("clutch_start_ms", "clutch_end_ms", "enemies_alive_at_start", "outcome"):
         assert col in CP.JOINED_COLS
+    assert "selection_method" in CP.RECORDER_COLS
+    assert {"is_recorder_alias", "is_recorder_slot"} <= set(CP.ALL_COLS)
