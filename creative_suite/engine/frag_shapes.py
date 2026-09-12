@@ -461,7 +461,10 @@ def weapon_triptych(c, ch) -> list[Shape]:
     for k in c.execute(
             "SELECT server_time_ms, round, killer_client, victim_client, "
             "mod_name FROM kill_events_v1 WHERE content_hash=? AND "
-            "death_cause='PLAYER_KILL' ORDER BY server_time_ms", (ch,)):
+            "death_cause='PLAYER_KILL' AND is_best_observation=1 "
+            "ORDER BY server_time_ms", (ch,)):
+        # best observation only: without it one kill seen by several copies
+        # of the demo counted as several kills ("its the same clip").
         by_killer[k["killer_client"]].append(k)
     for killer, ks in by_killer.items():
         for i in range(len(ks) - 2):
