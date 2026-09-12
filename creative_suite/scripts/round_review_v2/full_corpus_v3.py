@@ -25,11 +25,16 @@ import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
-ROOT = Path("G:/QUAKE_LEGACY")
-PARSER = ROOT / "engine" / "parser"
-sys.path.insert(0, str(ROOT))
+CODE = Path(__file__).resolve().parents[3]      # the checkout being run
+PARSER = CODE / "engine" / "parser"
+sys.path.insert(0, str(CODE))
 sys.path.insert(0, str(PARSER))
+# The DATA root (HL-9), not a drive letter: pointed at a parser-v2 build root
+# via QUAKE_LEGACY_ROOT, every stage reads and writes there and nowhere else.
+from engine.pantheon.store import data_root as _data_root  # noqa: E402
+ROOT = _data_root()
 DB = ROOT / "creative_suite" / "database" / "frag_recognition.db"
+# Only the destructive `clear` stage needs this; it runs only with --clear.
 BACKUP = Path("F:/QL_BACKUP/frag_recognition.before_v3_rescan.db")
 STATE = Path(__file__).with_name("full_corpus_v3.state.json")
 MARKERS = ("view_extracted", "lg_extracted", "projectile_extracted",
@@ -172,10 +177,17 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--workers", type=int, default=14)
     ap.add_argument("--from", dest="start")
+    ap.add_argument("--clear", action="store_true",
+                    help="run the destructive `clear` stage (DELETE FROM the five "
+                         "enrichment tables; requires the F:/ backup). Off by "
+                         "default: a fresh build has nothing to clear.")
     a = ap.parse_args()
     done = state()
     started = a.start is None
     for name, fn in STAGES:
+        if name == "clear" and not a.clear:
+            log("skip clear (fresh build; pass --clear to empty existing tables)")
+            continue
         started = started or name == a.start
         if not started or (name in done and a.start != name):
             log("skip", name)

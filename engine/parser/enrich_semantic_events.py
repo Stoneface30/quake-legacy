@@ -42,7 +42,8 @@ if str(_REPO_ROOT) not in sys.path:
 
 from demo_parse import DM73Parser  # noqa: E402
 
-ROOT = Path(__file__).resolve().parents[2]
+# The DATA root (HL-9), not the code root (see derive_kill_events).
+ROOT = _REPO_ROOT
 DB = ROOT / "creative_suite" / "database" / "frag_recognition.db"
 DEMOS = ROOT / "demos"
 ENRICH_VERSION = "semantic-events-v1.0.4"

@@ -47,7 +47,13 @@ _HERE = Path(__file__).resolve().parent
 if str(_HERE) not in sys.path:
     sys.path.insert(0, str(_HERE))
 
-ROOT = Path(__file__).resolve().parents[2]
+_CODE = Path(__file__).resolve().parents[2]
+if str(_CODE) not in sys.path:
+    sys.path.insert(0, str(_CODE))
+# The DATA root (HL-9), not the code root: a parser-v2 rebuild into a separate
+# build root must write there, never into the live corpus.
+from engine.pantheon.store import data_root as _data_root  # noqa: E402
+ROOT = _data_root()
 DB = ROOT / "creative_suite" / "database" / "frag_recognition.db"
 DEMOS = ROOT / "demos"
 DERIVE_VERSION = "kill-events-v1.0.0"

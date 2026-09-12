@@ -46,7 +46,10 @@ TRACKED_ROOTS = ("docs/", "creative_suite/", "engine/")
 import engine.parser.demo_parse as dp
 from engine.parser.demo_parse import DM73Parser
 
-FRAGS_DB = Path("G:/QUAKE_LEGACY/creative_suite/database/frags_rebuilt.db")
+from engine.pantheon.store import data_root as _data_root
+# The data root (HL-9), never a drive letter: a rebuild into a separate build
+# root must not read the live corpus behind its back.
+FRAGS_DB = _data_root() / "creative_suite" / "database" / "frags_rebuilt.db"
 
 # The configstrings Clan Arena expresses its round state through. Indices from
 # the format deep dive §3; meanings are confirmed here against real value

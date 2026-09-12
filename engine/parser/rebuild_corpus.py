@@ -41,11 +41,16 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-REPO = HERE.parents[1]
+REPO = HERE.parents[1]                 # the CODE being run (parser_commit)
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(REPO))
 
-DEFAULT_DB = REPO / "creative_suite" / "database" / "frags_rebuilt.db"
-DEMO_ROOT = REPO / "demos"
+# The DATA root (HL-9): the corpus and the database it writes follow
+# QUAKE_LEGACY_ROOT, so a parser-v2 rebuild into a separate build root
+# cannot land in the live corpus by default.
+from engine.pantheon.store import data_root as _data_root  # noqa: E402
+DEFAULT_DB = _data_root() / "creative_suite" / "database" / "frags_rebuilt.db"
+DEMO_ROOT = _data_root() / "demos"
 SCHEMA_VERSION = "frags-rebuild-2"
 
 _COLOR = re.compile(r"\^\d")

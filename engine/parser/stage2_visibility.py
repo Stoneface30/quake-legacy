@@ -43,7 +43,11 @@ sys.path.insert(0, str(HERE))
 import bsp_geometry as bg          # noqa: E402
 from demo_parse import DM73Parser  # noqa: E402
 
-REPO_ROOT = HERE.parents[1]
+if str(HERE.parents[1]) not in sys.path:
+    sys.path.insert(0, str(HERE.parents[1]))
+# The DATA root (HL-9), not the code root (see derive_kill_events).
+from engine.pantheon.store import data_root as _data_root  # noqa: E402
+REPO_ROOT = _data_root()
 RECOG_DB = REPO_ROOT / "creative_suite" / "database" / "frag_recognition.db"
 REBUILT_DB = REPO_ROOT / "creative_suite" / "database" / "frags_rebuilt.db"
 
