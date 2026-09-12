@@ -254,6 +254,18 @@ static void PD_ServerCommand(msg_t *msg)                             /* cl_parse
     if (pd.commandSeq >= seq) return;          /* already stored */
     pd.commandSeq = seq;
     Q_strncpyz(text, s, sizeof(text));         /* s is msg.c's static buffer */
+    if (pd.trace) {                            /* G1: each command as sequenced */
+        const char *c;
+        fprintf(pd.trace, "Q\t%d\t", seq);
+        for (c = text; *c; c++) {              /* escape so one command = one line */
+            if (*c == '\\')      fputs("\\\\", pd.trace);
+            else if (*c == '\n') fputs("\\n", pd.trace);
+            else if (*c == '\r') fputs("\\r", pd.trace);
+            else if (*c == '\t') fputs("\\t", pd.trace);
+            else                 fputc(*c, pd.trace);
+        }
+        fputc('\n', pd.trace);
+    }
 
     /* Keep the reader's gamestate current whether or not cgame is running --
      * the same rule cgame's copy is updated with (pantheon_cg_feed.c). */
@@ -355,6 +367,12 @@ qboolean PANTHEON_Demo_Latest(snapshot_t *out)
 }
 
 void PANTHEON_Demo_Trace(FILE *f)                { pd.trace = f; }
+int  PANTHEON_Demo_LatestParseEntities(void)     { return pd.snap.parseEntitiesNum; }
+/* The parse-entity ring slot PD_ENT uses -- exposed for the ring self-test. */
+int  PANTHEON_Demo_EntSlot(int base, int i)
+{
+    return (int)(PD_ENT(base, i) - pd.parse);
+}
 void PANTHEON_Demo_QueueCommandsAfter(int seq)   { pd.queueFrom = seq; }
 int  PANTHEON_Demo_CommandSequence(void)         { return pd.commandSeq; }
 int  PANTHEON_Demo_MessageSequence(void)         { return pd.messageSeq; }

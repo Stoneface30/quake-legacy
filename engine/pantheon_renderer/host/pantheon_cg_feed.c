@@ -333,3 +333,10 @@ qboolean PANTHEON_CG_GetServerCommand(int seq)
 
 int PANTHEON_CG_ServerCommandSequence(void) { return cg_cmd_seq; }
 int PANTHEON_CG_LastExecutedServerCommand(void) { return cg_cmd_executed; }
+/* Which sequence owns the ring slot `seq` maps to -- for the ring self-test. */
+int PANTHEON_CG_CommandSlotOwner(int seq) { return cg_cmd_num[seq % PANTHEON_CMD_RING]; }
+/* cgame's copy of one configstring -- for the ring self-test. */
+const char *PANTHEON_CG_ConfigString(int index)
+{
+    return cg_gs.stringData + cg_gs.stringOffsets[index];
+}

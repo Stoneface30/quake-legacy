@@ -21,9 +21,20 @@ import re
 import sys
 from pathlib import Path
 
-SRC = Path("G:/QUAKE_LEGACY/engine/pantheon_renderer/wolfcamql-11.3-src/"
-           "wolfcamql-src/code/qcommon/msg.c")
+# From the code root (HL-9), not a drive letter: the tree is the pinned,
+# bootstrapped WolfcamQL source (third_party/wolfcamql/SOURCE.json).
+SRC = (Path(__file__).resolve().parents[2] / "engine" / "pantheon_renderer" /
+       "wolfcamql-11.3-src" / "wolfcamql-src" / "code" / "qcommon" / "msg.c")
 OUT = Path(__file__).with_name("netfields_generated.py")
+# The same tables for the C side of gate G1: --dump-snapshots prints every
+# field by name through them.
+OUT_C = (Path(__file__).resolve().parents[2] / "engine" / "pantheon_renderer" /
+         "host" / "pantheon_netfields.inc")
+C_TABLES = {
+    # C array emitted          (source table,               struct)
+    "pantheon_es73": ("entityStateFieldsQldm73", "entityState_t"),
+    "pantheon_psQ3": ("playerStateFieldsQ3", "playerState_t"),
+}
 
 # Deliberately permissive on the bit width: it may be a number, a negative
 # number, or a macro such as GENTITYNUM_BITS. Requiring digits is the exact
@@ -122,6 +133,25 @@ def render(src: str) -> str:
     return "\n".join(out) + "\n"
 
 
+def render_c(src: str) -> str:
+    """The C tables: name, offsetof, float flag -- in msg.c's own order."""
+    out = ["/* Generated from msg.c by engine/parser/gen_netfields.py.",
+           " * DO NOT EDIT. Regenerate: python -m engine.parser.gen_netfields --write",
+           " * Include after q_shared.h and <stddef.h>; the includer defines",
+           " * pantheonNetField_t { const char *name; int offset; int isFloat; }. */",
+           ""]
+    for c_arr, (c_name, struct) in C_TABLES.items():
+        rows = parse_table(src, c_name)
+        out.append("static const pantheonNetField_t %s[] = {  /* %s, %d fields */"
+                   % (c_arr, c_name, len(rows)))
+        for name, bits in rows:
+            out.append('    { "%s", (int)offsetof(%s, %s), %d },'
+                       % (name, struct, name, 1 if bits.strip() == "0" else 0))
+        out.append("};")
+        out.append("")
+    return "\n".join(out)
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true")
@@ -131,23 +161,26 @@ def main() -> int:
     if not SRC.exists():
         print("engine source not present: %s" % SRC, file=sys.stderr)
         return 2
-    text = render(SRC.read_text(errors="replace"))
+    src = SRC.read_text(errors="replace")
+    outputs = {OUT: render(src), OUT_C: render_c(src)}
 
     if args.write:
-        OUT.write_text(text, encoding="utf-8")
-        print("wrote %s" % OUT)
+        for path, text in outputs.items():
+            path.write_text(text, encoding="utf-8", newline="\n")
+            print("wrote %s" % path)
         return 0
     if args.check:
-        if not OUT.exists():
-            print("%s missing; run --write" % OUT, file=sys.stderr)
-            return 1
-        if OUT.read_text(encoding="utf-8") != text:
-            print("%s is STALE -- the engine source disagrees with it"
-                  % OUT, file=sys.stderr)
-            return 1
+        for path, text in outputs.items():
+            if not path.exists():
+                print("%s missing; run --write" % path, file=sys.stderr)
+                return 1
+            if path.read_text(encoding="utf-8") != text:
+                print("%s is STALE -- the engine source disagrees with it"
+                      % path, file=sys.stderr)
+                return 1
         print("netfield schema matches the engine source")
         return 0
-    print(text)
+    print(outputs[OUT])
     return 0
 
 

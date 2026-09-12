@@ -128,6 +128,7 @@ static qboolean   s_noWorld;
 static const char *s_dumpModel;   /* --dump-model: asset query, no render */
 static const char *s_demoScan;    /* --demo-scan: read a .dm_73, no render */
 static const char *s_dumpSnapshots; /* --dump-snapshots: gate G1, no render */
+static int         s_selfTestRings; /* --self-test-rings: gate G1 4c, no render */
 
 /* ── TGA out ────────────────────────────────────────────────────────────── */
 #ifndef GL_FRAMEBUFFER_BINDING_EXT
@@ -482,6 +483,179 @@ static void QDECL PANTHEON_RefPrintf(int level, const char *fmt, ...)
         Com_Printf("%s", text);
 }
 
+/* ── gate G1: every field by name, and the rings ───────────────────────────
+ *
+ * The field tables are generated from msg.c (engine/parser/gen_netfields.py),
+ * the same source DM73Parser's tables come from, so the two sides compare the
+ * same fields in the same order. Configstrings are compared by an FNV-1a 64
+ * hash over "<index>\0<value>\0" for every non-empty index, ascending. */
+#include <stddef.h>
+typedef struct { const char *name; int offset; int isFloat; } pantheonNetField_t;
+#include "pantheon_netfields.inc"
+#define G1_COUNT(a) ((int)(sizeof(a) / sizeof((a)[0])))
+#define G1_FNV_BASIS 1469598103934665603ULL
+
+static unsigned long long G1_Fnv(unsigned long long h, const char *p, int n)
+{
+    while (n-- > 0) { h ^= (unsigned char)*p++; h *= 1099511628211ULL; }
+    return h;
+}
+
+static unsigned long long G1_CsRecord(unsigned long long h, const gameState_t *gs, int i)
+{
+    const char *s = gs->stringData + gs->stringOffsets[i];
+    char num[16];
+    int  n = Com_sprintf(num, sizeof(num), "%d", i);
+    h = G1_Fnv(h, num, n + 1);                 /* includes the \0 */
+    return G1_Fnv(h, s, (int)strlen(s) + 1);
+}
+
+static unsigned long long G1_CsHash(const gameState_t *gs, int i)
+{
+    const char *s = gs->stringData + gs->stringOffsets[i];
+    return s[0] ? G1_CsRecord(G1_FNV_BASIS, gs, i) : 0;
+}
+
+static unsigned long long G1_CsSetHash(const gameState_t *gs)
+{
+    unsigned long long h = G1_FNV_BASIS;
+    int i;
+    for (i = 0; i < MAX_CONFIGSTRINGS; i++)
+        if ((gs->stringData + gs->stringOffsets[i])[0]) h = G1_CsRecord(h, gs, i);
+    return h;
+}
+
+static void G1_Values(const void *base, const pantheonNetField_t *f, int n)
+{
+    int i;
+    for (i = 0; i < n; i++) {
+        const byte *p = (const byte *)base + f[i].offset;
+        if (f[i].isFloat) printf("\t%.9g", *(const float *)p);
+        else              printf("\t%d", *(const int *)p);
+    }
+}
+
+static void G1_PrintFieldNames(void)
+{
+    int i;
+    printf("F\tP");
+    for (i = 0; i < G1_COUNT(pantheon_psQ3); i++) printf("\t%s", pantheon_psQ3[i].name);
+    for (i = 0; i < MAX_STATS; i++)      printf("\tstats[%d]", i);
+    for (i = 0; i < MAX_PERSISTANT; i++) printf("\tpersistant[%d]", i);
+    for (i = 0; i < MAX_WEAPONS; i++)    printf("\tammo[%d]", i);
+    for (i = 0; i < MAX_POWERUPS; i++)   printf("\tpowerups[%d]", i);
+    printf("\nF\tE");
+    for (i = 0; i < G1_COUNT(pantheon_es73); i++) printf("\t%s", pantheon_es73[i].name);
+    printf("\n");
+}
+
+static void G1_PrintPlayerState(const playerState_t *ps, int serverTime)
+{
+    int i;
+    printf("P\t%d", serverTime);
+    G1_Values(ps, pantheon_psQ3, G1_COUNT(pantheon_psQ3));
+    for (i = 0; i < MAX_STATS; i++)      printf("\t%d", ps->stats[i]);
+    for (i = 0; i < MAX_PERSISTANT; i++) printf("\t%d", ps->persistant[i]);
+    for (i = 0; i < MAX_WEAPONS; i++)    printf("\t%d", ps->ammo[i]);
+    for (i = 0; i < MAX_POWERUPS; i++)   printf("\t%d", ps->powerups[i]);
+    printf("\n");
+}
+
+static void G1_PrintEntity(const entityState_t *e, int serverTime)
+{
+    printf("E\t%d\t%d", serverTime, e->number);
+    G1_Values(e, pantheon_es73, G1_COUNT(pantheon_es73));
+    printf("\n");
+}
+
+/* The configstring set, and which indices changed since the last snapshot. */
+static void G1_PrintConfigstrings(const gameState_t *gs, int serverTime,
+                                  unsigned long long *prev)
+{
+    int i, any = 0;
+    printf("C\t%d\t%016llx\t", serverTime, G1_CsSetHash(gs));
+    for (i = 0; i < MAX_CONFIGSTRINGS; i++) {
+        unsigned long long h = G1_CsHash(gs, i);
+        if (h != prev[i]) { printf(any ? ",%d" : "%d", i); any = 1; prev[i] = h; }
+    }
+    printf(any ? "\n" : "-\n");
+}
+
+/* Test hooks into the feed -- NOT the host interface (pantheon_cgame.h). */
+qboolean    PANTHEON_CG_GetServerCommand(int seq);
+int         PANTHEON_CG_CommandSlotOwner(int seq);
+const char *PANTHEON_CG_ConfigString(int index);
+
+/*
+ * The rings, wrapped on purpose (plan Task 3, step 4c). Run inside the real
+ * linked binary, against the production objects, rather than in a separate
+ * program that would have to re-link half the engine.
+ */
+static int G1_SelfTestRings(void)
+{
+    static gameState_t gs;
+    static const int owner[][2] = { {63, 127}, {64, 128}, {65, 129},
+                                    {127, 127}, {128, 128}, {129, 129} };
+    static const int slot[][3] = { {8191, 0, 8191}, {8191, 1, 0},
+                                   {8192, 0, 0}, {8193, 0, 1} };
+    char text[64];
+    int  seq, i, bad = 0;
+
+    memset(&gs, 0, sizeof(gs));
+    gs.dataCount = 1;
+
+    /* Reliable commands: 130 queued, only the last 64 retrievable. */
+    PANTHEON_CG_LoadGameState(&gs, 0);
+    for (seq = 1; seq <= 130; seq++) {
+        Com_sprintf(text, sizeof(text), "print \"%d\"", seq);
+        PANTHEON_CG_ApplyServerCommand(seq, text);
+    }
+    for (seq = 1; seq <= 130; seq++) {
+        qboolean want = seq > 130 - MAX_RELIABLE_COMMANDS;
+        if (PANTHEON_CG_GetServerCommand(seq) != want) {
+            printf("RING FAIL: command %d retrievable=%d, want %d\n", seq, !want, want);
+            bad++;
+        } else if (want && atoi(Cmd_Argv(1)) != seq) {
+            printf("RING FAIL: command %d returned \"%s\"\n", seq, Cmd_Argv(1));
+            bad++;
+        }
+    }
+    for (i = 0; i < G1_COUNT(owner); i++)
+        if (PANTHEON_CG_CommandSlotOwner(owner[i][0]) != owner[i][1]) {
+            printf("RING FAIL: slot of %d owned by %d, want %d\n", owner[i][0],
+                   PANTHEON_CG_CommandSlotOwner(owner[i][0]), owner[i][1]);
+            bad++;
+        }
+
+    /* A big configstring in three pieces reaches cgame as ONE cs. */
+    PANTHEON_CG_LoadGameState(&gs, 0);
+    PANTHEON_CG_ApplyServerCommand(1, "bcs0 5 abc");
+    PANTHEON_CG_ApplyServerCommand(2, "bcs1 5 def");
+    PANTHEON_CG_ApplyServerCommand(3, "bcs2 5 ghi");
+    if (PANTHEON_CG_GetServerCommand(1) || PANTHEON_CG_GetServerCommand(2)) {
+        printf("RING FAIL: a bcs0/bcs1 piece reached cgame\n");
+        bad++;
+    }
+    if (!PANTHEON_CG_GetServerCommand(3) || strcmp(Cmd_Argv(0), "cs") ||
+        strcmp(PANTHEON_CG_ConfigString(5), "abcdefghi")) {
+        printf("RING FAIL: bcs2 gave argv0=\"%s\", cs5=\"%s\"\n", Cmd_Argv(0),
+               PANTHEON_CG_ConfigString(5));
+        bad++;
+    }
+
+    /* The parse-entity ring: 8192 slots, wrapping at the mask. */
+    for (i = 0; i < G1_COUNT(slot); i++)
+        if (PANTHEON_Demo_EntSlot(slot[i][0], slot[i][1]) != slot[i][2]) {
+            printf("RING FAIL: parse slot (%d,%d)=%d, want %d\n", slot[i][0],
+                   slot[i][1], PANTHEON_Demo_EntSlot(slot[i][0], slot[i][1]), slot[i][2]);
+            bad++;
+        }
+
+    printf(bad ? "RINGS FAIL %d\n" : "RINGS OK\n", bad);
+    fflush(stdout);
+    return bad ? 1 : 0;
+}
+
 int main(int argc, char **argv)
 {
     refimport_t ri;
@@ -550,6 +724,8 @@ int main(int argc, char **argv)
             s_demoScan = argv[++i];
         } else if (!strcmp(argv[i], "--dump-snapshots") && i + 1 < argc) {
             s_dumpSnapshots = argv[++i];
+        } else if (!strcmp(argv[i], "--self-test-rings")) {
+            s_selfTestRings = 1;
         } else if (!strcmp(argv[i], "--actor-model") && i + 1 < argc) {
             Q_strncpyz(cliModel, argv[++i], sizeof(cliModel));
             cliActor = qtrue;
@@ -662,7 +838,8 @@ int main(int argc, char **argv)
         /* --dump-model asks the filesystem a question; it has no world and
          * needs none. Demanding a map here would make an asset query depend
          * on naming a level it never loads. */
-        if (!cliMap[0] && !s_dumpModel && !s_demoScan && !s_dumpSnapshots) {
+        if (!cliMap[0] && !s_dumpModel && !s_demoScan && !s_dumpSnapshots &&
+            !s_selfTestRings) {
             fprintf(stderr, "PANTHEON: --map or --shot is required; the "
                             "renderer does not choose a world\n");
             return 2;
@@ -730,31 +907,53 @@ int main(int argc, char **argv)
         return 0;
     }
 
+    if (s_selfTestRings)
+        return G1_SelfTestRings();
+
     if (s_dumpSnapshots) {
-        /* G1. One S line per snapshot the reader would offer cgame, one E line
-         * per player/missile entity in it. Tab-separated for the test; no GL
-         * context, so it runs anywhere. */
+        /* G1: everything the reader hands cgame, every field by name.
+         *   F  field names, once per kind       G  gamestate
+         *   Q  each server command as sequenced D  every parsed frame
+         *   S  snapshot header  P  playerstate  E  entity  C  configstrings
+         * Tab-separated; no GL context, so it runs anywhere. */
         static snapshot_t snap;
-        int lastNum = -1, k;
+        static unsigned long long csPrev[MAX_CONFIGSTRINGS];
+        int lastNum = -1, lastGs = 0, k;
 
         if (!PANTHEON_Demo_Open(s_dumpSnapshots)) {
             fprintf(stderr, "PANTHEON: cannot open %s\n", s_dumpSnapshots);
             return 2;
         }
         PANTHEON_Demo_Trace(stdout);
+        G1_PrintFieldNames();
         while (PANTHEON_Demo_ReadMessage()) {
+            if (PANTHEON_Demo_GamestateCount() != lastGs) {
+                const gameState_t *gs = PANTHEON_Demo_GameState();
+                const char *proto = Cvar_VariableString("protocol");
+                lastGs = PANTHEON_Demo_GamestateCount();
+                /* The field tables are protocol 73's. Anything else is an
+                 * unsupported profile: fail, never compare with the wrong
+                 * table and call it agreement. */
+                if (strcmp(proto, "73")) {
+                    fprintf(stderr, "PANTHEON: --dump-snapshots supports protocol "
+                                    "73 only; this demo is %s\n", proto);
+                    PANTHEON_Demo_Close();
+                    return 3;
+                }
+                printf("G\t%d\t%d\t%s\t%016llx\t%d\n", PANTHEON_Demo_ClientNum(),
+                       PANTHEON_Demo_ChecksumFeed(), proto, G1_CsSetHash(gs),
+                       PANTHEON_Demo_CommandSequence());
+                for (k = 0; k < MAX_CONFIGSTRINGS; k++) csPrev[k] = G1_CsHash(gs, k);
+            }
             if (!PANTHEON_Demo_Latest(&snap) || snap.messageNum == lastNum) continue;
             lastNum = snap.messageNum;
-            printf("S\t%d\t%d\t%.3f\t%.3f\t%.3f\t%d\n", snap.messageNum,
-                   snap.serverTime, snap.ps.origin[0], snap.ps.origin[1],
-                   snap.ps.origin[2], snap.numEntities);
-            for (k = 0; k < snap.numEntities; k++) {
-                const entityState_t *e = &snap.entities[k];
-                if (e->eType == ET_PLAYER || e->eType == ET_MISSILE)
-                    printf("E\t%d\t%d\t%d\t%.3f\t%.3f\t%.3f\n", snap.serverTime,
-                           e->number, e->eType, e->pos.trBase[0],
-                           e->pos.trBase[1], e->pos.trBase[2]);
-            }
+            printf("S\t%d\t%d\t%d\t%d\t%d\t%d\n", snap.messageNum, snap.serverTime,
+                   snap.snapFlags, snap.serverCommandSequence, snap.numEntities,
+                   PANTHEON_Demo_LatestParseEntities());
+            G1_PrintPlayerState(&snap.ps, snap.serverTime);
+            for (k = 0; k < snap.numEntities; k++)
+                G1_PrintEntity(&snap.entities[k], snap.serverTime);
+            G1_PrintConfigstrings(PANTHEON_Demo_GameState(), snap.serverTime, csPrev);
         }
         fflush(stdout);
         PANTHEON_Demo_Close();
