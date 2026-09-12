@@ -77,13 +77,23 @@ w("<div class='sub'>%s rounds from %s CA demos (only %s quarantined). Each clip 
   % (f"{summary['rounds_built']:,}", f"{summary['demos_in_scope']:,}",
      sum(summary["quarantined"].values()), PER_LANE))
 
-for lane in lanes:
-    us = by_lane[lane][:PER_LANE]
-    w("<div class='lane'><h2>%s <span class='meta'>(%d rounds with your kills)</span></h2>"
-      "<div class='grid'>" % (html.escape(lane), len(by_lane[lane])))
+def skey(u):
+    # the SAME key the samples dict uses: the round's window, never its score
+    return (u["map"], u["round"], round((u["end_ms"] - u["start_ms"]) / 1000.0, 1))
+
+
+# Captured rounds first, whatever their current rank: they exist to check the
+# boundaries by eye, and rescoring can push them out of a lane's top 25.
+sampled = [u for u in rounds if skey(u) in samples]
+sections = [("CAPTURED SAMPLES &mdash; check the boundaries", sampled, len(sampled))]
+sections += [(html.escape(l), by_lane[l][:PER_LANE], len(by_lane[l])) for l in lanes]
+
+for title, us, total in sections:
+    w("<div class='lane'><h2>%s <span class='meta'>(%d rounds)</span></h2>"
+      "<div class='grid'>" % (title, total))
     for u in us:
         k = rid(u)
-        s = samples.get((u["map"], u["round"], u["score"]))
+        s = samples.get(skey(u))
         w("<div class='card' data-id='%s'>" % k)
         w("<div class='role' style='color:%s'>%s &middot; %.0f</div>"
           % (ROLE_COL.get(u["role"], "#8a94a0"), u["role"].replace("_", " "), u["score"]))
