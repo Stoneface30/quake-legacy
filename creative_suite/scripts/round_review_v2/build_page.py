@@ -24,9 +24,15 @@ sp = HERE / "samples" / "samples.json"
 if sp.exists():
     for s in json.loads(sp.read_text(encoding="utf-8")):
         if s.get("mp4") and s.get("duration_ok"):
-            # keyed by the WINDOW, not the score: rescoring changes scores but
-            # never moves a round's boundaries
-            samples[(s["map"], s["round"], round(s["window_s"], 1))] = s
+            # Exact identity when the sample recorded it; otherwise the window
+            # PLUS the round's trait set. (map, round, window) alone collided
+            # across different demos -- 33 cards showed a video for 12 samples,
+            # i.e. some cards played footage of a different round.
+            if s.get("content_hash") and s.get("start_ms") is not None:
+                samples[("id", s["content_hash"], s["start_ms"])] = s
+            else:
+                samples[(s["map"], s["round"], round(s["window_s"], 1),
+                         tuple(sorted(s.get("traits") or ())))] = s
 
 
 def rid(u):
@@ -78,8 +84,13 @@ w("<div class='sub'>%s rounds from %s CA demos (only %s quarantined). Each clip 
      sum(summary["quarantined"].values()), PER_LANE))
 
 def skey(u):
-    # the SAME key the samples dict uses: the round's window, never its score
-    return (u["map"], u["round"], round((u["end_ms"] - u["start_ms"]) / 1000.0, 1))
+    """The key this round's sample is filed under, or None if it has none."""
+    exact = ("id", u["content_hash"], u["start_ms"])
+    if exact in samples:
+        return exact
+    fallback = (u["map"], u["round"], round((u["end_ms"] - u["start_ms"]) / 1000.0, 1),
+                tuple(sorted(u["traits"])))
+    return fallback if fallback in samples else None
 
 
 # Captured rounds first, whatever their current rank: they exist to check the
