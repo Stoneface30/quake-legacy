@@ -62,7 +62,8 @@ for i, u in enumerate(picked, 1):
         lock_wait_s=180.0)
     el = time.time() - t0
     avi = (res.get("avis") or {}).get(name)
-    rec = {"i": i, "role": u["role"], "score": u["score"], "lane": u["lane"],
+    rec = {"i": i, "content_hash": u["content_hash"], "start_ms": u["start_ms"],
+           "role": u["role"], "score": u["score"], "lane": u["lane"],
            "kills": u["kills"], "end_reason": u["end_reason"],
            "window_s": round(dur_s, 2), "capture_s": round(el, 1),
            "stole_focus": res.get("stole_focus"),
