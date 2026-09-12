@@ -1,0 +1,34 @@
+chunked run of creative_suite\tests: 5 error, 24 failed, 3205 passed, 206 skipped in 872s
+files with failures:
+  creative_suite\tests\phase1\test_clip_list.py: 1 failed, 4 passed in 0.20s
+  creative_suite\tests\phase1\test_config.py: 1 failed, 3 passed in 0.19s
+  creative_suite\tests\phase1\test_inventory.py: 2 failed, 3 passed in 0.18s
+  creative_suite\tests\phase1\test_music_stitcher_v10.py: 3 failed in 0.26s
+  creative_suite\tests\phase1\test_normalize.py: 3 errors in 0.37s
+  creative_suite\tests\phase1\test_pipeline.py: 1 passed, 2 errors in 0.33s
+  creative_suite\tests\test_ab_scene.py: 1 failed, 14 passed in 0.19s
+  creative_suite\tests\test_audio_safety.py: 1 failed, 3 passed in 0.34s
+  creative_suite\tests\test_capabilities_and_profile.py: 1 failed, 11 passed in 0.54s
+  creative_suite\tests\test_capture_truncation.py: 1 failed, 21 passed in 0.79s
+  creative_suite\tests\test_data_root.py: 1 failed, 12 passed in 1.52s
+  creative_suite\tests\test_demo_truth.py: 2 failed, 31 passed in 4.52s
+  creative_suite\tests\test_director_preview.py: 1 failed, 53 passed, 28 warnings in 258.04s (0:04:18)
+  creative_suite\tests\test_dm73_write.py: 1 failed, 52 passed in 4.43s
+  creative_suite\tests\test_pantheon_headless_api.py: 4 failed, 10 passed in 5.00s
+  creative_suite\tests\test_pantheon_scenario.py: 1 failed, 16 passed in 6.92s
+  creative_suite\tests\test_performance.py: 1 failed, 8 passed in 4.59s
+  creative_suite\tests\test_projectile_reconstruction.py: 2 failed, 28 passed in 0.56s
+
+classification (2026-09-12, QUAKE_LEGACY_ROOT=G:/QUAKE_LEGACY):
+  pre-existing, also fail in the main checkout (10 files): test_ab_scene,
+    test_capabilities_and_profile, test_capture_truncation (both fixed on
+    fix/own-test-debt-2026-09-12, PR #18), test_demo_truth, test_director_preview,
+    test_dm73_write, test_pantheon_headless_api, test_pantheon_scenario,
+    test_performance, test_projectile_reconstruction.
+  environmental, worktree only (8 files; all pass in the main checkout):
+    phase1/test_clip_list, test_config, test_inventory, test_music_stitcher_v10,
+    test_normalize, test_pipeline, test_audio_safety -- creative_suite/tools/ffmpeg
+    is gitignored and exists only in the main checkout;
+    test_data_root -- asserts CODE_ROOT == data root, which QUAKE_LEGACY_ROOT
+    deliberately separates.
+  new failures caused by this branch: none.
