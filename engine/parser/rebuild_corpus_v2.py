@@ -117,6 +117,10 @@ def stages(a) -> list[tuple[str, list[list[str]], set[str]]]:
                           "--workers", w]], set()),
         ("semantic_events", [[sys.executable, "engine/parser/enrich_semantic_events.py"]],
          set()),
+        # reclassify_v2 joins output/clutch_recorder.csv; regenerated from v2
+        # data here, never borrowed from the live output/.
+        ("clutch", [[sys.executable, "engine/parser/clutch_products.py", "--workers", w]],
+         set()),
         ("enrichment", [[sys.executable, "creative_suite/scripts/round_review_v2/"
                          "full_corpus_v3.py", "--workers", w]], {"frag_shapes.db"}),
         ("occurrences", [_py("from creative_suite.engine import kill_occurrences as m;"

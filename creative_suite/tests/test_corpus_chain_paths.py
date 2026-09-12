@@ -26,6 +26,7 @@ CHAIN = [
     "engine.parser.refine_view_metrics", "engine.parser.reclassify_v2",
     "engine.parser.mine_action_moments", "engine.parser.mine_aim_events",
     "engine.parser.demo_lineage", "engine.parser.ca_reference",
+    "engine.parser.clutch_products",
     "creative_suite.engine.kill_occurrences", "creative_suite.engine.funny_candidates",
     "creative_suite.engine.movement_moments", "creative_suite.engine.frag_shapes",
     "creative_suite.engine.match_roster", "creative_suite.engine.round_model",

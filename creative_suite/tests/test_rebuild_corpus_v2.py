@@ -55,7 +55,7 @@ def test_stages_run_in_the_documented_dependency_order():
     a = argparse.Namespace(workers=2, limit=None)
     names = [n for n, _c, _r in R.stages(a)]
     assert names == ["corpus", "recognition_pass1", "norms", "recognition",
-                     "kill_events", "semantic_events", "enrichment", "occurrences",
+                     "kill_events", "semantic_events", "clutch", "enrichment", "occurrences",
                      "mining", "lineage"]
 
 
