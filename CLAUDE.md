@@ -133,6 +133,18 @@ PANTHEON intro: FRAGMOVIE VIDEOS/IntroPart2.mp4
 
 ## HARD RULES — Render Pipeline
 
+> **Which pipeline these rules describe (audited 2026-09-12).** Delivered Parts
+> (`output/Part4..9_highlight*.mp4`, all dated 2026-08-30) are produced by
+> `hl_series.py` / `hl_generate.py` / `hl_all.py` / `hl_batch.py` →
+> `creative_suite/engine/render_highlight.py`. Most WHERE lines below point at
+> `render_part_v6.py`, which is still reachable from the Cinema Suite REBUILD
+> job but has shipped nothing since 2026-08-28. Each rule carries a STATUS line
+> measured against the delivered path; the evidence (file:line) is in
+> `docs/reference/2026-09-12-music-sync-and-effects-wiring-audit.md`. Every
+> delivered mp4 predates five later changes to `render_highlight.py` — re-render
+> before trusting what is on screen. **A rule marked NOT WIRED is not true of the
+> videos we ship, whatever its text says.**
+
 *Superseded versions archived at `docs/_archive/claude-md-superseded-2026-04-19.md` — grep by rule ID.*
 
 ---
@@ -140,12 +152,14 @@ PANTHEON intro: FRAGMOVIE VIDEOS/IntroPart2.mp4
 ### 1. AUDIO
 
 #### P1-G (Music mix) [v6, 2026-08-28 — SUPERSEDES v5]
+- **STATUS 2026-09-12** — **WIRED AND PROVEN** in the delivered path: `render_highlight.mux_music`, `MUSIC_VOLUME = 1.24`, `amix normalize=0`, peak limiting only, no ducking. **Contradiction:** `render_part_v6.py` (Cinema Suite REBUILD) still sidechain-ducks via `sidechain.py`.
 - **WHAT** Music plays at ONE FIXED LEVEL for the whole body. **No sidechain ducking. No level-following of any kind.** The music must not rise and fall with the action. Sync is achieved by matching the ACTION TO THE MUSIC (beat-locked cuts + video speed ramps), never by modulating music gain to the action. Only permitted level moves: a fade-in at the very start and a fade-out at the very end. The ebur128 `FAILED_LEVEL_GATE` is **retired** — it was what forced music down to 8%.
 - **WHERE** `creative_suite/engine/render_highlight.py::mux_music` (`MUSIC_VOLUME` constant, `amix ... normalize=0`, no sidechain) · beat matching in `creative_suite/engine/effects/speed_ramp.py`
 - **WHY** User review 2026-08-28: *"music volume WAS changing not at fixed level not low it was matching action we need to match action with music not the other way around."* v5's sidechain duck + loudness gate were the defect, not the tuning. v5 drove `cfg.music_volume` to 0.08 (8%) purely to satisfy the gate.
 - **PITCH** The music is never time-stretched or resampled. The VIDEO bends to the beat grid, so pitch and tempo are untouched.
 
 #### P1-Q-AUTO (Effects are automatic, not opt-in) [2026-08-28]
+- **STATUS 2026-09-12** — **PARTIAL, contradicts the text.** No override file is needed, but the delivered path slows only every 3rd clip when it is T1 (`SLOWMO_EVERY_N = 3`) plus clips ≤ 7 s; speed-up was removed.
 - **WHAT** Every frag receives a speed ramp: dead time before the action compressed, the money shot slowed. No hand-authored per-clip override is required.
 - **WHERE** `creative_suite/engine/effects/speed_ramp.py` · applied in `render_highlight.py::render_frag`
 - **WHY** `render_part_v6` fired slow-mo only for clips carrying an explicit `slow=` line in `partNN_overrides.txt`. Part 4 had **one** such line across 120 clips, so finished Parts had effectively no effects. Rules whose only trigger is a hand-written override file will not fire — verify the trigger, not just the code.
@@ -155,11 +169,13 @@ PANTHEON intro: FRAGMOVIE VIDEOS/IntroPart2.mp4
 ### 2. TRIMMING
 
 #### P1-L (Head/tail trim) [v4, 2026-04-18]
+- **STATUS 2026-09-12** — Not re-audited on 2026-09-12.
 - **WHAT** FP clips: head=0, tail=0 (frags are clean start-to-end). FL clips: head=1.0s (console), tail=2.0s (angle falloff). Skip any clip whose post-trim body < 2.0s (min_playable). No speed-stretch to fit.
 - **WHERE** `cfg.clip_head_trim_fp=0.0`, `_fl=1.0` · `clip_tail_trim_fp=0.0`, `_fl=2.0` · `min_playable_duration_s=2.0` · `render_part_v6.py::build_body_chunks` · per-clip overrides in `partNN_overrides.txt` win over defaults.
 - **WHY** Trimming FP was always wrong; only FL needs edges cleaned. Short-clip protection prevents 1s blurs.
 
 #### P1-D (Preview clip-name burn-in)
+- **STATUS 2026-09-12** — Not re-audited on 2026-09-12.
 - **WHAT** Preview renders burn the original clip filename in bottom-left at 18pt. Final renders do NOT show clip names.
 - **WHERE** `render_part_v6.py` preview branch only · full renders strip the drawtext overlay.
 - **WHY** User references clips by name/timestamp when giving edit feedback — the label must be on-screen in the review loop.
@@ -169,6 +185,7 @@ PANTHEON intro: FRAGMOVIE VIDEOS/IntroPart2.mp4
 ### 3. TRANSITIONS
 
 #### P1-H (Transitions) [v4, 2026-04-18]
+- **STATUS 2026-09-12** — **DEVIATES.** Delivered `XFADE_S = 0.35`, and segments are assembled in groups of 6 joined by `concat_copy` — every 6th seam is a **hard cut**.
 - **WHAT** 0.40s seam xfade between every body chunk. Banned: any xfade ≥0.8s, fade-to-black, dip-to-white, cross-dissolve >0.3s, any intro/outro dramatic fade.
 - **WHERE** `cfg.seam_xfade_duration=0.40` · `render_part_v6.py::assemble_body_with_xfades` · every chunk audio enters with `asetpts=PTS-STARTPTS,aresample=async=1:first_pts=0` (drift fix ships with P1-BB).
 - **WHY** User asked for visible transitions four times; v1's "hard cuts only" was rejecting 1s drama fades, not short bleeds. 0.4s is the minimum perceptible seam.
@@ -178,16 +195,19 @@ PANTHEON intro: FRAGMOVIE VIDEOS/IntroPart2.mp4
 ### 4. MUSIC STRUCTURE
 
 #### P1-R (Three-track music contract) [v2, 2026-04-18; merges P1-O + P1-W]
+- **STATUS 2026-09-12** — **SUPERSEDED in the delivered path** by the 2026-08-29 "two songs" direction: two songs, 6 s crossfade, hard cut at body length + 4 s fade. The three-track stitcher runs only in `render_part_v6.py`.
 - **WHAT** Every Part ships THREE tracks: intro + main + outro. Intro plays under PANTHEON+title (default: *Cinema - Sped Up*). Main = per-Part hype pick. Outro = ~30s cooldown (default: *Eple - Badger*). Continuous coverage mandatory — silence gaps = render failure. All tracks play FULL; last may truncate at phrase boundary only (see P1-AA). Mid-song cuts banned.
 - **WHERE** `Config.intro_music_path(part)` / `music_path(part)` / `outro_music_path(part)` · `creative_suite/engine/music_stitcher.py` · per-Part overrides `partNN_intro_music.*` / `partNN_outro_music.*` resolved first.
 - **WHY** Single-track renders rejected by user; mid-song swaps rejected twice; silence gaps rejected once. Three-track + continuous = stable contract.
 
 #### P1-AA (Music stitcher — video is truth) [v2, 2026-04-18]
+- **STATUS 2026-09-12** — **v6-only; not in the delivered path.** Its "sidechain-duck ~6 dB" clause contradicts P1-G v6, which wins.
 - **WHAT** Video body length rules. Queue N full tracks until `sum(duration) ≥ body_duration`; last track may truncate at a PHRASE boundary (never mid-bar). Seams = DJ beat+phrase match at 8/16-bar boundaries; time-stretch B to BPM_A via rubberband when |ΔBPM|≤8, else `afade` fallback flagged `BPM_MISMATCH`. Sidechain-duck music ~6 dB on recognized game events.
 - **WHERE** `creative_suite/engine/music_stitcher.py` · `creative_suite/engine/sidechain.py` · `output/partNN_music_plan.json` (ship gate: every `duration == full_duration ± 0.1s` EXCEPT last, which must land on phrase boundary).
 - **WHY** Mid-song cuts + looped tails rejected twice by user; `acrossfade` chains compound drift. Beat-matched DJ mix is what listeners expect.
 
 #### P1-F (Music track catalog)
+- **STATUS 2026-09-12** — Not re-audited on 2026-09-12.
 - **WHAT** Per-Part music files live in `creative_suite/engine/music/` and are auto-detected by filename (`partNN_intro_music.*`, `partNN_music.*`, `partNN_outro_music.*`). Series defaults: `pantheon_intro_music.mp3`, `pantheon_outro_music.mp3`.
 - **WHERE** `creative_suite/engine/music/available_tracks.txt` is the human-readable catalog. `Config.*_music_path()` is the resolver.
 - **WHY** One source of truth for "what music does Part N use" — no hardcoded paths in render code.
@@ -197,6 +217,7 @@ PANTHEON intro: FRAGMOVIE VIDEOS/IntroPart2.mp4
 ### 5. TITLE CARD
 
 #### P1-Y (Title card — Quake aesthetic) [v2 + P1-T merged, 2026-04-18]
+- **STATUS 2026-09-12** — **NOT CALLED** in the delivered path: `title_card.render_title_card` is never invoked; `pantheon_intro.render_intro` renders one generated 8 s opener (it borrows only `pick_intro_backdrop_fls`).
 - **WHAT** Hero word (`QUAKE TRIBUTE`) uses OFL display font (candidate: Black Ops One / Russo One / Bungee Inline — pending user pick). Subtitle (`Part N`, `By Tr4sH`) uses Bebas Neue. Metallic red→gold fill, triple-layer 3D slab (black shadow + red inner glow + white core+border), 8%-opacity scanlines, 200ms chromatic aberration on reveal, scale-punch per char (1.15×→1.0× over 80ms), final one-frame white flash on last char of hero, 400ms red underline under credit. Renders over desaturated FL gameplay backdrop (`hue=s=0.25, brightness=-0.22, gblur=σ=4, vignette`). Duration 8s. NEVER over black.
 - **WHERE** `creative_suite/engine/title_card.py::render_title_card` · `pick_intro_backdrop_fls` walks `T3→T2→T1` FL files · smoke-test grabs at t=0.3, 1.0, 2.0, 4.0, 6.5 into `docs/visual-record/YYYY-MM-DD/title_card_quake_smoke_partNN.png`.
 - **WHY** v6 black-void readability fail + v8 Impact-kerning "TRI BUTE" split + user ask for "more effort" all resolved in one design. Smoke test per VIS-1 enforces visual sign-off before ship.
@@ -206,26 +227,31 @@ PANTHEON intro: FRAGMOVIE VIDEOS/IntroPart2.mp4
 ### 6. BEAT SYNC & GAME AUDIO
 
 #### P1-Z (Action peak = recognized game event) [v2, 2026-04-18]
+- **STATUS 2026-09-12** — **NOT WIRED** in the delivered path: the peak is `peak_guard.find_peak_guarded`, a loudness envelope — the method this rule replaced. `recognize_game_events` is called only by `render_part_v6.py`.
 - **WHAT** Detect `player_death` / `rocket_impact` / `rail_fire` / `grenade_explode` / `LG_hit` / etc. in clip audio via template match against `creative_suite/engine/sound_templates/` (P1-DD). Peak = `argmax(weight × confidence)`. Grenade throw + 3s + explode = compound `grenade_direct`, peak at explosion. `player_death` wins over weapon events. Fallback: loudest onset + tag `RECOGNITION_FAILED` (all events < 0.4 confidence).
 - **WHERE** `creative_suite/engine/audio_onsets.py::recognize_game_events` · logs `output/partNN_beats.json` (`[{clip, action_peak_t, event_type, confidence, target_downbeat, shift, tag}]`).
 - **WHY** Loudest-amplitude onset mislabeled 30%+ of clips; recognized events are correct by construction.
 
 #### P1-DD (QL sound template library)
+- **STATUS 2026-09-12** — The library exists; its consumer (`recognize_game_events`) is v6-only, so delivered videos do not use it.
 - **WHAT** Every game-audio event the render pipeline cares about has a reference template extracted from Quake Live `pak00.pk3`. Scope: `sound/weapons/**`, `sound/player/**{death,gasp,pain,jump,land}*`, `sound/misc/**{telein,teleout,quad,powerup}*`, `sound/items/**{pickup,health,armor}*`, `sound/feedback/**`, `sound/world/**` (capped). All normalized to PCM WAV 48 kHz mono 16-bit.
 - **WHERE** `creative_suite/engine/sound_templates/` + `manifest.json` (path → `event_type` with duration + RMS) · source: `C:\Program Files (x86)\Steam\steamapps\common\Quake Live\baseq3\pak00.pk3` (read-only per ENG-4).
 - **WHY** Bridge between the render pipeline (action-peak recognition) and the demo parser (demo-audio event labeling). Any demo extractor that does NOT consume this library is doing the work twice.
 
 #### P1-CC (Flow-driven cut placement) [v2, 2026-04-18]
+- **STATUS 2026-09-12** — **NOT WIRED** in the delivered path (`plan_flow_cuts_v2` is v6-only); delivered order comes from selection/queue.
 - **WHAT** Flow planner walks music `sections[]` and picks clips by SECTION SHAPE, not tier: `build`→T3 atmospherics + slow FLs; `drop`→clip with `player_death` / `rocket_impact` nearest the drop timestamp; `break`→longest downtime clip; `outro`→tail frags. Tier is sort-key tiebreaker only (T1>T2>T3), never a hard gate.
 - **WHERE** `creative_suite/engine/beat_sync.py::plan_flow_cuts_v2` · `creative_suite/engine/music_structure.py` produces `sections[]` via Beat This! + msaf + sub-200Hz RMS novelty.
 - **WHY** "Perfect drop on a T3 action becomes T1 to the watcher." Tier-as-gate was too rigid — flow wins.
 
 #### P1-S (Beat-sync governs seams, never clip duration)
+- **STATUS 2026-09-12** — **WIRED for accented clips:** the delivered path lands a clip on a beat by solving its slow-mo rate (`speed_ramp.accent_rate_for_landing`), never by shortening it. Unaccented clips are not beat-placed.
 - **WHAT** Beat-match lives on the JOIN between clips. It shifts WHEN a cut happens (±400 ms cap, absorbed by trim budget), never HOW LONG a clip plays. Clips play their full post-P1-L duration.
 - **WHERE** `plan_beat_cuts()` / `plan_flow_cuts_v2()` return cut timestamps, not clip durations. Any code that shortens a clip below `full_length − head_trim − tail_trim` is broken.
 - **WHY** Render pipeline clips are already-rendered AVIs — each clip IS the frag. Truncating to hit a beat defeats the whole pipeline.
 
 #### P1-I (Golden rule — frag + effect + music align)
+- **STATUS 2026-09-12** — **PARTIAL.** Delivered effect choice is cadence + clip length; music structure is not consulted, the beat only tunes the slow-mo rate.
 - **WHAT** Every chosen effect (slow-mo window, zoom, speed-up, hard cut) must match both frag type AND the music section. A T1 peak without matching musical weight is a miss. A slow-mo without a corresponding bass hit is a miss.
 - **WHERE** Effect selection in `creative_suite/engine/effects.py` consumes `partNN_music_structure.json` + `partNN_beats.json` jointly.
 - **WHY** User-stated north star: "the frag + effect + music is the golden rule of a good video."
@@ -235,16 +261,19 @@ PANTHEON intro: FRAGMOVIE VIDEOS/IntroPart2.mp4
 ### 7. MULTI-ANGLE
 
 #### P1-A (Three-tier clip combining)
+- **STATUS 2026-09-12** — Not re-audited on 2026-09-12.
 - **WHAT** Every Part combines ALL THREE tiers: `T1/PartN` + `T2/PartN` + `T3/PartN`. Tier semantics: **T1 = rarest / elite peak frags** (precious, save for climax moments, never filler); **T2 = main meal** (≥70% of screen time, backbone of the Part); **T3 = filler / cinematic** (atmospheric, intro/outro priority, FL slow-mo establishing shots).
 - **WHERE** `scan_part_frags(part, cfg)` MUST scan all three tier directories. Interleave via `interleave_clips_by_tier()` (round-robin drain: T2/T1/T3/T2/T3/T1/T2…).
 - **WHY** A Part assembled from T1 only is wrong. A Part using T1 as filler is also wrong. Tier semantics were inverted in the original spec — this is the corrected reading.
 
 #### P1-B (Intro/outro clip pool)
+- **STATUS 2026-09-12** — `pick_intro_backdrop_fls` feeds the delivered opener's backdrop.
 - **WHAT** Lower-tier multi-angle subdirs (contain FL clips) are the intro/outro pool. Priority: T3 multi-angle → T2 multi-angle → T1 multi-angle (only if T2/T3 exhausted).
 - **WHERE** `creative_suite/engine/title_card.py::pick_intro_backdrop_fls` · same resolver feeds the cinematic outro slot.
 - **WHY** Lower-tier frags look good as cinematic intros because they're less intense, and the FL angles give more visual variety for establishing shots.
 
 #### P1-K (Multi-angle — FP backbone + ONE FL slow-contrast) [2026-04-17]
+- **STATUS 2026-09-12** — **SUPERSEDED in the delivered path:** alternate angles are natural-speed picture-in-picture insets (`FL_LEADS_IN = False`).
 - **WHAT** FP is the spine. At most ONE FL cuts in per frag, used as slow-motion contrast (`0.5×`). No 4-angle ping-pong. Window schedule: FP normal 0%→40%T · FL slow-mo 40%→65%T · FP normal 65%→100%T. Pick the FL with biggest angle delta from FP (side/top preferred).
 - **WHERE** Clip-list grammar: `FP_path > FL_path` activates multi-angle on that frag (`>` = paired). Consecutive lines = sequential, not multi-angle.
 - **WHY** User rejected swap-back-and-forth editing: "focus on keeping the main pov, use 1 FL for effect." FL is an *effect* on FP, not a standalone frag.
@@ -254,11 +283,13 @@ PANTHEON intro: FRAGMOVIE VIDEOS/IntroPart2.mp4
 ### 8. FULL-LENGTH CLIP CONTRACT
 
 #### P1-P (No sub-clip fragments)
+- **STATUS 2026-09-12** — Not re-audited on 2026-09-12.
 - **WHAT** A clip that enters a Part plays its full post-trim duration. "Filler" = full-length atmospheric establishing shot (typically T3), NOT a 0.5s cutaway. Quick-swap 0.5s fragments are banned.
 - **WHERE** `build_body_chunks` emits one chunk per clip; no sub-trim for pacing. The micro-cut idea survives ONLY as a beat-locked FP↔FL stutter inside one multi-angle group (`FL_BEAT_STUTTER` flag, gated off by default).
 - **WHY** User: "you did not understand what a filler was — we need to keep ALL the original clip length."
 
 #### P1-Q (Speed effects) [v2, 2026-04-18; merges P1-EE]
+- **STATUS 2026-09-12** — **NOT WIRED as written.** Delivered `accent_window` uses −0.70/+1.10 s, a hard rate step, `atempo` on every clip (option B only), no confidence gate. `effects/event_localized.py` is v6-only.
 - **WHAT** Effects apply to a WINDOW around recognized event peak (default ±0.8s), NEVER whole clip. Ramps in/out over 100 ms. Audio handling: **Option B default** (`atempo=2.0` counters `0.5×` video → natural-speed audio) for weapon events; **Option A** mute + crossfade edges for heavy-reverb events (`player_death`); **Option C** natural-speed audio at 60% volume for multi-kills. Requires P1-Z confidence ≥0.55 — no peak, no effect. `REPLAY_SPEED_CONTRAST` for short T1 clips (<3s post-trim) stays.
 - **WHERE** `creative_suite/engine/effects.py` · `render_part_v6.py::build_body_chunks` · `partNN_overrides.txt` grammar: `slow=<rate>` means "event-localized", `slow_window=<seconds>` overrides the ±0.8s default.
 - **WHY** Whole-clip slowmo stutters audio (user flagged); event-localized = velocity feel on the money shot only.
@@ -268,16 +299,19 @@ PANTHEON intro: FRAGMOVIE VIDEOS/IntroPart2.mp4
 ### 9. RENDER PIPELINE INTERNALS
 
 #### P1-BB (Split video/audio graphs, PCM WAV, CFR)
+- **STATUS 2026-09-12** — **PARTIAL.** PCM intermediates and CFR yes; video and audio share one graph; **the ≤ 40 ms drift gate never runs on delivered videos** — the only sync audits are v6's from 2026-08-28.
 - **WHAT** Body assembly uses TWO parallel ffmpeg graphs — video via `xfade` chain, audio via `concat + afade` pairs. Intermediate chunks encode audio as PCM WAV (never AAC). Force CFR on ingest: `-vsync cfr -r 60` before any filter. `amix=duration=first` with explicit `apad` on game; never `duration=longest`. After render: ffprobe audits per-minute v:0 vs a:0 drift into `output/partNN_sync_audit.json`. Ship gate: `max_drift_ms ≤ 40`.
 - **WHERE** `render_part_v6.py::assemble_body_with_xfades` (video) + separate audio assembly · ffprobe audit step.
 - **WHY** AAC priming delay (~1024 samples/chunk) + `xfade` implicit audio timeline together produced the 3:25 drift that survived per-chunk PTS reset. Split graphs + PCM WAV + CFR is the root-cause fix (ffmpeg issues #9248, #10229).
 
 #### P1-J (Final render quality ceiling)
+- **STATUS 2026-09-12** — Not re-audited on 2026-09-12.
 - **WHAT** File size does not matter; quality does. Target: CRF 15–17, preset `slow` / `veryslow`, x264 High Profile 1920×1080 60fps. Preview renders may use CRF 23 `veryfast` for speed; only final per-Part renders commit to the ceiling.
 - **WHERE** `creative_suite/engine/config.py` final-render block · FT-6 benchmark feeds the exact knobs from Part 4 onward.
 - **WHY** Originals stay full quality; YouTube re-encodes downstream. The WOW-factor renderer is the target, not the bytes saved.
 
 #### P1-E (Render pipeline effect scope)
+- **STATUS 2026-09-12** — Not re-audited. Note: PANTHEON (`pantheon_cgame.exe`) can now render new angles, motion blur and a depth pass from demos — work this rule escalates out of the render pipeline.
 - **WHAT** What CAN be done in the render pipeline with existing AVIs: slow-motion (setpts + atempo), speed-up, zoom (crop+scale), basic tracking (scale+translate), camera-angle cuts between existing FP/FL AVIs, transitions (xfade, fade, hard cut). What requires the demo parser or engine assimilation track: rocket follow / bullet cam, new camera angles not in existing AVIs, demo re-recording, any WolfcamQL command-driven capture.
 - **WHERE** `creative_suite/engine/effects.py` is the whitelist. Anything not listed there escalates.
 - **WHY** Scope discipline: the render pipeline ships Parts 4–12 on existing AVIs. Don't rabbit-hole into re-capture.
@@ -287,11 +321,13 @@ PANTHEON intro: FRAGMOVIE VIDEOS/IntroPart2.mp4
 ### 10. INTRO
 
 #### P1-C (PANTHEON intro prepend)
+- **STATUS 2026-09-12** — **NOT in the delivered path by default:** `IntroPart2.mp4` is used only when an environment variable is set.
 - **WHAT** Every Part gets `IntroPart2.mp4` prepended. Never skip.
 - **WHERE** Path: `G:\QUAKE_LEGACY\FRAGMOVIE VIDEOS\IntroPart2.mp4` (1920×1080 30fps H264). Only the first 5s used (see P1-N).
 - **WHY** Series identity — the PANTHEON logo opens every entry.
 
 #### P1-N (Intro sequence) [v3, 2026-04-18; merges P1-T + P1-X]
+- **STATUS 2026-09-12** — **SUPERSEDED/PARTIAL:** the delivered intro is one generated 8 s opener, not PANTHEON 5 s + title card 8 s.
 - **WHAT** Every Part opens with `[PANTHEON 5s] + [Title card 8s] + [Content]`. PANTHEON = `IntroPart2.mp4` first 5s with its own audio (music-silent per P1-G). Title card = P1-Y v2 (Quake-style over FL backdrop). Pre-content offset = 13s. Hard cut into first clip (no dramatic fade per P1-H).
 - **WHERE** `cfg.intro_clip_duration=5.0` · `render_part_v6.py::build_intro` · `creative_suite/engine/title_card.py` · annotation tool (creative_suite Track 2) reads offset from config, never hardcodes 15.
 - **WHY** Series identity is structural, not polish. 5s drops 2s of dead PANTHEON hold; title card sits over live gameplay, never over black.
@@ -319,6 +355,7 @@ Everything above the bottom row runs without launching a game.
 - **WHY** Latched cvars applying a launch late, cvars that never registered, archived q3config leaking between experiments, SDL falling back to 856x480, `+demo` dropped past 32 `+` groups — all backend contamination. A boundary on the import graph makes it impossible for any of that to reach performance, scene, timing or camera truth.
 
 ### Rule HL-2: Wolfcam has exactly four jobs, each through the backend interface
+- **STATUS 2026-09-12** — Production capture still launches `wolfcamql.exe` (`wolfcam_capture.capture_demo`, `offscreen.py`, API routes). A PANTHEON_NATIVE backend is being built behind `PANTHEON_CAPTURE_BACKEND` (`docs/superpowers/plans/2026-09-12-pantheon-production-capture.md`); wolfcam stays the default until four gates pass and the user signs off.
 - **WHAT** `REFERENCE_RENDER` · `EXTERNAL_DM73_VALIDATION` · `RUNTIME_CAPABILITY_PROOF` · `FINAL_QUAKE_BEAUTY`. Every launch goes through `engine.pantheon.backends.render(backend, shot=, out_dir=, use=)` with a declared `BackendUse`. No default use, no other reason to launch.
 - **WHERE** `engine/pantheon/backends.py` (`BackendUse`, `RenderBackend` protocol, `WolfcamReference`). `shot.py::render` is the Wolfcam implementation, not a public entry point.
 - **WHY** A launch that cannot name its purpose is the pattern that put Wolfcam in charge. Blender (object IDs, Cryptomatte, depth, normals, arbitrary cameras) and an offscreen Quake renderer register here later; Wolfcam stays as the oracle they are compared against.
@@ -329,6 +366,7 @@ Everything above the bottom row runs without launching a game.
 - **WHY** `change → launch Wolfcam → capture → wait → look → discover mistake → relaunch` was right for the colour path and latched cvars. It is the wrong loop for movement/action logic, which is arithmetic on the demo's own serverTime.
 
 ### Rule HL-4: Do not reimplement the Quake renderer to remove Wolfcam
+- **STATUS 2026-09-12** — **SUPERSEDED by user decision (2026-09-08):** PANTHEON owns the engine. `pantheon_cgame.exe` links the WolfcamQL 11.3 renderer and cgame statically and renders into its own framebuffer object at any size (5120×2880 proven, commit `cf27b8ac`). Kept for history.
 - **WHAT** BSP, MD3, QL shaders, lightmaps, animation interpolation, effects, particles, marks, PVS, native cgame rendering come from Wolfcam for free. Headless *engine* now; headless *renderer* is a separate project (Route 1 offscreen GL adapter, Route 2 Blender) and blocks nothing.
 - **WHY** Replacing the rasterizer buys no truth. The boundary is what fixes the iteration loop, not the renderer.
 
