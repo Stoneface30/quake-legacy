@@ -152,6 +152,7 @@ def test_only_the_backend_layer_spells_cvars():
     """A cvar name outside these files means a caller learned engine detail."""
     allowed = {
         "engine/pantheon/visual_profile.py",     # the one translator
+        "engine/pantheon/hud.py",                # film HUD names -> the cg_draw* cvars the runtime registered
         "engine/pantheon/capabilities.py",       # names them as backend detail
         "engine/pantheon/engine_inventory.py",   # the raw-to-semantic mapping
         "engine/pantheon/engine_census.py",      # asks the engine for its own

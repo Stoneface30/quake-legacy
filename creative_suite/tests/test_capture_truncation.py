@@ -225,15 +225,22 @@ def test_the_engine_path_and_the_staging_paths_are_all_absolute():
 
 
 def test_the_expected_frame_count_follows_the_profiles_own_rate():
-    """The fast-review master records at 30 and the gameplay master at 60.
-    Measuring a 30 fps capture against 60 declares every fast-review clip
-    under-sampled and 'twice too fast', then retimes a correct file."""
+    """Each profile captures at its OWN cl_aviFrameRate. Measuring a fast-review
+    capture against the gameplay rate declares every fast-review clip
+    under-sampled and 'too fast', then retimes a correct file.
+
+    The rates are read from the profiles, never written here: this test once
+    asserted a literal 30 and failed the day the fast-review master was made
+    cheaper (20 fps) -- a test named "follows the profile" that froze a number."""
     from creative_suite.engine import master_profile as mp
     w = [{"start_ms": 0, "end_ms": 10000}]
-    assert wc.profile_fps(mp.FAST_REVIEW_PROFILE_NAME) == 30
-    assert wc.profile_fps(mp.PROFILE_NAME) == 60
-    assert wc.frames_expected(w, profile=mp.FAST_REVIEW_PROFILE_NAME) == 300
-    assert wc.frames_expected(w, profile=mp.PROFILE_NAME) == 600
+    fast = int(mp.PROFILES[mp.FAST_REVIEW_PROFILE_NAME]["cl_aviFrameRate"])
+    full = int(mp.PROFILES[mp.PROFILE_NAME]["cl_aviFrameRate"])
+    assert fast != full, "the two masters must differ, or this test proves nothing"
+    assert wc.profile_fps(mp.FAST_REVIEW_PROFILE_NAME) == fast
+    assert wc.profile_fps(mp.PROFILE_NAME) == full
+    assert wc.frames_expected(w, profile=mp.FAST_REVIEW_PROFILE_NAME) == 10 * fast
+    assert wc.frames_expected(w, profile=mp.PROFILE_NAME) == 10 * full
     # a correct fast-review capture must not read as too fast
     rate = wc.profile_fps(mp.FAST_REVIEW_PROFILE_NAME)
     assert wc.playback_error(w, 300, rate) == pytest.approx(1.0)
