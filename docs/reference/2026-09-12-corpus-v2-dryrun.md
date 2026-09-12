@@ -67,3 +67,42 @@ and that run's report is the one to judge rankings by.
 never parsed. The single in-scope target matches exactly one v2 kill with the
 same fingerprint, so it maps. The build's linkage gate now reports in-scope
 targets separately.
+
+## Clean-from-zero proof (user gate, 2026-09-12)
+
+The orchestrator gained the `clutch` stage partway through the run above, and
+that run was then resumed. A resume does not prove that the final DAG works
+from nothing, so, as the user required, the same 50 demos were rebuilt in a
+brand-new worktree at `c538d571`. The build root started with no state file
+and no copied outputs. Only the resumed run's manifest was kept, for this
+comparison. Then only that temporary build was deleted: its junctions were
+removed first, and the live demo count stayed at 6,445 throughout.
+
+| gate | result |
+|---|---|
+| all stages from zero | 11 of 11 completed, exit 0 |
+| row counts, every table in every database | **0 of 81 differ** from the resumed run |
+| migration report: frags, tables, highlights, why-buckets | **0 of 320 fields differ** |
+| strict one-to-one linkage | identical: 1 ONE_TO_ONE, 13 OUT_OF_SCOPE, 0 manual review |
+| provenance | commit `c538d571`, source tree clean. Inputs: 50 unique demos, 0 parse errors, demo-set SHA-256 `c5a11f88…`. 22 stage versions recorded. SHA-256 for every output database. |
+| stamps | frags_rebuilt, frag_recognition, frag_shapes, mining_epoch and map_geography are CURRENT (parser v2) |
+
+**Why-buckets on these 50 demos:**
+
+- **Kills:** 1 recovered, 1 lost, none shifted.
+- **Frag attributes:** 310 frags have changed entity-side attributes. These are
+  mostly the dodge and near-miss evidence that v1's missile tracking lost; the
+  speed percentiles also moved, but that is the small-sample norms artefact.
+- **Classification:** 218 frags reclassified. The largest gains are
+  DODGE_TO_KILL +90, NEAR_MISS_ROCKET +66 and NEAR_MISS_RAIL +58.
+- **Clutch membership:** unchanged (13 for all players, 8 for the recorder).
+
+**Clutch selection:** all 8 alias-selected rows are also the recorder's slot.
+The `slot_only` count of 5 is recorded for review, never merged.
+
+Timing was 3–5× slower than the resumed run. Worker CPU was around 20% each,
+the machine was 30% busy and 10.7 GB of RAM was free, so the cause was disk
+reads competing with other programs, not the build. Timing is not a gate.
+
+The full evidence, aggregates only, is in
+`docs/reference/2026-09-12-corpus-v2-clean50-migration.md`.
