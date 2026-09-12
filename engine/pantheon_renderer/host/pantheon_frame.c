@@ -41,27 +41,10 @@ void PANTHEON_SetInstallPath(const char *p);
 refexport_t *GetRefAPI(int apiVersion, refimport_t *rimp);
 
 /* cgame, linked statically. See host/pantheon_cg_syscall.c for the seam and
- * host/pantheon_cg_feed.c for where its view of the world comes from. */
-void PANTHEON_CG_BindRenderer(refexport_t *re, const glconfig_t *cfg);
-void PANTHEON_CG_BuildGameState(gameState_t *gs, const char *mapname, int gametype);
-void PANTHEON_CG_SetGameState(const gameState_t *gs);
-void PANTHEON_CG_PushSnapshot(int number, const snapshot_t *snap);
-void PANTHEON_CG_Frame(int serverTime, qboolean firstFrame);
-void PANTHEON_CG_Init(void);
-void PANTHEON_CG_Report(void);
-void PANTHEON_CG_Shutdown(void);
-void PANTHEON_CG_Reset(void);
-void PANTHEON_CG_ComposeSnapshot(snapshot_t *snap, int serverTime, int number,
-                                 const vec3_t origin, const vec3_t angles);
-void PANTHEON_CG_AddRocket(snapshot_t *snap, int number, const vec3_t origin,
-                           const vec3_t velocity, int trTime);
-void PANTHEON_CG_AddExplosion(snapshot_t *snap, int number,
-                              const vec3_t origin, const vec3_t normal);
-void PANTHEON_CG_AddPlayer(snapshot_t *snap, int clientNum,
-                           const vec3_t origin, const vec3_t angles,
-                           int legsAnim, int torsoAnim, int weapon);
-void PANTHEON_CG_AddPlayerInfo(gameState_t *gs, int slot,
-                               const char *model, const char *skin);
+ * host/pantheon_cg_feed.c for where its view of the world comes from. The host
+ * talks to it through ONE narrow interface; the composing helpers are proofs. */
+#include "pantheon_cgame.h"
+#include "pantheon_cg_compose.h"
 static int s_cgame;
 /* A rocket and an explosion the host can put in the snapshot. Not a feature of
  * the renderer -- a PROOF that a composed snapshot reaches every effect cgame
@@ -223,7 +206,7 @@ static void PANTHEON_ShotSnapshot(int n)
                               sf->server_time_ms);
     }
 
-    PANTHEON_CG_PushSnapshot(n, &snap);
+    PANTHEON_CG_SetSnapshot(n, &snap);
 }
 
 /*
@@ -792,7 +775,8 @@ int main(int argc, char **argv)
         for (i = 0; shotPath && i < s_shot.numPlayers; i++)
             PANTHEON_CG_AddPlayerInfo(&gs, i + 1, s_shot.playerModel[i],
                                       s_shot.playerSkin[i]);
-        PANTHEON_CG_SetGameState(&gs);
+        /* Client 0 is the camera slot the composed snapshots use. */
+        PANTHEON_CG_LoadGameState(&gs, 0);
 
         /* A pair 50 ms apart, both holding the requested view. cgame
          * interpolates between them; identical poses mean a still camera,
@@ -828,9 +812,10 @@ int main(int argc, char **argv)
              * whichever transition it happens to process. */
             if (cliBoom && n == 2)
                 PANTHEON_CG_AddExplosion(&snap, 21, cliBoomOrg, cliBoomNormal);
-            PANTHEON_CG_PushSnapshot(n, &snap);
+            PANTHEON_CG_SetSnapshot(n, &snap);
         }
-        PANTHEON_CG_Init();
+        /* clientNum 0, snapshot 1, no server commands: what a composed take is. */
+        PANTHEON_CG_Init(0, 1, 0);
         /* CG_Init DRAWS. It paints a loading screen and calls
          * trap_UpdateScreen after every asset, and those 2D commands queue up
          * in the renderer command list. Nothing presented them, because
@@ -924,15 +909,14 @@ int main(int argc, char **argv)
                       s_shot.height, s_glconfig.vidWidth, s_glconfig.vidHeight);
 
         PANTHEON_CG_Shutdown();
-        PANTHEON_CG_Reset();
         PANTHEON_CG_BuildGameState(&gs, s_shot.map, 0);
         for (i = 0; i < s_shot.numPlayers; i++)
             PANTHEON_CG_AddPlayerInfo(&gs, i + 1, s_shot.playerModel[i],
                                       s_shot.playerSkin[i]);
-        PANTHEON_CG_SetGameState(&gs);
+        PANTHEON_CG_LoadGameState(&gs, 0);     /* a new take is a new game */
         for (n = 1; n <= 2 && n <= s_shot.numFrames; n++)
             PANTHEON_ShotSnapshot(n);
-        PANTHEON_CG_Init();
+        PANTHEON_CG_Init(0, 1, 0);
         re->EndFrame(NULL, NULL);
         re->BeginFrame(STEREO_CENTER, qfalse);
         re->EndFrame(NULL, NULL);
@@ -1020,7 +1004,7 @@ int main(int argc, char **argv)
              * like a bug. */
             if (shotPath && fi + 3 <= s_shot.numFrames && blurSub == 0)
                 PANTHEON_ShotSnapshot(fi + 3);
-            PANTHEON_CG_Frame(subTime, fi == 0 && blurSub == 0);
+            PANTHEON_CG_DrawActiveFrame(subTime, fi == 0 && blurSub == 0);
             re->EndFrame(NULL, NULL);
             goto pantheon_readback;
         }

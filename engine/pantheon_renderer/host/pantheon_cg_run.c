@@ -35,10 +35,8 @@ intptr_t vmMain(int command, int arg0, int arg1, int arg2, int arg3, int arg4,
                 int arg5, int arg6, int arg7, int arg8, int arg9, int arg10,
                 int arg11);
 
-void     PANTHEON_CG_SetGameState(const gameState_t *gs);
-void     PANTHEON_CG_PushSnapshot(int number, const snapshot_t *snap);
 qboolean PANTHEON_CG_Ready(void);
-void     PANTHEON_CG_Reset(void);
+int      PANTHEON_CG_LoadedClientNum(void);
 void     PANTHEON_CG_ProbePrint(const char *when);
 void     PANTHEON_CG_RegisterAllWeapons(void);
 int      PANTHEON_CG_SoundCallCount(void);
@@ -189,28 +187,35 @@ void PANTHEON_CG_AddExplosion(snapshot_t *snap, int number,
  * CG_Init. Called after EndRegistration those handles come back 0 and the
  * frame renders with silent holes where the weapons and effects should be --
  * which is why this is a separate call the host places deliberately, rather
- * than something PANTHEON_CG_Frame does on its first invocation.
+ * than something PANTHEON_CG_DrawActiveFrame does on its first invocation.
  *
  * demoPlayback is TRUE: it is what tells cgame nobody is playing, so it skips
  * prediction and input entirely. That is our situation whether the snapshots
  * came from a recording or were composed.
  */
-void PANTHEON_CG_Init(void)
+void PANTHEON_CG_Init(int clientNum, int serverMessageNum, int serverCommandSequence)
 {
     if (!PANTHEON_CG_Ready())
         Com_Error(ERR_FATAL, "PANTHEON: CG_Init before a gamestate and two "
                              "snapshots were fed");
+    /* Whose eyes is a property of the game, stated once with the gamestate.
+     * A second, different answer here is a caller bug, not a choice. */
+    if (clientNum != PANTHEON_CG_LoadedClientNum())
+        Com_Error(ERR_FATAL, "PANTHEON: CG_Init for client %d, but the gamestate "
+                             "was loaded for client %d", clientNum,
+                  PANTHEON_CG_LoadedClientNum());
     /* Install the seam the way the DLL loader would. Without this cg_syscalls.c
      * still holds its initialiser, (void *)-1, and the first trap_ call jumps
      * to 0xffffffff. */
     dllEntry(PANTHEON_CG_Syscall);
     /* serverMessageNum, serverCommandSequence, clientNum, demoPlayback */
-    vmMain(CG_INIT, 1, 0, 0, qtrue, 0, 0, 0, 0, 0, 0, 0, 0);
+    vmMain(CG_INIT, serverMessageNum, serverCommandSequence, clientNum, qtrue,
+           0, 0, 0, 0, 0, 0, 0, 0);
     PANTHEON_CG_RegisterAllWeapons();
     PANTHEON_CG_ProbePrint("after CG_INIT");
 }
 
-void PANTHEON_CG_Frame(int serverTime, qboolean firstFrame)
+void PANTHEON_CG_DrawActiveFrame(int serverTime, qboolean firstFrame)
 {
     if (!PANTHEON_CG_Ready())
         Com_Error(ERR_FATAL, "PANTHEON: cgame asked to draw before a "

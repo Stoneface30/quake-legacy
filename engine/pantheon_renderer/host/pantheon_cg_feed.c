@@ -90,32 +90,46 @@ void PANTHEON_CG_SetDemoInfo(int gameStart, int gameEnd,
 const pantheonDemoInfo_t *PANTHEON_CG_DemoInfo(void) { return &cg_di; }
 
 
-void PANTHEON_CG_SetGameState(const gameState_t *gs)
+static int cg_clientNum;          /* whose eyes: stated with the gamestate */
+
+static void PANTHEON_CG_SetGameState(const gameState_t *gs)
 {
-    if (!gs) return;
     cg_gs = *gs;
     cg_gs_set = qtrue;
 }
 
 /*
- * Push one snapshot. `number` must increase: cgame asks for a snapshot BY
+ * Set one snapshot. `number` must increase: cgame asks for a snapshot BY
  * NUMBER and treats a gap as packet loss, so numbering that jumps around
  * makes it interpolate across holes it invents.
  */
-void PANTHEON_CG_PushSnapshot(int number, const snapshot_t *snap)
+void PANTHEON_CG_SetSnapshot(int number, const snapshot_t *snap)
 {
-    if (!snap) return;
+    if (!snap)
+        Com_Error(ERR_FATAL, "PANTHEON: snapshot %d is NULL", number);
     cg_ring[number % PANTHEON_SNAP_RING] = *snap;
     cg_ring_num[number % PANTHEON_SNAP_RING] = number;
     if (number > cg_latest) cg_latest = number;
     if (cg_ring_count < PANTHEON_SNAP_RING) cg_ring_count++;
 }
 
+/*
+ * A server command at ITS OWN sequence number. A demo numbers its commands;
+ * cgame asks for them by that number, so the feed stores what it was given
+ * rather than counting for itself.
+ */
+void PANTHEON_CG_ApplyServerCommand(int seq, const char *text)
+{
+    if (!text || seq <= 0)
+        Com_Error(ERR_FATAL, "PANTHEON: server command %d is %s", seq,
+                  text ? "not a sequence number" : "NULL");
+    Q_strncpyz(cg_cmds[seq % PANTHEON_CMD_RING], text, BIG_INFO_STRING);
+    if (seq > cg_cmd_seq) cg_cmd_seq = seq;
+}
+
 void PANTHEON_CG_QueueServerCommand(const char *text)
 {
-    if (!text) return;
-    cg_cmd_seq++;
-    Q_strncpyz(cg_cmds[cg_cmd_seq % PANTHEON_CMD_RING], text, BIG_INFO_STRING);
+    PANTHEON_CG_ApplyServerCommand(cg_cmd_seq + 1, text);
 }
 
 int  PANTHEON_CG_LatestSnapshot(void) { return cg_latest; }
@@ -125,15 +139,33 @@ qboolean PANTHEON_CG_Ready(void)
     return cg_gs_set && cg_ring_count >= 2;
 }
 
-void PANTHEON_CG_Reset(void)
+static void PANTHEON_CG_Reset(void)
 {
     memset(cg_ring_num, -1, sizeof(cg_ring_num));
     cg_ring_count = 0;
     cg_latest = 0;
     cg_cmd_seq = 0;
     cg_gs_set = qfalse;
+    cg_clientNum = 0;
     memset(&cg_di, 0, sizeof(cg_di));
 }
+
+/*
+ * A NEW GAME. Replaces Reset + SetGameState: a gamestate starts a game, so
+ * every snapshot, command and demo bound fed for the previous one goes with
+ * it -- otherwise a take inherits the last take's world. SetDemoInfo, if
+ * used, comes after this.
+ */
+void PANTHEON_CG_LoadGameState(const gameState_t *gs, int clientNum)
+{
+    if (!gs)
+        Com_Error(ERR_FATAL, "PANTHEON: LoadGameState with no gamestate");
+    PANTHEON_CG_Reset();
+    PANTHEON_CG_SetGameState(gs);
+    cg_clientNum = clientNum;
+}
+
+int PANTHEON_CG_LoadedClientNum(void) { return cg_clientNum; }
 
 
 /* ---- what the syscalls call ------------------------------------------- */

@@ -71,6 +71,7 @@ HEADLESS = {
 BACKEND_ALLOWED = {
     "backends",         # the interface itself
     "model_assets",     # asks the host what a model.cfg declares; spawns it
+    "pantheon_capture", # launches the PANTHEON renderer (pantheon_cgame.exe)
     "offscreen",        # hosts the renderer on a hidden desktop; spawns processes
     "render_permit",    # the one gate every launch asks; reads the process list
     "shot",             # WOLFCAM_REFERENCE implementation

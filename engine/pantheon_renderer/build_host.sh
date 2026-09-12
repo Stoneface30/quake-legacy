@@ -30,7 +30,7 @@ CC=${CC:-gcc}
 # -mmmx: tr_mme.c builds its blur weights with MMX intrinsics, which gcc
 # refuses to inline unless the target allows them.
 VENDOR_FLAGS="-m32 -O2 -w -mmmx -DBOTLIB -DUSE_LOCAL_HEADERS=0"
-HOST_FLAGS="-m32 -O2 -Wall -Wextra -Wno-unused-parameter"
+HOST_FLAGS="-m32 -O2 -Wall -Wextra -Wno-unused-parameter -Werror=implicit-function-declaration"
 INC="-I$SRC/qcommon -I$SRC/renderer -I$SRC/game -I$SRC/client -I$SRC/jpeg-6b -I$SRC/SDL12/include"
 
 build_oracle() {
@@ -85,7 +85,6 @@ $CC $VENDOR_FLAGS -msse2 -mfpmath=387 $INC -c $ASMFILES
 $CC $HOST_FLAGS $INC -c "$HERE"/host/pantheon_frame.c "$HERE"/host/pantheon_actor.c \
     "$HERE"/host/pantheon_sys.c "$HERE"/host/pantheon_glimp_wgl.c \
     "$HERE"/host/pantheon_host_stubs.c
-# shellcheck disable=SC2086
-$CC -m32 -o pantheon_frame.exe ./*.o -lopengl32 -lgdi32 -lwinmm -lws2_32 -lm
-
-echo "built $OUT/pantheon_frame.exe"
+# One binary: build_cgame.sh links these objects into pantheon_cgame.exe.
+# The standalone pantheon_frame.exe stopped linking on 2026-09-08.
+echo "built objects in $OUT (link with ./build_cgame.sh)"

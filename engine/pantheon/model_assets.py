@@ -2,7 +2,7 @@
 
 An ASSET question, not a truth question. The answer lives inside a pk3, and
 the PANTHEON renderer host is the only thing in the system that can open one,
-so this module asks it (`pantheon_frame.exe --dump-model <model>`) and turns
+so this module asks it (`pantheon_cgame.exe --dump-model <model>`) and turns
 the reply into the `AnimationSet` that `render_frame` consumes.
 
 The split matters. The host reads bytes out of a pak; it decides nothing about
@@ -25,7 +25,12 @@ from pathlib import Path
 
 from .render_frame import Animation, AnimationSet
 
-HOST_EXE = Path("G:/QUAKE_LEGACY/engine/pantheon_renderer/build/pantheon_frame.exe")
+from engine.pantheon.pantheon_capture import host_exe as _host_exe
+
+# The one PANTHEON binary, found through the store. The standalone
+# pantheon_frame.exe this once named by drive letter stopped linking on
+# 2026-09-08; pantheon_cgame.exe carries the same --dump-model.
+HOST_EXE = _host_exe()
 
 
 class ModelAssetError(RuntimeError):
