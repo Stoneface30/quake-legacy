@@ -124,7 +124,10 @@ def _extract(archive: Path, top: str | None, into: Path) -> Path:
 
 
 def _is_extra(rel: str, extras) -> bool:
-    return any(rel == e or (e.endswith("/") and rel.startswith(e)) for e in extras)
+    """`name/` covers a directory's contents AND a plain file of that name:
+    upstream `macwolfcambuild` is a file, though the listing reads like a dir."""
+    return any(rel == e.rstrip("/") or (e.endswith("/") and rel.startswith(e))
+               for e in extras)
 
 
 def _check_tree(tree_dir: Path, tree: dict[str, str], *, extras=(), exact: bool,

@@ -112,6 +112,16 @@ def test_upstream_by_commit_is_verified_file_by_file(tmp_path, monkeypatch):
     assert json.loads((out / ".bootstrap.json").read_text())["source"].startswith("upstream")
 
 
+def test_an_extra_listed_as_a_directory_may_be_a_plain_file(tmp_path, monkeypatch):
+    """Found by the clean-clone proof: upstream `macwolfcambuild` is a file."""
+    from scripts import bootstrap_wolfcamql as B
+    m = _upstream(tmp_path, monkeypatch,
+                  {"repo/a.c": b"int x;", "repo/macwolfcambuild": b"#!/bin/sh"},
+                  {"a.c": b"int x;"}, extras=["macwolfcambuild/"])
+    out = B.bootstrap(m)
+    assert not (out / "top" / "macwolfcambuild").exists()
+
+
 def test_one_altered_byte_upstream_is_refused(tmp_path, monkeypatch):
     from scripts import bootstrap_wolfcamql as B
     m = _upstream(tmp_path, monkeypatch, {"repo/a.c": b"int y;"}, {"a.c": b"int x;"})
