@@ -372,6 +372,12 @@ def main() -> int:
                    demos_unique=len(by_hash),
                    demos_duplicate=dup_count,
                    demos_ok=ok, demos_failed=failed)
+    # Say which parser built this. A database without the stamp reads as
+    # STALE_PRE_PARSER_V2 for entity-derived data (engine/parser/corpus_status).
+    import demo_parse as D
+    import corpus_status as CS
+    CS.stamp(db, D.PARSER_VERSION, git_commit=commit_sha,
+             builder="engine/parser/rebuild_corpus.py")
 
     n_demos = con.execute("SELECT COUNT(*) FROM demos").fetchone()[0]
     n_frags = con.execute("SELECT COUNT(*) FROM frags").fetchone()[0]
