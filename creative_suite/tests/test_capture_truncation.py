@@ -242,8 +242,7 @@ def test_the_expected_frame_count_follows_the_profiles_own_rate():
     assert wc.frames_expected(w, profile=mp.FAST_REVIEW_PROFILE_NAME) == 10 * fast
     assert wc.frames_expected(w, profile=mp.PROFILE_NAME) == 10 * full
     # a correct fast-review capture must not read as too fast
-    rate = wc.profile_fps(mp.FAST_REVIEW_PROFILE_NAME)
-    assert wc.playback_error(w, 300, rate) == pytest.approx(1.0)
+    assert wc.playback_error(w, 10 * fast, fast) == pytest.approx(1.0)
 
 
 def test_an_unknown_profile_falls_back_rather_than_raising():
