@@ -53,6 +53,7 @@ void     PANTHEON_CG_GetCurrentSnapshotNumber(int *num, int *serverTime);
 qboolean PANTHEON_CG_GetSnapshot(int number, snapshot_t *out);
 qboolean PANTHEON_CG_GetServerCommand(int seq);
 int      PANTHEON_CG_ServerCommandSequence(void);
+int      PANTHEON_CG_LastExecutedServerCommand(void);
 
 /* What a whole-demo pre-scan would know and a live feed does not. */
 typedef struct {
@@ -355,8 +356,8 @@ intptr_t PANTHEON_CG_Syscall(intptr_t cmd, ...)
     case CG_GETNEXTKILLER: case CG_GETNEXTVICTIM:
     case CG_GETITEMPICKUPNUMBER: case CG_GETITEMPICKUP:
         return -1;   /* no pre-scan: what comes next is not known yet */
-    case CG_GETLASTEXECUTEDSERVERCOMMAND:
-        return PANTHEON_CG_ServerCommandSequence();
+    case CG_GETLASTEXECUTEDSERVERCOMMAND:        /* clc.lastExecutedServerCommand */
+        return PANTHEON_CG_LastExecutedServerCommand();
     case CG_GET_DEMO_TIMEOUTS:   *(int *)VMA(2) = 0; return 0;
     case CG_GETROUNDSTARTTIMES:  *(int *)VMA(1) = 0; return 0;
     case CG_GETTEAMSWITCHTIME:   return 0;

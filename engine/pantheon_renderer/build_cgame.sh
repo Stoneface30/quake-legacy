@@ -69,6 +69,8 @@ $CC $HOSTCG $INC -c "$HERE/host/pantheon_cg_syscall.c" -o "$OBJ/pantheon_cg_sysc
 # The feed: cgame's world comes from snapshots WE supply -- a demo is one
 # source of them, FrameTruth is another, a composed scenario is a third.
 $CC $HOSTCG $INC -c "$HERE/host/pantheon_cg_feed.c" -o "$OBJ/pantheon_cg_feed.o"
+# A .dm_73 is one source of that world, decoded with the engine's own msg.c.
+$CC $HOSTCG $INC -c "$HERE/host/pantheon_demo_feed.c" -o "$OBJ/pantheon_demo_feed.o"
 # Calls cgame: CG_INIT inside the registration window, then
 # CG_DRAW_ACTIVE_FRAME per frame.
 $CC $HOSTCG $INC -c "$HERE/host/pantheon_cg_run.c" -o "$OBJ/pantheon_cg_run.o"

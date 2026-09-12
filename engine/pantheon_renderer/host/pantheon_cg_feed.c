@@ -47,11 +47,14 @@ static int          cg_ring_count;                    /* how many pushed */
 static int          cg_latest;                        /* highest number */
 
 /* Server commands cgame polls for. Configstring changes and prints arrive
- * this way; a shot usually needs none, but silently returning "no command"
- * for a sequence the caller DID queue would lose it. */
-#define PANTHEON_CMD_RING 32
+ * this way. 64, as MAX_RELIABLE_COMMANDS (clc.serverCommands): a round start
+ * can carry more than 32 configstring updates between two snapshots. */
+#define PANTHEON_CMD_RING MAX_RELIABLE_COMMANDS
 static char cg_cmds[PANTHEON_CMD_RING][BIG_INFO_STRING];
+static int  cg_cmd_num[PANTHEON_CMD_RING];   /* which seq owns each slot */
 static int  cg_cmd_seq;          /* highest sequence queued */
+static int  cg_cmd_executed;     /* CG_GETLASTEXECUTEDSERVERCOMMAND */
+static char cg_bigcs[BIG_INFO_STRING];       /* bcs0/1/2 reassembly */
 
 
 /*
@@ -124,6 +127,7 @@ void PANTHEON_CG_ApplyServerCommand(int seq, const char *text)
         Com_Error(ERR_FATAL, "PANTHEON: server command %d is %s", seq,
                   text ? "not a sequence number" : "NULL");
     Q_strncpyz(cg_cmds[seq % PANTHEON_CMD_RING], text, BIG_INFO_STRING);
+    cg_cmd_num[seq % PANTHEON_CMD_RING] = seq;
     if (seq > cg_cmd_seq) cg_cmd_seq = seq;
 }
 
@@ -145,6 +149,9 @@ static void PANTHEON_CG_Reset(void)
     cg_ring_count = 0;
     cg_latest = 0;
     cg_cmd_seq = 0;
+    memset(cg_cmd_num, 0, sizeof(cg_cmd_num));
+    cg_cmd_executed = 0;
+    cg_bigcs[0] = 0;
     cg_gs_set = qfalse;
     cg_clientNum = 0;
     memset(&cg_di, 0, sizeof(cg_di));
@@ -198,13 +205,131 @@ qboolean PANTHEON_CG_GetSnapshot(int snapshotNumber, snapshot_t *out)
     return qtrue;
 }
 
+/* ---- configstrings: ONE implementation for both gamestates ------------- */
+
+/*
+ * CL_ConfigstringModified (cl_cgame.c:521), on any gamestate: rebuild the
+ * string pool with one index replaced, including its early return when the
+ * value is unchanged. The demo reader keeps its own gamestate current with
+ * this, and cgame's is updated with it, so the two cannot apply a change
+ * differently.
+ */
+void PANTHEON_GameState_Set(gameState_t *gs, int index, const char *value)
+{
+    gameState_t *old;
+    const char  *dup;
+    int          i, len;
+
+    if (index < 0 || index >= MAX_CONFIGSTRINGS)
+        Com_Error(ERR_DROP, "PANTHEON: configstring modified with bad index %i", index);
+    if (!strcmp(gs->stringData + gs->stringOffsets[index], value))
+        return;                                            /* unchanged */
+
+    old = Z_Malloc(sizeof(*old));      /* ~80 KB: not on the stack */
+    *old = *gs;
+    memset(gs, 0, sizeof(*gs));
+    gs->dataCount = 1;                 /* leave the first 0 for empty strings */
+    for (i = 0; i < MAX_CONFIGSTRINGS; i++) {
+        dup = (i == index) ? value : old->stringData + old->stringOffsets[i];
+        if (!dup[0]) continue;
+        len = strlen(dup);
+        if (len + 1 + gs->dataCount > MAX_GAMESTATE_CHARS)
+            Com_Error(ERR_DROP, "PANTHEON: MAX_GAMESTATE_CHARS exceeded applying cs %d", index);
+        gs->stringOffsets[i] = gs->dataCount;
+        memcpy(gs->stringData + gs->dataCount, dup, len + 1);
+        gs->dataCount += len + 1;
+    }
+    Z_Free(old);
+}
+
+/*
+ * The configstring half of CL_GetServerCommand (cl_cgame.c:619-663) on an
+ * already tokenised command. bcs0/bcs1 are absorbed into `bigcs` (return
+ * qfalse: nothing for cgame yet). bcs2 completes the string, which is then
+ * RE-SCANNED as the `cs` it assembles. A `cs` updates `gs`. On return with
+ * qtrue, `*rescanned` points at the string cgame must see tokenised.
+ */
+qboolean PANTHEON_GameState_Command(gameState_t *gs, char *bigcs, int bigcsSize,
+                                    const char *text, const char **rescanned)
+{
+    const char *cmd = Cmd_Argv(0), *s;
+
+    *rescanned = text;
+    if (!strcmp(cmd, "bcs0")) {
+        Com_sprintf(bigcs, bigcsSize, "cs %s \"%s", Cmd_Argv(1), Cmd_Argv(2));
+        return qfalse;
+    }
+    if (!strcmp(cmd, "bcs1")) {
+        s = Cmd_Argv(2);
+        if ((int)(strlen(bigcs) + strlen(s)) >= bigcsSize)
+            Com_Error(ERR_DROP, "PANTHEON: bcs exceeded BIG_INFO_STRING");
+        strcat(bigcs, s);
+        return qfalse;
+    }
+    if (!strcmp(cmd, "bcs2")) {
+        s = Cmd_Argv(2);
+        if ((int)(strlen(bigcs) + strlen(s) + 1) >= bigcsSize)
+            Com_Error(ERR_DROP, "PANTHEON: bcs exceeded BIG_INFO_STRING");
+        strcat(bigcs, s);
+        strcat(bigcs, "\"");
+        *rescanned = bigcs;
+        Cmd_TokenizeString(bigcs);                      /* goto rescan */
+        cmd = Cmd_Argv(0);
+    }
+    if (!strcmp(cmd, "cs")) {
+        PANTHEON_GameState_Set(gs, atoi(Cmd_Argv(1)), Cmd_ArgsFrom(2));
+        /* CL_ConfigstringModified may have re-tokenised: reparse. */
+        Cmd_TokenizeString(*rescanned);
+    }
+    return qtrue;
+}
+
+/*
+ * CL_GetServerCommand (cl_cgame.c:588), for a demo client.
+ */
 qboolean PANTHEON_CG_GetServerCommand(int seq)
 {
-    if (seq <= 0 || seq > cg_cmd_seq) return qfalse;
-    /* cgame reads the command through Cmd_Argv, so it has to be tokenised
-     * exactly as the client would have done. */
-    Cmd_TokenizeString(cg_cmds[seq % PANTHEON_CMD_RING]);
+    const char *text, *s, *cmd;
+
+    /* :597 -- a command cycled out of the ring. Wolfcam prints and returns
+     * qfalse while a demo plays; so do we. */
+    if (seq <= cg_cmd_seq - PANTHEON_CMD_RING) {
+        Com_Printf("PANTHEON: server command %d was cycled out (latest %d)\n",
+                   seq, cg_cmd_seq);
+        return qfalse;
+    }
+    /* :608 */
+    if (seq > cg_cmd_seq)
+        Com_Error(ERR_DROP, "PANTHEON: cgame requested server command %d, "
+                            "latest received %d", seq, cg_cmd_seq);
+    /* No counterpart in the client, whose ring is filled contiguously: the
+     * feed is handed commands by number, so a slot it never received is a
+     * host bug, never a quiet "no command". */
+    if (cg_cmd_num[seq % PANTHEON_CMD_RING] != seq)
+        Com_Error(ERR_DROP, "PANTHEON: server command %d was never fed", seq);
+
+    text = cg_cmds[seq % PANTHEON_CMD_RING];
+    cg_cmd_executed = seq;                                /* :614 */
+
+    Cmd_TokenizeString(text);
+    cmd = Cmd_Argv(0);
+    if (!strcmp(cmd, "disconnect")) {                     /* :624 */
+        if (Cmd_Argc() >= 2)
+            Com_Error(ERR_SERVERDISCONNECT, "Server disconnected - %s", Cmd_Argv(1));
+        Com_Error(ERR_SERVERDISCONNECT, "Server disconnected");
+    }
+    if (!PANTHEON_GameState_Command(&cg_gs, cg_bigcs, sizeof(cg_bigcs), text, &s))
+        return qfalse;                                    /* bcs0 / bcs1 */
+    cmd = Cmd_Argv(0);
+    if (!strcmp(cmd, "map_restart")) {                    /* :665 */
+        /* No console and no usercmds to clear; reparse as the client does. */
+        Cmd_TokenizeString(s);
+        return qtrue;
+    }
+    if (!strcmp(cmd, "clientLevelShot"))                  /* :680, no local server */
+        return qfalse;
     return qtrue;
 }
 
 int PANTHEON_CG_ServerCommandSequence(void) { return cg_cmd_seq; }
+int PANTHEON_CG_LastExecutedServerCommand(void) { return cg_cmd_executed; }

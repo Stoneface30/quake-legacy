@@ -45,6 +45,7 @@ refexport_t *GetRefAPI(int apiVersion, refimport_t *rimp);
  * talks to it through ONE narrow interface; the composing helpers are proofs. */
 #include "pantheon_cgame.h"
 #include "pantheon_cg_compose.h"
+#include "pantheon_demo_feed.h"
 static int s_cgame;
 /* A rocket and an explosion the host can put in the snapshot. Not a feature of
  * the renderer -- a PROOF that a composed snapshot reaches every effect cgame
@@ -125,6 +126,7 @@ static shot_t     s_shot;
 static paPlayer_t s_players[PA_MAX_PLAYERS];
 static qboolean   s_noWorld;
 static const char *s_dumpModel;   /* --dump-model: asset query, no render */
+static const char *s_demoScan;    /* --demo-scan: read a .dm_73, no render */
 
 /* ── TGA out ────────────────────────────────────────────────────────────── */
 #ifndef GL_FRAMEBUFFER_BINDING_EXT
@@ -541,6 +543,10 @@ int main(int argc, char **argv)
              * a model declares because the host is the only thing that can
              * open the pak; it still decides nothing about the answer. */
             s_dumpModel = argv[++i];
+        } else if (!strcmp(argv[i], "--demo-scan") && i + 1 < argc) {
+            /* The demo reader alone: no GL, no cgame. Its counts are what
+             * gate G1 compares against DM73Parser. */
+            s_demoScan = argv[++i];
         } else if (!strcmp(argv[i], "--actor-model") && i + 1 < argc) {
             Q_strncpyz(cliModel, argv[++i], sizeof(cliModel));
             cliActor = qtrue;
@@ -653,7 +659,7 @@ int main(int argc, char **argv)
         /* --dump-model asks the filesystem a question; it has no world and
          * needs none. Demanding a map here would make an asset query depend
          * on naming a level it never loads. */
-        if (!cliMap[0] && !s_dumpModel) {
+        if (!cliMap[0] && !s_dumpModel && !s_demoScan) {
             fprintf(stderr, "PANTHEON: --map or --shot is required; the "
                             "renderer does not choose a world\n");
             return 2;
@@ -686,6 +692,38 @@ int main(int argc, char **argv)
             return 2;
         }
         PANTHEON_ActorDumpModel(&q);
+        return 0;
+    }
+
+    if (s_demoScan) {
+        /* Read a whole .dm_73 with the engine's own decoder and report what
+         * it held. A snapshot counts once, when a message makes it the new
+         * latest valid one -- what cgame would be offered. */
+        static snapshot_t snap;
+        int msgs = 0, snaps = 0, lastNum = -1, first = 0, last = 0, maxEnt = 0;
+
+        if (!PANTHEON_Demo_Open(s_demoScan)) {
+            Com_Printf("PANTHEON demo-scan: cannot open %s\n", s_demoScan);
+            return 2;
+        }
+        while (PANTHEON_Demo_ReadMessage()) {
+            msgs++;
+            if (PANTHEON_Demo_Latest(&snap) && snap.messageNum != lastNum) {
+                lastNum = snap.messageNum;
+                if (!snaps) first = snap.serverTime;
+                last = snap.serverTime;
+                if (snap.numEntities > maxEnt) maxEnt = snap.numEntities;
+                snaps++;
+            }
+        }
+        Com_Printf("PANTHEON demo-scan: messages=%d gamestates=%d snapshots=%d "
+                   "commands=%d clientNum=%d checksumFeed=%d firstServerTime=%d "
+                   "lastServerTime=%d maxEntities=%d protocol=%s\n",
+                   msgs, PANTHEON_Demo_GamestateCount(), snaps,
+                   PANTHEON_Demo_CommandSequence(), PANTHEON_Demo_ClientNum(),
+                   PANTHEON_Demo_ChecksumFeed(), first, last, maxEnt,
+                   Cvar_VariableString("protocol"));
+        PANTHEON_Demo_Close();
         return 0;
     }
 
