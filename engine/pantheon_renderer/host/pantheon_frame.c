@@ -144,59 +144,35 @@ static qboolean   s_noWorld;
 static const char *s_dumpModel;   /* --dump-model: asset query, no render */
 
 /* ── TGA out ────────────────────────────────────────────────────────────── */
+#ifndef GL_FRAMEBUFFER_BINDING_EXT
+#define GL_FRAMEBUFFER_BINDING_EXT 0x8CA6
+#endif
+#ifndef GL_COLOR_ATTACHMENT0_EXT
+#define GL_COLOR_ATTACHMENT0_EXT 0x8CE0
+#endif
+
 /*
- * MAKE THE DRAWABLE THE SIZE WE ASKED FOR.
+ * EVERY FRAME COMES FROM THE FRAMEBUFFER OBJECT, OR NO FRAME COMES AT ALL.
  *
- * A window created at 1280x720 is 1280x720 INCLUDING its title bar and frame.
- * GL draws into the client area, which is 1264x681 -- 16 columns and 39 rows
- * smaller. glConfig still reports 1280x720, because that is what was
- * requested, so nothing anywhere notices. The readback then takes 1280x720
- * and gets the frame plus an L-shaped margin that was never drawn: every
- * output was quietly 1264x681 of picture in a file claiming 1280x720, with
- * the missing strip filled by whatever was in that memory.
+ * This replaces PANTHEON_MatchClientArea, which grew a hidden window until its
+ * client area matched the request. That was a fix for the wrong problem: the
+ * picture should never have been in a window. A window's pixels are subject
+ * to GL's pixel-ownership rule and are undefined wherever the desktop does
+ * not give them to it, so a window-bound renderer is capped by the monitor
+ * -- measured: 5120x2880 asked, 3004x1421 delivered.
  *
- * r_noborder is the intended answer and is not honoured by this build's
- * window creation, so the window is corrected directly: measure the client
- * area, grow the window by exactly the deficit, and verify. A frame that
- * cannot be made the requested size is refused rather than delivered short --
- * a sequence composited from mixed resolutions is worse than one that
- * stopped.
+ * The renderer now draws into its own FBO, sized from glConfig (see
+ * pantheon_glimp_wgl.c). This checks that one is actually bound. If it is
+ * not, the frame would come from a window again, so the run stops.
  */
-static void PANTHEON_MatchClientArea(int wantW, int wantH)
+static void PANTHEON_RequireOffscreenTarget(void)
 {
-    HWND hwnd = WindowFromDC(wglGetCurrentDC());
-    RECT client, window;
-    int  dw, dh;
-
-    if (!hwnd) {
-        Com_Printf("^3PANTHEON: no window handle; cannot verify the drawable "
-                   "size, the frame may carry an undrawn margin\n");
-        return;
-    }
-    if (!GetClientRect(hwnd, &client)) return;
-    dw = wantW - (client.right - client.left);
-    dh = wantH - (client.bottom - client.top);
-    if (dw == 0 && dh == 0) return;
-
-    Com_Printf("PANTHEON: the window's client area is %ldx%ld, not %dx%d "
-               "(the frame and title bar); growing the window by %d,%d\n",
-               client.right - client.left, client.bottom - client.top,
-               wantW, wantH, dw, dh);
-
-    GetWindowRect(hwnd, &window);
-    SetWindowPos(hwnd, NULL, 0, 0,
-                 (window.right - window.left) + dw,
-                 (window.bottom - window.top) + dh,
-                 SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
-
-    GetClientRect(hwnd, &client);
-    if (client.right - client.left != wantW ||
-        client.bottom - client.top != wantH)
-        Com_Error(ERR_FATAL,
-                  "PANTHEON: the drawable is %ldx%ld and %dx%d was asked for; "
-                  "refusing to write frames that are not the size they claim",
-                  client.right - client.left, client.bottom - client.top,
-                  wantW, wantH);
+    GLint fb = 0;
+    glGetIntegerv(GL_FRAMEBUFFER_BINDING_EXT, &fb);
+    if (!fb)
+        Com_Error(ERR_FATAL, "PANTHEON: no framebuffer object is bound; "
+                  "refusing to render into a window (r_useFbo off, or the "
+                  "FBO failed to complete -- see the log above)");
 }
 
 /*
@@ -703,20 +679,16 @@ int main(int argc, char **argv)
                  va("+set r_customwidth %d +set r_customheight %d ", cliW, cliH));
     }
     Q_strcat(cmdline, sizeof(cmdline),
-             /* BORDERLESS, BECAUSE THE BORDER COSTS PIXELS.
+             /* r_useFbo 1: frames are drawn into a framebuffer object, not a
+              * window -- see PANTHEON_RequireOffscreenTarget. Latched, so it
+              * must be set before Com_Init.
               *
-              * A decorated window created at 1280x720 has a CLIENT area of
-              * 1264x681 -- the title bar and frame eat 39 rows and 16
-              * columns. GL draws into the client area; glConfig reports the
-              * number that was asked for. Reading 1280x720 back therefore
-              * returns the frame plus an L-shaped margin that was never
-              * rendered, and every output was quietly 1264x681 of picture in
-              * a 1280x720 file.
-              *
-              * r_noborder removes the decoration, so the client area IS the
-              * requested size. Latched, hence set before Com_Init. */
+              * r_noborder used to be set here with a comment claiming it made
+              * the window's client area the requested size. Our WGL platform
+              * layer never read it; the claim was false. The window no longer
+              * matters, so it is gone. */
              "+set r_mode -1 +set r_fullscreen 0 +set r_fboAntiAlias 0 "
-             "+set r_noborder 1 ");
+             "+set r_useFbo 1 ");
 
     Com_Init(cmdline);
 
@@ -767,8 +739,7 @@ int main(int argc, char **argv)
     {   /* BeginRegistration creates the GL context via GLimp_Init. */
         memset(&s_glconfig, 0, sizeof(s_glconfig));
         re->BeginRegistration(&s_glconfig);
-        PANTHEON_MatchClientArea(shotPath ? s_shot.width  : cliW,
-                                 shotPath ? s_shot.height : cliH);
+        PANTHEON_RequireOffscreenTarget();
     }
 
     /* Models and skins must register BEFORE EndRegistration closes the pass,
@@ -868,11 +839,12 @@ int main(int argc, char **argv)
          * out with the loading screen composited on top of the world. Drained
          * here into a buffer nobody reads.
          *
-         * TWICE, because a swap moves the problem rather than solving it: one
-         * EndFrame pushes the loading screen from back to front, where the
-         * next swap brings it straight back under the readback. Two drains
-         * leave both buffers clean, and only then does GL_BACK hold nothing
-         * but the frame that was asked for. */
+         * The second drain was added on the theory that a swap moves stale
+         * pixels between front and back buffers. That theory was wrong --
+         * GLimp_EndFrame never swaps, and the stale pixels were GL pixel
+         * ownership in a window (see PANTHEON_RequireOffscreenTarget). One
+         * drain flushes the queue. The second is kept only because removing
+         * it has not been tested; it costs one empty frame. */
         re->EndFrame(NULL, NULL);
         re->BeginFrame(STEREO_CENTER, qfalse);
         re->EndFrame(NULL, NULL);
@@ -904,13 +876,16 @@ int main(int argc, char **argv)
         int reqW = shotPath ? s_shot.width  : cliW;
         int reqH = shotPath ? s_shot.height : cliH;
         if (s_glconfig.vidWidth != reqW || s_glconfig.vidHeight != reqH) {
-            Com_Printf("^3PANTHEON: asked for %dx%d, the drawable is %dx%d; "
-                       "rendering and reading back at the drawable size\n",
-                       reqW, reqH, s_glconfig.vidWidth, s_glconfig.vidHeight);
-            if (shotPath) { s_shot.width = s_glconfig.vidWidth;
-                            s_shot.height = s_glconfig.vidHeight; }
-            else          { cliW = s_glconfig.vidWidth;
-                            cliH = s_glconfig.vidHeight; }
+            /* A HARD STOP, NOT A WARNING. This used to adopt the smaller size
+             * and carry on, which is how a 5120x2880 request quietly became
+             * a 1280x720 render with one yellow line in a log nobody reads.
+             * A frame that is not the resolution it was asked for is a
+             * different deliverable, and it must not ship as the asked-for
+             * one. */
+            Com_Error(ERR_FATAL, "PANTHEON: asked for %dx%d, the render "
+                      "target is %dx%d; refusing to deliver a different "
+                      "resolution than the shot requested",
+                      reqW, reqH, s_glconfig.vidWidth, s_glconfig.vidHeight);
         }
     }
 
@@ -1091,32 +1066,21 @@ int main(int argc, char **argv)
         re->EndFrame(NULL, NULL);
 
 pantheon_readback:
-        /* READ THE BUFFER THAT WAS JUST PRESENTED, NOT THE ONE BEHIND IT.
+        /* READ FROM THE FRAMEBUFFER OBJECT.
          *
-         * EndFrame ends in SwapBuffers. After the swap the finished image is
-         * in the FRONT buffer and GL_BACK holds whatever was on screen before
-         * -- undefined by the spec, and on this driver the previous contents,
-         * which during startup is the loading screen cgame painted.
+         * RB_SwapBuffers unbinds the FBO to blit the scene into the 64x64 DC
+         * window, calls GLimp_EndFrame, and binds the FBO again "for video
+         * and screenshots" (tr_backend.c). So at this point the FBO is the
+         * read framebuffer, and its colour attachment holds exactly the frame
+         * -- every pixel defined, because nothing on the desktop owns it.
          *
-         * That is the "corner artefact" this renderer has carried from the
-         * beginning: a grid of asset thumbnails and stray UI panels composited
-         * over an otherwise correct world. It was never a corner and never an
-         * artefact. Every frame was simply one buffer stale.
-         *
-         * GL_FRONT is not the answer: the window is hidden, so the driver
-         * hands back black. GL_BACK is correct -- it is the buffer the frame
-         * was drawn into -- PROVIDED nothing stale is left in the pair. See
-         * the double drain after CG_Init. */
-        /* WAIT FOR THE DRIVER BEFORE READING.
-         *
-         * EndFrame ends in SwapBuffers, which is asynchronous: it returns as
-         * soon as the command is queued. Reading immediately catches the
-         * buffer mid-copy, and the result is a frame assembled from two
-         * different moments -- rectangular regions of correct world that do
-         * not line up with each other. glFinish is the only thing that
-         * promises the GL is actually done. */
+         * The earlier comment here explained stale output as one buffer
+         * behind after a swap. That was wrong: GLimp_EndFrame never swaps. The
+         * stale pixels were pixel ownership in a window, which no longer
+         * applies. glFinish stays: readback must wait for the GPU. */
         glFinish();
-        glReadBuffer(GL_BACK);
+        PANTHEON_RequireOffscreenTarget();
+        glReadBuffer(GL_COLOR_ATTACHMENT0_EXT);
         glPixelStorei(GL_PACK_ALIGNMENT, 1);
         glReadPixels(0, 0, w, h, GL_RGB, GL_UNSIGNED_BYTE, pixels);
         if (blurAccum) PANTHEON_BlurAccumulate(blurAccum, pixels, w * h * 3);

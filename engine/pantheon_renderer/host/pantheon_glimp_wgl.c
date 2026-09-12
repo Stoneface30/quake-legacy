@@ -47,11 +47,33 @@ static LRESULT CALLBACK PantheonWndProc(HWND h, UINT m, WPARAM w, LPARAM l)
     return DefWindowProcA(h, m, w, l);
 }
 
+/* GL enums used below, by their spec values. */
+#ifndef GL_MAX_RENDERBUFFER_SIZE_EXT
+#define GL_MAX_RENDERBUFFER_SIZE_EXT 0x84E8
+#endif
+
 /*
- * A window is created because WGL needs a device context, and it is never
- * shown. This is not the hidden-desktop trick: there is no second desktop and
- * no foreground change, because the window never becomes visible at all.
+ * THE WINDOW IS A DEVICE CONTEXT, NOT A PICTURE.
+ *
+ * WGL cannot create a context without a window, so one is created -- tiny,
+ * undecorated, never shown. It is NOT where frames are drawn.
+ *
+ * Until 2026-09-12 it was. The window was created at the render size, and
+ * the renderer drew into its default framebuffer. The GL rule that decides
+ * what such a framebuffer holds is pixel ownership: pixels the window does
+ * not own on the desktop -- behind its title bar, off the edge of the
+ * screen, past the monitor -- are UNDEFINED. That one rule produced both
+ * the long-standing "corner artefact" (an undrawn margin reading back as
+ * texture memory) and the supersampling failure (a 5120x2880 request clipped
+ * to the 3004x1421 the desktop could hold). A headless engine whose output
+ * size is capped by the monitor was never headless.
+ *
+ * Frames now go to a framebuffer object sized from glConfig. An FBO has no
+ * owner on any desktop, so every pixel in it is defined, at any size the GPU
+ * accepts. The window stays PANTHEON_DC_WINDOW square forever.
  */
+#define PANTHEON_DC_WINDOW 64
+
 void GLimp_Init(void)
 {
     WNDCLASSA wc;
@@ -66,9 +88,8 @@ void GLimp_Init(void)
     RegisterClassA(&wc);
 
     s_hwnd = CreateWindowExA(0, "PantheonRenderHost", "pantheon",
-                             WS_OVERLAPPEDWINDOW,   /* never shown */
-                             0, 0, glConfig.vidWidth ? glConfig.vidWidth : 1280,
-                             glConfig.vidHeight ? glConfig.vidHeight : 720,
+                             WS_POPUP,              /* never shown */
+                             0, 0, PANTHEON_DC_WINDOW, PANTHEON_DC_WINDOW,
                              NULL, NULL, wc.hInstance, NULL);
     if (!s_hwnd)
         ri.Error(ERR_FATAL, "PANTHEON: CreateWindow failed (%lu)",
@@ -98,8 +119,20 @@ void GLimp_Init(void)
      * Binding after BeginRegistration returns is binding after first use. */
     PANTHEON_BindGL();
 
-    glConfig.vidWidth = glConfig.vidWidth ? glConfig.vidWidth : 1280;
-    glConfig.vidHeight = glConfig.vidHeight ? glConfig.vidHeight : 720;
+    /* THE SIZE COMES FROM r_mode, AS IT DOES IN EVERY OTHER PLATFORM LAYER.
+     *
+     * sdl_glimp.c:323 fills glConfig.vidWidth/vidHeight from R_GetModeInfo,
+     * which for r_mode -1 reads r_customwidth/r_customheight. This file never
+     * made that call, so glConfig stayed zero and the fallback below made
+     * EVERY PANTHEON render 1280x720, whatever the shot asked for -- measured:
+     * a 5120x2880 shot wrote 1280x720 files, and the host downgraded it with
+     * one warning line. The fallback now only fires if the mode itself is
+     * invalid, and says so. */
+    if (!R_GetModeInfo(&glConfig.vidWidth, &glConfig.vidHeight,
+                       &glConfig.windowAspect, r_mode->integer) ||
+        glConfig.vidWidth <= 0 || glConfig.vidHeight <= 0)
+        ri.Error(ERR_FATAL, "PANTHEON: r_mode %d gives no usable size "
+                 "(r_customwidth/r_customheight unset?)", r_mode->integer);
     glConfig.windowAspect = (float)glConfig.vidWidth / glConfig.vidHeight;
     glConfig.colorBits = 24;
     glConfig.depthBits = 24;
@@ -127,6 +160,48 @@ void GLimp_Init(void)
     ri.Printf(PRINT_ALL, "PANTHEON GL: %s | %s | %s\n",
               glConfig.vendor_string, glConfig.renderer_string,
               glConfig.version_string);
+
+    /* The swap-time blit draws the scene into the DC window at this size.
+     * It is a 64x64 picture nobody reads; the frame is read from the FBO. */
+    glConfig.visibleWindowWidth = PANTHEON_DC_WINDOW;
+    glConfig.visibleWindowHeight = PANTHEON_DC_WINDOW;
+
+    /* SAY WE HAVE A FRAMEBUFFER OBJECT, BECAUSE WE DO.
+     *
+     * InitFrameBufferAndRenderBuffer returns on its first line unless
+     * glConfig.fbo is set, and in the shipped client only sdl_glimp.c ever
+     * sets it. This file never did -- so the FBO code in tr_init.c had never
+     * once run inside PANTHEON, whatever r_useFbo said. Detected the same way
+     * sdl_glimp.c does it: the extension is advertised AND every entry point
+     * PANTHEON_BindGL was asked for came back. */
+    glConfig.fbo = strstr(glConfig.extensions_string,
+                          "GL_EXT_framebuffer_object") &&
+                   qglGenFramebuffersEXT && qglBindFramebufferEXT &&
+                   qglFramebufferTexture2DEXT && qglCheckFramebufferStatusEXT &&
+                   qglGenRenderbuffersEXT && qglBindRenderbufferEXT &&
+                   qglFramebufferRenderbufferEXT && qglRenderbufferStorageEXT;
+    glConfig.fboStencil = glConfig.fbo &&
+        strstr(glConfig.extensions_string, "GL_EXT_packed_depth_stencil") != NULL;
+    glConfig.fboMultiSample = qfalse;   /* r_fboAntiAlias is 0; sampling is ours */
+
+    if (!glConfig.fbo)
+        ri.Error(ERR_FATAL, "PANTHEON: the GL driver offers no usable "
+                 "GL_EXT_framebuffer_object; refusing to fall back to drawing "
+                 "into a window, whose pixels the desktop can take away");
+    {
+        GLint maxRb = 0, maxTex = 0;
+        glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE_EXT, &maxRb);
+        glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTex);
+        if ((maxRb && (glConfig.vidWidth > maxRb || glConfig.vidHeight > maxRb)) ||
+            (maxTex && (glConfig.vidWidth > maxTex || glConfig.vidHeight > maxTex)))
+            ri.Error(ERR_FATAL, "PANTHEON: %dx%d exceeds this GPU's framebuffer "
+                     "limit (renderbuffer %d, texture %d)", glConfig.vidWidth,
+                     glConfig.vidHeight, maxRb, maxTex);
+        ri.Printf(PRINT_ALL, "PANTHEON: offscreen target %dx%d "
+                  "(GPU limit renderbuffer %d, texture %d)%s\n",
+                  glConfig.vidWidth, glConfig.vidHeight, maxRb, maxTex,
+                  glConfig.fboStencil ? ", packed depth-stencil" : "");
+    }
 }
 
 void GLimp_Shutdown(void)
