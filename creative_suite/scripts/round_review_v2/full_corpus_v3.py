@@ -162,9 +162,22 @@ def s_shapes(workers):
     return {"shapes": m.build(out_db=ROOT / "creative_suite/database/frag_shapes.db")}
 
 
+def s_projectile_retry(workers):
+    # first pass crashed on undecoded victim origins (fixed); retry only the
+    # demos that failed -- their frags carry no projectile_path yet
+    c = sqlite3.connect(DB, timeout=120)
+    n = c.execute("DELETE FROM projectile_extracted WHERE status LIKE 'fail%'").rowcount
+    c.commit()
+    c.close()
+    return {"retried_demos": n, **s_projectile(workers)}
+
+
+# reclassify_pre runs before stage2 because stage2 picks its candidates from
+# flick classes (CLEAN_FLICK, EXTREME_FLICK) that only reclassify writes.
 STAGES = [("clear", s_clear), ("view", s_view), ("refine", s_refine),
           ("lg", s_lg), ("projectile", s_projectile), ("health", s_health),
-          ("dodge", s_dodge), ("stage2", s_stage2),
+          ("dodge", s_dodge), ("projectile_retry", s_projectile_retry),
+          ("reclassify_pre", s_reclassify), ("stage2", s_stage2),
           ("reclassify", s_reclassify), ("shapes", s_shapes)]
 
 

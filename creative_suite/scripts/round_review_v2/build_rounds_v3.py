@@ -47,7 +47,7 @@ MIN_BYTES = 512_000
 CHAIN_MS = 6000
 TOP_MOMENT_WEIGHTS = (1.0, 0.60, 0.35)
 SCALE = 20.0
-DISCOUNT = {"TDM": 0.5, "FFA": 0.5}
+DISCOUNT = {"TDM": 0.5, "TEAM": 0.5, "FFA": 0.5}     # TDM is stored as TEAM
 NOT_FOR_MELEE = {"aim", "precision", "movement", "health"}
 
 

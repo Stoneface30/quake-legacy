@@ -487,6 +487,13 @@ def analyze_kills(parsed: dict, kills: list[tuple[int, str, int]],
 
         # 4. DIRECT geometric check + AIR enrichment at impact
         v_imp = victim_at(vc, impact_t)
+        # A victim sample with an undecoded origin axis (delta never sent)
+        # cannot place the bbox; treat it as no sample instead of crashing
+        # the whole demo (2,548 of 2,801 demos failed on this TypeError).
+        if v_imp is not None and None in (v_imp.get("origin_x"),
+                                          v_imp.get("origin_y"),
+                                          v_imp.get("origin_z")):
+            v_imp = None
         if v_imp is not None:
             center = (v_imp["origin_x"], v_imp["origin_y"], v_imp["origin_z"])
             exp = bbox_expansion_needed(impact_pos, center)
