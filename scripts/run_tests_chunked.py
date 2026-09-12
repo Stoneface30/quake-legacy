@@ -33,8 +33,27 @@ def free_gb() -> float:
     return psutil.virtual_memory().available / 2**30 if psutil else float("inf")
 
 
+def data_root_problem() -> str | None:
+    """The suite reads the real corpus. In a git worktree outside
+    `.claude/worktrees/`, engine.pantheon.store resolves the data root to the
+    worktree itself, finds no corpus, and SQLite quietly creates empty
+    databases -- 131 failures on 2026-09-12 that were the location, not the
+    code. Refuse to start instead."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from engine.pantheon import store as S
+    if not S.FRAGS_DB.exists():
+        return (f"no corpus at {S.FRAGS_DB} (data root {S.PROJECT_ROOT}). In a worktree "
+                f"outside .claude/worktrees/, set QUAKE_LEGACY_ROOT to the main checkout; "
+                f"it moves the data root only, and the code (and its build) stay this checkout's.")
+    return None
+
+
 def run(root: Path, *, out: Path | None, min_free_gb: float, timeout: int,
         match: str | None) -> int:
+    problem = data_root_problem()
+    if problem:
+        print(f"refusing to run: {problem}", file=sys.stderr)
+        return 2
     files = sorted(root.rglob("test_*.py"))
     if match:
         files = [f for f in files if match in f.name]

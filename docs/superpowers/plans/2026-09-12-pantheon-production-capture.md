@@ -129,7 +129,9 @@ The default flips (Task 11) only after G1–G4 **and** the user's explicit go.
 Python tests: `E:/PersonalAI/venv/Scripts/python.exe -m pytest <path> -q`
 Build (Git Bash): `cd engine/pantheon_renderer && ./build_host.sh && ./build_cgame.sh`
 
-**Worktree note:** `engine/pantheon_renderer/wolfcamql-11.3-src/` is deliberately untracked (extracted from the archive pinned in `SOURCE.sha256`). In a worktree, junction it from the main checkout before building:
+**Worktree note — data root.** This worktree lives outside `.claude/worktrees/`, so `engine.pantheon.store` resolves the data root to the worktree itself: no corpus, and SQLite silently creates empty databases (131 failures on the first baseline, 2026-09-12). Every test run and every render from this worktree sets `QUAKE_LEGACY_ROOT=G:/QUAKE_LEGACY`, which moves only the data root; `CODE_ROOT`, and so the host binary, stay this checkout's. `scripts/run_tests_chunked.py` refuses to start without a corpus.
+
+**Worktree note — source tree:** `engine/pantheon_renderer/wolfcamql-11.3-src/` is deliberately untracked (extracted from the archive pinned in `SOURCE.sha256`). In a worktree, junction it from the main checkout before building:
 `MSYS_NO_PATHCONV=1 cmd /c mklink /J "<worktree>\engine\pantheon_renderer\wolfcamql-11.3-src" "G:\QUAKE_LEGACY\engine\pantheon_renderer\wolfcamql-11.3-src"`
 
 ---
